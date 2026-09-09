@@ -174,7 +174,7 @@ class _PanelTile extends StatelessWidget {
     // the distributed capture has visible provenance on the grid.
     final assignedLabel = collaborative ? panel.assignedLabel : null;
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

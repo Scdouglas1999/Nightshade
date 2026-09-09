@@ -41,7 +41,7 @@ class MosaicProjectsListScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PageHeader(
+              const PageHeader(
                 icon: NightshadeIcons.grid,
                 title: 'Mosaic projects',
                 actions: [_MosaicBackAction()],

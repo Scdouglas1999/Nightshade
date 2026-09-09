@@ -74,14 +74,14 @@ class NarrativeView extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceLg),
 
           // ── Proof it's optimal: integration-improvement curve. ───────────
-          const SectionHeader(title: 'How deep is deep enough?'),
+          const SectionTitle(title: 'How deep is deep enough?'),
           const SizedBox(height: NightshadeTokens.spaceSm),
           ImprovementCurvePanel(curve: state.improvementCurve),
           const SizedBox(height: NightshadeTokens.spaceLg),
 
           // ── What I fixed / found: the ranked finding cards. ──────────────
           if (report != null && report.findings.isNotEmpty) ...[
-            const SectionHeader(title: 'What I fixed and found'),
+            const SectionTitle(title: 'What I fixed and found'),
             const SizedBox(height: NightshadeTokens.spaceSm),
             NightReportPanel(
               report: report,
@@ -93,7 +93,7 @@ class NarrativeView extends ConsumerWidget {
           ],
 
           // ── Multi-night growth curve. ────────────────────────────────────
-          const SectionHeader(title: 'This project over time'),
+          const SectionTitle(title: 'This project over time'),
           const SizedBox(height: NightshadeTokens.spaceSm),
           GrowthCurvePanel(
             points: state.growthPoints,
@@ -102,7 +102,7 @@ class NarrativeView extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceLg),
 
           // ── Calibrated / annotated detail row. ──────────────────────────
-          const SectionHeader(title: 'Calibrated & annotated'),
+          const SectionTitle(title: 'Calibrated & annotated'),
           const SizedBox(height: NightshadeTokens.spaceSm),
           _CalibratedAnnotatedRow(
             state: state,
@@ -199,8 +199,7 @@ class _HeroSection extends StatelessWidget {
       // explanation is not an affordance at 2am — the workbench already knows
       // this reason, so the narrative states it too.
       final blockedReason = _integrateBlockedReason(state);
-      return NightshadeCard(
-        variant: CardVariant.subtle,
+      return NightshadePanel(
         padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -235,7 +234,7 @@ class _HeroSection extends StatelessWidget {
       );
     }
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: EdgeInsets.zero,
       child: SizedBox(
         height: 460,
@@ -345,7 +344,7 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

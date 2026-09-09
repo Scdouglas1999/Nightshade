@@ -120,7 +120,7 @@ void main() {
     await pumpNarrative(tester);
 
     expect(banner, findsOneWidget);
-    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    final message = tester.widget<NightshadeBanner>(banner).message;
     expect(message, contains('The Darkroom pass for this night failed.'));
     expect(message, contains('could not be created'));
     expect(message, contains('delivering the night'));
@@ -142,8 +142,8 @@ void main() {
 
     await pumpNarrative(tester);
 
-    final widget = tester.widget<NightshadeInlineBanner>(banner);
-    expect(widget.severity, NightshadeAlertSeverity.warning);
+    final widget = tester.widget<NightshadeBanner>(banner);
+    expect(widget.tone, BannerTone.warning);
     expect(widget.message, contains('was stopped'));
     expect(widget.message, contains('12 files are still owed'));
   });
@@ -168,7 +168,7 @@ void main() {
 
     await pumpNarrative(tester);
 
-    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    final message = tester.widget<NightshadeBanner>(banner).message;
     expect(message, isNot(contains('It was Stopped')));
     expect(message, isNot(contains('re-queued. when it stopped')));
     expect(
@@ -193,7 +193,7 @@ void main() {
 
     await pumpNarrative(tester);
 
-    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    final message = tester.widget<NightshadeBanner>(banner).message;
     expect(message, contains('It was Drafting Master · B when it stopped.'));
   });
 
@@ -223,13 +223,16 @@ void main() {
     await pumpNarrative(tester);
 
     expect(banner, findsOneWidget);
-    final widget = tester.widget<NightshadeInlineBanner>(banner);
-    expect(widget.severity, NightshadeAlertSeverity.warning);
-    expect(widget.message, contains('queued and has not run yet'));
+    final widget = tester.widget<NightshadeBanner>(banner);
+    expect(widget.tone, BannerTone.warning);
+    // The state is the banner's TITLE now (NightshadeBanner puts title and
+    // message on one line, and the title names the problem); what is owed
+    // stays in the message, which is the point of the banner.
+    expect(widget.title, contains('queued'));
     expect(
       widget.message,
       contains(
-        'the drafts, the night report, the delivery and the morning message',
+        'The drafts, the night report, the delivery and the morning message',
       ),
       reason: 'what is owed is the point of the banner',
     );
@@ -267,7 +270,7 @@ void main() {
 
     await pumpNarrative(tester);
 
-    final message = tester.widget<NightshadeInlineBanner>(banner).message;
+    final message = tester.widget<NightshadeBanner>(banner).message;
     expect(message, contains('It has been started 2 times already.'));
   });
 
@@ -280,8 +283,8 @@ void main() {
 
     expect(banner, findsNothing, reason: 'a completed pass is not a warning');
     expect(done, findsOneWidget);
-    final widget = tester.widget<NightshadeAlert>(done);
-    expect(widget.severity, NightshadeAlertSeverity.success);
+    final widget = tester.widget<NightshadeBanner>(done);
+    expect(widget.tone, BannerTone.success);
     expect(widget.message, contains('ran to the end'));
     expect(
       widget.message,
@@ -313,7 +316,7 @@ void main() {
     final local = DateTime.utc(2026, 8, 16, 5, 40).toLocal();
     final hhmm = '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
-    expect(tester.widget<NightshadeAlert>(done).message, contains(hhmm));
+    expect(tester.widget<NightshadeBanner>(done).message, contains(hhmm));
   });
 
   testWidgets('a completed pass with no session offers no route',

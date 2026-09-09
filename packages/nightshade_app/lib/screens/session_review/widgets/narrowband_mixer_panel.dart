@@ -199,7 +199,7 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
     final colors = NightshadeColors.of(context);
 
     if (widget.channels.isEmpty) {
-      return const NightshadeCard(
+      return const NightshadePanel(
         child: EmptyState(
           icon: NightshadeIcons.palette,
           title: 'No narrowband masters',
@@ -209,7 +209,7 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
       );
     }
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -117,11 +117,9 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
           padding: const EdgeInsets.symmetric(
             horizontal: NightshadeTokens.spaceMd,
           ),
-          child: SectionHeader(
+          child: SectionTitle(
+            icon: NightshadeIcons.layers,
             title: 'History stack',
-            subtitle: steps.isEmpty
-                ? 'No steps — this renders the linear master'
-                : 'Applied top to bottom',
             // In the heading, outside the scrolling region: the one control
             // that gets an operation INTO the stack is then on screen whether
             // the stack is empty or forty cards deep, and it costs the cards
@@ -289,7 +287,7 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // recipe instead, so every frame states the order the engine will run.
       child: Semantics(
         sortKey: OrdinalSortKey(index.toDouble()),
-        child: NightshadeCard(
+        child: NightshadePanel(
           padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

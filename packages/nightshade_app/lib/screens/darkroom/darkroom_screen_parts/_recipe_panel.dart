@@ -287,7 +287,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         // indented.
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceMd),
-          child: SectionHeader(title: 'Recipe'),
+          child: SectionTitle(icon: NightshadeIcons.sliders, title: 'Recipe'),
         ),
         Expanded(
           child: NotificationListener<ScrollMetricsNotification>(

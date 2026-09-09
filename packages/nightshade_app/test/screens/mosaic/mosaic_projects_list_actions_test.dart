@@ -43,6 +43,14 @@ Widget _app({required bool remote}) => ProviderScope(
       ),
     );
 
+/// The header's back control. It is icon-only now (the "< Back" bar was a
+/// second header row), so it is found by its glyph; its tooltip is its name.
+final Finder _backAction = find.byWidgetPredicate(
+  (widget) =>
+      widget is NightshadeIconButton &&
+      widget.icon == NightshadeIcons.arrowLeft,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -52,7 +60,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Veil'), findsOneWidget);
-    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(_backAction, findsOneWidget);
     expect(
       find.widgetWithText(NightshadeButton, 'New mosaic'),
       findsOneWidget,
@@ -88,6 +96,6 @@ void main() {
 
     expect(
         find.text('Open Mosaic Projects on the imaging host'), findsOneWidget);
-    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(_backAction, findsOneWidget);
   });
 }

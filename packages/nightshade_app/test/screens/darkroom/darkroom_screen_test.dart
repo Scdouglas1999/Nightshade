@@ -459,20 +459,40 @@ void main() {
     },
   );
 
-  testWidgets('a link that names nothing explains itself and offers a way out',
-      (tester) async {
+  // `/darkroom` with no query is a RAIL DESTINATION now (wave 1 added it), not
+  // only a malformed deep link. It used to answer "this link named neither a
+  // recipe nor a master, so there is nothing to open" — a dead end reached by
+  // pressing a nav item, while the host's masters sat in the database the
+  // screen was refusing to read. It lists what there is to open instead.
+  testWidgets('a link that names nothing lists what there is to open', (
+    tester,
+  ) async {
     await pump(tester, const DarkroomScope.empty());
-    expect(find.text('Nothing to open in the Darkroom'), findsOneWidget);
+
     expect(
       find.textContaining('named neither a recipe nor a master'),
-      findsOneWidget,
+      findsNothing,
+      reason: 'the rail must not lead to a refusal',
     );
-    // The header action is suppressed here, so without this the only route out
-    // of the sentinel is the nav rail. The label names the SESSION LIST rather
-    // than a review: this link named no master, so there is no night to open
-    // and the control does not claim there is — it used to say "Back to session
-    // review" and go to Analytics > History, which is neither.
-    expect(find.text('Browse sessions'), findsOneWidget);
+    // The three lists 06-screens names for this screen.
+    expect(find.text('Recipes'), findsOneWidget);
+    expect(find.text('Sessions'), findsOneWidget);
+    expect(find.text('Masters'), findsOneWidget);
+    // The screen still says which screen it is.
+    expect(find.text('Darkroom'), findsOneWidget);
+  });
+
+  testWidgets('an empty host offers ONE empty state, not a refusal', (
+    tester,
+  ) async {
+    await pump(tester, const DarkroomScope.empty());
+    await tester.pump(const Duration(milliseconds: 20));
+
+    expect(find.byType(EmptyState), findsOneWidget);
+    expect(find.text('No recipes yet'), findsOneWidget);
+    // One button, and it goes somewhere on this screen rather than sending the
+    // operator away to find a master by hand.
+    expect(find.text('Browse masters'), findsOneWidget);
   });
 
   testWidgets('a recipe id with no row names the row AND a route back', (
@@ -580,7 +600,6 @@ void main() {
       isFalse,
     );
     expect(find.text('Off — the render skipped it'), findsOneWidget);
-    expect(find.text('1 step · 0 on'), findsOneWidget);
     await drain(tester);
   });
 
@@ -623,10 +642,11 @@ void main() {
 
     // The card snaps back on its own, which reads as a dropped gesture; the
     // engine's sentence stays beside the stack it is about.
-    expect(find.text('That move was refused'), findsOneWidget);
+    expect(find.textContaining('That move was refused', findRichText: true),
+        findsOneWidget);
     expect(
       find.descendant(
-        of: find.byType(NightshadeAlert),
+        of: find.byType(NightshadeBanner),
         matching: find.textContaining('linear operation cannot run after a '
             'stretch'),
       ),
@@ -672,7 +692,9 @@ void main() {
       ),
       findsWidgets,
     );
-    final alert = find.text('Color calibration has no catalogue stars');
+    final alert = find.textContaining(
+        'Color calibration has no catalogue stars',
+        findRichText: true);
     expect(alert, findsOneWidget);
     // Above the recipe's own identity block, which is the reference material
     // that pushed the reason past the fold at desktop width.
@@ -1075,7 +1097,10 @@ void main() {
     final id = await seedRecipe([_step('background_extract')]);
     await pump(tester, DarkroomScope.recipe(id));
 
-    expect(find.text('Color calibration has no catalogue stars'), findsNothing);
+    expect(
+        find.textContaining('Color calibration has no catalogue stars',
+            findRichText: true),
+        findsNothing);
     expect(find.textContaining('no catalogue star'), findsNothing);
   });
 
@@ -1086,7 +1111,10 @@ void main() {
     await pump(tester, DarkroomScope.recipe(id));
 
     expect(find.text('Nothing interpreted yet'), findsOneWidget);
-    expect(find.text('Color calibration has no catalogue stars'), findsNothing);
+    expect(
+        find.textContaining('Color calibration has no catalogue stars',
+            findRichText: true),
+        findsNothing);
   });
 
   testWidgets('every step-card control publishes its name on ONE operable node',
@@ -1341,7 +1369,9 @@ void main() {
     final scope = DarkroomScope.recipe(id);
     final handle = await pump(tester, scope);
 
-    expect(find.text('This stack does not validate'), findsOneWidget);
+    expect(
+        find.textContaining('This stack does not validate', findRichText: true),
+        findsOneWidget);
 
     handle.container
         .read(darkroomControllerProvider(scope).notifier)
@@ -1350,8 +1380,11 @@ void main() {
 
     // The render replays enabled steps only, so a step that is off cannot make
     // the stack unrenderable — and the panel stops saying it does.
-    expect(find.text('This stack does not validate'), findsNothing);
-    expect(find.text('The render did not finish'), findsNothing);
+    expect(
+        find.textContaining('This stack does not validate', findRichText: true),
+        findsNothing);
+    expect(find.textContaining('The render did not finish', findRichText: true),
+        findsNothing);
     // The step itself still says what this build cannot do with it.
     expect(
       find.textContaining('This build registers no stretch@99'),
@@ -1432,12 +1465,20 @@ void main() {
     );
     await pump(tester, DarkroomScope.recipe(id));
 
-    expect(find.text('The draft left one operation out'), findsOneWidget);
+    expect(
+        find.textContaining('The draft left one operation out',
+            findRichText: true),
+        findsOneWidget);
     // Collapsed: whole words and an explicit mark, never a clause cut in half
     // by wherever the panel's scroll fold happens to land.
+    //
+    // Read off the banner rather than off a `Text`: NightshadeBanner paints its
+    // title and message as ONE `Text.rich`, so `text.data` is null there and
+    // the joined plain text would carry the title in front of the message this
+    // test is measuring.
     final collapsed = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((text) => text.data)
+        .widgetList<NightshadeBanner>(find.byType(NightshadeBanner))
+        .map((banner) => banner.message)
         .whereType<String>()
         .firstWhere((data) => data.startsWith('Color calibrate — omitted:'));
     expect(collapsed.endsWith('…'), isTrue, reason: collapsed);
@@ -1456,8 +1497,11 @@ void main() {
     // existed sat below it; sharing the alert's box is what makes them share a
     // viewport whatever the panel's height.
     final alert = find.ancestor(
-      of: find.textContaining('Color calibrate — omitted:'),
-      matching: find.byType(NightshadeAlert),
+      of: find.textContaining(
+        'Color calibrate — omitted:',
+        findRichText: true,
+      ),
+      matching: find.byType(NightshadeBanner),
     );
     expect(alert, findsOneWidget);
     final expand = find.descendant(
@@ -1485,7 +1529,7 @@ void main() {
       find.descendant(
         of: find.ancestor(
           of: find.textContaining('draft that composite'),
-          matching: find.byType(NightshadeAlert),
+          matching: find.byType(NightshadeBanner),
         ),
         matching: find.widgetWithText(NightshadeButton, 'Show less'),
       ),
@@ -1641,7 +1685,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
     expect(find.byType(NightshadeToast), findsNothing);
-    expect(find.text('That move was refused'), findsOneWidget);
+    expect(find.textContaining('That move was refused', findRichText: true),
+        findsOneWidget);
 
     // The same move, refused for the same reason, produces a byte-identical
     // sentence. Deduping on the words swallowed this one entirely, so the
@@ -1665,7 +1710,8 @@ void main() {
       handle.container.read(darkroomControllerProvider(scope)).reorderRefusal,
       isNull,
     );
-    expect(find.text('That move was refused'), findsNothing);
+    expect(find.textContaining('That move was refused', findRichText: true),
+        findsNothing);
     await drain(tester);
   });
 

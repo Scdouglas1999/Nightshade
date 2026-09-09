@@ -165,8 +165,7 @@ class _VerdictHeader extends StatelessWidget {
     final score = report.score.clamp(0, 100);
     final scoreColor = graded ? _scoreColor(score, colors) : colors.textMuted;
 
-    return NightshadeCard(
-      variant: CardVariant.elevated,
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceXl),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -409,7 +408,7 @@ class _FindingCard extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final style = _SeverityStyle.of(finding.severity, colors);
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: EdgeInsets.zero,
       child: IntrinsicHeight(
         child: Row(
@@ -748,8 +747,7 @@ class _NoFindings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Row(
         children: [
@@ -777,8 +775,7 @@ class _AnalysisPending extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const NightshadeCard(
-      variant: CardVariant.subtle,
+    return const NightshadePanel(
       padding: EdgeInsets.all(NightshadeTokens.spaceLg),
       child: EmptyState.compact(
         icon: NightshadeIcons.brain,

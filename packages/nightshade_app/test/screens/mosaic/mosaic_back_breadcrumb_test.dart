@@ -6,6 +6,12 @@
 // Framing, or from the sequencer mosaic wizard, pressing '< Mosaic projects'
 // returns to THAT screen, not to the projects list. Only an empty stack — where
 // the handler falls back to context.go('/mosaic') — really lands there.
+//
+// The Observatory overhaul folded that full-width row into a header action
+// (04-shell §4 gives this screen ONE header, and the row was a second one), so
+// the promise now lives in the control's tooltip, which is also its accessible
+// name. The lie is still the thing being guarded against; only where it would
+// be written has moved.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -24,7 +30,7 @@ class _FixedBackendNotifier extends BackendNotifier {
   }
 }
 
-/// The remote guard renders the screen's chrome (including the back bar) with
+/// The remote guard renders the screen's chrome (including the header) with
 /// no database work, which is all this test needs.
 List<Override> _overrides() => [
       backendProvider.overrideWith(
@@ -40,61 +46,21 @@ Widget _app(Widget home) => ProviderScope(
       child: MaterialApp(theme: NightshadeTheme.dark, home: home),
     );
 
-void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+/// The header's back control, whatever it currently promises.
+final Finder _backAction = find.byWidgetPredicate(
+  (widget) =>
+      widget is NightshadeIconButton &&
+      widget.icon == NightshadeIcons.arrowLeft,
+);
 
-  testWidgets(
-      'an empty stack promises the projects list, because it goes there',
-      (tester) async {
-    await tester.pumpWidget(_app(
-      const MosaicProjectScreen(projectId: 42, artifactsBaseDir: '/m'),
-    ));
-    await tester.pump();
+/// What that control promises, in the words a pointer and a screen reader both
+/// get.
+String _promise(WidgetTester tester) =>
+    tester.widget<NightshadeIconButton>(_backAction).tooltip;
 
-    expect(find.text('Mosaic projects'), findsOneWidget);
-    expect(find.text('Back'), findsNothing);
-  });
-
-  testWidgets('pushed on top of another screen it says Back', (tester) async {
-    await tester.pumpWidget(_app(
-      Builder(
-        builder: (context) => Scaffold(
-          body: TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                // Stands in for the Collaborative Sky mosaic detail, which
-                // pushes exactly this route after "Join mosaic".
-                builder: (_) => const MosaicProjectScreen(
-                  projectId: 42,
-                  artifactsBaseDir: '/m',
-                ),
-              ),
-            ),
-            child: const Text('join'),
-          ),
-        ),
-      ),
-    ));
-    await tester.tap(find.text('join'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Mosaic projects'), findsNothing,
-        reason: 'this control returns to whatever pushed it, not to the list');
-    expect(find.text('Back'), findsOneWidget);
-
-    // ...and it really does return there.
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
-    expect(find.text('join'), findsOneWidget);
-  });
-
-  // The whole row is one control. A bare Text beside an IconButton leaves a
-  // click on the WORD doing nothing, and publishes `panel: Back` with no
-  // role.
-  testWidgets('the label is part of the control, and the control is a button',
-      (tester) async {
-    final handle = tester.ensureSemantics();
-    await tester.pumpWidget(_app(
+/// Push the mosaic project screen on top of [label], the way the Collaborative
+/// Sky detail and the sequencer wizard both do.
+Widget _pushedOver(String label) => _app(
       Builder(
         builder: (context) => Scaffold(
           body: Center(
@@ -107,29 +73,62 @@ void main() {
                   ),
                 ),
               ),
-              child: const Text('open'),
+              child: Text(label),
             ),
           ),
         ),
       ),
-    ));
+    );
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+      'an empty stack promises the projects list, because it goes '
+      'there', (tester) async {
+    await tester.pumpWidget(
+      _app(const MosaicProjectScreen(projectId: 42, artifactsBaseDir: '/m')),
+    );
+    await tester.pump();
+
+    expect(_promise(tester), 'Back to mosaic projects');
+  });
+
+  testWidgets('pushed on top of another screen it does not promise the list', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pushedOver('join'));
+    await tester.tap(find.text('join'));
+    await tester.pumpAndSettle();
+
+    expect(
+      _promise(tester),
+      isNot(contains('mosaic projects')),
+      reason: 'this control returns to whatever pushed it, not to the list',
+    );
+
+    // ...and it really does return there.
+    await tester.tap(_backAction);
+    await tester.pumpAndSettle();
+    expect(find.text('join'), findsOneWidget);
+  });
+
+  // An icon-only control with no accessible name publishes as a role with
+  // nothing to say where it goes.
+  testWidgets('the control is a named, enabled button', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_pushedOver('open'));
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    final button = find.ancestor(
-      of: find.text('Back'),
-      matching: find.byType(TextButton),
-    );
-    expect(button, findsOneWidget);
-
-    final node = tester.getSemantics(find.text('Back'));
+    final node = tester.getSemantics(_backAction);
     expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(node.label, contains('Back'));
 
-    // Clicking the WORD leaves, which is what the live drive could not do.
-    await tester.tap(find.text('Back'));
+    await tester.tap(_backAction);
     await tester.pumpAndSettle();
-    expect(find.text('Back'), findsNothing);
+    expect(_backAction, findsNothing);
     handle.dispose();
   });
 }

@@ -387,7 +387,16 @@ void main() {
 
     testWidgets('Refresh is still there beside it', (tester) async {
       await pumpScreen(tester, const SessionReviewScope.session(1));
-      expect(find.text('Refresh'), findsOneWidget);
+      // Icon-only in the page header now (05 §6), so it is named by its
+      // tooltip — which is the only name a screen reader gets either.
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is NightshadeIconButton &&
+              widget.icon == NightshadeIcons.refresh,
+        ),
+        findsOneWidget,
+      );
       await unmount(tester);
     });
   });

@@ -444,7 +444,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SectionHeader(title: 'Options'),
+          const SectionTitle(icon: NightshadeIcons.sliders, title: 'Options'),
           const SizedBox(height: NightshadeTokens.spaceSm),
           NightshadeSwitchRow(
             label: 'Apply calibration',

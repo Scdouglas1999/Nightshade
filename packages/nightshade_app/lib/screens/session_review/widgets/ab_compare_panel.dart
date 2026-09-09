@@ -108,7 +108,7 @@ class _AbComparePanelState extends State<AbComparePanel> {
     final colors = NightshadeColors.of(context);
     final recipeA = _recipeA;
     final recipeB = _recipeB;
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
         child: Column(
@@ -223,8 +223,7 @@ class _RecipeColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(
@@ -536,8 +535,7 @@ class _DiffStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(

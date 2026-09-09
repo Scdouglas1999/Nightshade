@@ -72,7 +72,7 @@ class ImprovementCurvePanel extends StatelessWidget {
     final keptColor = colors.success;
     final tailColor = colors.warning;
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: NightshadeTokens.cardPadding,
         child: Column(
@@ -325,8 +325,7 @@ class ImprovementCurvePanel extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    return const NightshadeCard(
-      variant: CardVariant.subtle,
+    return const NightshadePanel(
       child: Padding(
         padding: NightshadeTokens.cardPadding,
         child: AdaptiveChartContainer.fixed(

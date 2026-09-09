@@ -138,8 +138,8 @@ void main() {
     await pump(tester);
 
     expect(banner, findsOneWidget);
-    final widget = tester.widget<NightshadeInlineBanner>(banner);
-    expect(widget.severity, NightshadeAlertSeverity.warning);
+    final widget = tester.widget<NightshadeBanner>(banner);
+    expect(widget.tone, BannerTone.warning);
     expect(widget.message, contains('interrupted before it finished'));
     expect(
       widget.message,
@@ -171,7 +171,7 @@ void main() {
 
     await pump(tester);
 
-    final widget = tester.widget<NightshadeInlineBanner>(banner);
+    final widget = tester.widget<NightshadeBanner>(banner);
     expect(widget.message, contains('the newer one'));
     expect(widget.message, isNot(contains('the older one')));
   });
@@ -236,7 +236,7 @@ void main() {
       );
 
       expect(
-        tester.widget<NightshadeInlineBanner>(banner).message,
+        tester.widget<NightshadeBanner>(banner).message,
         'The Darkroom pass was interrupted before it finished. The job is '
         're-queued.',
       );

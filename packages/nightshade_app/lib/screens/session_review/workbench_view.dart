@@ -179,7 +179,8 @@ class _LeftColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SectionHeader(title: 'Subs & culling'),
+        const SectionTitle(
+            icon: NightshadeIcons.image, title: 'Subs & culling'),
         const SizedBox(height: NightshadeTokens.spaceSm),
         // SubCullRail extends the existing sub gallery: blink + bulk-reject
         // plus multi-select / lasso cull and a curve-linked "drop to keepN".
@@ -236,10 +237,11 @@ class _RightColumn extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
         ],
         // ── Master with every overlay toggle. ────────────────────────────
-        const SectionHeader(title: 'Master & overlays'),
+        const SectionTitle(
+            icon: NightshadeIcons.layers, title: 'Master & overlays'),
         const SizedBox(height: NightshadeTokens.spaceSm),
         if (previewPath != null)
-          NightshadeCard(
+          NightshadePanel(
             padding: EdgeInsets.zero,
             child: SizedBox(
               height: 480,
@@ -258,8 +260,7 @@ class _RightColumn extends ConsumerWidget {
             ),
           )
         else
-          NightshadeCard(
-            variant: CardVariant.subtle,
+          NightshadePanel(
             padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
             child: Row(
               children: [
@@ -326,13 +327,15 @@ class _RightColumn extends ConsumerWidget {
         // ── Per-sub field quality (PSF map). ─────────────────────────────
         // Reuses the shared PsfFieldMapView painter — the same one the
         // diagnostics surface renders — at per-sub granularity.
-        const SectionHeader(title: 'Optical field quality'),
+        const SectionTitle(
+            icon: NightshadeIcons.crosshair, title: 'Optical field quality'),
         const SizedBox(height: NightshadeTokens.spaceSm),
         _FieldQualityCard(subs: state.acceptedLights),
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── Narrowband channel mixer. ────────────────────────────────────
-        const SectionHeader(title: 'Narrowband mixer'),
+        const SectionTitle(
+            icon: NightshadeIcons.sliders, title: 'Narrowband mixer'),
         const SizedBox(height: NightshadeTokens.spaceSm),
         nb.NarrowbandMixerPanel(
           // Bridge the controller's canonical channel refs (which carry the
@@ -361,15 +364,17 @@ class _RightColumn extends ConsumerWidget {
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── A/B compare two integration recipes. ─────────────────────────
-        const SectionHeader(title: 'A / B compare'),
+        const SectionTitle(
+            icon: NightshadeIcons.layers, title: 'A / B compare'),
         const SizedBox(height: NightshadeTokens.spaceSm),
         AbComparePanel(controller: controller),
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── Integration settings + actions. ──────────────────────────────
-        const SectionHeader(title: 'Integration settings'),
+        const SectionTitle(
+            icon: NightshadeIcons.sliders, title: 'Integration settings'),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        NightshadeCard(
+        NightshadePanel(
           padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
           child: IntegrationSettingsPanel(
             settings: state.settings,
@@ -427,7 +432,7 @@ class _FinishingActions extends StatelessWidget {
         master!.masterFitsPath!.trim().isNotEmpty;
     final busy = state.busy;
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -572,7 +577,7 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
     final colors = NightshadeColors.of(context);
     final subs = widget.subs;
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -708,7 +713,7 @@ class _NarrowbandCompositeCard extends StatelessWidget {
     final dims =
         (c.width > 0 && c.height > 0) ? '${c.width}×${c.height}' : null;
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

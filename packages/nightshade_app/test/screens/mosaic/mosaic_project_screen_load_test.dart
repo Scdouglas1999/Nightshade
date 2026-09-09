@@ -44,6 +44,14 @@ class _ControllerCountingObserver extends ProviderObserver {
   int get distinctArgs => arguments.toSet().length;
 }
 
+/// The header's back control. It is icon-only now (the "< Back" bar was a
+/// second header row), so it is found by its glyph and named by its tooltip.
+final Finder _backAction = find.byWidgetPredicate(
+  (widget) =>
+      widget is NightshadeIconButton &&
+      widget.icon == NightshadeIcons.arrowLeft,
+);
+
 void main() {
   late NightshadeDatabase db;
   late MosaicProjectsDao projectsDao;
@@ -235,7 +243,7 @@ void main() {
     expect(find.textContaining('Planning'), findsOneWidget);
 
     // Leave, and let the world move on underneath.
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(_backAction);
     await tester.pump(const Duration(milliseconds: 400));
     await projectsDao.updateStatus(projectId, MosaicProjectStatus.capturing);
 
@@ -304,8 +312,8 @@ void main() {
         (ref) async => '/tmp/nightshade_mosaic_test',
       ),
     );
-    expect(find.byTooltip('Back'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    expect(_backAction, findsOneWidget);
+    await tester.tap(_backAction);
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('open'), findsOneWidget);
 
@@ -317,7 +325,7 @@ void main() {
       ),
     );
     expect(find.text('Mosaic storage unavailable'), findsOneWidget);
-    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(_backAction, findsOneWidget);
 
     // Not-found state.
     await pumpPushed(
@@ -327,7 +335,7 @@ void main() {
       ),
     );
     expect(find.text('Mosaic project not found'), findsOneWidget);
-    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(_backAction, findsOneWidget);
 
     await disposeScreen(tester);
   });

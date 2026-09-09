@@ -267,11 +267,11 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
     MosaicProjectController controller,
   ) {
     if (state.isLoading && state.project == null) {
-      return Column(
+      return const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _MosaicProjectHeaderBar(),
-          const Expanded(
+          _MosaicProjectHeaderBar(),
+          Expanded(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -324,10 +324,9 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                 MosaicProjectActions(state: state, controller: controller),
                 if (controller.canCollaborate) ...[
                   const SizedBox(height: NightshadeTokens.spaceLg),
-                  const SectionHeader(
+                  const SectionTitle(
+                    icon: NightshadeIcons.share,
                     title: 'Collaborative mosaic',
-                    subtitle:
-                        'Split the panels across your club and fuse centrally',
                   ),
                   const SizedBox(height: NightshadeTokens.spaceSm),
                   MosaicCollaborativeSection(
@@ -336,9 +335,9 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                   ),
                 ],
                 const SizedBox(height: NightshadeTokens.spaceLg),
-                const SectionHeader(
+                const SectionTitle(
+                  icon: NightshadeIcons.grid,
                   title: 'Panels',
-                  subtitle: 'Per-panel capture, integration, and master',
                 ),
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 MosaicPanelGrid(
@@ -373,9 +372,9 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                 ),
                 if (state.isComplete) ...[
                   const SizedBox(height: NightshadeTokens.spaceXl),
-                  const SectionHeader(
+                  const SectionTitle(
+                    icon: NightshadeIcons.layers,
                     title: 'Stitched master',
-                    subtitle: 'The composited mosaic across all panels',
                   ),
                   const SizedBox(height: NightshadeTokens.spaceSm),
                   MosaicStitchedMasterView(master: state.stitchedMaster!),
@@ -550,10 +549,17 @@ class _MosaicProjectBackAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Truthful by construction, exactly as the row it replaces was. This
+    // screen is pushed from four places — the projects list, Framing, the
+    // sequencer mosaic wizard and the Collaborative Sky mosaic detail — and the
+    // control POPS, so it can only promise the projects list in the one case
+    // where [_leave] really goes there: an empty stack.
     final canPop = Navigator.of(context).canPop();
     return NightshadeIconButton(
       icon: NightshadeIcons.arrowLeft,
-      tooltip: canPop ? 'Back' : 'Back to mosaic projects',
+      tooltip: canPop
+          ? 'Back to where this mosaic was opened from'
+          : 'Back to mosaic projects',
       onPressed: () => _leave(context),
     );
   }
@@ -587,7 +593,7 @@ class MosaicProjectActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final canStitch = state.canStitch;
-    return NightshadeCard(
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -689,7 +695,7 @@ class MosaicCollaborativeSection extends StatelessWidget {
     final collabStatus = state.collabStatus;
     final isOwner = role == 'owner';
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -930,7 +936,7 @@ class MosaicStitchedMasterView extends StatelessWidget {
     final preview = master.previewPngPath;
     return SizedBox(
       height: 520,
-      child: NightshadeCard(
+      child: NightshadePanel(
         padding: EdgeInsets.zero,
         child: ClipRRect(
           borderRadius: NightshadeTokens.borderRadiusMd,

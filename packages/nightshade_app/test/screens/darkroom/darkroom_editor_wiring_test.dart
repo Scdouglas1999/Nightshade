@@ -474,7 +474,10 @@ void main() {
     expect(find.text('Stretch'), findsOneWidget);
     // And the operation it decided about and did not carry, with its reason —
     // which used to reach the night report on disk and nothing else.
-    expect(find.text('The draft left one operation out'), findsOneWidget);
+    expect(
+        find.textContaining('The draft left one operation out',
+            findRichText: true),
+        findsOneWidget);
     expect(
       find.textContaining('the colour fit needs three'),
       findsOneWidget,
@@ -958,7 +961,10 @@ void main() {
     // Before: the dialog's whole body was "The recipe row goes; the linear
     // master it renders does not", and the child only appeared in a refusal
     // AFTER the operator confirmed a destructive action.
-    expect(find.text('One branch diverges from this one'), findsOneWidget);
+    expect(
+        find.textContaining('One branch diverges from this one',
+            findRichText: true),
+        findsOneWidget);
     expect(find.textContaining('Warmer'), findsWidgets);
     // Agreeing in number with the one branch it names, not with a plural the
     // sentence was written for.
@@ -1094,7 +1100,10 @@ void main() {
 
     // The receipt says what was read and that the pixels are not the ones the
     // sidecar was written over.
-    expect(find.text('Imported from a .nsrecipe sidecar'), findsOneWidget);
+    expect(
+        find.textContaining('Imported from a .nsrecipe sidecar',
+            findRichText: true),
+        findsOneWidget);
     expect(find.textContaining('Imported 2 steps from'), findsOneWidget);
     expect(find.textContaining('somewhere_else.fits'), findsOneWidget);
     expect(find.textContaining('Every step validates'), findsOneWidget);
@@ -1170,7 +1179,10 @@ void main() {
 
     expect(await recipes.listForMaster(_masterPath), isEmpty);
     expect(
-      find.textContaining('carries a recipe with no steps'),
+      find.textContaining(
+        'carries a recipe with no steps',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     await drain(tester);
@@ -1242,12 +1254,20 @@ void main() {
     final alert = find.byKey(const ValueKey('darkroom_import_refusal'));
     expect(alert, findsOneWidget);
     expect(
-      find.textContaining('carries a recipe with no steps'),
+      find.textContaining(
+        'carries a recipe with no steps',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
 
     await tester.tap(
-      find.descendant(of: alert, matching: find.byType(IconButton)),
+      // NightshadeBanner's dismiss is a NightshadeIconButton (05 §6), not a
+      // Material IconButton.
+      find.descendant(
+        of: alert,
+        matching: find.byType(NightshadeIconButton),
+      ),
     );
     await settle(tester);
     expect(alert, findsNothing);
@@ -1274,8 +1294,9 @@ void main() {
     await settle(tester);
 
     final message = tester
-        .widgetList<NightshadeAlert>(find.byType(NightshadeAlert))
-        .map((alert) => alert.message)
+        .widgetList<NightshadeBanner>(find.byType(NightshadeBanner))
+        .map((banner) => banner.message)
+        .whereType<String>()
         .singleWhere((text) => text.contains('was not imported'));
     expect(message, startsWith('notjson.nsrecipe was not imported:'));
     expect(message, contains('not JSON'));
@@ -1314,8 +1335,10 @@ void main() {
     await settle(tester);
 
     final refusal = tester
-        .widgetList<NightshadeAlert>(find.byType(NightshadeAlert))
-        .singleWhere((alert) => alert.message.contains('was not imported'));
+        .widgetList<NightshadeBanner>(find.byType(NightshadeBanner))
+        .singleWhere(
+          (banner) => banner.message?.contains('was not imported') ?? false,
+        );
     expect(
       refusal.onDismiss,
       isNotNull,
@@ -1327,7 +1350,12 @@ void main() {
     expect(find.textContaining('was not imported'), findsOneWidget);
 
     await tester.tap(
-      find.descendant(of: alert, matching: find.byType(IconButton)),
+      // NightshadeBanner's dismiss is a NightshadeIconButton (05 §6), not a
+      // Material IconButton.
+      find.descendant(
+        of: alert,
+        matching: find.byType(NightshadeIconButton),
+      ),
     );
     await settle(tester);
 
@@ -1352,18 +1380,22 @@ void main() {
     expect(find.text('Master · B has no recipe yet'), findsOneWidget);
 
     // The header action is a bare fragment with a tap on it and the header's
-    // title and subtitle are fragments with none, so in THIS layout — whose
-    // body publishes its own boundary — the two merged and the whole header
-    // reached AT-SPI as one button named "Darkroom / No recipe yet / Reload".
-    // The editor layout escaped it only because its body has actions of its
-    // own to be incompatible with, which is why one state of one screen read
-    // correctly and the other did not.
+    // words are fragments with none, so in THIS layout — whose body publishes
+    // its own boundary — the two merged and the whole header reached AT-SPI as
+    // one button named "Darkroom / No recipe yet / Reload". The editor layout
+    // escaped it only because its body has actions of its own to be
+    // incompatible with, which is why one state of one screen read correctly
+    // and the other did not.
+    //
+    // The subtitle is gone (04-shell §4 has no slot for one), so the header's
+    // words are now the page TITLE — which makes the merge worse if it comes
+    // back, not better: the screen's name would only be readable as part of a
+    // control's.
     final reload = find.widgetWithText(NightshadeButton, 'Reload');
     final node = tester.getSemantics(reload);
     final data = node.getSemanticsData();
     expect(data.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(data.label, contains('Reload'));
-    expect(data.label, isNot(contains('No recipe yet')));
     expect(data.label, isNot(contains('Darkroom')));
     expect(node.rect.size, tester.getSize(reload));
 
@@ -1372,7 +1404,10 @@ void main() {
     void visit(SemanticsNode node) {
       if (node.isMergedIntoParent) return;
       final data = node.getSemanticsData();
-      if (data.label.contains('No recipe yet')) {
+      // The page TITLE exactly, not any label containing the word: the Back
+      // control's own name ("Back to where the Darkroom was opened from") is a
+      // button, and legitimately so.
+      if (data.label == 'Darkroom') {
         spoken.add(data.label);
         expect(data.hasFlag(SemanticsFlag.isButton), isFalse);
       }
@@ -1383,7 +1418,12 @@ void main() {
     }
 
     visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
-    expect(spoken, isNotEmpty);
+    expect(
+      spoken,
+      isNotEmpty,
+      reason: 'the page title must be readable on its own node, not only '
+          'inside a button\'s name',
+    );
     handle.dispose();
     await drain(tester);
   });

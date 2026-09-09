@@ -322,31 +322,45 @@ void main() {
       matching: find.byType(Scrollable),
     );
     final position = tester.state<ScrollableState>(region.first).position;
-    // Taken before the tap: `region` is anchored on the "Show more" label,
-    // which the expansion renames, and the panel itself does not move.
-    final viewportTop = tester.getRect(region.first).top;
     expect(
       position.pixels,
       0,
       reason: 'the panel opens at the top; the account is below the controls',
     );
+    // Taken before the tap: `region` is anchored on the "Show more" label,
+    // which the expansion renames, and the panel itself does not move.
+    final viewportTop = tester.getRect(region.first).top;
+
+    // NightshadeBanner puts the title and the message on one line and carries
+    // its action on a row of its own at this width, so the account is taller
+    // than the bordered alert it replaced and this control now starts below
+    // the fold. Bring it on screen the way an operator scrolling to it would:
+    // what is under test is what the EXPAND does to the scroll, not what
+    // reaching the button costs.
+    final expander = find.widgetWithText(NightshadeButton, 'Show more');
+    await tester.ensureVisible(expander);
+    await settle(tester);
+    final beforeExpand = position.pixels;
 
     // Through the button rather than its label: the label is inside an
     // `ExcludeSemantics` the hit test does not stop at.
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Show more'));
+    await tester.tap(expander);
     await settle(tester);
 
     expect(find.text('Show less'), findsOneWidget);
     expect(
       position.pixels,
-      greaterThan(0),
+      isNot(beforeExpand),
       reason: 'this is the scroll that never happened: the expanded text grew '
           'past the fold and nothing moved to follow it',
     );
 
-    // The account's heading, which sits at the top of the alert that just grew.
+    // The account's heading, which sits at the top of the banner that just
+    // grew. It is the banner's TITLE, painted in the same `Text.rich` as its
+    // message, so it is matched as rich text.
     const heading = 'The draft left 2 operations out';
-    final headingTop = tester.getRect(find.text(heading)).top;
+    final headingTop =
+        tester.getRect(find.textContaining(heading, findRichText: true)).top;
     expect(
       headingTop,
       greaterThanOrEqualTo(viewportTop - 1),

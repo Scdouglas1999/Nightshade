@@ -63,9 +63,9 @@ class MasterLibraryPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
+        SectionTitle(
+          icon: NightshadeIcons.layers,
           title: 'Masters',
-          subtitle: 'Finished + accumulating masters for this target.',
           trailing: NightshadeButton(
             label: 'New accumulating',
             icon: NightshadeIcons.add,
@@ -77,8 +77,7 @@ class MasterLibraryPanel extends StatelessWidget {
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         if (masters.isEmpty)
-          NightshadeCard(
-            variant: CardVariant.subtle,
+          NightshadePanel(
             padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
             child: Row(
               children: [
