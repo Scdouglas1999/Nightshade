@@ -798,8 +798,15 @@ class _AddToProfileLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    // `enabled` and `onTap` both matter: a Semantics node marked `button` with
+    // neither reports as DISABLED to AT-SPI, so a screen reader (and the audit
+    // harness) sees a dead control where the link works fine with a mouse.
     return Semantics(
       button: true,
+      enabled: true,
+      label: 'Add to profile',
+      onTap: onTap,
+      excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(

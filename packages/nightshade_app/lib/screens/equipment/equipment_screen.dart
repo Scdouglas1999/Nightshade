@@ -141,6 +141,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         : null;
 
     final tabIndex = firstRun ? 0 : ref.watch(equipmentTabIndexProvider);
+    final narrowHeader = MediaQuery.sizeOf(context).width <
+        ShellChromeMetrics.shellLayoutBreakpoint;
 
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
@@ -167,20 +169,40 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             ),
             actions: [
               const _ConnectionStatusSummary(),
-              NightshadeButton(
-                label: 'Disconnect all',
-                icon: LucideIcons.unplug,
-                variant: ButtonVariant.secondary,
-                size: ButtonSize.small,
-                onPressed: _disconnectAllDevices,
-              ),
-              NightshadeButton(
-                label: 'Scan for devices',
-                icon: LucideIcons.search,
-                size: ButtonSize.small,
-                onPressed: () =>
-                    ref.read(discoveryScanRequestProvider.notifier).state++,
-              ),
+              // Below the shell breakpoint the two labels cost ~200 px the
+              // 700 px header does not have, and the TITLE was the thing that
+              // gave way ("Equi…"). The verbs move into the tooltips instead:
+              // a truncated screen name is a worse trade than an icon.
+              if (narrowHeader)
+                NightshadeIconButton(
+                  icon: LucideIcons.unplug,
+                  tooltip: 'Disconnect all',
+                  onPressed: _disconnectAllDevices,
+                )
+              else
+                NightshadeButton(
+                  label: 'Disconnect all',
+                  icon: LucideIcons.unplug,
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: _disconnectAllDevices,
+                ),
+              if (narrowHeader)
+                NightshadeIconButton(
+                  icon: LucideIcons.search,
+                  tooltip: 'Scan for devices',
+                  selected: true,
+                  onPressed: () =>
+                      ref.read(discoveryScanRequestProvider.notifier).state++,
+                )
+              else
+                NightshadeButton(
+                  label: 'Scan for devices',
+                  icon: LucideIcons.search,
+                  size: ButtonSize.small,
+                  onPressed: () =>
+                      ref.read(discoveryScanRequestProvider.notifier).state++,
+                ),
             ],
           ),
           Expanded(

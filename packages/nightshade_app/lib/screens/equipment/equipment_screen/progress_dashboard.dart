@@ -561,9 +561,15 @@ class _EmptySlotPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    // See the note on the "Add to profile" link: a `button` node with no
+    // `enabled`/`onTap` is reported DISABLED even though the InkWell beneath
+    // it works.
     return Semantics(
       button: true,
+      enabled: true,
       label: 'Add rotator, dome, flat panel, weather',
+      onTap: () => ref.read(discoveryScanRequestProvider.notifier).state++,
+      excludeSemantics: true,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
