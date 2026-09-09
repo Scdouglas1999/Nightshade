@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+import 'settings_finders.dart';
 
 int _settingsAttempts = 0;
 int _styleAttempts = 0;
@@ -154,7 +155,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.tap(find.byTooltip('Annotation presets'));
+    await tester.tap(findByTooltip('Annotation presets'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Saved presets unavailable:'), findsOneWidget);

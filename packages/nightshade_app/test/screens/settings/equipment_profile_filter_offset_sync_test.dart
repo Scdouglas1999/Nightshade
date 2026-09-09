@@ -11,6 +11,7 @@ import 'package:nightshade_app/screens/settings/equipment_profiles_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
+import 'settings_finders.dart';
 
 const _emptyRig = EquipmentProfileModel(
   id: 7,
@@ -95,7 +96,7 @@ void main() {
     expect(find.text('Filter Focus Offsets'), findsOneWidget);
     expect(_filterNameFields, findsOneWidget);
 
-    await tester.tap(find.byTooltip('Add filter'));
+    await tester.tap(findByTooltip('Add filter'));
     await tester.pumpAndSettle();
     expect(_filterNameFields, findsNWidgets(2));
 

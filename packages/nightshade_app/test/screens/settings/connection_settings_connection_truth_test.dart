@@ -19,6 +19,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+import 'settings_finders.dart';
 
 class _StubAppSettingsNotifier extends AppSettingsNotifier {
   _StubAppSettingsNotifier(this._initial);
@@ -167,7 +168,7 @@ void main() {
 
     // Reveal it first: Discovery gained the Alpaca address row, so Remote
     // Features can start below the fold at the harness surface size.
-    final refresh = find.byTooltip('Refresh host settings');
+    final refresh = findByTooltip('Refresh host settings');
     await tester.ensureVisible(refresh);
     await tester.pump();
     await tester.tap(refresh);
@@ -178,7 +179,7 @@ void main() {
     expect(find.text('Host settings refreshed'), findsNothing);
     final button = tester.widget<IconButton>(
       find.ancestor(
-        of: find.byTooltip('Refresh host settings'),
+        of: findByTooltip('Refresh host settings'),
         matching: find.byType(IconButton),
       ),
     );
