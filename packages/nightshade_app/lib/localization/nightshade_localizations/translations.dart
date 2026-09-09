@@ -801,6 +801,13 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerSelectCandidateBody':
         'Choose a candidate on the left to see its night and build a sequence '
             'for it.',
+    // Wave 3 Analytics: 06-screens names the tab "Equipment" and the copy
+    // rules require sentence case, so this replaces 'Equipment Stats' at the
+    // call site. The old key stays; other surfaces still read it.
+    'analyticsEquipmentTab': 'Equipment',
+    // The live dot's chip. One word, because the panel head beside it
+    // already says which session this is.
+    'analyticsLive': 'Live',
   },
   'es': {
     'appTitle': 'Nightshade',
@@ -1603,5 +1610,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerSelectCandidateBody':
         'Elige un candidato a la izquierda para ver su noche y crear una '
             'secuencia.',
+    'analyticsEquipmentTab': 'Equipo',
+    'analyticsLive': 'En vivo',
   },
 };

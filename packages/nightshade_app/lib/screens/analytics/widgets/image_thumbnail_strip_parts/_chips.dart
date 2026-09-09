@@ -14,12 +14,10 @@ class _SummaryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: NightshadeDecorations.tintedBadge(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         '$label: $value',
         style: NightshadeTypography.labelStrongSm.copyWith(
@@ -53,7 +51,7 @@ class _QualityFilterChip extends StatelessWidget {
       ),
       selected: selected,
       selectedColor: colors.primary.withValues(alpha: 0.2),
-      backgroundColor: colors.surfaceAlt,
+      backgroundColor: colors.surfaceHover,
       side: BorderSide(color: selected ? colors.primary : colors.border),
       onSelected: (_) => onTap(),
       visualDensity: VisualDensity.compact,
@@ -90,13 +88,14 @@ class _ScienceBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
         ),
         child: icon != null
-            ? Icon(icon, size: 9, color: const Color(0xFFFFFFFF))
+            ? Icon(icon,
+                size: NightshadeTokens.iconXs,
+                color: NightshadeColors.dark.textPrimary)
             : Text(
                 label ?? '',
-                style: const TextStyle(
-                  fontSize: NightshadeTypography.fontSize8,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFFFFFFF),
+                style: NightshadeTypography.caption.copyWith(
+                  color: NightshadeColors.dark.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
       ),
@@ -121,15 +120,14 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: NightshadeTypography.h6.copyWith(
+              style: NightshadeTypography.bodyStrong.copyWith(
                 color: colors.textPrimary,
               ),
             ),

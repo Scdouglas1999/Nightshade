@@ -133,27 +133,30 @@ void main() {
       reason: 'History must not print wall-clock elapsed for an unclosed row',
     );
     expect(find.text('20m'), findsOneWidget);
-    expect(find.text('to last frame'), findsOneWidget);
+    // The History row's figure is a Readout since the Observatory pass, and a
+    // readout renders its label uppercase.
+    expect(find.text('TO LAST FRAME'), findsOneWidget);
   });
 
   testWidgets('History and Session agree on the same session', (tester) async {
     await tester.pumpWidget(_app(AnalyticsTab.session));
     await tester.pump(const Duration(milliseconds: 300));
-    final onSessionTab = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((t) => t.data)
-        .where((d) => d == '20m')
-        .length;
+    // Both figures are Readouts, whose value lives on the widget rather than
+    // in a Text's `data` -- a readout renders through Text.rich so it can
+    // attach a unit at 60% size.
+    final onSessionTab = _elapsedReadouts(tester);
 
     await tester.pumpWidget(_app(AnalyticsTab.history));
     await tester.pump(const Duration(milliseconds: 300));
-    final onHistoryTab = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((t) => t.data)
-        .where((d) => d == '20m')
-        .length;
+    final onHistoryTab = _elapsedReadouts(tester);
 
     expect(onSessionTab, greaterThan(0));
     expect(onHistoryTab, greaterThan(0));
   });
 }
+
+/// How many readouts on screen report the session's 20-minute span.
+int _elapsedReadouts(WidgetTester tester) => tester
+    .widgetList<Readout>(find.byType(Readout))
+    .where((r) => r.value == '20m')
+    .length;

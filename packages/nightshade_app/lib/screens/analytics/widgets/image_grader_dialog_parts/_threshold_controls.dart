@@ -223,12 +223,10 @@ class _DoubleRow extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
+          NightshadeIconButton(
+            icon: value == null ? LucideIcons.plus : LucideIcons.minus,
             tooltip: value == null ? 'Enable rule' : 'Disable rule',
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
+            size: IconButtonSize.sm,
             onPressed: () {
               if (value == null) {
                 onChanged((rangeMin + rangeMax) / 2);
@@ -236,11 +234,6 @@ class _DoubleRow extends StatelessWidget {
                 onCleared();
               }
             },
-            icon: Icon(
-              value == null ? LucideIcons.plus : LucideIcons.minus,
-              size: NightshadeTokens.iconXs,
-              color: colors.textSecondary,
-            ),
           ),
         ],
       ),
@@ -326,12 +319,10 @@ class _IntRow extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
+          NightshadeIconButton(
+            icon: value == null ? LucideIcons.plus : LucideIcons.minus,
             tooltip: value == null ? 'Enable rule' : 'Disable rule',
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
+            size: IconButtonSize.sm,
             onPressed: () {
               if (value == null) {
                 onChanged(((rangeMin + rangeMax) / 2).round());
@@ -339,11 +330,6 @@ class _IntRow extends StatelessWidget {
                 onCleared();
               }
             },
-            icon: Icon(
-              value == null ? LucideIcons.plus : LucideIcons.minus,
-              size: NightshadeTokens.iconXs,
-              color: colors.textSecondary,
-            ),
           ),
         ],
       ),
@@ -372,7 +358,7 @@ class _PreviewSummary extends StatelessWidget {
         vertical: NightshadeTokens.spaceSm + 2,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
@@ -428,10 +414,7 @@ class _Chip extends StatelessWidget {
         horizontal: NightshadeTokens.spaceSm + 2,
         vertical: NightshadeTokens.spaceXs + 1,
       ),
-      decoration: NightshadeDecorations.statusChip(
-        tone,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: tone),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

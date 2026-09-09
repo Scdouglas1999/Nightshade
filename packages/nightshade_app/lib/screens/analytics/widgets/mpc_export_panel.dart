@@ -37,36 +37,36 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
 
     final scienceSettingsAsync = ref.watch(scienceSettingsProvider);
     if (scienceSettingsAsync.hasError || !scienceSettingsAsync.hasValue) {
-      return NightshadeCard(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              scienceSettingsAsync.hasError
+                  ? 'MPC reporting settings unavailable'
+                  : 'Loading MPC reporting settings…',
+              style: NightshadeTypography.body
+                  .copyWith(color: widget.colors.error),
+            ),
+            if (scienceSettingsAsync.hasError) ...[
+              const SizedBox(height: 6),
               Text(
-                scienceSettingsAsync.hasError
-                    ? 'MPC reporting settings unavailable'
-                    : 'Loading MPC reporting settings…',
-                style: TextStyle(color: widget.colors.error),
+                scienceSettingsAsync.error.toString(),
+                style: NightshadeTypography.body
+                    .copyWith(color: widget.colors.textMuted),
               ),
-              if (scienceSettingsAsync.hasError) ...[
-                const SizedBox(height: 6),
-                Text(
-                  scienceSettingsAsync.error.toString(),
-                  style: TextStyle(color: widget.colors.textMuted),
-                ),
-                const SizedBox(height: 10),
-                NightshadeButton(
-                  label: 'Retry MPC settings',
-                  icon: LucideIcons.refreshCw,
-                  variant: ButtonVariant.outline,
-                  size: ButtonSize.small,
-                  onPressed: () => ref.invalidate(scienceSettingsProvider),
-                ),
-              ],
+              const SizedBox(height: 10),
+              NightshadeButton(
+                label: 'Retry MPC settings',
+                icon: LucideIcons.refreshCw,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: () => ref.invalidate(scienceSettingsProvider),
+              ),
             ],
-          ),
+          ],
         ),
       );
     }
@@ -77,180 +77,167 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
     // Build observation groups for display
     final groups = buildObservationGroups(widget.candidates);
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'MPC Report Export',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.textPrimary,
-                    ),
-                  ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'MPC Report Export',
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: widget.colors.textPrimary),
                 ),
-                if (_selectedIds.isNotEmpty)
-                  Text(
-                    '${_selectedIds.length} selected',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+              ),
+              if (_selectedIds.isNotEmpty)
+                Text(
+                  '${_selectedIds.length} selected',
+                  style: NightshadeTypography.caption.copyWith(
                       color: widget.colors.primary,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w500),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select observations to include in MPC 80-column format report',
+            style: NightshadeTypography.caption
+                .copyWith(color: widget.colors.textMuted),
+          ),
+          const SizedBox(height: 8),
+
+          if (!hasObsCode) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: widget.colors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                border: Border.all(
+                  color: widget.colors.error.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.alertTriangle,
+                    size: 14,
+                    color: widget.colors.error,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Set your 3-character MPC observatory code in '
+                      'Settings > Science > MPC before exporting.',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.error),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Select observations to include in MPC 80-column format report',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: widget.colors.textMuted,
+                ],
               ),
             ),
             const SizedBox(height: 8),
+          ],
 
-            if (!hasObsCode) ...[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: widget.colors.error.withValues(alpha: 0.1),
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  border: Border.all(
-                    color: widget.colors.error.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      LucideIcons.alertTriangle,
-                      size: 14,
-                      color: widget.colors.error,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Set your 3-character MPC observatory code in '
-                        'Settings > Science > MPC before exporting.',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: widget.colors.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          // Select All / Deselect All controls
+          Row(
+            children: [
+              _SmallActionButton(
+                colors: widget.colors,
+                label: 'Select All',
+                onPressed: () {
+                  setState(() {
+                    _selectedIds.clear();
+                    for (final c in widget.candidates) {
+                      _selectedIds.add(c.id);
+                    }
+                  });
+                },
               ),
-              const SizedBox(height: 8),
-            ],
-
-            // Select All / Deselect All controls
-            Row(
-              children: [
-                _SmallActionButton(
-                  colors: widget.colors,
-                  label: 'Select All',
-                  onPressed: () {
-                    setState(() {
-                      _selectedIds.clear();
-                      for (final c in widget.candidates) {
-                        _selectedIds.add(c.id);
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                _SmallActionButton(
-                  colors: widget.colors,
-                  label: 'Clear',
-                  onPressed: _selectedIds.isEmpty
-                      ? null
-                      : () {
-                          setState(() => _selectedIds.clear());
-                        },
-                ),
-                const Spacer(),
-                _SmallActionButton(
-                  colors: widget.colors,
-                  label: 'Multi-night only',
-                  onPressed: () {
-                    setState(() {
-                      _selectedIds.clear();
-                      for (final group in groups) {
-                        if (group.nightCount > 1) {
-                          for (final obs in group.observations) {
-                            _selectedIds.add(obs.id);
-                          }
+              const SizedBox(width: 8),
+              _SmallActionButton(
+                colors: widget.colors,
+                label: 'Clear',
+                onPressed: _selectedIds.isEmpty
+                    ? null
+                    : () {
+                        setState(() => _selectedIds.clear());
+                      },
+              ),
+              const Spacer(),
+              _SmallActionButton(
+                colors: widget.colors,
+                label: 'Multi-night only',
+                onPressed: () {
+                  setState(() {
+                    _selectedIds.clear();
+                    for (final group in groups) {
+                      if (group.nightCount > 1) {
+                        for (final obs in group.observations) {
+                          _selectedIds.add(obs.id);
                         }
                       }
-                    });
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Observation groups list
-            ...groups.map((group) => _ObservationGroupTile(
-                  colors: widget.colors,
-                  group: group,
-                  selectedIds: _selectedIds,
-                  onToggleGroup: () => _toggleGroup(group),
-                  onToggleObservation: (id) => _toggleObservation(id),
-                )),
-
-            const SizedBox(height: 8),
-
-            // Export actions
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeButton(
-                    label: _isExporting ? 'Exporting...' : 'Export to File',
-                    icon: LucideIcons.download,
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
-                    onPressed:
-                        (_isExporting || _selectedIds.isEmpty || !hasObsCode)
-                            ? null
-                            : () => _exportToFile(obsCode),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NightshadeButton(
-                    label: 'Copy to Clipboard',
-                    icon: LucideIcons.clipboard,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: (_selectedIds.isEmpty || !hasObsCode)
-                        ? null
-                        : () => _copyToClipboard(obsCode),
-                  ),
-                ),
-              ],
-            ),
-
-            if (_lastExportPath != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Exported: $_lastExportPath',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: widget.colors.textMuted,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                    }
+                  });
+                },
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+
+          // Observation groups list
+          ...groups.map((group) => _ObservationGroupTile(
+                colors: widget.colors,
+                group: group,
+                selectedIds: _selectedIds,
+                onToggleGroup: () => _toggleGroup(group),
+                onToggleObservation: (id) => _toggleObservation(id),
+              )),
+
+          const SizedBox(height: 8),
+
+          // Export actions
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeButton(
+                  label: _isExporting ? 'Exporting...' : 'Export to File',
+                  icon: LucideIcons.download,
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                  onPressed:
+                      (_isExporting || _selectedIds.isEmpty || !hasObsCode)
+                          ? null
+                          : () => _exportToFile(obsCode),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Copy to Clipboard',
+                  icon: LucideIcons.clipboard,
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: (_selectedIds.isEmpty || !hasObsCode)
+                      ? null
+                      : () => _copyToClipboard(obsCode),
+                ),
+              ),
+            ],
+          ),
+
+          if (_lastExportPath != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Exported: $_lastExportPath',
+              style: NightshadeTypography.caption
+                  .copyWith(color: widget.colors.textMuted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -381,7 +368,7 @@ class _ObservationGroupTile extends StatelessWidget {
             Expanded(
               child: Text(
                 group.displayName,
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -391,52 +378,38 @@ class _ObservationGroupTile extends StatelessWidget {
               Container(
                 margin: const EdgeInsets.only(left: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: NightshadeDecorations.statusChip(
-                  colors.success,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusXs),
-                  bordered: false,
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.success),
                 child: Text(
                   'Known',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize9,
-                      color: colors.success),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.success),
                 ),
               ),
             const SizedBox(width: 8),
             Text(
               '${group.observations.length} obs',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
             if (group.nightCount > 1) ...[
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: NightshadeDecorations.statusChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusXs),
-                  bordered: false,
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Text(
                   '${group.nightCount} nights',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize9,
-                    color: colors.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      color: colors.primary, fontWeight: FontWeight.w500),
                 ),
               ),
             ],
             const SizedBox(width: 6),
             Text(
               '${(group.averageConfidence * 100).toStringAsFixed(0)}%',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -464,36 +437,26 @@ class _ObservationGroupTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           _formatTimestamp(obs.timestamp),
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            color: colors.textSecondary,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
+                          style: NightshadeTypography.monoCaption
+                              .copyWith(color: colors.textSecondary),
                         ),
                       ),
                       Text(
                         _formatRaBrief(obs.raDegrees),
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textMuted,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                        style: NightshadeTypography.monoCaption
+                            .copyWith(color: colors.textMuted),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         _formatDecBrief(obs.decDegrees),
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textMuted,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                        style: NightshadeTypography.monoCaption
+                            .copyWith(color: colors.textMuted),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${obs.motionArcsecPerMinute.toStringAsFixed(1)}"/m',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.textMuted),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
                       ),
                     ],
                   ),
@@ -553,9 +516,8 @@ class _SmallActionButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: isDisabled
-                  ? colors.surfaceAlt.withValues(alpha: 0.5)
-                  : colors.surfaceAlt,
+              color:
+                  isDisabled ? colors.well.withValues(alpha: 0.5) : colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(
@@ -566,11 +528,9 @@ class _SmallActionButton extends StatelessWidget {
             ),
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                fontWeight: FontWeight.w500,
-                color: isDisabled ? colors.textMuted : colors.textSecondary,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: isDisabled ? colors.textMuted : colors.textSecondary,
+                  fontWeight: FontWeight.w500),
             ),
           ),
         ));

@@ -20,9 +20,7 @@ class _BlsSpectrumPainter extends StatelessWidget {
       return Center(
         child: Text(
           'No BLS data',
-          style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       );
     }
@@ -132,8 +130,7 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
     }
 
     // Axis labels.
-    final textStyle =
-        TextStyle(color: textColor, fontSize: NightshadeTypography.fontSize9);
+    final textStyle = NightshadeTypography.caption.copyWith(color: textColor);
 
     // Y-axis.
     final labels = srAxisLabels;
@@ -225,10 +222,8 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
     final peakLabel = TextPainter(
       text: TextSpan(
         text: blsPeakLabel(bestPeriod),
-        style: TextStyle(
-            color: peakColor,
-            fontSize: NightshadeTypography.fontSize9,
-            fontWeight: FontWeight.w600),
+        style: NightshadeTypography.caption
+            .copyWith(color: peakColor, fontWeight: FontWeight.w600),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

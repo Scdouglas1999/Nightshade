@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class _PinnedBackend extends BackendNotifier {
   _PinnedBackend(super.ref, NightshadeBackend backend) : super() {
@@ -135,7 +136,7 @@ void main() {
 
     final buttons = find.descendant(
       of: find.byType(Dialog),
-      matching: find.byType(IconButton),
+      matching: find.byType(NightshadeIconButton),
     );
     // Review, refine, report, JSON, CSV, HTML report, close. The share button
     // exists only on Android/iOS, and this runs on the host.

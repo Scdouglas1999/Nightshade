@@ -29,6 +29,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_app/utils/darkroom_navigation.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -203,9 +204,9 @@ void main() {
     }.entries) {
       final button = find.byKey(ValueKey(entry.key));
       expect(button, findsOneWidget);
-      expect(tester.widget<IconButton>(button).tooltip, entry.value);
+      expect(tester.widget<NightshadeIconButton>(button).tooltip, entry.value);
       expect(publishedNameOf(tester, button), entry.value);
-      expect(tester.widget<IconButton>(button).onPressed, isNotNull);
+      expect(tester.widget<NightshadeIconButton>(button).onPressed, isNotNull);
     }
     handle.dispose();
   });
@@ -233,11 +234,11 @@ void main() {
     expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
     expect(data.hasFlag(SemanticsFlag.isEnabled), isFalse);
     expect(
-      tester.widget<IconButton>(darkroom).tooltip,
+      tester.widget<NightshadeIconButton>(darkroom).tooltip,
       kDarkroomHostOnlyRefusal,
       reason: 'the pointer keeps the tooltip it already had',
     );
-    expect(tester.widget<IconButton>(darkroom).onPressed, isNull);
+    expect(tester.widget<NightshadeIconButton>(darkroom).onPressed, isNull);
 
     // Session Review's refusal is the dialog's own sentence, so it is matched
     // by shape rather than by importing a private constant.
@@ -249,7 +250,7 @@ void main() {
     expect(reviewName, contains('Session Review works on the imaging host'));
     expect(
       tester
-          .widget<IconButton>(
+          .widget<NightshadeIconButton>(
               find.byKey(const ValueKey('session_detail_review')))
           .onPressed,
       isNull,
@@ -313,7 +314,7 @@ void main() {
         kDarkroomHostOnlyRefusal,
       ),
     );
-    expect(tester.widget<IconButton>(darkroom).onPressed, isNull);
+    expect(tester.widget<NightshadeIconButton>(darkroom).onPressed, isNull);
 
     final review = find.byKey(const ValueKey('session_detail_review'));
     expect(
@@ -321,7 +322,7 @@ void main() {
       startsWith('Review on imaging host — '),
     );
     expect(
-      tester.widget<IconButton>(review).onPressed,
+      tester.widget<NightshadeIconButton>(review).onPressed,
       isNull,
       reason: 'pressing it popped the dialog and landed on the Session Review '
           'host-only wall',
@@ -361,8 +362,8 @@ void main() {
       reason: 'the label keeps its own name — this machine IS the host, the '
           'night simply has nothing to open',
     );
-    expect(tester.widget<IconButton>(darkroom).onPressed, isNull);
-    expect(tester.widget<IconButton>(darkroom).tooltip, reason);
+    expect(tester.widget<NightshadeIconButton>(darkroom).onPressed, isNull);
+    expect(tester.widget<NightshadeIconButton>(darkroom).tooltip, reason);
 
     final data = tester.getSemantics(darkroom).getSemanticsData();
     expect(data.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
@@ -371,7 +372,7 @@ void main() {
     // Review & Integrate is the way OUT of this state, so it stays live.
     expect(
       tester
-          .widget<IconButton>(
+          .widget<NightshadeIconButton>(
               find.byKey(const ValueKey('session_detail_review')))
           .onPressed,
       isNotNull,
@@ -402,12 +403,12 @@ void main() {
         kDarkroomMastersReadingReason,
       ),
     );
-    expect(tester.widget<IconButton>(darkroom).onPressed, isNull);
+    expect(tester.widget<NightshadeIconButton>(darkroom).onPressed, isNull);
 
     // And it comes live on its own once the read lands.
     await tester.pump(const Duration(seconds: 6));
     expect(publishedNameOf(tester, darkroom), 'Refine in Darkroom');
-    expect(tester.widget<IconButton>(darkroom).onPressed, isNotNull);
+    expect(tester.widget<NightshadeIconButton>(darkroom).onPressed, isNotNull);
     handle.dispose();
   });
 
@@ -421,7 +422,7 @@ void main() {
 
     final darkroom = find.byKey(const ValueKey('session_detail_darkroom'));
     expect(publishedNameOf(tester, darkroom), 'Refine in Darkroom');
-    expect(tester.widget<IconButton>(darkroom).onPressed, isNotNull);
+    expect(tester.widget<NightshadeIconButton>(darkroom).onPressed, isNotNull);
     handle.dispose();
   });
 }

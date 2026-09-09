@@ -41,7 +41,6 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
     // Frames shot outside a sequence carry no imaging_sessions row. They are
@@ -110,28 +109,30 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   searchField,
-                  const SizedBox(height: 12),
+                  const SizedBox(height: NightshadeTokens.spaceMd),
                   timeDropdown,
-                  const SizedBox(height: 12),
+                  const SizedBox(height: NightshadeTokens.spaceMd),
                   targetDropdown,
                 ],
               )
             : Row(
                 children: [
                   Expanded(child: searchField),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
                   timeDropdown,
-                  const SizedBox(width: 16),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
                   targetDropdown,
                 ],
               );
 
         return Padding(
-          padding: EdgeInsets.all(isPhone ? 16.0 : 24.0),
+          padding: EdgeInsets.all(
+            isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+          ),
           child: Column(
             children: [
               filters,
-              const SizedBox(height: 24),
+              const SizedBox(height: NightshadeTokens.space2xl),
               // Session list
               Expanded(
                 child: sessionsAsyncValue.when(
@@ -175,27 +176,19 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                         );
 
                     if (filteredSessions.isEmpty && !showQuickCaptures) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(LucideIcons.searchX,
-                                size: 48, color: colors.textMuted),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No sessions match your filters',
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize14,
-                                  color: colors.textSecondary),
-                            ),
-                            const SizedBox(height: 12),
-                            NightshadeButton(
-                              label: 'Clear filters',
-                              variant: ButtonVariant.outline,
-                              size: ButtonSize.small,
-                              onPressed: _clearFilters,
-                            ),
-                          ],
+                      // The same empty-state pattern as "nothing recorded
+                      // yet" — a filter that matches nothing is still a tab
+                      // with nothing to show.
+                      return EmptyState(
+                        icon: LucideIcons.searchX,
+                        title: 'No sessions match your filters',
+                        body: 'Widen the date range or clear the target '
+                            'filter to see the rest of the record.',
+                        action: NightshadeButton(
+                          label: 'Clear filters',
+                          variant: ButtonVariant.secondary,
+                          size: ButtonSize.small,
+                          onPressed: _clearFilters,
                         ),
                       );
                     }
@@ -219,42 +212,12 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                   // Skeleton list mirrors the real history card geometry so the
                   // page doesn't reflow when sessions resolve.
                   loading: () => const _SessionHistorySkeletonList(),
-                  error: (err, stack) => Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(LucideIcons.alertCircle,
-                              size: 48, color: colors.error),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading sessions',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize14,
-                                color: colors.error),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            err.toString(),
-                            textAlign: TextAlign.center,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize12,
-                                color: colors.textMuted),
-                          ),
-                          const SizedBox(height: 12),
-                          NightshadeButton(
-                            label: 'Retry',
-                            variant: ButtonVariant.outline,
-                            size: ButtonSize.small,
-                            onPressed: () =>
-                                ref.invalidate(allSessionsProvider),
-                          ),
-                        ],
-                      ),
+                  error: (err, stack) => Align(
+                    alignment: Alignment.topCenter,
+                    child: _AnalyticsError(
+                      title: 'Session history did not load',
+                      message: err.toString(),
+                      onRetry: () => ref.invalidate(allSessionsProvider),
                     ),
                   ),
                 ),
@@ -299,58 +262,56 @@ class _QuickCaptureHistoryCard extends StatelessWidget {
         : '${format.format(times.first)} – ${DateFormat('HH:mm').format(times.last)}';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: NightshadeCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(LucideIcons.camera,
-                      size: 16, color: colors.textSecondary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Quick captures',
-                    style: NightshadeTypography.h5
-                        .copyWith(color: colors.textPrimary),
-                  ),
-                ],
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+      child: NightshadePanel(
+        head: const PanelHead(
+          icon: LucideIcons.camera,
+          label: 'Quick captures',
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              span,
+              style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textSecondary,
               ),
-              const SizedBox(height: 6),
-              Text(
-                span,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            // The two numbers were buried in a sentence. They are
+            // measurements, so they are Readouts.
+            ReadoutRow(
+              children: [
+                Readout(
+                  size: ReadoutSize.sm,
+                  label: 'Frames',
+                  value: '${lights.length}',
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '${lights.length} light frames taken outside a sequence, '
-                '${_formatAnalyticsIntegration(integration)} of integration. '
-                'They have no run record, so they carry no status, no target '
-                'and no per-run diagnostics — open Analytics ▸ Session to '
-                'review them frame by frame.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted,
-                  height: 1.4,
-                ),
-              ),
-              if (!hasSequenceRuns) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'No sequence runs are recorded for this filter.',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted,
-                  ),
+                Readout(
+                  size: ReadoutSize.sm,
+                  label: 'Integration',
+                  value: _formatAnalyticsIntegration(integration),
                 ),
               ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Text(
+              'Taken outside a sequence, so they carry no run status, no '
+              'target and no per-run diagnostics.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+            if (!hasSequenceRuns) ...[
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                'No sequence runs are recorded for this filter.',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

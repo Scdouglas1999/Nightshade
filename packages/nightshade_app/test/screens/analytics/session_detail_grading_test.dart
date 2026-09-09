@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class _PinnedBackend extends BackendNotifier {
   _PinnedBackend(super.ref, NightshadeBackend backend) : super() {
@@ -132,20 +133,10 @@ void main() {
       // The row read `COMPLETED · 6 frames · 0 integration` — the good night's
       // row with an odd integration figure, rather than a night that kept
       // nothing.
-      expect(find.text('frames returned'), findsOneWidget);
-      expect(find.text('rejected'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find
-              .ancestor(
-                of: find.text('rejected'),
-                matching: find.byType(Column),
-              )
-              .first,
-          matching: find.text('6'),
-        ),
-        findsOneWidget,
-      );
+      // Both figures are Readouts now, so the label and the value are one
+      // widget and the test no longer has to guess which Column pairs them.
+      expect(_readout(tester, 'Frames returned').value, '6');
+      expect(_readout(tester, 'Rejected').value, '6');
     },
   );
 
@@ -156,8 +147,8 @@ void main() {
         for (var id = 1; id <= 6; id++) _light(id: id, accepted: true),
       ]);
 
-      expect(find.text('frames returned'), findsOneWidget);
-      expect(find.text('rejected'), findsNothing);
+      expect(_readout(tester, 'Frames returned').value, '6');
+      expect(_readouts(tester, 'Rejected'), isEmpty);
     },
   );
 
@@ -169,36 +160,12 @@ void main() {
         for (var id = 1; id <= 6; id++) _light(id: id, accepted: false),
       ]);
 
-      expect(find.text('Successful'), findsNothing);
-      expect(find.text('Camera Returned'), findsOneWidget);
-      expect(find.text('Accepted'), findsOneWidget);
-      expect(find.text('Rejected'), findsOneWidget);
+      expect(_readouts(tester, 'Successful', within: _dialog), isEmpty);
 
       // Accepted 0, Rejected 6, beside the camera's own 6.
-      final accepted = tester.widget<Text>(
-        find.descendant(
-          of: find
-              .ancestor(
-                of: find.text('Accepted'),
-                matching: find.byType(Column),
-              )
-              .first,
-          matching: find.text('0'),
-        ),
-      );
-      expect(accepted.data, '0');
-      expect(
-        find.descendant(
-          of: find
-              .ancestor(
-                of: find.text('Rejected'),
-                matching: find.byType(Column),
-              )
-              .first,
-          matching: find.text('6'),
-        ),
-        findsOneWidget,
-      );
+      expect(_readout(tester, 'Camera Returned', within: _dialog).value, '6');
+      expect(_readout(tester, 'Accepted', within: _dialog).value, '0');
+      expect(_readout(tester, 'Rejected', within: _dialog).value, '6');
     },
   );
 
@@ -208,30 +175,35 @@ void main() {
       _light(id: 6, accepted: false),
     ]);
 
-    expect(find.text('Camera Returned'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find
-            .ancestor(
-              of: find.text('Accepted'),
-              matching: find.byType(Column),
-            )
-            .first,
-        matching: find.text('5'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find
-            .ancestor(
-              of: find.text('Rejected'),
-              matching: find.byType(Column),
-            )
-            .first,
-        matching: find.text('1'),
-      ),
-      findsOneWidget,
-    );
+    expect(_readout(tester, 'Camera Returned', within: _dialog).value, '6');
+    expect(_readout(tester, 'Accepted', within: _dialog).value, '5');
+    expect(_readout(tester, 'Rejected', within: _dialog).value, '1');
   });
 }
+
+/// Every [Readout] whose label is [label], case-insensitively: a readout
+/// renders its label uppercase but keeps the written form.
+///
+/// [within] scopes the search, which the dialog assertions need: the History
+/// row behind the open dialog carries a 'Rejected' readout of its own.
+List<Readout> _readouts(WidgetTester tester, String label, {Finder? within}) {
+  final wanted = label.toLowerCase();
+  final finder = within == null
+      ? find.byType(Readout)
+      : find.descendant(of: within, matching: find.byType(Readout));
+  return tester
+      .widgetList<Readout>(finder)
+      .where((r) => r.label.toLowerCase() == wanted)
+      .toList(growable: false);
+}
+
+/// The single [Readout] carrying [label], optionally scoped to [within].
+Readout _readout(WidgetTester tester, String label, {Finder? within}) {
+  final matches = _readouts(tester, label, within: within);
+  expect(matches, hasLength(1), reason: 'expected one "$label" readout');
+  return matches.single;
+}
+
+/// The open session-detail dialog, so a dialog assertion cannot read the
+/// History row painted behind it.
+Finder get _dialog => find.byType(Dialog);

@@ -124,97 +124,95 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
     final analysisState = ref.watch(periodAnalysisProvider);
     final colors = widget.colors;
 
-    return NightshadeCard(
-      child: Padding(
-        padding: NightshadeTokens.paddingLg,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Icon(LucideIcons.activity,
-                    size: NightshadeTokens.iconSm, color: colors.primary),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                Expanded(
-                  child: Text(
-                    'Period Analysis',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: NightshadeTypography.fontSize15,
-                      color: colors.textPrimary,
-                    ),
-                  ),
+    return NightshadePanel(
+      padding: NightshadeTokens.paddingLg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Icon(LucideIcons.activity,
+                  size: NightshadeTokens.iconSm, color: colors.primary),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(
+                child: Text(
+                  'Period Analysis',
+                  style: NightshadeTypography.sectionTitle.copyWith(
+                      color: colors.textPrimary, fontWeight: FontWeight.w600),
                 ),
-                const ScienceInfoButton(
-                  title: 'Period Analysis',
-                  body: _kPeriodAnalysisInfo,
-                ),
-                if (analysisState.result != null)
-                  Tooltip(
-                    message: 'Clear results',
-                    child: Semantics(
-                        button: true,
-                        enabled: true,
-                        child: InkWell(
-                          onTap: () =>
-                              ref.read(periodAnalysisProvider.notifier).clear(),
-                          borderRadius: NightshadeTokens.borderRadiusLg,
-                          child: Container(
-                            constraints: const BoxConstraints(
-                              minWidth: NightshadeTokens.minTouchTarget,
-                              minHeight: NightshadeTokens.minTouchTarget,
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(LucideIcons.x,
-                                size: NightshadeTokens.iconXs,
-                                color: colors.textMuted),
+              ),
+              const ScienceInfoButton(
+                title: 'Period Analysis',
+                body: _kPeriodAnalysisInfo,
+              ),
+              if (analysisState.result != null)
+                Tooltip(
+                  message: 'Clear results',
+                  child: Semantics(
+                      button: true,
+                      enabled: true,
+                      child: InkWell(
+                        onTap: () =>
+                            ref.read(periodAnalysisProvider.notifier).clear(),
+                        borderRadius: NightshadeTokens.borderRadiusLg,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: NightshadeTokens.minTouchTarget,
+                            minHeight: NightshadeTokens.minTouchTarget,
                           ),
-                        )),
-                  ),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-
-            // Controls row
-            if (_campaignAvailable) ...[
-              _buildScopeSelector(colors),
-              const SizedBox(height: NightshadeTokens.spaceMd),
+                          alignment: Alignment.center,
+                          child: Icon(LucideIcons.x,
+                              size: NightshadeTokens.iconXs,
+                              color: colors.textMuted),
+                        ),
+                      )),
+                ),
             ],
-            _buildControls(colors, analysisState),
-            const SizedBox(height: NightshadeTokens.spaceLg),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
 
-            // Results
-            if (analysisState.isRunning)
-              AdaptiveChartContainer.fixed(
-                height: 200,
-                child: ShimmerLoading(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
-                      borderRadius: NightshadeTokens.borderRadiusLg,
-                      border: Border.all(color: colors.border),
-                    ),
-                    padding: NightshadeTokens.paddingLg,
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SkeletonBox(width: 160, height: 12),
-                        SizedBox(height: NightshadeTokens.spaceMd),
-                        Expanded(child: SkeletonBox(height: double.infinity)),
-                      ],
-                    ),
+          // Controls row
+          if (_campaignAvailable) ...[
+            _buildScopeSelector(colors),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+          ],
+          _buildControls(colors, analysisState),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+
+          // Results
+          if (analysisState.isRunning)
+            AdaptiveChartContainer.fixed(
+              height: 200,
+              // The skeleton is the well; `panel -> well` is as deep as the
+              // ladder goes.
+              well: false,
+              child: ShimmerLoading(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colors.well,
+                    borderRadius: NightshadeTokens.borderRadiusLg,
+                    border: Border.all(color: colors.border),
+                  ),
+                  padding: NightshadeTokens.paddingLg,
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SkeletonBox(width: 160, height: 12),
+                      SizedBox(height: NightshadeTokens.spaceMd),
+                      Expanded(child: SkeletonBox(height: double.infinity)),
+                    ],
                   ),
                 ),
-              )
-            else if (analysisState.error != null)
-              _buildError(colors, analysisState.error!)
-            else if (analysisState.result != null)
-              _buildResults(colors, analysisState)
-            else
-              _buildEmptyState(colors),
-          ],
-        ),
+              ),
+            )
+          else if (analysisState.error != null)
+            _buildError(colors, analysisState.error!)
+          else if (analysisState.result != null)
+            _buildResults(colors, analysisState)
+          else
+            _buildEmptyState(colors),
+        ],
       ),
     );
   }
@@ -241,8 +239,10 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 ),
                 decoration: BoxDecoration(
                   color: selected
-                      ? colors.primary.withValues(alpha: 0.14)
-                      : Colors.transparent,
+                      ? colors.primary.withValues(
+                          alpha: NightshadeTokens.opacityAccentTint,
+                        )
+                      : null,
                   borderRadius: NightshadeTokens.borderRadiusLg,
                   border: Border.all(
                     color: selected ? colors.primary : colors.border,
@@ -319,9 +319,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           children: [
             Text(
               'Min period (d):',
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
             _buildPeriodField(
@@ -341,9 +340,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           children: [
             Text(
               'Max period (d):',
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
             _buildPeriodField(
@@ -403,9 +401,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
         final customLabel = Text(
           'Custom period (d):',
-          style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         );
         final customField = _buildPeriodField(
           controller: _customPeriodController,
@@ -483,9 +480,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           Expanded(
             child: Text(
               error,
-              style: TextStyle(
-                  color: colors.error,
-                  fontSize: NightshadeTypography.fontSize12),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
           ),
         ],
@@ -507,12 +502,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
       // that one point takes both of these titles onto an extra line — 21px in
       // the tall branch, 11px in the short one, both measured.
       height: tooFew ? 215 : 140,
+      well: false,
       child: Container(
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          border: Border.all(color: colors.border),
-        ),
+        decoration: NightshadeDecorations.well(colors),
         child: EmptyState.compact(
           icon: LucideIcons.activity,
           title: tooFew
@@ -549,11 +541,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
         // Lomb-Scargle power spectrum
         Text(
           'Lomb-Scargle Periodogram',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: NightshadeTypography.fontSize13,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.bodySm
+              .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         AdaptiveChartContainer(
@@ -574,11 +563,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
         // Phase-folded light curve at best LS period
         Text(
           'Phase-Folded Light Curve (P = ${_formatPeriod(ls.bestPeriod)})',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: NightshadeTypography.fontSize13,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.bodySm
+              .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         AdaptiveChartContainer(
@@ -600,11 +586,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           const SizedBox(height: NightshadeTokens.spaceLg),
           Text(
             'Custom Phase Fold (P = ${_formatPeriod(analysisState.customPeriodDays!)})',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: NightshadeTypography.fontSize13,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textPrimary, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           AdaptiveChartContainer(
@@ -763,11 +746,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
       children: [
         Text(
           'Box Least Squares (Transit Search)',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: NightshadeTypography.fontSize13,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.bodySm
+              .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
         if (_isBrightening(bls)) ...[
           const SizedBox(height: NightshadeTokens.spaceXs),

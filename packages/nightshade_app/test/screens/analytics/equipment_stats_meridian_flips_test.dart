@@ -72,14 +72,16 @@ void main() {
     ]));
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Meridian Flips'), findsOneWidget);
+    // The label is a Readout's, which renders it uppercase (05 §3), and 06's
+    // copy rules put the written form in sentence case.
+    expect(find.text('MERIDIAN FLIPS'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
     for (final label in [
-      'Total Slews',
-      'Total Tracking Time',
-      'Total Movements',
-      'Total Guide Time',
-      'Star Lost Events',
+      'TOTAL SLEWS',
+      'TOTAL TRACKING TIME',
+      'TOTAL MOVEMENTS',
+      'TOTAL GUIDE TIME',
+      'STAR LOST EVENTS',
     ]) {
       expect(find.text(label), findsNothing);
     }

@@ -80,7 +80,7 @@ class ScienceLadderCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration:
-                    NightshadeDecorations.emphasisSurface(colors.primary),
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Icon(
                   LucideIcons.flaskConical,
                   color: colors.primary,
@@ -91,7 +91,7 @@ class ScienceLadderCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Science guide',
-                  style: NightshadeTypography.h6.copyWith(
+                  style: NightshadeTypography.bodyStrong.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
@@ -100,11 +100,10 @@ class ScienceLadderCard extends ConsumerWidget {
                 button: true,
                 enabled: true,
                 label: 'Collapse science guide',
-                child: IconButton(
+                child: NightshadeIconButton(
+                  icon: LucideIcons.x,
                   tooltip: 'Collapse',
                   onPressed: () => _setCollapsed(ref, true),
-                  icon: Icon(LucideIcons.x, color: colors.textMuted),
-                  splashRadius: 18,
                 ),
               ),
             ],
@@ -265,9 +264,9 @@ class _RungChip extends StatelessWidget {
                 vertical: NightshadeTokens.spaceSm + 2,
               ),
               decoration: state == RungState.ready
-                  ? NightshadeDecorations.selectedSurface(colors.primary)
+                  ? NightshadeDecorations.panelSelected(colors)
                   : BoxDecoration(
-                      color: colors.surfaceAlt,
+                      color: colors.well,
                       borderRadius: NightshadeTokens.borderRadiusMd,
                       border: Border.all(color: colors.border),
                     ),
@@ -278,16 +277,14 @@ class _RungChip extends StatelessWidget {
                     width: 22,
                     height: 22,
                     alignment: Alignment.center,
-                    decoration: NightshadeDecorations.statusChip(accent),
+                    decoration:
+                        NightshadeDecorations.chip(colors, tone: accent),
                     child: state == RungState.done
                         ? Icon(LucideIcons.check, size: 12, color: accent)
                         : Text(
                             '$index',
-                            style: TextStyle(
-                              color: digit,
-                              fontSize: NightshadeTypography.fontSize12,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: NightshadeTypography.caption.copyWith(
+                                color: digit, fontWeight: FontWeight.w600),
                           ),
                   ),
                   const SizedBox(width: NightshadeTokens.spaceSm),
@@ -296,9 +293,8 @@ class _RungChip extends StatelessWidget {
                       spec.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: NightshadeTypography.caption.copyWith(
                         color: foreground,
-                        fontSize: NightshadeTypography.fontSize11_5,
                         fontWeight: FontWeight.w600,
                         height: 1.2,
                       ),

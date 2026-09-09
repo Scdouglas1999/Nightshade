@@ -73,9 +73,8 @@ class _ScienceRungSheet extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Container(
               padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-              decoration: NightshadeDecorations.emphasisSurface(
-                colors.textMuted,
-              ),
+              decoration:
+                  NightshadeDecorations.chip(colors, tone: colors.textMuted),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -144,7 +143,7 @@ class _ScienceRungSheet extends ConsumerWidget {
               onCta?.call();
             },
             label: 'Jump to it',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             icon: LucideIcons.arrowRight,
           ),
         ];

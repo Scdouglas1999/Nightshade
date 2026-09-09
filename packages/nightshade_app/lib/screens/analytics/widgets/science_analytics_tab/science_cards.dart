@@ -154,7 +154,7 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
         onPressed: _doExport,
         icon: LucideIcons.fileOutput,
         label: _exporting ? 'Exporting...' : 'Export to AAVSO',
-        variant: ButtonVariant.outline,
+        variant: ButtonVariant.secondary,
         isLoading: _exporting,
       ),
     );
@@ -181,7 +181,8 @@ class _LightCurveChartCard extends StatelessWidget {
           child: Center(
             child: Text(
               'Differential Photometry has no data yet',
-              style: TextStyle(color: colors.textMuted),
+              style:
+                  NightshadeTypography.body.copyWith(color: colors.textMuted),
             ),
           ),
         ),
@@ -223,158 +224,147 @@ class _LightCurveChartCard extends StatelessWidget {
     final maxX = spots.last.x == 0 ? 1.0 : spots.last.x;
     final xInterval = maxX / 4;
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Differential Photometry',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                if (hubExportButton != null) hubExportButton!,
-                const _ScienceInfoButton(title: 'Differential Photometry'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            AdaptiveChartContainer(
-              preferredHeight: 190,
-              child: LineChart(
-                LineChartData(
-                  minX: 0,
-                  maxX: maxX,
-                  minY: axis.min,
-                  maxY: axis.max,
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border.all(color: colors.border),
-                  ),
-                  gridData: FlGridData(
-                    drawVerticalLine: true,
-                    horizontalInterval: axis.interval,
-                    verticalInterval: xInterval,
-                    getDrawingHorizontalLine: (_) =>
-                        FlLine(color: colors.border.withValues(alpha: 0.35)),
-                    getDrawingVerticalLine: (_) =>
-                        FlLine(color: colors.border.withValues(alpha: 0.25)),
-                  ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 24,
-                        interval: xInterval,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            elapsedAxisLabel(value),
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize10,
-                              color: colors.textSecondary,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    leftTitles: AxisTitles(
-                      axisNameWidget: Text(
-                        'dMag',
-                        style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize10),
-                      ),
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 44,
-                        interval: axis.interval,
-                        // Plotted negated so brighter is higher; label with the
-                        // real magnitude. NiceAxis.label also folds -0.00 back
-                        // to 0.00 — a negative zero is a rounding artefact, not
-                        // a measurement.
-                        getTitlesWidget: (value, meta) => Text(
-                          axis.label(-value),
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  lineBarsData: [
-                    // Main data line with dot markers.
-                    LineChartBarData(
-                      spots: spots,
-                      color: colors.primary,
-                      barWidth: 2,
-                      isCurved: false,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
-                          radius: 2.2,
-                          color: colors.primary,
-                          strokeWidth: 0,
-                        ),
-                      ),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                    // Error bars: each is a vertical line segment in chart
-                    // coordinates (2 spots per bar), so alignment with data
-                    // points is exact regardless of axis padding or layout.
-                    for (final point in sorted)
-                      if (point.uncertainty > 0)
-                        LineChartBarData(
-                          spots: [
-                            FlSpot(
-                              point.timestamp
-                                  .difference(start)
-                                  .inSeconds
-                                  .toDouble(),
-                              -(point.differentialMagnitude -
-                                  point.uncertainty),
-                            ),
-                            FlSpot(
-                              point.timestamp
-                                  .difference(start)
-                                  .inSeconds
-                                  .toDouble(),
-                              -(point.differentialMagnitude +
-                                  point.uncertainty),
-                            ),
-                          ],
-                          color: colors.primary.withValues(alpha: 0.4),
-                          barWidth: 1.0,
-                          isCurved: false,
-                          dotData: FlDotData(
-                            show: true,
-                            getDotPainter: (spot, _, __, ___) =>
-                                FlDotCirclePainter(
-                              radius: 1.5,
-                              color: colors.primary.withValues(alpha: 0.4),
-                              strokeWidth: 0,
-                            ),
-                          ),
-                          belowBarData: BarAreaData(show: false),
-                        ),
-                  ],
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Differential Photometry',
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
+              if (hubExportButton != null) hubExportButton!,
+              const _ScienceInfoButton(title: 'Differential Photometry'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AdaptiveChartContainer(
+            preferredHeight: 190,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: maxX,
+                minY: axis.min,
+                maxY: axis.max,
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: colors.border),
+                ),
+                gridData: FlGridData(
+                  drawVerticalLine: true,
+                  horizontalInterval: axis.interval,
+                  verticalInterval: xInterval,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: colors.border.withValues(alpha: 0.35)),
+                  getDrawingVerticalLine: (_) =>
+                      FlLine(color: colors.border.withValues(alpha: 0.25)),
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 24,
+                      interval: xInterval,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          elapsedAxisLabel(value),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textSecondary),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    axisNameWidget: Text(
+                      'dMag',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 44,
+                      interval: axis.interval,
+                      // Plotted negated so brighter is higher; label with the
+                      // real magnitude. NiceAxis.label also folds -0.00 back
+                      // to 0.00 — a negative zero is a rounding artefact, not
+                      // a measurement.
+                      getTitlesWidget: (value, meta) => Text(
+                        axis.label(-value),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  // Main data line with dot markers.
+                  LineChartBarData(
+                    spots: spots,
+                    color: colors.primary,
+                    barWidth: 2,
+                    isCurved: false,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+                        radius: 2.2,
+                        color: colors.primary,
+                        strokeWidth: 0,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(show: false),
+                  ),
+                  // Error bars: each is a vertical line segment in chart
+                  // coordinates (2 spots per bar), so alignment with data
+                  // points is exact regardless of axis padding or layout.
+                  for (final point in sorted)
+                    if (point.uncertainty > 0)
+                      LineChartBarData(
+                        spots: [
+                          FlSpot(
+                            point.timestamp
+                                .difference(start)
+                                .inSeconds
+                                .toDouble(),
+                            -(point.differentialMagnitude - point.uncertainty),
+                          ),
+                          FlSpot(
+                            point.timestamp
+                                .difference(start)
+                                .inSeconds
+                                .toDouble(),
+                            -(point.differentialMagnitude + point.uncertainty),
+                          ),
+                        ],
+                        color: colors.primary.withValues(alpha: 0.4),
+                        barWidth: 1.0,
+                        isCurved: false,
+                        dotData: FlDotData(
+                          show: true,
+                          getDotPainter: (spot, _, __, ___) =>
+                              FlDotCirclePainter(
+                            radius: 1.5,
+                            color: colors.primary.withValues(alpha: 0.4),
+                            strokeWidth: 0,
+                          ),
+                        ),
+                        belowBarData: BarAreaData(show: false),
+                      ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -393,42 +383,39 @@ class _PsfHeatmapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'PSF Field Map',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'PSF Field Map',
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
-                if (hubExportButton != null) hubExportButton!,
-                const _ScienceInfoButton(title: 'PSF Field Map'),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (tiles.isEmpty)
-              AdaptiveChartContainer.fixed(
-                height: 170,
-                child: Center(
-                  child: Text(
-                    'No PSF tiles computed yet',
-                    style: TextStyle(color: colors.textMuted),
-                  ),
+              ),
+              if (hubExportButton != null) hubExportButton!,
+              const _ScienceInfoButton(title: 'PSF Field Map'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (tiles.isEmpty)
+            AdaptiveChartContainer.fixed(
+              height: 170,
+              child: Center(
+                child: Text(
+                  'No PSF tiles computed yet',
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textMuted),
                 ),
-              )
-            else
-              _PsfHeatmapGrid(colors: colors, tiles: tiles),
-          ],
-        ),
+              ),
+            )
+          else
+            _PsfHeatmapGrid(colors: colors, tiles: tiles),
+        ],
       ),
     );
   }
@@ -504,12 +491,11 @@ class _PsfHeatmapGrid extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        tile == null ? '-' : fwhm.toStringAsFixed(2),
-                        style: TextStyle(
-                          color: labelColor,
-                          fontSize: NightshadeTypography.fontSize10,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        tile == null
+                            ? kReadoutUnknown
+                            : fwhm.toStringAsFixed(2),
+                        style: NightshadeTypography.caption.copyWith(
+                            color: labelColor, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -560,48 +546,40 @@ class _ResidualCard extends StatelessWidget {
                 residuals.length,
           );
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Astrometric Residuals',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Astrometric Residuals',
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
-                if (hubExportButton != null) hubExportButton!,
-                const _ScienceInfoButton(title: 'Astrometric Residuals'),
-              ],
-            ),
-            const SizedBox(height: 8),
+              ),
+              if (hubExportButton != null) hubExportButton!,
+              const _ScienceInfoButton(title: 'Astrometric Residuals'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            residuals.isEmpty
+                ? 'No residual vectors available for this session'
+                : 'RMS: ${rms.toStringAsFixed(3)}" across ${residuals.length} samples',
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          if (residuals.isNotEmpty)
             Text(
-              residuals.isEmpty
-                  ? 'No residual vectors available for this session'
-                  : 'RMS: ${rms.toStringAsFixed(3)}" across ${residuals.length} samples',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12,
-              ),
+              'Latest recommendation: ${residuals.last.recommendationCode ?? 'none'}',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
-            const SizedBox(height: 8),
-            if (residuals.isNotEmpty)
-              Text(
-                'Latest recommendation: ${residuals.last.recommendationCode ?? 'none'}',
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize11,
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }

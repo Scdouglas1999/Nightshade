@@ -315,10 +315,8 @@ class _NightStoryTimelineState extends ConsumerState<NightStoryTimeline> {
           Text(
             "Couldn't load the night story.",
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 12),
           NightshadeButton(
@@ -346,10 +344,7 @@ class _NightStoryTimelineState extends ConsumerState<NightStoryTimeline> {
       child: Center(
         child: Text(
           'No events in the selected categories.',
-          style: TextStyle(
-            color: colors.textMuted,
-            fontSize: NightshadeTypography.fontSize12,
-          ),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       ),
     );
@@ -366,11 +361,9 @@ class _StoryShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: child,
-      ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: child,
     );
   }
 }
@@ -403,12 +396,10 @@ class _SummaryStrip extends StatelessWidget {
     return Text(
       text,
       style: NightshadeTypography.withTabular(
-        TextStyle(
-          color: colors.textSecondary,
-          fontSize: NightshadeTypography.fontSize12,
-          fontWeight: FontWeight.w600,
-          height: 1.3,
-        ),
+        NightshadeTypography.caption.copyWith(
+            color: colors.textSecondary,
+            height: 1.3,
+            fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -473,7 +464,7 @@ class _StoryFilterChip extends StatelessWidget {
       ),
       selected: selected,
       selectedColor: colors.primary.withValues(alpha: 0.2),
-      backgroundColor: colors.surfaceAlt,
+      backgroundColor: colors.surfaceHover,
       side: BorderSide(color: selected ? colors.primary : colors.border),
       onSelected: (_) => onTap(),
       visualDensity: VisualDensity.compact,
@@ -550,12 +541,10 @@ class _HourHeader extends StatelessWidget {
           Text(
             label,
             style: NightshadeTypography.withTabular(
-              TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
+              NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                  letterSpacing: 0.4,
+                  fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -657,7 +646,7 @@ class _Rail extends StatelessWidget {
                   child: Center(
                     child: Container(
                       width: 1.5,
-                      color: top ? colors.border : Colors.transparent,
+                      color: top ? colors.border : null,
                     ),
                   ),
                 ),
@@ -665,7 +654,7 @@ class _Rail extends StatelessWidget {
                   child: Center(
                     child: Container(
                       width: 1.5,
-                      color: bottom ? colors.border : Colors.transparent,
+                      color: bottom ? colors.border : null,
                     ),
                   ),
                 ),

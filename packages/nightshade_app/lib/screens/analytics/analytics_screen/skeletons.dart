@@ -8,29 +8,26 @@ class _SessionHistorySkeletonList extends StatelessWidget {
     return ListView.builder(
       itemCount: 6,
       itemBuilder: (context, _) => const Padding(
-        padding: EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
         child: ShimmerLoading(
-          child: NightshadeCard(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                height: 56,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SkeletonBox(width: 180, height: 14),
-                          SizedBox(height: 8),
-                          SkeletonBox(width: 120, height: 12),
-                        ],
-                      ),
+          child: NightshadePanel(
+            child: SizedBox(
+              height: 56,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SkeletonBox(width: 180, height: 14),
+                        SizedBox(height: 8),
+                        SkeletonBox(width: 120, height: 12),
+                      ],
                     ),
-                    SkeletonBox(width: 220, height: 20),
-                  ],
-                ),
+                  ),
+                  SkeletonBox(width: 220, height: 20),
+                ],
               ),
             ),
           ),

@@ -19,7 +19,9 @@ extension _ScienceExportHubStateHelpers on _ScienceExportHubState {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Text('-', style: TextStyle(color: colors.textMuted)),
+          child: Text(kReadoutUnknown,
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textMuted)),
         ),
         _DateButton(
           colors: colors,
@@ -28,15 +30,14 @@ extension _ScienceExportHubStateHelpers on _ScienceExportHubState {
         ),
         if (_startDate != null || _endDate != null) ...[
           const SizedBox(width: 4),
-          IconButton(
-            icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+          NightshadeIconButton(
+            icon: LucideIcons.x,
+            tooltip: 'Clear date filter',
+            size: IconButtonSize.sm,
             onPressed: () => setState(() {
               _startDate = null;
               _endDate = null;
             }),
-            tooltip: 'Clear date filter',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
           ),
         ],
       ],
