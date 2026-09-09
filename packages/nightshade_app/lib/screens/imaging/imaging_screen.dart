@@ -138,16 +138,6 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
             tabs: AdaptiveTabBar(
               key: ImagingTutorialKeys.tabBar,
               horizontalPadding: 0,
-              // PageHeader lays the tab strip out as one of THREE flex children
-              // (title, tabs, spacer), so at 1600 px the strip is handed ~416 px
-              // — under AdaptiveTabBar's 480 px collapse threshold — and the
-              // labels vanished on a header with room to spare. The strip
-              // already scrolls when it genuinely does not fit, which is the
-              // honest answer at any width; collapsing to icons on a measurement
-              // that describes the flex division rather than the screen is not.
-              // TODO(observatory): PageHeader should give its tabs their
-              // intrinsic width before the spacer takes the slack.
-              collapseLabelsWhenTight: false,
               tabs: <AdaptiveTab>[
                 for (final ImagingTab tab in ImagingTab.values)
                   AdaptiveTab(

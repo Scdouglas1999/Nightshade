@@ -258,9 +258,7 @@ class CapturePanel extends ConsumerWidget {
                   child: ReadOnlyField(
                     // An unset capture directory persists as '.' — surface it
                     // as an actionable prompt instead of a bare dot.
-                    value: savePathUnset
-                        ? 'Not set — choose a folder'
-                        : namingPattern.baseDir,
+                    value: savePathUnset ? 'Not set' : namingPattern.baseDir,
                     mono: !savePathUnset,
                     muted: savePathUnset,
                   ),
@@ -292,7 +290,10 @@ class CapturePanel extends ConsumerWidget {
                 : null,
           ),
           ReadoutRow(
-            gap: DeviceRow.readoutGap,
+            // Not DeviceRow.readoutGap (18): ReadoutRow gives every child an
+            // equal share of the row rather than its natural width, so in a
+            // side panel the gap comes straight out of the widest label.
+            gap: NightshadeTokens.spaceMd,
             children: [
               Readout(value: '$capturedCount', label: 'Captured'),
               Readout(
@@ -321,9 +322,14 @@ class CapturePanel extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: NightshadeTokens.spaceMd),
-          Row(
+          // Stacked, not side by side: "View quick captures" and "Clear
+          // session" both ellipsized to nine characters when they shared a
+          // 244 px panel.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
+              Align(
+                alignment: Alignment.centerLeft,
                 // Ad-hoc Snapshot/Loop captures never open a database session
                 // — only the sequencer calls startSession — so gating this
                 // button on dbSessionId made it assert "no active session"
@@ -351,8 +357,9 @@ class CapturePanel extends ConsumerWidget {
                       : null,
                 ),
               ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Expanded(
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Align(
+                alignment: Alignment.centerLeft,
                 child: NightshadeButton(
                   label: 'Clear session',
                   icon: NightshadeIcons.delete,
