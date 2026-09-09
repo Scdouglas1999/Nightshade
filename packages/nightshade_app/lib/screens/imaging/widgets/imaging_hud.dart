@@ -28,6 +28,11 @@ class FrameStatsHud extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(lastImageStatsProvider);
+    // Prefer the live per-frame eccentricity the native star detector puts on
+    // ImageStats; fall back to the science-row median only when the frame did
+    // not measure it. Reading only the science row is why this said "—" while
+    // the badge beside it said 0.25.
+    final ecc = stats?.eccentricity ?? eccentricity;
     return Glass(
       key: ImagingTutorialKeys.statsPanel,
       child: ReadoutRow(
@@ -38,7 +43,7 @@ class FrameStatsHud extends ConsumerWidget {
             unit: 'px',
             label: 'HFR',
           ),
-          Readout(value: eccentricity?.toStringAsFixed(2), label: 'Ecc'),
+          Readout(value: ecc?.toStringAsFixed(2), label: 'Ecc'),
           Readout(value: stats?.starCount?.toString(), label: 'Stars'),
           Readout(value: _thousands(stats?.median), label: 'Median'),
           Readout(value: _thousands(stats?.mean), label: 'Mean'),

@@ -15,6 +15,7 @@ import 'frame_science_chip.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
+import 'imaging_capture_bar.dart' show captureBarWidthProvider;
 import 'imaging_hud.dart';
 import 'narrator_ticker.dart';
 import 'overlay_painters.dart';
@@ -70,6 +71,26 @@ const double _cornerReadoutBandHeight = 120.0;
 /// Distance from the canvas edge to a glass HUD panel
 /// (`mockups/imaging.html`: 14 px).
 const double _hudInset = 14.0;
+
+/// Vertical room the capture bar needs above the canvas edge: its own height
+/// plus the gap it sits on plus the gap above it.
+const double _captureBarBand = NightshadeTokens.spaceLg + 48 + _hudInset;
+
+/// Where the bottom-right histogram sits.
+///
+/// The capture bar is CENTRED, so what the histogram competes for is the slack
+/// on one side of it. The histogram keeps the corner while that slack holds
+/// the panel, and steps up over the bar when it does not. A zero
+/// [captureBarWidth] means the bar has not been laid out yet, or is not on
+/// screen at all — the corner's case either way.
+double _histogramBottom({
+  required double canvasWidth,
+  required double captureBarWidth,
+}) {
+  final slack = (canvasWidth - captureBarWidth) / 2;
+  final clears = slack >= HistogramHud.width + 2 * _hudInset;
+  return clears ? _hudInset : _hudInset + _captureBarBand;
+}
 
 /// Whether the on-canvas measurement readouts — the histogram, the HFR / ECC /
 /// star-count chip and the image-stats panel — are drawn.
@@ -676,8 +697,18 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   ),
 
                   // Bottom-right: the histogram and the stretch in force.
+                  //
+                  // The capture bar is centred on the same edge. On a wide
+                  // canvas the two clear each other; on a narrow one the bar
+                  // reaches the corner and would be drawn ON the histogram, so
+                  // the histogram steps up above it. Glass never overlaps
+                  // glass — a readout you cannot read is worse than one that
+                  // moved.
                   Positioned(
-                    bottom: _hudInset,
+                    bottom: _histogramBottom(
+                      canvasWidth: viewportSize.width,
+                      captureBarWidth: ref.watch(captureBarWidthProvider),
+                    ),
                     right: _hudInset,
                     child: _readout(
                       const HistogramHud(),
@@ -723,7 +754,14 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                             children: [
                               const FrameScienceChip(),
                               const SizedBox(height: NightshadeTokens.spaceXs),
-                              SubQualityBadge(eccentricity: frameEccentricity),
+                              // Verdict only. HFR / ECC / stars used to be
+                              // repeated here under the capture bar; 06 removes
+                              // the on-canvas HFR/stars box and the top-left
+                              // glass readout says those numbers once, louder.
+                              SubQualityBadge(
+                                eccentricity: frameEccentricity,
+                                showMetrics: false,
+                              ),
                               const SizedBox(height: NightshadeTokens.spaceXs),
                               const GuidingActiveChip(),
                             ],

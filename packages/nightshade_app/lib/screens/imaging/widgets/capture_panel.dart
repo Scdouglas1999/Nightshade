@@ -9,6 +9,7 @@ import '../../../services/mount_command_service.dart';
 import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/help/field_help_copy.dart';
+import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'panel_widgets.dart';
@@ -157,41 +158,48 @@ class CapturePanel extends ConsumerWidget {
           const SizedBox(height: FormRow.rowGap),
           FormRow(
             label: 'Frame type',
-            help: helpFor(FieldHelpId.captureFrameType).body,
-            child: NightshadeDropdown(
-              value: exposureSettings.frameType.displayName,
-              items: FrameType.values.map((t) => t.displayName).toList(),
-              isExpanded: true,
-              onChanged: (value) {
-                if (value == null) return;
-                final type = FrameType.values.firstWhere(
-                  (t) => t.displayName == value,
-                  orElse: () => FrameType.light,
-                );
-                ref.read(manualExposureSettingsUpdaterProvider).update(
-                      exposureSettings.copyWith(frameType: type),
-                    );
-              },
+            // The explanation rides behind the help glyph, not under the row: a
+            // FormRow is one line, and a paragraph of prose between two fields
+            // is the screen explaining itself on every visit.
+            child: _WithHelp(
+              helpId: FieldHelpId.captureFrameType,
+              child: NightshadeDropdown(
+                value: exposureSettings.frameType.displayName,
+                items: FrameType.values.map((t) => t.displayName).toList(),
+                isExpanded: true,
+                onChanged: (value) {
+                  if (value == null) return;
+                  final type = FrameType.values.firstWhere(
+                    (t) => t.displayName == value,
+                    orElse: () => FrameType.light,
+                  );
+                  ref.read(manualExposureSettingsUpdaterProvider).update(
+                        exposureSettings.copyWith(frameType: type),
+                      );
+                },
+              ),
             ),
           ),
           const SizedBox(height: FormRow.rowGap),
           FormRow(
             label: 'Binning',
-            help: helpFor(FieldHelpId.captureBinning).body,
-            child: NightshadeDropdown(
-              value: currentBinning,
-              items: binningOptions,
-              isExpanded: true,
-              onChanged: (value) {
-                if (value == null) return;
-                final parts = value.split('x');
-                ref.read(manualExposureSettingsUpdaterProvider).update(
-                      exposureSettings.copyWith(
-                        binningX: int.parse(parts[0]),
-                        binningY: int.parse(parts[1]),
-                      ),
-                    );
-              },
+            child: _WithHelp(
+              helpId: FieldHelpId.captureBinning,
+              child: NightshadeDropdown(
+                value: currentBinning,
+                items: binningOptions,
+                isExpanded: true,
+                onChanged: (value) {
+                  if (value == null) return;
+                  final parts = value.split('x');
+                  ref.read(manualExposureSettingsUpdaterProvider).update(
+                        exposureSettings.copyWith(
+                          binningX: int.parse(parts[0]),
+                          binningY: int.parse(parts[1]),
+                        ),
+                      );
+                },
+              ),
             ),
           ),
           const SizedBox(height: FormRow.rowGap),
@@ -657,5 +665,29 @@ class _CaptureSavePathButtonState extends ConsumerState<CaptureSavePathButton> {
     return mounted &&
         generation == _operationGeneration &&
         identical(ref.read(backendProvider), authority);
+  }
+}
+
+/// A form control with its explanation behind a help glyph.
+///
+/// `FormRow.help` renders the copy inline under the row, which turns a form of
+/// one-line rows into a wall of prose. The glyph keeps the explanation one
+/// hover away and the row one line tall.
+class _WithHelp extends StatelessWidget {
+  const _WithHelp({required this.helpId, required this.child});
+
+  final FieldHelpId helpId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = helpFor(helpId);
+    return Row(
+      children: [
+        Expanded(child: child),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        helpAffordance(context, title: copy.title, body: copy.body),
+      ],
+    );
   }
 }

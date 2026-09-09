@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -14,6 +15,16 @@ final loopSavesFramesProvider = StateProvider<bool>((ref) => false);
 
 /// Identifies the capture bar's "Save loop frames" toggle for tests.
 const loopSaveFramesToggleKey = Key('imaging.loopSaveFramesToggle');
+
+/// The capture bar's MEASURED width, published so the canvas can keep its
+/// bottom-right histogram off it.
+///
+/// The bar is centred and sizes itself to its content, and that content
+/// changes with the rig (a filter wheel adds a dropdown, auto-stretch adds a
+/// method picker) and with the type scale. Any constant here would be right
+/// for one combination and wrong for the rest — which is exactly how two glass
+/// panels ended up drawn on top of each other. Zero until the first layout.
+final captureBarWidthProvider = StateProvider<double>((ref) => 0);
 
 /// The glass capture bar, docked bottom-centre over the frame (06 §Imaging).
 ///
@@ -97,157 +108,210 @@ class _ImagingCaptureBarState extends ConsumerState<ImagingCaptureBar> {
             ? 'Stop'
             : 'Loop';
 
-    return Glass(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-      // The bar sizes to its content and centres, exactly as mocked up at
-      // 1600. On a narrower canvas — a 900 px window still keeps the side
-      // panel and the rail — that content is wider than the room it has, and
-      // the rule for that is "reduce content or let it scroll" (07 §What NOT
-      // to do). Nothing here is optional during a capture, so it scrolls, and
-      // the scrollbar is what says so.
-      //
-      // IntrinsicWidth is what keeps both cases right: it sizes the bar to its
-      // content, clamped by the room the canvas gives it, so a wide window
-      // gets the centred pill from the mockup and a narrow one gets the same
-      // pill full width with a scroll inside.
-      child: IntrinsicWidth(
-        child: Scrollbar(
-          controller: _scrollController,
-          child: SingleChildScrollView(
+    return _MeasuredWidth(
+      onWidth: (double width) {
+        if (ref.read(captureBarWidthProvider) == width) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ref.read(captureBarWidthProvider.notifier).state = width;
+        });
+      },
+      child: Glass(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+        // The bar sizes to its content and centres, exactly as mocked up at
+        // 1600. On a narrower canvas — a 900 px window still keeps the side
+        // panel and the rail — that content is wider than the room it has, and
+        // the rule for that is "reduce content or let it scroll" (07 §What NOT
+        // to do). Nothing here is optional during a capture, so it scrolls, and
+        // the scrollbar is what says so.
+        //
+        // IntrinsicWidth is what keeps both cases right: it sizes the bar to its
+        // content, clamped by the room the canvas gives it, so a wide window
+        // gets the centred pill from the mockup and a narrow one gets the same
+        // pill full width with a scroll inside.
+        child: IntrinsicWidth(
+          child: Scrollbar(
             controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                // The screen's two primary actions reached assistive tech as unnamed
-                // generic nodes, so a screen-reader user was never told the shutter
-                // was a button, nor that it was unavailable while the camera was
-                // disconnected. The role and the enabled state are published here so
-                // this bar's contract is pinned by its own test.
-                _BarAction(
-                  label: snapshotLabel,
-                  enabled: snapshotEnabled,
-                  onTap: onSnapshot,
-                  child: NightshadeButton(
-                    key: ImagingTutorialKeys.snapshotBtn,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  // The screen's two primary actions reached assistive tech as unnamed
+                  // generic nodes, so a screen-reader user was never told the shutter
+                  // was a button, nor that it was unavailable while the camera was
+                  // disconnected. The role and the enabled state are published here so
+                  // this bar's contract is pinned by its own test.
+                  _BarAction(
                     label: snapshotLabel,
-                    icon: isSingleCapture
-                        ? NightshadeIcons.loading
-                        : NightshadeIcons.camera,
-                    isLoading: isSingleCapture,
-                    semanticsHint: isConnected
-                        ? null
-                        : 'Connect a camera in Equipment first',
-                    onPressed: snapshotEnabled ? onSnapshot : null,
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                _BarAction(
-                  label: loopLabel,
-                  enabled: loopEnabled,
-                  onTap: onToggleLoop,
-                  child: NightshadeButton(
-                    key: ImagingTutorialKeys.loopBtn,
-                    label: loopLabel,
-                    icon: isStoppingCapture
-                        ? NightshadeIcons.loading
-                        : isLooping
-                            ? NightshadeIcons.stop
-                            : NightshadeIcons.repeat,
-                    variant: isLooping
-                        ? ButtonVariant.destructive
-                        : ButtonVariant.secondary,
-                    semanticsHint: isConnected
-                        ? null
-                        : 'Connect a camera in Equipment first',
-                    onPressed: loopEnabled ? onToggleLoop : null,
-                  ),
-                ),
-                const _BarSeparator(),
-                SizedBox(
-                  width: _fieldWidth,
-                  child: _ExposureField(
-                    hostSuffix: hostSuffix,
-                    value: exposureSettings.exposureTime,
-                    onChanged: (double parsed) => ref
-                        .read(manualExposureSettingsUpdaterProvider)
-                        .update(
-                            exposureSettings.copyWith(exposureTime: parsed)),
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                SizedBox(
-                  width: _fieldWidth,
-                  child: _GainField(
-                    value: exposureSettings.gain,
-                    onChanged: (int gain) => ref
-                        .read(manualExposureSettingsUpdaterProvider)
-                        .update(exposureSettings.copyWith(gain: gain)),
-                  ),
-                ),
-                if (filterState.filterNames.isNotEmpty) ...<Widget>[
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  SizedBox(
-                    width: _filterWidth,
-                    child: Semantics(
-                      label: 'Filter',
-                      child: NightshadeDropdown(
-                        key: ImagingTutorialKeys.filterSelector,
-                        value: filterState.filterNames
-                                .contains(exposureSettings.filter)
-                            ? exposureSettings.filter
-                            : filterState.filterNames.first,
-                        items: filterState.filterNames,
-                        isExpanded: true,
-                        onChanged: (String? name) {
-                          if (name == null) return;
-                          ref
-                              .read(manualExposureSettingsUpdaterProvider)
-                              .update(exposureSettings.copyWith(filter: name));
-                        },
-                      ),
+                    enabled: snapshotEnabled,
+                    onTap: onSnapshot,
+                    child: NightshadeButton(
+                      key: ImagingTutorialKeys.snapshotBtn,
+                      label: snapshotLabel,
+                      icon: isSingleCapture
+                          ? NightshadeIcons.loading
+                          : NightshadeIcons.camera,
+                      isLoading: isSingleCapture,
+                      semanticsHint: isConnected
+                          ? null
+                          : 'Connect a camera in Equipment first',
+                      onPressed: snapshotEnabled ? onSnapshot : null,
                     ),
                   ),
-                ],
-                const _BarSeparator(),
-                _BarAction(
-                  // "Save" alone names neither what is saved nor that it is a
-                  // toggle; the accessible name says both.
-                  label: 'Save loop frames',
-                  enabled: !isLooping && !isStoppingCapture,
-                  toggled: saveLoopFrames,
-                  onTap: () => ref
-                      .read(loopSavesFramesProvider.notifier)
-                      .state = !saveLoopFrames,
-                  child: NightshadeButton(
-                    key: loopSaveFramesToggleKey,
-                    label: 'Save',
-                    icon: saveLoopFrames
-                        ? NightshadeIcons.save
-                        : NightshadeIcons.visible,
-                    size: ButtonSize.small,
-                    variant: ButtonVariant.ghost,
-                    semanticsHint: saveLoopFrames
-                        ? 'Loop frames are saved to the image folder and counted in '
-                            'the session'
-                        : 'Loop frames are live view only — not saved, not counted',
-                    // Changing it mid-loop would split one run across two
-                    // destinations, so it locks while the loop is live.
-                    onPressed: isLooping || isStoppingCapture
-                        ? null
-                        : () => ref
-                            .read(loopSavesFramesProvider.notifier)
-                            .state = !saveLoopFrames,
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  _BarAction(
+                    label: loopLabel,
+                    enabled: loopEnabled,
+                    onTap: onToggleLoop,
+                    child: NightshadeButton(
+                      key: ImagingTutorialKeys.loopBtn,
+                      label: loopLabel,
+                      icon: isStoppingCapture
+                          ? NightshadeIcons.loading
+                          : isLooping
+                              ? NightshadeIcons.stop
+                              : NightshadeIcons.repeat,
+                      variant: isLooping
+                          ? ButtonVariant.destructive
+                          : ButtonVariant.secondary,
+                      semanticsHint: isConnected
+                          ? null
+                          : 'Connect a camera in Equipment first',
+                      onPressed: loopEnabled ? onToggleLoop : null,
+                    ),
                   ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                const StretchControls(compact: true),
-              ],
+                  const _BarSeparator(),
+                  SizedBox(
+                    width: _fieldWidth,
+                    child: _ExposureField(
+                      hostSuffix: hostSuffix,
+                      value: exposureSettings.exposureTime,
+                      onChanged: (double parsed) => ref
+                          .read(manualExposureSettingsUpdaterProvider)
+                          .update(
+                              exposureSettings.copyWith(exposureTime: parsed)),
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  SizedBox(
+                    width: _fieldWidth,
+                    child: _GainField(
+                      value: exposureSettings.gain,
+                      onChanged: (int gain) => ref
+                          .read(manualExposureSettingsUpdaterProvider)
+                          .update(exposureSettings.copyWith(gain: gain)),
+                    ),
+                  ),
+                  if (filterState.filterNames.isNotEmpty) ...<Widget>[
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    SizedBox(
+                      width: _filterWidth,
+                      child: Semantics(
+                        label: 'Filter',
+                        child: NightshadeDropdown(
+                          key: ImagingTutorialKeys.filterSelector,
+                          value: filterState.filterNames
+                                  .contains(exposureSettings.filter)
+                              ? exposureSettings.filter
+                              : filterState.filterNames.first,
+                          items: filterState.filterNames,
+                          isExpanded: true,
+                          onChanged: (String? name) {
+                            if (name == null) return;
+                            ref
+                                .read(manualExposureSettingsUpdaterProvider)
+                                .update(
+                                    exposureSettings.copyWith(filter: name));
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                  const _BarSeparator(),
+                  _BarAction(
+                    // "Save" alone names neither what is saved nor that it is a
+                    // toggle; the accessible name says both.
+                    label: 'Save loop frames',
+                    enabled: !isLooping && !isStoppingCapture,
+                    toggled: saveLoopFrames,
+                    onTap: () => ref
+                        .read(loopSavesFramesProvider.notifier)
+                        .state = !saveLoopFrames,
+                    child: NightshadeButton(
+                      key: loopSaveFramesToggleKey,
+                      label: 'Save',
+                      icon: saveLoopFrames
+                          ? NightshadeIcons.save
+                          : NightshadeIcons.visible,
+                      size: ButtonSize.small,
+                      variant: ButtonVariant.ghost,
+                      semanticsHint: saveLoopFrames
+                          ? 'Loop frames are saved to the image folder and counted in '
+                              'the session'
+                          : 'Loop frames are live view only — not saved, not counted',
+                      // Changing it mid-loop would split one run across two
+                      // destinations, so it locks while the loop is live.
+                      onPressed: isLooping || isStoppingCapture
+                          ? null
+                          : () => ref
+                              .read(loopSavesFramesProvider.notifier)
+                              .state = !saveLoopFrames,
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  const StretchControls(compact: true),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Reports its child's laid-out width, after the frame.
+///
+/// Same contract as `MeasuredBottomInsetReporter`: measuring during layout
+/// walks ancestors that are still mid-pass, so both the measurement and the
+/// report are deferred.
+class _MeasuredWidth extends SingleChildRenderObjectWidget {
+  const _MeasuredWidth({required this.onWidth, required Widget child})
+      : super(child: child);
+
+  final ValueChanged<double> onWidth;
+
+  @override
+  RenderProxyBox createRenderObject(BuildContext context) =>
+      _RenderWidthReporter(onWidth);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant RenderProxyBox renderObject,
+  ) {
+    (renderObject as _RenderWidthReporter).onWidth = onWidth;
+  }
+}
+
+class _RenderWidthReporter extends RenderProxyBox {
+  _RenderWidthReporter(this.onWidth);
+
+  ValueChanged<double> onWidth;
+  double? _reported;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!attached || !hasSize) return;
+      final width = size.width;
+      if (_reported == width) return;
+      _reported = width;
+      onWidth(width);
+    });
   }
 }
 

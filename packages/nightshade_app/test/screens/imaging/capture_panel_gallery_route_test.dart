@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/screens/imaging/widgets/capture_panel.dart';
-import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;

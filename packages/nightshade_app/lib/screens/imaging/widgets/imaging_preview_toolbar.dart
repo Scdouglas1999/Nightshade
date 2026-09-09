@@ -263,16 +263,24 @@ class _ViewerMeta extends StatelessWidget {
       );
     }
 
+    // A segment whose value is unknown says "Sky —", never "Sky — mag/″²":
+    // a unit on a value that does not exist describes nothing. The frame size
+    // and the zoom drop out entirely with no frame on the canvas, because an
+    // em dash is worth a slot only when the slot is permanent.
+    final parts = <Widget>[
+      if (resolution != null) segment(null, resolution),
+      segment('Bin', binning),
+      if (resolution != null) segment('Zoom', zoom),
+      segment('Sky', sky, sky == null ? null : 'mag/″²'),
+    ];
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        segment(null, resolution),
-        const SizedBox(width: segmentGap),
-        segment('Bin', binning),
-        const SizedBox(width: segmentGap),
-        segment('Zoom', zoom),
-        const SizedBox(width: segmentGap),
-        segment('Sky', sky, 'mag/″²'),
+        for (var i = 0; i < parts.length; i++) ...<Widget>[
+          if (i > 0) const SizedBox(width: segmentGap),
+          parts[i],
+        ],
       ],
     );
   }
