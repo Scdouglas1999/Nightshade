@@ -383,9 +383,7 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     ];
 
     return Container(
-      height: widget.compact
-          ? ShellChromeMetrics.statusBarHeightCompact
-          : ShellChromeMetrics.statusBarHeight,
+      height: ShellChromeMetrics.statusBarHeight,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
