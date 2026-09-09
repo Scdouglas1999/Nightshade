@@ -368,20 +368,11 @@ class _NightshadeDesignSystemGalleryState
                           child: Column(
                             children: [
                               for (final entry in const [
-                                MapEntry(0, (
-                                  LucideIcons.layoutDashboard,
-                                  'Dashboard',
-                                  'Overview and status',
-                                )),
-                                MapEntry(1, (
-                                  LucideIcons.camera,
-                                  'Imaging',
-                                  'Capture and review',
-                                )),
+                                MapEntry(0, (LucideIcons.moonStar, 'Tonight')),
+                                MapEntry(1, (LucideIcons.camera, 'Imaging')),
                                 MapEntry(2, (
                                   LucideIcons.listOrdered,
                                   'Sequencer',
-                                  'Run automation',
                                 )),
                               ])
                                 Padding(
@@ -398,7 +389,6 @@ class _NightshadeDesignSystemGalleryState
                                     ),
                                     icon: entry.value.$1,
                                     label: entry.value.$2,
-                                    description: entry.value.$3,
                                     isSelected: _selectedNavItem == entry.key,
                                     isExpanded: _navExpanded,
                                     onTap: () {

@@ -81,6 +81,14 @@ SemanticsData? _nodeLabelled(List<SemanticsData> nodes, String label) {
   return null;
 }
 
+/// Exact-match lookup, for rows whose whole name is the string.
+SemanticsData? _nodeLabelledExactly(List<SemanticsData> nodes, String label) {
+  for (final node in nodes) {
+    if (node.label == label) return node;
+  }
+  return null;
+}
+
 /// The shell reads the checkpoint API on startup; keep that quiet so the test
 /// is about semantics, not about startup IO.
 class _QuietBackend extends DisconnectedBackend {
@@ -293,18 +301,18 @@ void main() {
         index++) {
       final destination = ShellNavigation.primaryDestinations[index];
       final name = destination.label(l10n);
-      // Match on the description, not the name: the title bar's own
-      // "Equipment Profiles" button contains "Equipment" and would answer for
-      // the rail's Equipment destination. Only the rail renders the
-      // description under the name, so this picks out the rail row.
-      final node = _nodeLabelled(nodes, destination.description(l10n));
+      // The rail row's Semantics label is EXACTLY the destination name (the
+      // descriptions are gone in the Observatory rail), so match on equality:
+      // a `contains` match would let the top bar's own buttons answer for a
+      // rail row that is not published at all.
+      final node = _nodeLabelledExactly(nodes, name);
       expect(
         node,
         isNotNull,
         reason: 'the rail destination "$name" must reach the semantics tree; '
             'the routed page route barrier used to erase the whole rail',
       );
-      expect(node!.label, contains(name),
+      expect(node!.label, name,
           reason: 'the rail row must announce its destination by name');
       expect(node.flagsCollection.isButton, isTrue,
           reason: '"$name" must publish a button role');

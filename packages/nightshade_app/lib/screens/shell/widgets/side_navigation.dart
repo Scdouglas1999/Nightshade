@@ -9,11 +9,7 @@ List<SideNavTab> sideNavigationTabs(BuildContext context) {
   final l10n = context.l10n;
   return [
     for (final dest in ShellNavigation.primaryDestinations)
-      SideNavTab(
-        icon: dest.icon,
-        label: dest.label(l10n),
-        description: dest.description(l10n),
-      ),
+      SideNavTab(icon: dest.icon, label: dest.label(l10n)),
     // Scheduler lives inside Plan Tonight as a tab. Reach it via
     // Plan Tonight → Target Queue or `/planner?tab=scheduler`.
     // Diagnostics lives inside Analytics as a tab. Reach it via
@@ -52,7 +48,6 @@ class SideNavigation extends StatelessWidget {
           : null,
       icon: tab.icon,
       label: tab.label,
-      description: tab.description,
       isSelected: isSelected,
       isExpanded: isExpanded,
       onTap: () => onTabSelected(index),
@@ -62,25 +57,6 @@ class SideNavigation extends StatelessWidget {
     if (!isExpanded) {
       return NightshadeTooltip(
         message: tab.label,
-        richMessage: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              tab.label,
-              style: NightshadeTypography.label.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              tab.description,
-              style: NightshadeTypography.captionSm.copyWith(
-                color: NightshadeColors.of(context).textMuted,
-              ),
-            ),
-          ],
-        ),
         position: NightshadeTooltipPosition.right,
         child: button,
       );
@@ -152,13 +128,8 @@ class SideNavigation extends StatelessWidget {
 class SideNavTab {
   final IconData icon;
   final String label;
-  final String description;
 
-  const SideNavTab({
-    required this.icon,
-    required this.label,
-    required this.description,
-  });
+  const SideNavTab({required this.icon, required this.label});
 }
 
 class _CollapseButton extends StatefulWidget {

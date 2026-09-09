@@ -532,14 +532,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                         if (!useBottomNav)
                           SideNavigation(
                             key: TutorialKeys.sideNavigation,
+                            // Positional, so it tracks the rail order in
+                            // ShellNavigation.primaryDestinations (04 §3.2):
+                            // Tonight, Imaging, Sequencer, Guiding | Plan,
+                            // Equipment, Weather | Darkroom, Analytics.
                             tutorialKeys: [
                               TutorialKeys.navDashboard,
-                              TutorialKeys.navEquipment,
                               TutorialKeys.navImaging,
                               TutorialKeys.navSequencer,
                               TutorialKeys.navGuiding,
-                              null,
                               TutorialKeys.navPlanner,
+                              TutorialKeys.navEquipment,
+                              null,
+                              null,
                               TutorialKeys.navAnalytics,
                             ],
                             currentIndex: currentIndex,

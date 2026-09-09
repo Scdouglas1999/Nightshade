@@ -134,12 +134,6 @@ class NightshadeBottomNavigation extends StatelessWidget {
                             isCurrent ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
-                    subtitle: Text(
-                      dest.description(l10n),
-                      style: NightshadeTypography.captionSm.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
                     selected: isCurrent,
                     onTap: () {
                       Navigator.of(sheetContext).pop();

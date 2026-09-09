@@ -94,8 +94,7 @@ void main() {
       ),
       'NavItem': NavItem(
         icon: LucideIcons.home,
-        label: 'Dashboard',
-        description: 'Tonight at a glance',
+        label: 'Tonight',
         isSelected: true,
         isExpanded: true,
         onTap: () {},

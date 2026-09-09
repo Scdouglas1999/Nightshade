@@ -9,7 +9,6 @@ import '../utils/responsive_utils.dart';
 class NavItem extends StatefulWidget {
   final IconData icon;
   final String label;
-  final String description;
   final bool isSelected;
   final bool isExpanded;
   final VoidCallback onTap;
@@ -18,7 +17,6 @@ class NavItem extends StatefulWidget {
     super.key,
     required this.icon,
     required this.label,
-    required this.description,
     required this.isSelected,
     required this.isExpanded,
     required this.onTap,
@@ -47,7 +45,6 @@ class _NavItemState extends State<NavItem> {
     final verticalPadding = widget.isExpanded ? NightshadeTokens.spaceMd : 10.0;
     final iconSize = Responsive.iconSize(context, 18);
     final labelFontSize = Responsive.fontSize(context, 13);
-    final descriptionFontSize = Responsive.fontSize(context, 11);
 
     return Semantics(
       // Semantics publishes isEnabled only when this field is given;
@@ -100,34 +97,19 @@ class _NavItemState extends State<NavItem> {
                   if (widget.isExpanded) ...[
                     const SizedBox(width: NightshadeTokens.spaceMd),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.label,
-                            style: NightshadeTypography.label.copyWith(
-                              fontSize: labelFontSize,
-                              fontWeight: widget.isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                              color: widget.isSelected || _isHovered
-                                  ? colors.textPrimary
-                                  : colors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          const SizedBox(height: NightshadeTokens.spaceXs / 2),
-                          Text(
-                            widget.description,
-                            style: NightshadeTypography.captionSm.copyWith(
-                              fontSize: descriptionFontSize,
-                              color: colors.textMuted,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ],
+                      child: Text(
+                        widget.label,
+                        style: NightshadeTypography.label.copyWith(
+                          fontSize: labelFontSize,
+                          fontWeight: widget.isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: widget.isSelected || _isHovered
+                              ? colors.textPrimary
+                              : colors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                   ],
