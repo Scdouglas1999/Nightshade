@@ -277,10 +277,9 @@ class _Facts extends ConsumerWidget {
               ),
       );
 
-      final illumination = night.moonIllumination;
+      final percent = night.moonIlluminationRounded;
       final moonSet = night.moonSet;
-      if (illumination != null) {
-        final percent = (illumination * 100).round();
+      if (percent != null) {
         facts.add(
           moonSet != null
               ? l10n.text(

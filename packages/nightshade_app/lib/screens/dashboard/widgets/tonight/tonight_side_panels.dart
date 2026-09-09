@@ -24,7 +24,7 @@ class TonightMoonPanel extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
     final night = ref.watch(tonightNightProvider);
-    final illumination = night?.moonIllumination;
+    final percent = night?.moonIlluminationRounded;
 
     return NightshadePanel(
       head: PanelHead(icon: LucideIcons.moon, label: l10n.text('tnMoon')),
@@ -36,7 +36,8 @@ class TonightMoonPanel extends ConsumerWidget {
             height: _discSize,
             child: CustomPaint(
               painter: MoonPainter(
-                illumination: (illumination ?? 0) * 100,
+                // MoonPainter takes 0–100, which is what the provider hands us.
+                illumination: night?.moonIlluminationPercent ?? 0,
                 // Waxing between new and full: the moon that sets AFTER the sun
                 // is the one lit on its western limb.
                 waxing: _isWaxing(night),
@@ -52,9 +53,7 @@ class TonightMoonPanel extends ConsumerWidget {
               gap: NightshadeTokens.spaceXl,
               children: <Readout>[
                 Readout(
-                  value: illumination == null
-                      ? null
-                      : '${(illumination * 100).round()}',
+                  value: percent == null ? null : '$percent',
                   unit: '%',
                   label: l10n.text('tnIlluminated'),
                 ),

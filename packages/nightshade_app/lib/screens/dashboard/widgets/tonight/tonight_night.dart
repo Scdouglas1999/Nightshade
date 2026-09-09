@@ -27,7 +27,7 @@ class TonightNight {
     required this.now,
     this.moonRise,
     this.moonSet,
-    this.moonIllumination,
+    this.moonIlluminationPercent,
   });
 
   final DateTime sunset;
@@ -42,8 +42,17 @@ class TonightNight {
   final DateTime? moonRise;
   final DateTime? moonSet;
 
-  /// 0–1, not a percentage.
-  final double? moonIllumination;
+  /// The lit fraction of the disc as a PERCENTAGE, 0–100.
+  ///
+  /// `MoonTimes.illumination` is already scaled by 100 (see
+  /// `nightshade_planetarium` `calc/moon.dart`: `(1 + cos(phaseAngle)) / 2 *
+  /// 100`). Treating it as a 0–1 fraction and scaling it again printed
+  /// "Moon 238%" for a 2.38 % crescent, so the unit is named here and
+  /// [moonIlluminationPercent] is the only thing callers format.
+  final double? moonIlluminationPercent;
+
+  /// The rounded percentage for display, or null when there is no moon data.
+  int? get moonIlluminationRounded => moonIlluminationPercent?.round();
 
   /// How long astronomical darkness lasts.
   Duration get darkDuration => astroDawn.difference(astroDark);
@@ -92,7 +101,7 @@ final tonightNightProvider = Provider<TonightNight?>((ref) {
     now: local(now),
     moonRise: moonRise == null ? null : local(moonRise),
     moonSet: moonSet == null ? null : local(moonSet),
-    moonIllumination: moon?.illumination,
+    moonIlluminationPercent: moon?.illumination,
   );
 });
 
