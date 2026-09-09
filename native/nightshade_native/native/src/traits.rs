@@ -410,6 +410,30 @@ pub trait NativeMount: NativeDevice {
     /// Get local sidereal time
     async fn get_sidereal_time(&self) -> Result<f64, NativeError>;
 
+    /// Read the site the mount is configured for.
+    ///
+    /// Defaults to `NotSupported`. A mount whose site cannot be read must say
+    /// so: a fabricated site would be compared against the computer's and
+    /// silently "agree".
+    async fn get_site(&self) -> Result<MountSiteInfo, NativeError> {
+        Err(NativeError::NotSupported)
+    }
+
+    /// Write the site into the mount.
+    async fn set_site(&mut self, _site: MountSiteInfo) -> Result<(), NativeError> {
+        Err(NativeError::NotSupported)
+    }
+
+    /// Read the mount's clock and UTC offset.
+    async fn get_clock(&self) -> Result<MountClock, NativeError> {
+        Err(NativeError::NotSupported)
+    }
+
+    /// Write the clock and UTC offset into the mount.
+    async fn set_clock(&mut self, _clock: MountClock) -> Result<(), NativeError> {
+        Err(NativeError::NotSupported)
+    }
+
     /// Send the mount to its mechanical home position.
     ///
     /// Defaults to `NotSupported` because most serial protocols have no home
@@ -426,6 +450,27 @@ pub trait NativeMount: NativeDevice {
     async fn at_home(&self) -> Result<bool, NativeError> {
         Err(NativeError::NotSupported)
     }
+}
+
+/// Where the mount believes it is standing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountSiteInfo {
+    /// Degrees north, negative south.
+    pub latitude_deg: f64,
+    /// Degrees EAST of Greenwich, negative west. Note that the LX200 wire
+    /// format is west-positive; drivers convert, callers never see that.
+    pub longitude_deg: f64,
+    /// Metres above sea level, when the protocol carries it.
+    pub elevation_m: Option<f64>,
+}
+
+/// What the mount believes the time is.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountClock {
+    /// Seconds since the Unix epoch, UTC.
+    pub utc_unix_seconds: i64,
+    /// Hours EAST of UTC, in the ordinary sense: US Eastern Standard is -5.0.
+    pub utc_offset_hours: f64,
 }
 
 /// Side of Pier

@@ -275,6 +275,38 @@ impl Lx200Mount {
         }
     }
 
+    /// Discard whatever the mount volunteers after `:SC#`.
+    ///
+    /// Meade firmware answers the date with `1` and then TWO `#`-terminated
+    /// strings ("Updating planetary data..."). Those bytes sit in the buffer
+    /// and would be read as the reply to whatever command runs next, so the
+    /// damage from skipping this lands somewhere else entirely. OnStep sends
+    /// nothing extra, and the short read timeout makes that case cheap.
+    pub(crate) fn drain_calendar_chatter(&self) {
+        let Ok(mut port_guard) = self.serial_port.lock() else {
+            return;
+        };
+        let Some(port) = port_guard.as_mut() else {
+            return;
+        };
+
+        let deadline = std::time::Instant::now();
+        let mut buf = [0u8; 1];
+        let mut terminators = 0;
+        while deadline.elapsed() < CALENDAR_CHATTER_WINDOW && terminators < 2 {
+            match port.read(&mut buf) {
+                Ok(1) => {
+                    if buf[0] == RESPONSE_TERM {
+                        terminators += 1;
+                    }
+                }
+                Ok(_) => break,
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,
+                Err(_) => break,
+            }
+        }
+    }
+
     pub(crate) fn send_command_no_response(&self, command: &str) -> Result<(), NativeError> {
         let mut port_guard = self
             .serial_port

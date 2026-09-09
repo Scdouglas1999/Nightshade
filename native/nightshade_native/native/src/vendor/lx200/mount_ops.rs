@@ -392,6 +392,138 @@ impl NativeMount for Lx200Mount {
         Ok((alt, az.abs()))
     }
 
+    async fn get_site(&self) -> Result<MountSiteInfo, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let latitude_deg = parse_dms(&self.send_command(commands::GET_SITE_LATITUDE)?)?;
+        let longitude_wire = parse_dms(&self.send_command(commands::GET_SITE_LONGITUDE)?)?;
+
+        if !(-90.0..=90.0).contains(&latitude_deg) {
+            return Err(NativeError::SdkError(format!(
+                "Mount reported latitude {} outside -90..90",
+                latitude_deg
+            )));
+        }
+        let longitude_deg = lx200_longitude_to_east_positive(longitude_wire);
+        if !(-180.0..=180.0).contains(&longitude_deg) {
+            return Err(NativeError::SdkError(format!(
+                "Mount reported longitude {} outside -180..180",
+                longitude_deg
+            )));
+        }
+
+        Ok(MountSiteInfo {
+            latitude_deg,
+            longitude_deg,
+            // No LX200 command carries elevation. `None` says "not carried"
+            // rather than claiming sea level.
+            elevation_m: None,
+        })
+    }
+
+    async fn set_site(&mut self, site: MountSiteInfo) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+        if !(-90.0..=90.0).contains(&site.latitude_deg)
+            || !(-180.0..=180.0).contains(&site.longitude_deg)
+        {
+            return Err(NativeError::SdkError(format!(
+                "Refusing to write site {:.4},{:.4} to the mount: out of range",
+                site.latitude_deg, site.longitude_deg
+            )));
+        }
+
+        // Seconds precision only where the firmware is known to take it.
+        // Classic LX200 parses `sDD*MM` and rejects the longer form.
+        let with_seconds = self.mount_type.is_onstep();
+
+        let lat = format_dms(site.latitude_deg, 2, with_seconds);
+        let lon = format_dms(
+            east_positive_to_lx200_longitude(site.longitude_deg),
+            3,
+            with_seconds,
+        );
+        tracing::info!(
+            "Writing site to mount: lat {} lon {} (east-positive {:.4})",
+            lat,
+            lon,
+            site.longitude_deg
+        );
+
+        if !self.send_command_bool(&format!("{}{}#", commands::SET_SITE_LATITUDE, lat))? {
+            return Err(NativeError::SdkError(
+                "Mount rejected the site latitude".into(),
+            ));
+        }
+        if !self.send_command_bool(&format!("{}{}#", commands::SET_SITE_LONGITUDE, lon))? {
+            return Err(NativeError::SdkError(
+                "Mount rejected the site longitude".into(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_clock(&self) -> Result<MountClock, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let time_text = self.send_command(commands::GET_LOCAL_TIME)?;
+        let date_text = self.send_command(commands::GET_CALENDAR_DATE)?;
+        let utc_offset_hours = parse_utc_offset(&self.send_command(commands::GET_UTC_OFFSET)?)?;
+
+        let (utc_unix_seconds, _) =
+            parse_mount_local_datetime(&date_text, &time_text, utc_offset_hours)?;
+
+        Ok(MountClock {
+            utc_unix_seconds,
+            utc_offset_hours,
+        })
+    }
+
+    async fn set_clock(&mut self, clock: MountClock) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let (date_text, time_text) =
+            format_mount_local_datetime(clock.utc_unix_seconds, clock.utc_offset_hours)?;
+        let offset_text = format_utc_offset(clock.utc_offset_hours);
+
+        tracing::info!(
+            "Writing clock to mount: {} {} UTC offset {}",
+            date_text,
+            time_text,
+            offset_text
+        );
+
+        // Offset first: the mount interprets the local time it is about to be
+        // given against whatever offset it currently holds.
+        if !self.send_command_bool(&format!("{}{}#", commands::SET_UTC_OFFSET, offset_text))? {
+            return Err(NativeError::SdkError(
+                "Mount rejected the UTC offset".into(),
+            ));
+        }
+        if !self.send_command_bool(&format!("{}{}#", commands::SET_LOCAL_TIME, time_text))? {
+            return Err(NativeError::SdkError(
+                "Mount rejected the local time".into(),
+            ));
+        }
+        // `:SC#` answers `1` and THEN, on Meade firmware, two `#`-terminated
+        // strings ("Updating planetary data..."). Drain them so the next
+        // command does not read them as its own reply.
+        if !self.send_command_bool(&format!("{}{}#", commands::SET_CALENDAR_DATE, date_text))? {
+            return Err(NativeError::SdkError("Mount rejected the date".into()));
+        }
+        self.drain_calendar_chatter();
+
+        Ok(())
+    }
+
     async fn find_home(&mut self) -> Result<(), NativeError> {
         // `:hF#` is an OnStep extension. Classic Meade/Losmandy firmware has no
         // home command, and sending one blind would either be ignored or

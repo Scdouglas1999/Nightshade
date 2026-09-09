@@ -6,6 +6,9 @@ use super::*;
 pub(crate) const LX200_BAUD_RATE: u32 = 9600;
 pub(crate) const RESPONSE_TERM: u8 = b'#';
 
+/// How long to wait for the trailing strings Meade firmware sends after `:SC#`.
+pub(crate) const CALENDAR_CHATTER_WINDOW: Duration = Duration::from_millis(750);
+
 /// Baud rates to try during discovery, in order of preference
 /// - 115200: Pegasus NYX-101, modern OnStep builds
 /// - 57600: Some OnStep configurations
@@ -67,6 +70,19 @@ pub(crate) mod commands {
     pub const ONSTEP_TRACK_DISABLE: &str = ":Td#";
     pub const ONSTEP_UNPARK: &str = ":hR#";
     pub const ONSTEP_FIND_HOME: &str = ":hF#";
+
+    // Site and clock. Latitude/longitude are DMS; longitude is WEST-positive
+    // on the wire. `:GC#`/`:SC#` carry a two-digit year.
+    pub const GET_SITE_LATITUDE: &str = ":Gt#";
+    pub const GET_SITE_LONGITUDE: &str = ":Gg#";
+    pub const SET_SITE_LATITUDE: &str = ":St";
+    pub const SET_SITE_LONGITUDE: &str = ":Sg";
+    pub const GET_LOCAL_TIME: &str = ":GL#";
+    pub const GET_CALENDAR_DATE: &str = ":GC#";
+    pub const GET_UTC_OFFSET: &str = ":GG#";
+    pub const SET_LOCAL_TIME: &str = ":SL";
+    pub const SET_CALENDAR_DATE: &str = ":SC";
+    pub const SET_UTC_OFFSET: &str = ":SG";
     // OnStep pulse guide format: :Mgdnnnn# where d=n/s/e/w, nnnn=milliseconds
     pub const ONSTEP_PULSE_GUIDE_PREFIX: &str = ":Mg";
 
@@ -557,5 +573,365 @@ mod slew_ack_tests {
         assert!(slew_refusal_message('7', "").contains("hardware fault"));
         assert!(slew_refusal_message('1', "Below horizon").contains("Below horizon"));
         assert!(slew_refusal_message('x', "").contains("status x"));
+    }
+}
+
+/// Site coordinates and clock as the mount holds them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountSite {
+    /// Degrees north of the equator, negative south. Ordinary signed latitude.
+    pub latitude_deg: f64,
+    /// Degrees EAST of Greenwich, negative west — the convention the rest of
+    /// this app uses. The LX200 wire format is the opposite; see
+    /// [`format_lx200_longitude`].
+    pub longitude_deg: f64,
+}
+
+/// LX200 reports longitude WEST-positive. Every other part of this app (and
+/// ASCOM, and Alpaca) uses east-positive. Getting this backwards puts the site
+/// on the wrong side of the planet and silently ruins pointing, so the
+/// conversion lives in one named place with tests either side of it.
+pub(crate) fn lx200_longitude_to_east_positive(lx200_value: f64) -> f64 {
+    -lx200_value
+}
+
+pub(crate) fn east_positive_to_lx200_longitude(east_positive: f64) -> f64 {
+    -east_positive
+}
+
+/// Parse `sDD*MM#`, `sDD*MM:SS#` or `sDDD*MM:SS#` into signed degrees.
+pub(crate) fn parse_dms(response: &str) -> Result<f64, NativeError> {
+    let cleaned = response.trim().trim_end_matches('#').trim();
+    if cleaned.is_empty() {
+        return Err(NativeError::SdkError("Empty DMS response".into()));
+    }
+
+    let (sign, rest) = match cleaned.as_bytes()[0] {
+        b'-' => (-1.0, &cleaned[1..]),
+        b'+' => (1.0, &cleaned[1..]),
+        _ => (1.0, cleaned),
+    };
+
+    // Degrees are separated from minutes by `*` (or `\xdf`, the degree sign
+    // some firmware emits in high-precision mode).
+    let rest: String = rest
+        .chars()
+        .map(|c| {
+            if matches!(c, '\u{00df}' | '\u{00b0}') {
+                '*'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let mut parts = rest.split(['*', ':']);
+
+    let degrees: f64 = parts
+        .next()
+        .ok_or_else(|| NativeError::SdkError("DMS missing degrees".into()))?
+        .trim()
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad DMS degrees in {:?}", response)))?;
+    let minutes: f64 = match parts.next() {
+        Some(m) if !m.trim().is_empty() => m
+            .trim()
+            .parse()
+            .map_err(|_| NativeError::SdkError(format!("Bad DMS minutes in {:?}", response)))?,
+        _ => 0.0,
+    };
+    let seconds: f64 = match parts.next() {
+        Some(s) if !s.trim().is_empty() => s
+            .trim()
+            .parse()
+            .map_err(|_| NativeError::SdkError(format!("Bad DMS seconds in {:?}", response)))?,
+        _ => 0.0,
+    };
+
+    if !(0.0..60.0).contains(&minutes) || !(0.0..60.0).contains(&seconds) {
+        return Err(NativeError::SdkError(format!(
+            "DMS minutes/seconds out of range in {:?}",
+            response
+        )));
+    }
+
+    Ok(sign * (degrees + minutes / 60.0 + seconds / 3600.0))
+}
+
+/// Format signed degrees as `sDD*MM:SS` (high precision) or `sDD*MM`.
+/// `degree_width` is 2 for latitude, 3 for longitude, per the LX200 spec.
+pub(crate) fn format_dms(value: f64, degree_width: usize, with_seconds: bool) -> String {
+    let sign = if value < 0.0 { '-' } else { '+' };
+    let magnitude = value.abs();
+
+    // Round at the resolution we are about to print, THEN split. Splitting
+    // first and rounding the seconds can carry 59.6" up to 60" and emit an
+    // out-of-range field the mount rejects.
+    let total_arcsec = if with_seconds {
+        (magnitude * 3600.0).round()
+    } else {
+        (magnitude * 60.0).round() * 60.0
+    };
+
+    let degrees = (total_arcsec / 3600.0).floor() as i64;
+    let minutes = ((total_arcsec - degrees as f64 * 3600.0) / 60.0).floor() as i64;
+    let seconds = (total_arcsec - degrees as f64 * 3600.0 - minutes as f64 * 60.0).round() as i64;
+
+    if with_seconds {
+        format!(
+            "{}{:0width$}*{:02}:{:02}",
+            sign,
+            degrees,
+            minutes,
+            seconds,
+            width = degree_width
+        )
+    } else {
+        format!(
+            "{}{:0width$}*{:02}",
+            sign,
+            degrees,
+            minutes,
+            width = degree_width
+        )
+    }
+}
+
+/// LX200 `:GG#` answers the offset that must be ADDED to local time to reach
+/// UTC — the negative of the usual UTC-offset sign. A site at UTC-5 answers
+/// `+05`. Returned here in the ordinary sense (UTC-5 → -5.0).
+pub(crate) fn parse_utc_offset(response: &str) -> Result<f64, NativeError> {
+    let cleaned = response.trim().trim_end_matches('#').trim();
+    let value: f64 = cleaned
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad UTC offset {:?}", response)))?;
+    if !(-14.0..=14.0).contains(&value) {
+        return Err(NativeError::SdkError(format!(
+            "UTC offset out of range: {:?}",
+            response
+        )));
+    }
+    Ok(-value)
+}
+
+/// Inverse of [`parse_utc_offset`]: ordinary offset in, LX200 wire value out.
+pub(crate) fn format_utc_offset(hours_east_of_utc: f64) -> String {
+    let wire = -hours_east_of_utc;
+    if (wire - wire.round()).abs() < 0.01 {
+        format!(
+            "{}{:02}",
+            if wire < 0.0 { '-' } else { '+' },
+            wire.abs() as i64
+        )
+    } else {
+        format!("{}{:04.1}", if wire < 0.0 { '-' } else { '+' }, wire.abs())
+    }
+}
+
+/// Turn the mount's `MM/DD/YY` + `HH:MM:SS` local clock into a UTC instant.
+///
+/// The two-digit year is read as 20YY. LX200 firmware predates the question and
+/// no mount in service is reporting the 1900s; guessing a century by threshold
+/// would silently place the mount 100 years off in exactly the cases where the
+/// operator cannot see it.
+pub(crate) fn parse_mount_local_datetime(
+    date_text: &str,
+    time_text: &str,
+    utc_offset_hours: f64,
+) -> Result<(i64, chrono::NaiveDateTime), NativeError> {
+    let date_clean = date_text.trim().trim_end_matches('#').trim();
+    let time_clean = time_text.trim().trim_end_matches('#').trim();
+
+    let date_parts: Vec<&str> = date_clean.split('/').collect();
+    if date_parts.len() != 3 {
+        return Err(NativeError::SdkError(format!(
+            "Bad mount date {:?} (want MM/DD/YY)",
+            date_text
+        )));
+    }
+    let month: u32 = date_parts[0]
+        .trim()
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad month in {:?}", date_text)))?;
+    let day: u32 = date_parts[1]
+        .trim()
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad day in {:?}", date_text)))?;
+    let year_2digit: i32 = date_parts[2]
+        .trim()
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad year in {:?}", date_text)))?;
+
+    let time_parts: Vec<&str> = time_clean.split(':').collect();
+    if time_parts.len() < 2 {
+        return Err(NativeError::SdkError(format!(
+            "Bad mount time {:?} (want HH:MM:SS)",
+            time_text
+        )));
+    }
+    let hour: u32 = time_parts[0]
+        .trim()
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad hour in {:?}", time_text)))?;
+    let minute: u32 = time_parts[1]
+        .trim()
+        .parse()
+        .map_err(|_| NativeError::SdkError(format!("Bad minute in {:?}", time_text)))?;
+    let second: u32 = match time_parts.get(2) {
+        Some(value) => value
+            .trim()
+            .parse()
+            .map_err(|_| NativeError::SdkError(format!("Bad second in {:?}", time_text)))?,
+        None => 0,
+    };
+
+    let local = chrono::NaiveDate::from_ymd_opt(2000 + year_2digit, month, day)
+        .and_then(|d| d.and_hms_opt(hour, minute, second))
+        .ok_or_else(|| {
+            NativeError::SdkError(format!(
+                "Mount reported an impossible date/time {:?} {:?}",
+                date_text, time_text
+            ))
+        })?;
+
+    // local = utc + offset, so utc = local - offset.
+    let offset_seconds = (utc_offset_hours * 3600.0).round() as i64;
+    Ok((local.and_utc().timestamp() - offset_seconds, local))
+}
+
+/// Inverse of [`parse_mount_local_datetime`]: `(MM/DD/YY, HH:MM:SS)` in the
+/// mount's own local time.
+pub(crate) fn format_mount_local_datetime(
+    utc_unix_seconds: i64,
+    utc_offset_hours: f64,
+) -> Result<(String, String), NativeError> {
+    let offset_seconds = (utc_offset_hours * 3600.0).round() as i64;
+    let local = chrono::DateTime::from_timestamp(utc_unix_seconds + offset_seconds, 0)
+        .ok_or_else(|| {
+            NativeError::SdkError(format!("Unrepresentable timestamp {}", utc_unix_seconds))
+        })?
+        .naive_utc();
+
+    Ok((
+        local.format("%m/%d/%y").to_string(),
+        local.format("%H:%M:%S").to_string(),
+    ))
+}
+
+#[cfg(test)]
+mod clock_tests {
+    use super::*;
+
+    #[test]
+    fn local_clock_converts_to_utc_using_the_offset() {
+        // 2026-09-08 22:30:00 local at UTC-4 is 2026-09-09 02:30:00 UTC.
+        let (utc, local) =
+            parse_mount_local_datetime("09/08/26#", "22:30:00#", -4.0).expect("parse");
+        assert_eq!(
+            local.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-09-08 22:30:00"
+        );
+        let as_utc = chrono::DateTime::from_timestamp(utc, 0).unwrap();
+        assert_eq!(
+            as_utc.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-09-09 02:30:00"
+        );
+    }
+
+    #[test]
+    fn round_trips_through_the_formatter() {
+        for offset in [-8.0_f64, -4.0, 0.0, 5.5, 10.0] {
+            let (utc, _) =
+                parse_mount_local_datetime("03/07/26#", "01:02:03#", offset).expect("parse");
+            let (date, time) = format_mount_local_datetime(utc, offset).expect("format");
+            assert_eq!(date, "03/07/26", "offset {}", offset);
+            assert_eq!(time, "01:02:03", "offset {}", offset);
+        }
+    }
+
+    #[test]
+    fn refuses_impossible_dates_rather_than_wrapping_them() {
+        assert!(parse_mount_local_datetime("13/01/26#", "00:00:00#", 0.0).is_err());
+        assert!(parse_mount_local_datetime("02/30/26#", "00:00:00#", 0.0).is_err());
+        assert!(parse_mount_local_datetime("09/08/26#", "25:00:00#", 0.0).is_err());
+        assert!(parse_mount_local_datetime("nonsense", "00:00:00#", 0.0).is_err());
+    }
+
+    #[test]
+    fn two_digit_year_reads_as_this_century() {
+        let (_, local) = parse_mount_local_datetime("01/01/26#", "00:00:00#", 0.0).unwrap();
+        assert_eq!(local.format("%Y").to_string(), "2026");
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+
+    #[test]
+    fn longitude_conversion_is_symmetric_and_flips_the_hemisphere() {
+        // The rig's site: 75.397448 degrees WEST.
+        let east_positive = -75.397448;
+        let wire = east_positive_to_lx200_longitude(east_positive);
+        assert!(wire > 0.0, "LX200 wants west-positive, got {}", wire);
+        assert!((lx200_longitude_to_east_positive(wire) - east_positive).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parses_the_shapes_lx200_firmware_actually_sends() {
+        assert!((parse_dms("+40*00#").unwrap() - 40.0).abs() < 1e-9);
+        assert!((parse_dms("-33*52:11#").unwrap() + 33.869722).abs() < 1e-5);
+        assert!((parse_dms("075*23#").unwrap() - 75.383333).abs() < 1e-5);
+        // High-precision firmware substitutes the degree glyph for '*'.
+        assert!((parse_dms("+40\u{00df}00:28#").unwrap() - 40.007778).abs() < 1e-5);
+    }
+
+    #[test]
+    fn rejects_nonsense_rather_than_guessing_a_site() {
+        assert!(parse_dms("").is_err());
+        assert!(parse_dms("#").is_err());
+        assert!(parse_dms("+40*99#").is_err(), "99 arcminutes is not a site");
+        assert!(parse_dms("garbage#").is_err());
+    }
+
+    #[test]
+    fn formats_round_trip_through_the_parser() {
+        for value in [40.007714_f64, -33.869722, 0.0, -0.5, 89.9999] {
+            let text = format_dms(value, 2, true);
+            let parsed = parse_dms(&text).unwrap();
+            assert!(
+                (parsed - value).abs() < 1.0 / 3600.0,
+                "{} formatted as {} parsed back as {}",
+                value,
+                text,
+                parsed
+            );
+        }
+    }
+
+    #[test]
+    fn rounding_never_emits_sixty_minutes() {
+        // 40.9999 deg is 40 deg 59.994 min: rounding the minutes field alone
+        // would print 40*60, which the mount rejects.
+        let text = format_dms(40.99999, 2, false);
+        assert_eq!(text, "+41*00", "got {}", text);
+        let text = format_dms(-40.99999, 2, false);
+        assert_eq!(text, "-41*00", "got {}", text);
+    }
+
+    #[test]
+    fn longitude_is_three_digits_wide() {
+        assert_eq!(format_dms(75.383333, 3, false), "+075*23");
+        assert_eq!(format_dms(5.5, 3, false), "+005*30");
+    }
+
+    #[test]
+    fn utc_offset_sign_matches_the_lx200_convention() {
+        // US Eastern Standard Time is UTC-5; the mount is told "+05".
+        assert_eq!(format_utc_offset(-5.0), "+05");
+        assert!((parse_utc_offset("+05#").unwrap() + 5.0).abs() < 1e-9);
+        // And the other hemisphere: UTC+10 is sent as "-10".
+        assert_eq!(format_utc_offset(10.0), "-10");
+        assert!((parse_utc_offset("-10#").unwrap() - 10.0).abs() < 1e-9);
+        assert!(parse_utc_offset("+99#").is_err());
     }
 }
