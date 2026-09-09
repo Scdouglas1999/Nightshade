@@ -71,6 +71,10 @@ enum AscomMountCommand {
     SlewToAltAz(f64, f64, oneshot::Sender<Result<(), String>>),
     // Find home
     FindHome(oneshot::Sender<Result<(), String>>),
+    GetSite(oneshot::Sender<Result<(f64, f64, Option<f64>), String>>),
+    SetSite(f64, f64, Option<f64>, oneshot::Sender<Result<(), String>>),
+    GetUtcDate(oneshot::Sender<Result<f64, String>>),
+    SetUtcDate(f64, oneshot::Sender<Result<(), String>>),
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
@@ -419,6 +423,55 @@ impl AscomMountWrapper {
                             let _ = reply.send(Err("Mount not created".to_string()));
                         }
                     }
+                    AscomMountCommand::GetSite(reply) => {
+                        if let Some(m) = &mut mount {
+                            let site = m.site_latitude().and_then(|lat| {
+                                m.site_longitude().map(|lon| {
+                                    // Elevation is optional in ASCOM: absent is
+                                    // reported as None rather than as sea level.
+                                    (lat, lon, m.site_elevation().ok())
+                                })
+                            });
+                            let _ = reply.send(site);
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
+                    }
+                    AscomMountCommand::SetSite(lat, lon, elevation, reply) => {
+                        if let Some(m) = &mut mount {
+                            let result = m.set_site_latitude(lat).and_then(|_| {
+                                m.set_site_longitude(lon).map(|_| {
+                                    // A driver that refuses elevation must not
+                                    // undo the lat/lon that already landed.
+                                    if let Some(value) = elevation {
+                                        if let Err(e) = m.set_site_elevation(value) {
+                                            tracing::warn!(
+                                                "ASCOM mount took lat/lon but refused elevation: {}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                })
+                            });
+                            let _ = reply.send(result);
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
+                    }
+                    AscomMountCommand::GetUtcDate(reply) => {
+                        if let Some(m) = &mut mount {
+                            let _ = reply.send(m.utc_date());
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
+                    }
+                    AscomMountCommand::SetUtcDate(value, reply) => {
+                        if let Some(m) = &mut mount {
+                            let _ = reply.send(m.set_utc_date(value));
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
+                    }
                     AscomMountCommand::FindHome(reply) => {
                         if let Some(m) = &mut mount {
                             match m.can_find_home() {
@@ -511,6 +564,53 @@ impl AscomMountWrapper {
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::long_slew(), "slew_to_alt_az").await
+    }
+
+    pub async fn get_site(&self) -> Result<(f64, f64, Option<f64>), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::GetSite(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_site").await
+    }
+
+    pub async fn set_site(
+        &self,
+        latitude_deg: f64,
+        longitude_deg: f64,
+        elevation_m: Option<f64>,
+    ) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::SetSite(
+                latitude_deg,
+                longitude_deg,
+                elevation_m,
+                tx,
+            ))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_site").await
+    }
+
+    /// UTCDate as an OLE Automation date (days since 1899-12-30).
+    pub async fn get_utc_date(&self) -> Result<f64, NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::GetUtcDate(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_utc_date").await
+    }
+
+    pub async fn set_utc_date(&self, utc_date: f64) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::SetUtcDate(utc_date, tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_utc_date").await
     }
 
     pub async fn find_home(&self) -> Result<(), NativeError> {

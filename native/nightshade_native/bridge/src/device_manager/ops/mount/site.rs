@@ -10,16 +10,23 @@
 //! can honour so the UI never offers one that will be refused.
 
 use super::*;
-use nightshade_native::traits::NativeMount as _;
 
 /// Days between the OLE Automation epoch (1899-12-30) and the Unix epoch.
+///
+/// Only ASCOM speaks OLE dates, so on a non-Windows build nothing outside the
+/// tests calls these. Kept compiled everywhere — and tested everywhere — so the
+/// conversion cannot rot unnoticed on the platform that cannot exercise it.
+#[cfg_attr(not(windows), allow(dead_code))]
 const OLE_EPOCH_TO_UNIX_DAYS: f64 = 25_569.0;
+#[cfg_attr(not(windows), allow(dead_code))]
 const SECONDS_PER_DAY: f64 = 86_400.0;
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn ole_to_unix_seconds(ole_days: f64) -> i64 {
     ((ole_days - OLE_EPOCH_TO_UNIX_DAYS) * SECONDS_PER_DAY).round() as i64
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn unix_seconds_to_ole(unix_seconds: i64) -> f64 {
     unix_seconds as f64 / SECONDS_PER_DAY + OLE_EPOCH_TO_UNIX_DAYS
 }
@@ -133,14 +140,12 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mount = mount.read().await;
-                        let latitude_deg =
-                            mount.site_latitude().map_err(DeviceOpError::driver)?;
-                        let longitude_deg =
-                            mount.site_longitude().map_err(DeviceOpError::driver)?;
+                        let (latitude_deg, longitude_deg, elevation_m) =
+                            mount.get_site().await.map_err(DeviceOpError::driver)?;
                         return Ok(MountSite {
                             latitude_deg,
                             longitude_deg,
-                            elevation_m: mount.site_elevation().ok(),
+                            elevation_m,
                         });
                     }
                 }
@@ -158,7 +163,10 @@ impl DeviceManager {
                     )
                 })?;
                 let latitude_deg = mount.site_latitude().await.map_err(DeviceOpError::driver)?;
-                let longitude_deg = mount.site_longitude().await.map_err(DeviceOpError::driver)?;
+                let longitude_deg = mount
+                    .site_longitude()
+                    .await
+                    .map_err(DeviceOpError::driver)?;
                 Ok(MountSite {
                     latitude_deg,
                     longitude_deg,
@@ -230,26 +238,14 @@ impl DeviceManager {
                 {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
-                        let mut mount = mount.write().await;
-                        mount
-                            .set_site_latitude(site.latitude_deg)
-                            .map_err(DeviceOpError::driver)?;
-                        mount
-                            .set_site_longitude(site.longitude_deg)
-                            .map_err(DeviceOpError::driver)?;
-                        if let Some(elevation) = site.elevation_m {
-                            // Elevation is optional in ASCOM and some drivers
-                            // refuse it; a refusal here must not undo the
-                            // latitude/longitude that already landed.
-                            if let Err(e) = mount.set_site_elevation(elevation) {
-                                tracing::warn!(
-                                    "Mount {} accepted lat/lon but refused elevation: {}",
-                                    device_id,
-                                    e
-                                );
-                            }
-                        }
-                        return Ok(());
+                        let mount = mount.write().await;
+                        // Elevation tolerance lives inside the wrapper's worker,
+                        // where the three property writes happen on the one COM
+                        // thread that owns the driver.
+                        return mount
+                            .set_site(site.latitude_deg, site.longitude_deg, site.elevation_m)
+                            .await
+                            .map_err(DeviceOpError::driver);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -320,7 +316,7 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mount = mount.read().await;
-                        let ole = mount.utc_date().map_err(DeviceOpError::driver)?;
+                        let ole = mount.get_utc_date().await.map_err(DeviceOpError::driver)?;
                         return Ok(MountTimeInfo {
                             utc_unix_seconds: ole_to_unix_seconds(ole),
                             // ASCOM's UTCDate is UTC by definition; the mount's
@@ -409,9 +405,10 @@ impl DeviceManager {
                 {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
-                        let mut mount = mount.write().await;
+                        let mount = mount.write().await;
                         return mount
                             .set_utc_date(unix_seconds_to_ole(time.utc_unix_seconds))
+                            .await
                             .map_err(DeviceOpError::driver);
                     }
                 }
