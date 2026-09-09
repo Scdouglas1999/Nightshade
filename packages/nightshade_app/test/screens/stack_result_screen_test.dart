@@ -293,10 +293,9 @@ void main() {
       expect(find.text('01:30:00'), findsWidgets);
       expect(find.text('INTEGRATED'), findsOneWidget);
 
-      // Stat rows render the integration, frames, rejected, and residual.
-      expect(find.text('Integration'), findsWidgets);
-      expect(find.text('Frames stacked'), findsOneWidget);
-      expect(find.text('Rejected'), findsOneWidget);
+      // The rejected count is the third Readout; the residual stays in the
+      // key/value list below.
+      expect(find.text('REJECTED'), findsOneWidget);
       expect(find.text('2'), findsWidgets); // 20 attempted - 18 stacked.
       expect(find.text('Avg residual'), findsOneWidget);
       expect(find.text('0.42 px'), findsOneWidget);
