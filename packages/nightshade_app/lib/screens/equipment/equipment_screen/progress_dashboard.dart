@@ -182,40 +182,37 @@ class _ConnectAllProgressChip extends StatelessWidget {
 
 /// `[dot] N connected` in the page header — the ONE place this screen states
 /// how many devices are up.
+/// How many devices are connected right now, across every slot.
+///
+/// Shared so the header chip and the header's "Disconnect all" agree by
+/// construction: an action that disconnects everything must appear exactly when
+/// the chip says there is something to disconnect, and two copies of this list
+/// would drift the first time a slot was added.
+int equipmentConnectedCount(WidgetRef ref) {
+  final connectionStates = <DeviceConnectionState>[
+    ref.watch(cameraStateProvider).connectionState,
+    ref.watch(mountStateProvider).connectionState,
+    ref.watch(focuserStateProvider).connectionState,
+    ref.watch(filterWheelStateProvider).connectionState,
+    ref.watch(guiderStateProvider).connectionState,
+    ref.watch(rotatorStateProvider).connectionState,
+    ref.watch(domeStateProvider).connectionState,
+    ref.watch(weatherStateProvider).connectionState,
+    ref.watch(safetyMonitorStateProvider).connectionState,
+    ref.watch(switchStateProvider).connectionState,
+    ref.watch(coverCalibratorStateProvider).connectionState,
+  ];
+  return connectionStates
+      .where((state) => state == DeviceConnectionState.connected)
+      .length;
+}
+
 class _ConnectionStatusSummary extends ConsumerWidget {
   const _ConnectionStatusSummary();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cameraState = ref.watch(cameraStateProvider);
-    final mountState = ref.watch(mountStateProvider);
-    final focuserState = ref.watch(focuserStateProvider);
-    final filterWheelState = ref.watch(filterWheelStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final rotatorState = ref.watch(rotatorStateProvider);
-    final domeState = ref.watch(domeStateProvider);
-    final weatherState = ref.watch(weatherStateProvider);
-    final safetyMonitorState = ref.watch(safetyMonitorStateProvider);
-    final switchState = ref.watch(switchStateProvider);
-    final coverCalibratorState = ref.watch(coverCalibratorStateProvider);
-
-    final connectionStates = [
-      cameraState.connectionState,
-      mountState.connectionState,
-      focuserState.connectionState,
-      filterWheelState.connectionState,
-      guiderState.connectionState,
-      rotatorState.connectionState,
-      domeState.connectionState,
-      weatherState.connectionState,
-      safetyMonitorState.connectionState,
-      switchState.connectionState,
-      coverCalibratorState.connectionState,
-    ];
-
-    final connectedCount = connectionStates
-        .where((state) => state == DeviceConnectionState.connected)
-        .length;
+    final connectedCount = equipmentConnectedCount(ref);
 
     if (connectedCount == 0) {
       return const NightshadeChip(label: 'Nothing connected', dot: true);

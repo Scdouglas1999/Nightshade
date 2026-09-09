@@ -1,8 +1,10 @@
 // First-run onboarding and the profile-mismatch banner.
 part of '../equipment_screen.dart';
 
-/// The first-run state: no profile exists yet, so the screen is one centred
-/// column with the setup checklist and a single primary action.
+/// The first-run state: no profile exists yet, so the Devices tab is one
+/// centred column with the setup checklist above the discovery drawer. Every
+/// button here is secondary or ghost — the page's single primary is "Scan for
+/// devices" in the page header, and both entry points run the same scan.
 class _FirstTimeOnboarding extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onStartSetup;
@@ -44,9 +46,9 @@ class _FirstTimeOnboarding extends StatelessWidget {
                   ),
                   child: Checklist(
                     steps: [
-                      // No action on the row: the page's single primary
-                      // below IS this step, and offering it twice reads as two
-                      // different setups.
+                      // No action on the row: the header's "Scan for devices"
+                      // IS this step, and offering it a third time reads as
+                      // three different setups.
                       ChecklistStep(
                         title: 'Scan for connected equipment',
                         detail: 'Nightshade looks for native, ASCOM, Alpaca '
@@ -79,9 +81,13 @@ class _FirstTimeOnboarding extends StatelessWidget {
                       variant: ButtonVariant.ghost,
                       onPressed: onManualSetup,
                     ),
+                    // SECONDARY: the page's one primary is "Scan for devices"
+                    // in the header, and this runs that same scan rather than
+                    // the 13-step onboarding wizard it used to open.
                     NightshadeButton(
                       label: 'Start setup',
-                      icon: LucideIcons.arrowRight,
+                      icon: LucideIcons.search,
+                      variant: ButtonVariant.secondary,
                       onPressed: onStartSetup,
                     ),
                   ],
