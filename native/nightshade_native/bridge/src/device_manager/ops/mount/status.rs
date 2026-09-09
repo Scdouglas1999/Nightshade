@@ -446,11 +446,13 @@ impl DeviceManager {
                         &mut availability,
                     );
 
-                    // Native mount trait does not currently surface AtHome.
-                    Self::set_mount_availability(
-                        &mut availability,
+                    // OnStep reports home in `:GU#`; drivers with no home
+                    // concept answer NotSupported and land as Unsupported here,
+                    // the same distinction the other driver types make.
+                    let at_home_opt = Self::availability_from_native_result(
+                        mount.at_home().await,
                         mount_status_field::AT_HOME,
-                        FieldAvailability::Unsupported,
+                        &mut availability,
                     );
 
                     let tracking_rate_opt = Self::availability_from_native_result(
@@ -465,7 +467,7 @@ impl DeviceManager {
                         tracking,
                         slewing,
                         parked,
-                        at_home: None,
+                        at_home: at_home_opt,
                         side_of_pier: side_of_pier_opt,
                         right_ascension: ra,
                         declination: dec,

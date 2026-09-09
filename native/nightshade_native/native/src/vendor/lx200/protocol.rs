@@ -66,6 +66,7 @@ pub(crate) mod commands {
     pub const ONSTEP_TRACK_ENABLE: &str = ":Te#";
     pub const ONSTEP_TRACK_DISABLE: &str = ":Td#";
     pub const ONSTEP_UNPARK: &str = ":hR#";
+    pub const ONSTEP_FIND_HOME: &str = ":hF#";
     // OnStep pulse guide format: :Mgdnnnn# where d=n/s/e/w, nnnn=milliseconds
     pub const ONSTEP_PULSE_GUIDE_PREFIX: &str = ":Mg";
 

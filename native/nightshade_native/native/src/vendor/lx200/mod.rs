@@ -147,3 +147,44 @@ mod onstep_status_tests {
         assert_eq!(format_firmware_version(Some(""), Some(""), Some("")), None);
     }
 }
+
+#[cfg(test)]
+mod home_tests {
+    use super::*;
+
+    /// The trait default for both methods is `NotSupported`, so a mount that
+    /// answers `NotConnected` is proof the LX200 driver overrides them — this
+    /// test fails if the implementation is ever lost to a refactor.
+    #[tokio::test]
+    async fn onstep_implements_home_rather_than_inheriting_the_default() {
+        let mut mount = Lx200Mount::new_onstep("TEST_PORT".to_string());
+        assert!(
+            matches!(mount.find_home().await, Err(NativeError::NotConnected)),
+            "OnStep find_home should reach the connection check, not the trait default"
+        );
+        assert!(
+            matches!(mount.at_home().await, Err(NativeError::NotConnected)),
+            "OnStep at_home should reach the connection check, not the trait default"
+        );
+    }
+
+    /// `:hF#` is an OnStep extension. A Meade mount must say it cannot home
+    /// instead of sending a command its firmware never defined.
+    #[tokio::test]
+    async fn meade_reports_no_home_command() {
+        let mut mount = Lx200Mount::new_meade("TEST_PORT".to_string());
+        assert!(matches!(
+            mount.find_home().await,
+            Err(NativeError::NotSupported)
+        ));
+        assert!(matches!(
+            mount.at_home().await,
+            Err(NativeError::NotSupported)
+        ));
+    }
+
+    #[test]
+    fn find_home_uses_the_onstep_home_command() {
+        assert_eq!(commands::ONSTEP_FIND_HOME, ":hF#");
+    }
+}

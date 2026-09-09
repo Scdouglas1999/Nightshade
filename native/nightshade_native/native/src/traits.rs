@@ -409,6 +409,23 @@ pub trait NativeMount: NativeDevice {
 
     /// Get local sidereal time
     async fn get_sidereal_time(&self) -> Result<f64, NativeError>;
+
+    /// Send the mount to its mechanical home position.
+    ///
+    /// Defaults to `NotSupported` because most serial protocols have no home
+    /// command at all. A mount that cannot home must SAY so — silently
+    /// no-opping would report success while the mount never moved.
+    async fn find_home(&mut self) -> Result<(), NativeError> {
+        Err(NativeError::NotSupported)
+    }
+
+    /// Whether the mount is sitting at its home position.
+    ///
+    /// Same default and the same reason: `false` would be a fabricated
+    /// answer, and the status layer distinguishes "unsupported" from "no".
+    async fn at_home(&self) -> Result<bool, NativeError> {
+        Err(NativeError::NotSupported)
+    }
 }
 
 /// Side of Pier

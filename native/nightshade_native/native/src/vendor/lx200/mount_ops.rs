@@ -392,6 +392,52 @@ impl NativeMount for Lx200Mount {
         Ok((alt, az.abs()))
     }
 
+    async fn find_home(&mut self) -> Result<(), NativeError> {
+        // `:hF#` is an OnStep extension. Classic Meade/Losmandy firmware has no
+        // home command, and sending one blind would either be ignored or
+        // interpreted as something else entirely, so those report NotSupported
+        // rather than pretending. Checked BEFORE the connection: a protocol
+        // without a home command does not acquire one by connecting, and
+        // answering NotConnected first would imply that it might.
+        if !self.mount_type.is_onstep() {
+            return Err(NativeError::NotSupported);
+        }
+
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        tracing::info!("Finding home");
+        self.send_command_no_response(commands::ONSTEP_FIND_HOME)?;
+
+        // Homing is a slew: mark it so callers that poll `is_slewing` wait for
+        // the motion instead of reading the mount as idle the instant the
+        // command is acknowledged.
+        *self
+            .is_slewing
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
+
+        Ok(())
+    }
+
+    async fn at_home(&self) -> Result<bool, NativeError> {
+        if !self.mount_type.is_onstep() {
+            return Err(NativeError::NotSupported);
+        }
+
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        // `:GU#` already carries the home flag and the parser already reads it;
+        // it simply had no consumer, which is why mount status reported
+        // at-home as unsupported on a mount that knows the answer.
+        let status = self.send_command(commands::ONSTEP_GET_STATUS)?;
+        let (_, _, _, is_homed, _) = self.parse_onstep_status(&status);
+        Ok(is_homed)
+    }
+
     async fn get_sidereal_time(&self) -> Result<f64, NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);

@@ -261,9 +261,21 @@ impl DeviceManager {
                 )))
             }
             DriverType::Native => {
-                // Native serial mounts don't have a standardized find-home command
-                Err(DeviceOpError::unsupported(
-                    "Find home is not supported for native serial mounts",
+                // Not every serial protocol has a home command, but OnStep does
+                // (`:hF#`) and the driver now implements it. Mounts that cannot
+                // home still answer NotSupported from the trait default, so the
+                // refusal comes from the driver that knows rather than from a
+                // blanket assumption about the whole driver class.
+                let mut native_mounts = self.native_mounts.write().await;
+                if let Some(mount) = native_mounts.get_mut(device_id) {
+                    return mount.find_home().await.map_err(|e| {
+                        tracing::error!("mount_find_home native error: {}", e);
+                        DeviceOpError::driver(e)
+                    });
+                }
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
                 ))
             }
             DriverType::Simulator => {
