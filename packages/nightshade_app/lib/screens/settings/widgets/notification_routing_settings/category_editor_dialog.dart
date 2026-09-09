@@ -72,8 +72,9 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
       backgroundColor: c.surface,
       title: Text(
         widget.category.label,
-        style: TextStyle(
-            color: c.textPrimary, fontSize: NightshadeTypography.fontSize16),
+        style: NightshadeTypography.buttonLg.copyWith(
+          color: c.textPrimary,
+        ),
       ),
       content: SizedBox(
         width: dialogMaxWidth(context, 480),
@@ -117,9 +118,8 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                 const SizedBox(height: 6),
                 Text(
                   'No transports selected — defaulting to in-app only.',
-                  style: TextStyle(
+                  style: NightshadeTypography.captionSm.copyWith(
                     color: c.textMuted,
-                    fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
               ],
@@ -130,9 +130,8 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                   '${_unconfiguredSelection.length == 1 ? 'is' : 'are'} not '
                   'configured, so this rule will not reach you there. Set the '
                   'credentials up under Transports below.',
-                  style: TextStyle(
+                  style: NightshadeTypography.captionSm.copyWith(
                     color: c.warning,
-                    fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
               ],
@@ -190,24 +189,23 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               ),
               const SizedBox(height: 6),
               Text('Live preview:',
-                  style: TextStyle(
-                      color: c.textMuted,
-                      fontSize: NightshadeTypography.fontSize11)),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: c.textMuted,
+                  )),
               const SizedBox(height: 4),
               Text(
                 _previewBody(),
-                style: TextStyle(
-                    color: c.textPrimary,
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontStyle: FontStyle.italic),
+                style: NightshadeTypography.caption.copyWith(
+                  color: c.textPrimary,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
               if (_validationError != null) ...[
                 const SizedBox(height: 12),
                 Text(
                   _validationError!,
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: c.error,
-                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 ),
               ],

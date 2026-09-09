@@ -36,8 +36,7 @@ class _LevelFilterButton extends StatelessWidget {
               ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
+          style: NightshadeTypography.caption.copyWith(
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             color: isSelected ? effectiveColor : colors.textSecondary,
           ),
@@ -89,8 +88,7 @@ class _ActionToggle extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                 color: isActive ? colors.primary : colors.textSecondary,
               ),

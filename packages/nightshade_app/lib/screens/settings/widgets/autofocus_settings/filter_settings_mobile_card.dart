@@ -279,9 +279,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.eyebrow.copyWith(
               color: NightshadeColors.of(context).textSecondary,
             ),
           ),

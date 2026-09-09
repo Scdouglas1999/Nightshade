@@ -218,8 +218,7 @@ class _AdaptiveConditionsSettingsState
               Text(
                 _weightError!,
                 key: const Key('adaptiveSwapWeightError'),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: NightshadeColors.of(context).error,
                 ),
               ),
@@ -359,8 +358,7 @@ class _WeightTotalCallout extends StatelessWidget {
                   : nearOne
                       ? 'Weights sum to ${total.toStringAsFixed(2)}. The composer will preserve the configured balance.'
                       : 'Weights sum to ${total.toStringAsFixed(2)}. The composer renormalizes available axes at runtime, but keeping the total near 1.00 makes the score easier to reason about.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
               ),
             ),

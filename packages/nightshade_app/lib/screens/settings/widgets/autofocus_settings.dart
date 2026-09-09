@@ -512,8 +512,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   const SizedBox(height: 1),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: NightshadeColors.of(context).textMuted,
                     ),
                   ),

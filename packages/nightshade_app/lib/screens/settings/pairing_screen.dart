@@ -395,8 +395,7 @@ class PairingScreen extends ConsumerWidget {
                     'pairingPairedAt',
                     params: {'time': _formatDate(context, device.pairedAt)},
                   ),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -414,8 +413,7 @@ class PairingScreen extends ConsumerWidget {
                       // verification, so a device that connects every night can
                       // legitimately have no entry here.
                       : 'No connection recorded yet',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),

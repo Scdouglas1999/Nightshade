@@ -226,8 +226,7 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
                       'ASCOM Alpaca exposes equipment over the network, so the '
                       'server is often another machine on the LAN (an ASCOM '
                       'Remote host or a device with built-in Alpaca).',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
+                      style: NightshadeTypography.captionSm.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),
@@ -325,8 +324,7 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
                     Expanded(
                       child: Text(
                         _statusMessage!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),

@@ -342,9 +342,8 @@ class HelpTutorialsSettings extends ConsumerWidget {
           ),
           content: Text(
             'This will clear all tutorial progress and you will see the welcome tour again. This action cannot be undone.',
-            style: TextStyle(
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
           actions: [
@@ -551,8 +550,7 @@ class _TutorialRowState extends State<_TutorialRow> {
                       const SizedBox(width: 4),
                       Text(
                         _statusText,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: widget.isCompleted
                               ? colors.success
                               : widget.hasProgress

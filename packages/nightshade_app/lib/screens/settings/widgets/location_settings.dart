@@ -379,9 +379,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                         'eight 45° sectors are the whole mask, so the tallest '
                         'obstruction in a sector applies across all of it. '
                         'Import a .hor / CSV survey to keep full resolution.'}',
-                    style: TextStyle(
+                    style: NightshadeTypography.caption.copyWith(
                       color: NightshadeColors.of(context).textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                 ),
@@ -395,9 +394,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     child: Text(
                       'The local horizon mask can only be edited on the imaging '
                       'host.',
-                      style: TextStyle(
+                      style: NightshadeTypography.caption.copyWith(
                         color: NightshadeColors.of(context).textSecondary,
-                        fontSize: NightshadeTypography.fontSize12,
                       ),
                     ),
                   )
@@ -448,11 +446,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                               _isImportingHorizon
                                   ? 'Importing horizon...'
                                   : 'Import .hor / CSV',
-                              style: TextStyle(
-                                  color: _isImportingHorizon
-                                      ? NightshadeColors.of(context).textMuted
-                                      : NightshadeColors.of(context).primary,
-                                  fontSize: NightshadeTypography.fontSize12)),
+                              style: NightshadeTypography.caption.copyWith(
+                                color: _isImportingHorizon
+                                    ? NightshadeColors.of(context).textMuted
+                                    : NightshadeColors.of(context).primary,
+                              )),
                           onPressed:
                               _isImportingHorizon ? null : _importHorizonFile,
                         ),
@@ -461,9 +459,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                               size: 14,
                               color: NightshadeColors.of(context).primary),
                           label: Text('Reset All to 0\u00B0',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context).primary,
-                                  fontSize: NightshadeTypography.fontSize12)),
+                              style: NightshadeTypography.caption.copyWith(
+                                color: NightshadeColors.of(context).primary,
+                              )),
                           onPressed: () => _resetHorizon(horizonProfile),
                         ),
                       ],
@@ -730,9 +728,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               Text(
                 'Summarised on this page as the tallest obstruction in each '
                 'of the eight 45° sectors:',
-                style: TextStyle(
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
               const SizedBox(height: 6),
@@ -752,9 +749,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 'This replaces the current mask. Editing any of the eight '
                 'values afterwards replaces the imported skyline with those '
                 'eight sector altitudes.',
-                style: TextStyle(
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
             ],

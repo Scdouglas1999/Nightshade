@@ -142,8 +142,7 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'cellular — without opening ports on your router. Scan this '
                   'QR while signed in to the same tailnet.',
             ),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -181,9 +180,9 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'remoteAccessTailscaleStartHint',
                   'Start pairing to arm the Tailscale QR for this session.',
                 ),
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textMuted),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
               ),
             ] else if (widget.pairingCode != null && qrPayload != null) ...[
               Center(
@@ -243,11 +242,8 @@ class _TailscaleReachableRow extends StatelessWidget {
             ),
             child: SelectableText(
               url,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.readoutSm.copyWith(
                 color: colors.primary,
-                fontFamily: 'monospace',
               ),
             ),
           ),

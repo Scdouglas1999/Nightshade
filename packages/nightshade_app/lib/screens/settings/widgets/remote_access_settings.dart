@@ -257,8 +257,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                         FilteringTextInputFormatter.digitsOnly,
                         _PortRangeFormatter(),
                       ],
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: NightshadeColors.of(context).textPrimary,
                       ),
                       decoration: InputDecoration(
@@ -420,8 +419,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                       describeRemoteAccessPairing(
                         requiresAuthentication: webState.requiresAuthentication,
                       ),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                         color: NightshadeColors.of(context).textSecondary,
                         height: 1.5,
                       ),
@@ -464,8 +462,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                       ),
                       subtitle: Text(
                         l10n.text('remoteAccessDetailsBody'),
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
+                        style: NightshadeTypography.caption.copyWith(
                           color: NightshadeColors.of(context).textMuted,
                         ),
                       ),

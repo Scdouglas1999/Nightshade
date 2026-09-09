@@ -544,8 +544,7 @@ class _CalStatusCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               detail,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
               ),
               textAlign: TextAlign.center,
@@ -580,8 +579,7 @@ class _FileValidationRow extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Path is validated on the imaging host when calibrating',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -613,8 +611,7 @@ class _FileValidationRow extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 exists ? 'File found on disk' : 'File not found on disk',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: exists ? colors.success : colors.error,
                 ),
               ),

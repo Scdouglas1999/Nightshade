@@ -45,9 +45,7 @@ class _ObservationLogSettingsState
               const SizedBox(width: 12),
               Text(
                 'Observation Log',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize20,
-                  fontWeight: FontWeight.bold,
+                style: NightshadeTypography.pageTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -261,8 +259,7 @@ class _ObservationLogSettingsState
                 ),
                 Text(
                   _formatTime(log.timestamp),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
+                  style: NightshadeTypography.captionSm.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -296,9 +293,7 @@ class _ObservationLogSettingsState
                         ),
                         child: Text(
                           log.catalogId!,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            fontWeight: FontWeight.w600,
+                          style: NightshadeTypography.eyebrow.copyWith(
                             color: colors.primary,
                           ),
                         ),
@@ -312,8 +307,7 @@ class _ObservationLogSettingsState
                     if (log.objectType != null) ...[
                       Text(
                         log.objectType!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -322,8 +316,7 @@ class _ObservationLogSettingsState
                     if (log.altitude != null)
                       Text(
                         'Alt: ${log.altitude!.toStringAsFixed(1)}°',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -331,8 +324,7 @@ class _ObservationLogSettingsState
                       const SizedBox(width: 8),
                       Text(
                         'Seeing: ${log.seeingConditions}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -343,8 +335,7 @@ class _ObservationLogSettingsState
                   const SizedBox(height: 4),
                   Text(
                     log.notes!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textPrimary.withValues(alpha: 0.8),
                       fontStyle: FontStyle.italic,
                     ),
@@ -528,8 +519,7 @@ class _StatChip extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
@@ -537,9 +527,7 @@ class _StatChip extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.bold,
+          style: NightshadeTypography.sectionTitle.copyWith(
             color: colors.textPrimary,
           ),
         ),

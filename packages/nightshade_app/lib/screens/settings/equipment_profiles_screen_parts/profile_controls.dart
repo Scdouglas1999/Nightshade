@@ -95,8 +95,7 @@ class _FieldCard extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
+          style: NightshadeTypography.captionSm.copyWith(
             color: hasError ? colors.error : colors.textMuted,
           ),
         ),
@@ -125,8 +124,7 @@ class _FieldCard extends StatelessWidget {
                 hintText: hint,
                 hintStyle: TextStyle(color: colors.textMuted),
                 suffixText: suffix,
-                suffixStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                suffixStyle: NightshadeTypography.caption.copyWith(
                   color: colors.textMuted,
                 ),
               ),
@@ -163,8 +161,7 @@ class _FieldCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               errorText!,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.error,
               ),
             ),
@@ -195,8 +192,7 @@ class _BinningSelector extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textMuted,
           ),
         ),
@@ -341,15 +337,13 @@ class _EditableFilterChip extends StatelessWidget {
             child: TextField(
               controller: controller,
               onChanged: (_) => onNameChanged(),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textPrimary,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Filter name',
-                hintStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                hintStyle: NightshadeTypography.caption.copyWith(
                   color: colors.textMuted,
                 ),
                 isDense: true,
@@ -400,8 +394,7 @@ class _DeviceChip extends StatelessWidget {
             children: [
               Text(
                 type,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
+                style: NightshadeTypography.captionSm.copyWith(
                   color: colors.textMuted,
                 ),
               ),
@@ -451,8 +444,7 @@ class _EditableDeviceChip extends StatelessWidget {
             children: [
               Text(
                 type,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
+                style: NightshadeTypography.captionSm.copyWith(
                   color: colors.textMuted,
                 ),
               ),

@@ -379,9 +379,8 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                     'store (AWS S3, MinIO, Backblaze B2) and restore them on '
                     'another machine. Sync is bundle-based: restoring replaces '
                     'local configuration — nothing is merged.',
-                    style: TextStyle(
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -427,18 +426,16 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                     dense: true,
                     title: Text(
                       'Auto-push after the daily backup',
-                      style: TextStyle(
+                      style: NightshadeTypography.body.copyWith(
                         color: colors.textPrimary,
-                        fontSize: NightshadeTypography.fontSize14,
                       ),
                     ),
                     subtitle: Text(
                       'Uploads a fresh bundle whenever the scheduled '
                       'auto-backup completes. The newest '
                       '$kSyncDefaultRetainCount bundles are kept per machine.',
-                      style: TextStyle(
+                      style: NightshadeTypography.caption.copyWith(
                         color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize12,
                       ),
                     ),
                     value: _autoPushEnabled,
@@ -488,17 +485,15 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       Text(
                         'Last push: '
                         '${DateFormat('MMM d, yyyy HH:mm').format(_lastPushAt!.toLocal())}',
-                        style: TextStyle(
+                        style: NightshadeTypography.caption.copyWith(
                           color: colors.textSecondary,
-                          fontSize: NightshadeTypography.fontSize12,
                         ),
                       ),
                     if (_lastError != null)
                       Text(
                         'Last sync error: $_lastError',
-                        style: TextStyle(
+                        style: NightshadeTypography.caption.copyWith(
                           color: colors.error,
-                          fontSize: NightshadeTypography.fontSize12,
                         ),
                       ),
                   ],
@@ -603,17 +598,15 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
         dense: true,
         title: Text(
           'Path-style addressing (required for MinIO)',
-          style: TextStyle(
+          style: NightshadeTypography.body.copyWith(
             color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
           ),
         ),
         subtitle: Text(
           'Use <endpoint>/<bucket>/<key> instead of virtual-host style. '
           'Leave off for AWS S3; turn on for MinIO.',
-          style: TextStyle(
+          style: NightshadeTypography.caption.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize12,
           ),
         ),
         value: _s3PathStyle,

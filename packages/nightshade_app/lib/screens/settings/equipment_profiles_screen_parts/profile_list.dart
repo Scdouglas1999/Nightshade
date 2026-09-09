@@ -38,17 +38,14 @@ class _ProfileList extends StatelessWidget {
               children: [
                 Text(
                   'Equipment Profiles',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize20,
-                    fontWeight: FontWeight.w700,
+                  style: NightshadeTypography.pageTitle.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Manage your imaging rigs and configurations',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -252,8 +249,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                       const SizedBox(height: 2),
                       Text(
                         widget.profile.description!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: NightshadeColors.of(context).textMuted,
                         ),
                         maxLines: 1,
@@ -287,9 +283,7 @@ class _ProfileBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize10,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.eyebrow.copyWith(
           color: color,
         ),
       ),

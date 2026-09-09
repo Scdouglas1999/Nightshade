@@ -394,8 +394,7 @@ class _DriftWarningBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -446,8 +445,7 @@ class _ModelViewer extends StatelessWidget {
                     : 'No focus models have been learned for this profile yet. '
                         'Run autofocus across a few temperatures and they will '
                         'appear here.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: NightshadeColors.of(context).textSecondary,
                 ),
               ),
@@ -661,9 +659,9 @@ class _ModelRowState extends State<_ModelRow> {
                   icon: Icon(LucideIcons.refreshCw, size: 13, color: c.warning),
                   label: Text(
                     'Re-train',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: c.warning),
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: c.warning,
+                    ),
                   ),
                 ),
               ],
@@ -678,9 +676,9 @@ class _ModelRowState extends State<_ModelRow> {
                 Text(
                   'Drift: ${m.consecutiveBadPredictions} consecutive bad '
                   'predictions; ${m.accumulatedDriftSteps} accumulated steps',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: c.warning),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: c.warning,
+                  ),
                 ),
               ],
             ),
@@ -690,9 +688,9 @@ class _ModelRowState extends State<_ModelRow> {
             Text(
               'Last used: ${_formatTimeAgo(m.lastUsedAt!)} · '
               'Last trained: ${_formatTimeAgo(m.lastTrainedAt)}',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: c.textMuted),
+              style: NightshadeTypography.captionSm.copyWith(
+                color: c.textMuted,
+              ),
             ),
           ],
           if (_expanded) ...[
@@ -710,13 +708,12 @@ class _ModelRowState extends State<_ModelRow> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9, color: c.textMuted)),
+            style: NightshadeTypography.captionSm.copyWith(
+              color: c.textMuted,
+            )),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.eyebrow.copyWith(
             color: c.textPrimary,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
@@ -774,9 +771,9 @@ class _SampleScatter extends StatelessWidget {
             ? Center(
                 child: Text(
                   'No samples',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: colors.textMuted,
+                  ),
                 ),
               )
             : CustomPaint(

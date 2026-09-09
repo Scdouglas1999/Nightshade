@@ -64,8 +64,7 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
         child: Text(
           error,
           key: const Key('imaging.namingPattern.error'),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.error,
           ),
         ),
@@ -82,10 +81,8 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
       child: Text(
         'Example: $preview',
         key: const Key('imaging.namingPattern.preview'),
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
+        style: NightshadeTypography.monoCaption.copyWith(
           color: colors.textMuted,
-          fontFamily: 'monospace',
         ),
       ),
     );

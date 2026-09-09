@@ -92,16 +92,14 @@ extension _LogViewerActions on _LogViewerState {
             contentPadding: EdgeInsets.zero,
             title: Text(
               title,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.buttonSm.copyWith(
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
             ),
             subtitle: Text(
               subtitle,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
               ),
             ),
@@ -365,17 +363,14 @@ extension _LogViewerActions on _LogViewerState {
                   ),
                   title: Text(
                     file.name,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontFamily: 'monospace',
+                    style: NightshadeTypography.readoutSm.copyWith(
                       color: colors.textPrimary,
                     ),
                   ),
                   subtitle: Text(
                     '${_formatFileSize(file.sizeBytes)}'
                     '${file.isCurrent ? ' · current' : ''}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: colors.textMuted,
                     ),
                   ),
@@ -453,9 +448,8 @@ extension _LogViewerActions on _LogViewerState {
             ),
             content: Text(
               message,
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
             actions: [

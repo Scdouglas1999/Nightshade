@@ -154,8 +154,9 @@ class _TypeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       ),
       child: Text(label,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+          style: NightshadeTypography.eyebrow.copyWith(
+            color: color,
+          )),
     );
   }
 }
@@ -182,7 +183,10 @@ class _FreshnessChip extends StatelessWidget {
           children: [
             Icon(LucideIcons.clock, size: 13, color: color),
             const SizedBox(width: 3),
-            Text('${ageDays}d', style: TextStyle(color: color, fontSize: 12)),
+            Text('${ageDays}d',
+                style: NightshadeTypography.caption.copyWith(
+                  color: color,
+                )),
           ],
         ),
       ),

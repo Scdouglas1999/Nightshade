@@ -333,8 +333,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         status.lastBackup,
                         config.backupInterval,
                       ),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                         color: colors.textMuted,
                       ),
                     ),
@@ -367,8 +366,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                   const SizedBox(width: 12),
                   Text(
                     'Creates a full backup immediately',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textMuted,
                     ),
                   ),

@@ -524,9 +524,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                               'downloading here will not fix them.'
                           : 'The cards below describe catalogs stored on this '
                               'device. The rig keeps its own copies.',
-                  style: TextStyle(
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13,
                     height: 1.3,
                   ),
                 ),

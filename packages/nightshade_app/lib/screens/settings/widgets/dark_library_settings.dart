@@ -131,9 +131,8 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       const SizedBox(width: 4),
                       Text(
                         '\u00b0C',
-                        style: TextStyle(
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: NightshadeColors.of(context).textSecondary,
-                          fontSize: NightshadeTypography.fontSize13,
                         ),
                       ),
                     ],
@@ -217,9 +216,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   Expanded(
                     child: Text(
                       uiState.statusMessage!,
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textPrimary,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: NightshadeColors.of(context).textPrimary,
+                      ),
                     ),
                   ),
                   NightshadeIconButton(
@@ -253,9 +252,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   Expanded(
                     child: Text(
                       uiState.errorMessage!,
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textPrimary,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: NightshadeColors.of(context).textPrimary,
+                      ),
                     ),
                   ),
                   NightshadeIconButton(
@@ -346,19 +345,17 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                           const SizedBox(height: 12),
                           Text(
                             'No dark frames in library',
-                            style: TextStyle(
+                            style: NightshadeTypography.body.copyWith(
                               color: NightshadeColors.of(context).textMuted,
-                              fontSize: NightshadeTypography.fontSize14,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Capture dark or bias frames to populate the library',
-                            style: TextStyle(
+                            style: NightshadeTypography.caption.copyWith(
                               color: NightshadeColors.of(context)
                                   .textMuted
                                   .withValues(alpha: 0.7),
-                              fontSize: NightshadeTypography.fontSize12,
                             ),
                           ),
                         ],
@@ -682,9 +679,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               const SizedBox(height: 4),
               Text(
                 entry.filePath,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: NightshadeColors.of(context).textMuted),
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: NightshadeColors.of(context).textMuted,
+                ),
               ),
               const SizedBox(height: 12),
               CheckboxListTile(

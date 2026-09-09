@@ -294,8 +294,7 @@ class _LivePreviewCard extends StatelessWidget {
               children: [
                 Text(
                   'What this will do at sequence start',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -306,8 +305,7 @@ class _LivePreviewCard extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       '• $line',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                         color: colors.textSecondary,
                         height: 1.35,
                       ),

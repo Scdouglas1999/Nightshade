@@ -207,8 +207,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                     'Removes every recorded decision, from every past run. '
                     'Your captured images, sessions and session notes are '
                     'untouched — only the replay record is cleared.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),

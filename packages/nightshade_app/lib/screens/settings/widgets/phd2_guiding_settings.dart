@@ -370,8 +370,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                   child: Text(
                     'PHD2 will be automatically detected on common installation paths if not specified. '
                     'The connection settings are used when connecting to PHD2 for guiding operations.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
+                    style: NightshadeTypography.bodySm.copyWith(
                       color: NightshadeColors.of(context).textSecondary,
                     ),
                   ),

@@ -99,10 +99,8 @@ class PlateSolvingSettingsScreen extends ConsumerWidget {
         backgroundColor: colors.surface,
         title: const Text('Plate Solving'),
         iconTheme: IconThemeData(color: colors.textPrimary),
-        titleTextStyle: TextStyle(
+        titleTextStyle: NightshadeTypography.pageTitle.copyWith(
           color: colors.textPrimary,
-          fontSize: NightshadeTypography.fontSize18,
-          fontWeight: FontWeight.w600,
         ),
       ),
       body: const PlateSolvingSettings(),
@@ -614,8 +612,7 @@ class _NoSolverQuickStart extends StatelessWidget {
         children: [
           Text(
             'Get started in 3 steps',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
+            style: NightshadeTypography.buttonSm.copyWith(
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -625,9 +622,9 @@ class _NoSolverQuickStart extends StatelessWidget {
             'Nightshade needs a plate solver to centre targets, verify '
             'framing, and run polar alignment. Follow these steps, then '
             'click Re-scan to detect the install.',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary),
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
           const SizedBox(height: 14),
           _QuickStartStep(
@@ -726,8 +723,7 @@ class _QuickStartStep extends StatelessWidget {
             ),
             child: Text(
               '$stepNumber',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.buttonSm.copyWith(
                 fontWeight: FontWeight.w700,
                 color: colors.primary,
               ),
@@ -754,8 +750,7 @@ class _QuickStartStep extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   body,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -814,8 +809,7 @@ class _CatalogMissingHint extends StatelessWidget {
             child: Text(
               'Searching for catalogs in $probed. If your catalog lives '
               'somewhere else, point Nightshade at it now.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textPrimary,
                 height: 1.4,
               ),

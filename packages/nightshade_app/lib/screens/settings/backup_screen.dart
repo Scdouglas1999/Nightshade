@@ -571,8 +571,7 @@ class _RestoreNoticeBanner extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -634,9 +633,9 @@ class _AutoSaveStatusCard extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Text(
                   status.lastError!,
-                  style: TextStyle(
-                      color: colors.error,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.error,
+                  ),
                 ),
               ],
             ],
@@ -881,9 +880,8 @@ class _BackupTile extends StatelessWidget {
       ),
       subtitle: Text(
         '${_formatFileSize(backup.fileSize)} | $timestamp',
-        style: TextStyle(
+        style: NightshadeTypography.caption.copyWith(
           color: colors.textSecondary,
-          fontSize: NightshadeTypography.fontSize12,
         ),
       ),
       trailing: Row(
@@ -943,17 +941,14 @@ class _StatusRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
               Text(
                 value,
-                style: TextStyle(
+                style: NightshadeTypography.bodyMedium.copyWith(
                   color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

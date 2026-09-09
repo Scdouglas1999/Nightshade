@@ -110,9 +110,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       description,
-                      style: TextStyle(
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize13,
                       ),
                     ),
                   ],
@@ -138,9 +137,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
               Expanded(
                 child: Text(
                   usedFor,
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary.withValues(alpha: 0.9),
-                    fontSize: NightshadeTypography.fontSize12,
                     height: 1.3,
                   ),
                 ),
@@ -150,10 +148,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
           const SizedBox(height: 8),
           Text(
             'Source: $sourceUrl',
-            style: TextStyle(
+            style: NightshadeTypography.monoCaption.copyWith(
               color: colors.textSecondary.withValues(alpha: 0.7),
-              fontSize: NightshadeTypography.fontSize11,
-              fontFamily: 'monospace',
             ),
           ),
           if (isInstalled && status != null) ...[
@@ -320,9 +316,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
         const SizedBox(height: 2),

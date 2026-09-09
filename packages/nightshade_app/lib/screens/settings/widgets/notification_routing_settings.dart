@@ -97,9 +97,8 @@ class NotificationRoutingSettings extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               userFacingError(e),
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
             const SizedBox(height: 12),

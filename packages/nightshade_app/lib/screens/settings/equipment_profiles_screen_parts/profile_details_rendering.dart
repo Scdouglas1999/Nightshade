@@ -45,16 +45,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       _EditableField(
                         controller: _descController,
                         hint: 'Add a description...',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: NightshadeColors.of(context).textSecondary,
                         ),
                       )
                     else
                       Text(
                         widget.profile.description ?? 'No description',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: NightshadeColors.of(context).textMuted,
                         ),
                       ),
@@ -562,9 +560,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
               children: [
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
-                  style: TextStyle(
-                      color: NightshadeColors.of(context).textMuted,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: NightshadeColors.of(context).textMuted,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ..._buildFilterOffsetRows(),
@@ -656,9 +654,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     'Click "Copy from Connected" to assign currently connected devices, or use X to clear individual assignments.',
-                    style: TextStyle(
-                        color: NightshadeColors.of(context).textMuted,
-                        fontSize: NightshadeTypography.fontSize11),
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: NightshadeColors.of(context).textMuted,
+                    ),
                   ),
                 ),
             ],
@@ -694,9 +692,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                     Expanded(
                       child: Text(
                         widget.profile.name,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize18,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.pageTitle.copyWith(
                           color: NightshadeColors.of(context).textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,

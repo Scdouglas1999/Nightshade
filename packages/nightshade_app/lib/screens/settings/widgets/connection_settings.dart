@@ -623,8 +623,7 @@ class _ConnectToServerDialogState
                 Expanded(
                   child: Text(
                     _statusMessage!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: colors.error,
                     ),
                   ),
@@ -852,8 +851,7 @@ class _DriverLabel extends StatelessWidget {
       children: [
         Text(
           driver.label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
+          style: NightshadeTypography.caption.copyWith(
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -867,9 +865,7 @@ class _DriverLabel extends StatelessWidget {
           ),
           child: Text(
             statusLabel,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.eyebrow.copyWith(
               color: statusColor,
             ),
           ),

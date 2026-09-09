@@ -26,17 +26,14 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize20,
-                fontWeight: FontWeight.w700,
+              style: NightshadeTypography.pageTitle.copyWith(
                 color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textSecondary,
               ),
               textAlign: TextAlign.center,
@@ -122,8 +119,7 @@ class _DarkGroupTile extends StatelessWidget {
                   Text(
                     'Gain ${group.gain} | Offset ${group.offset} | '
                     '${group.binX}x${group.binY}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -214,8 +210,7 @@ class _DarkEntryTile extends StatelessWidget {
               children: [
                 Text(
                   isMaster ? 'MASTER: $fileName' : fileName,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     fontWeight: isMaster ? FontWeight.w600 : FontWeight.w400,
                     color: colors.textPrimary,
                   ),
@@ -227,9 +222,9 @@ class _DarkEntryTile extends StatelessWidget {
                   '${entry.binX}x${entry.binY}'
                   '${entry.temperature != null ? ' | ${entry.temperature!.toStringAsFixed(1)}\u00b0C' : ''}'
                   '${isMaster ? ' | ${entry.masterFrameCount} frames' : ''}',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: colors.textMuted,
+                  ),
                 ),
               ],
             ),

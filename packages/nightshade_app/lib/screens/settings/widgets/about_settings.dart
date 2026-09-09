@@ -471,8 +471,7 @@ class _LicenseCard extends ConsumerWidget {
           const SizedBox(height: 12),
           Text(
             '$kNightshadeLicenseName\n$kNightshadeCopyright',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -608,8 +607,7 @@ class _SoftwareUpdateCardState extends ConsumerState<_SoftwareUpdateCard> {
           const SizedBox(height: 12),
           Text(
             _statusLine(appVersion.version),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: _error != null ? colors.error : colors.textSecondary,
               height: 1.4,
             ),

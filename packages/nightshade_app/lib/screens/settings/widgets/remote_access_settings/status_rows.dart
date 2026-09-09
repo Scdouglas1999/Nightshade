@@ -35,8 +35,7 @@ class _PairingCallout extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -165,8 +164,7 @@ class _StatusRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),

@@ -128,10 +128,8 @@ class _SecretFieldRowState extends State<_SecretFieldRow> {
                 '•••••••• (stored securely)',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.readoutXs.copyWith(
                   color: colors.textMuted,
-                  fontFamily: 'monospace',
                 ),
               ),
             ),
