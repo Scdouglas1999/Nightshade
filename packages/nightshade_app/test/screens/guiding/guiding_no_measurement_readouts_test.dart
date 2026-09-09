@@ -120,7 +120,7 @@ void main() {
       findsNothing,
       reason: 'an unmeasured SNR was painted error-red as 0.0',
     );
-    expect(find.text('STAR MASS'), findsOneWidget);
+    expect(find.text('MASS'), findsOneWidget);
     // SNR + Star mass join the graph's three RMS readouts.
     expect(find.text('—'), findsAtLeastNWidgets(5));
     // Frame count of zero is a real count, so it still renders as a number.

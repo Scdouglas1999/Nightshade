@@ -23,6 +23,10 @@ mixin _GuidingDesktopSections
     Phd2GuideStats guideStats,
   ) {
     return Row(
+      // The columns start at the same y: a Row centres its children by
+      // default, which left the shorter left column floating 34 px below the
+      // graph panel's top edge.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -198,7 +202,7 @@ mixin _GuidingDesktopSections
           ),
           Readout(
             value: _starMetricValue(stats.starMass, decimals: 0),
-            label: 'Star mass',
+            label: 'Mass',
             size: ReadoutSize.sm,
           ),
           Readout(

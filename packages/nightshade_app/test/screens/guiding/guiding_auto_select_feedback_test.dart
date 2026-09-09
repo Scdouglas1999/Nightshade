@@ -101,7 +101,7 @@ void main() {
       }),
     ]);
 
-    await tester.tap(find.text('Auto Select'));
+    await tester.tap(find.text('Auto select'));
     await _drain(tester);
 
     expect(lock.called, isTrue, reason: 'the command must still be issued');
@@ -126,7 +126,7 @@ void main() {
       lockPositionProvider.overrideWith(_FindsNothing.new),
     ]);
 
-    await tester.tap(find.text('Auto Select'));
+    await tester.tap(find.text('Auto select'));
     await _drain(tester);
 
     expect(
