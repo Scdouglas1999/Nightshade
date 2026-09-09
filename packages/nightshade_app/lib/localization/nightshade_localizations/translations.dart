@@ -177,15 +177,17 @@ final Map<String, Map<String, String>> _localizedValues = {
     // Settings sidebar GROUP headers. Distinct from the structural
     // `kGroupTitles` identifiers, which must stay English.
     'settingsSearchHint': 'Search settings…',
+    // Page-header action on Settings; opens the Backup section (06 §Settings).
+    'settingsBackup': 'Backup',
     'settingsGroupGeneral': 'General',
     'settingsGroupEquipment': 'Equipment',
     'settingsGroupImaging': 'Imaging',
-    'settingsGroupAutomationSafety': 'Automation & Safety',
+    'settingsGroupAutomationSafety': 'Automation & safety',
     'settingsGroupScience': 'Science',
-    'settingsGroupNotificationsRemote': 'Notifications & Remote',
+    'settingsGroupNotificationsRemote': 'Notifications & remote',
     'settingsGroupAdvanced': 'Advanced',
     'settingsGeneral': 'General',
-    'settingsHelpTutorials': 'Help & Tutorials',
+    'settingsHelpTutorials': 'Help & tutorials',
     'settingsImaging': 'Imaging',
     'settingsLocation': 'Location',
     'settingsNotifications': 'Notifications',
@@ -600,7 +602,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabPlanetarium': 'Planetarium',
     'plannerTabDiscover': 'Discover',
     // Settings catalog section labels.
-    'settingsFilesStorage': 'Files & Storage',
+    'settingsFilesStorage': 'Files & storage',
     'settingsAdaptiveExposure': 'Adaptive Exposure',
     'settingsImageGrading': 'Image Grading',
     'settingsCalibrationLibrary': 'Calibration Library',
@@ -926,6 +928,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsEquipmentProfiles': 'Perfiles de equipo',
     'settingsFilePaths': 'Rutas de archivo',
     'settingsSearchHint': 'Buscar ajustes…',
+    'settingsBackup': 'Copia de seguridad',
     'settingsGroupGeneral': 'General',
     'settingsGroupEquipment': 'Equipo',
     'settingsGroupImaging': 'Captura',

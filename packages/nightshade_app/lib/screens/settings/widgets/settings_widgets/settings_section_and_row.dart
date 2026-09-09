@@ -1,5 +1,11 @@
 part of '../settings_widgets.dart';
 
+/// One eyebrow-labelled group of setting rows on a Settings page (06 §Settings).
+///
+/// `[EYEBROW]` then a single [NightshadePanel] run flush, with the rows
+/// separated by hairlines and no hairline after the last one. The panel is
+/// flush because the rows carry the padding: a padded panel around padded rows
+/// is the panel-inside-a-panel the tonal ladder forbids.
 class SettingsSection extends StatelessWidget {
   final String title;
 
@@ -30,26 +36,42 @@ class SettingsSection extends StatelessWidget {
         _HighlightedRow(
           active: SettingsRowHighlight.targets(context, title: title),
           child: Text(
-            title,
-            style: (isMobile
-                    ? NightshadeTypography.label
-                    : NightshadeTypography.h5)
-                .copyWith(color: colors.textPrimary),
+            title.toUpperCase(),
+            style: NightshadeTypography.eyebrow.copyWith(
+              color: colors.textMuted,
+            ),
           ),
         ),
-        SizedBox(
-            height:
-                isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          borderRadius: isMobile ? 10 : NightshadeTokens.radiusLg,
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        NightshadePanel(
+          flush: true,
           child: Column(
-            children: children,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _separated(colors),
           ),
         ),
-        SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
+        const SizedBox(height: NightshadeTokens.space2xl),
       ],
     );
+  }
+
+  /// The rows with a hairline BETWEEN each pair and none at either end.
+  ///
+  /// The separator is drawn by the section, not by the row, because
+  /// [SettingRow.isLast] is a fact about a list that only the list knows: every
+  /// section that added a row without updating the previous row's flag grew a
+  /// hairline sitting on the panel's bottom edge. Owning it here also means a
+  /// conditional row (`if (!isRemoteMode) SettingRow(...)`) cannot leave a
+  /// dangling rule behind it.
+  List<Widget> _separated(NightshadeColors colors) {
+    final result = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) {
+        result.add(Divider(height: 1, thickness: 1, color: colors.border));
+      }
+      result.add(children[i]);
+    }
+    return result;
   }
 }
 
@@ -148,11 +170,19 @@ class _HighlightedRowState extends State<_HighlightedRow> {
   }
 }
 
-/// A single row in a settings section with an icon, title, optional subtitle, and trailing widget.
-
+/// A single row on a Settings page: title (+ optional description) on the
+/// left, its control right-aligned (06 §Settings).
+///
+/// 12 / 16 padding, title in `bodyMedium`, description in `caption`
+/// `textSecondary`. The row draws no rule of its own — [SettingsSection] owns
+/// the hairlines between its rows.
 class SettingRow extends StatelessWidget {
+  /// Ignored. A settings row is title + control: the mockup has no icon column
+  /// and the old 36 px icon square was the "card" look the panel replaced. The
+  /// parameter stays so the ~300 call sites keep compiling; wave 4 removes it.
   final IconData icon;
 
+  /// Ignored, with [icon].
   final Color? iconColor;
 
   final String title;
@@ -161,6 +191,9 @@ class SettingRow extends StatelessWidget {
 
   final Widget trailing;
 
+  /// Ignored. [SettingsSection] draws the hairlines between its rows, so a row
+  /// no longer needs to know where it sits in the list. Kept for call sites;
+  /// wave 4 removes it.
   final bool isLast;
 
   final bool isMobile;
@@ -195,8 +228,7 @@ class SettingRow extends StatelessWidget {
     final titleText = Text(
       title,
       style:
-          (isMobile ? NightshadeTypography.labelSm : NightshadeTypography.label)
-              .copyWith(color: colors.textPrimary),
+          NightshadeTypography.bodyMedium.copyWith(color: colors.textPrimary),
     );
     final id = helpId;
     if (id == null) {
@@ -218,19 +250,29 @@ class SettingRow extends StatelessWidget {
     );
   }
 
+  /// Title + description: the left column of the row.
+  Widget _label(BuildContext context, NightshadeColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTitle(context, colors),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle!,
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
     final shouldStack = isMobile && stackOnMobile;
-
-    final horizontalPadding = isMobile ? 12.0 : NightshadeTokens.spaceLg;
-
-    final verticalPadding = isMobile ? 12.0 : 14.0;
-
-    final iconSize = isMobile ? 32.0 : 36.0;
-
-    final iconInnerSize = isMobile ? 14.0 : NightshadeTokens.iconSm;
 
     // The row's title and its trailing control are ONE thing to a screen
     // reader.
@@ -245,71 +287,36 @@ class SettingRow extends StatelessWidget {
           title: title,
           subtitle: subtitle,
         ),
-        child: Container(
+        child: Padding(
           padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding, vertical: verticalPadding),
-          decoration: BoxDecoration(
-            border: isLast
-                ? null
-                : Border(
-                    bottom:
-                        BorderSide(color: colors.border.withValues(alpha: 0.5)),
-                  ),
+            horizontal:
+                isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg,
+            vertical: NightshadeTokens.spaceMd,
           ),
           child: shouldStack
-              ? _buildStackedLayout(context, colors, iconSize, iconInnerSize)
-              : _buildRowLayout(context, colors, iconSize, iconInnerSize),
+              ? _buildStackedLayout(context, colors)
+              : _buildRowLayout(context, colors),
         ),
       ),
     );
   }
 
-  Widget _buildRowLayout(BuildContext context, NightshadeColors colors,
-      double iconSize, double iconInnerSize) {
+  Widget _buildRowLayout(BuildContext context, NightshadeColors colors) {
     return Row(
       children: [
-        Container(
-          width: iconSize,
-          height: iconSize,
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: NightshadeTokens.borderRadiusMd,
-          ),
-          child: Icon(icon,
-              size: iconInnerSize, color: iconColor ?? colors.textSecondary),
-        ),
-        SizedBox(width: isMobile ? 10 : 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTitle(context, colors),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: NightshadeTypography.captionSm.copyWith(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize10
-                        : NightshadeTypography.fontSize11,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        // Flexible (loose) bounds the trailing slot to the space the title's
+        Expanded(child: _label(context, colors)),
+        const SizedBox(width: NightshadeTokens.space2xl),
+        // Flexible (loose) bounds the trailing slot to the space the label's
         // Expanded leaves free. Finite controls (dropdowns, switches) keep their
         // intrinsic size; a content-sized [Wrap] trailing (e.g. the Integrations
         // plugin row's pill + Configure + switch cluster) gets a finite width to
         // wrap within instead of demanding unbounded width and overflowing.
         //
-        // Align pins the control to the card's right edge. Without it the
+        // Align pins the control to the panel's right edge. Without it the
         // control sat at the LEFT of its flexible half — i.e. at the row's
         // horizontal midpoint — which looks correct at ~1600px only by
         // coincidence and stranded every control mid-screen with ~2100px of
-        // empty card beside it on an ultrawide monitor (audit 2026-07-29).
+        // empty panel beside it on an ultrawide monitor (audit 2026-07-29).
         Flexible(
           child: Align(alignment: Alignment.centerRight, child: trailing),
         ),
@@ -317,49 +324,13 @@ class SettingRow extends StatelessWidget {
     );
   }
 
-  Widget _buildStackedLayout(BuildContext context, NightshadeColors colors,
-      double iconSize, double iconInnerSize) {
+  Widget _buildStackedLayout(BuildContext context, NightshadeColors colors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              width: iconSize,
-              height: iconSize,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: NightshadeTokens.borderRadiusMd,
-              ),
-              child: Icon(icon,
-                  size: iconInnerSize,
-                  color: iconColor ?? colors.textSecondary),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTitle(context, colors),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: NightshadeTypography.captionSm.copyWith(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textMuted),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Padding(
-          padding: EdgeInsets.only(left: iconSize + 10),
-          child: trailing,
-        ),
+        _label(context, colors),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        trailing,
       ],
     );
   }

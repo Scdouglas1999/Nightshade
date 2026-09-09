@@ -1,5 +1,16 @@
-// Desktop search field, grouped list and search-result widgets.
+// Desktop search field, grouped nav list and search-result widgets.
 part of '../settings_screen.dart';
+
+// Geometry of the settings navigation column (06 §Settings, mockups/settings.html).
+
+/// Width of the left navigation column.
+const double _navWidth = 240;
+
+/// Height of one navigation item.
+const double _navItemHeight = 34;
+
+/// Leading icon size inside a navigation item.
+const double _navIconSize = 15;
 
 // Search field
 
@@ -18,97 +29,141 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return NightshadeTextField(
       controller: controller,
       onChanged: onChanged,
-      style: TextStyle(
-          fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: context.l10n.text('settingsSearchHint'),
-        hintStyle: TextStyle(
-            fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
-        prefixIcon: Icon(LucideIcons.search, size: 16, color: colors.textMuted),
-        prefixIconConstraints:
-            const BoxConstraints(minWidth: 36, minHeight: 36),
-        suffixIcon: controller.text.isEmpty
-            ? null
-            : IconButton(
-                icon: Icon(LucideIcons.x, size: 16, color: colors.textMuted),
-                splashRadius: 16,
-                onPressed: onClear,
-              ),
-        filled: true,
-        fillColor: colors.surfaceAlt,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.6)),
-        ),
-      ),
+      hint: context.l10n.text('settingsSearchHint'),
+      prefixIcon: LucideIcons.search,
+      dense: true,
+      suffixWidget: controller.text.isEmpty
+          ? null
+          : NightshadeIconButton(
+              icon: LucideIcons.x,
+              tooltip: 'Clear the search',
+              size: IconButtonSize.sm,
+              onPressed: onClear,
+            ),
     );
   }
 }
 
-// Desktop: grouped, collapsible sidebar
+// Desktop: the navigation column
 
-class _DesktopGroupedList extends StatelessWidget {
-  const _DesktopGroupedList({
+/// The 240 px left column: search field, then eyebrow-labelled groups of
+/// section items (06 §Settings).
+///
+/// The groups do not collapse. The mockup's nav is a flat, scannable list under
+/// three quiet labels; a chevron per group turned the taxonomy itself into
+/// eleven controls the operator had to operate before they could read it.
+class _DesktopNav extends StatelessWidget {
+  const _DesktopNav({
     required this.groups,
     required this.selectedKey,
-    required this.expandedGroups,
     required this.colors,
-    required this.onToggleGroup,
+    required this.searchController,
+    required this.searching,
+    required this.results,
+    required this.onQueryChanged,
+    required this.onClearQuery,
     required this.onSelect,
   });
 
   final List<SettingsGroupDef> groups;
   final String selectedKey;
-  final Set<String> expandedGroups;
   final NightshadeColors colors;
-  final void Function(String title) onToggleGroup;
+  final TextEditingController searchController;
+  final bool searching;
+  final List<SettingsSearchResult> results;
+  final ValueChanged<String> onQueryChanged;
+  final VoidCallback onClearQuery;
+  final void Function(String key, String? rowTitle) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _navWidth,
+      decoration: BoxDecoration(
+        border: Border(right: BorderSide(color: colors.border)),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: NightshadeTokens.spaceMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NightshadeTokens.spaceXs,
+              0,
+              NightshadeTokens.spaceXs,
+              NightshadeTokens.spaceSm,
+            ),
+            child: _SearchField(
+              controller: searchController,
+              colors: colors,
+              onChanged: onQueryChanged,
+              onClear: onClearQuery,
+            ),
+          ),
+          Expanded(
+            child: searching
+                ? _DesktopSearchResults(
+                    results: results,
+                    selectedKey: selectedKey,
+                    colors: colors,
+                    onTap: onSelect,
+                  )
+                : _DesktopGroupedList(
+                    groups: groups,
+                    selectedKey: selectedKey,
+                    colors: colors,
+                    onSelect: (key) => onSelect(key, null),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopGroupedList extends StatelessWidget {
+  const _DesktopGroupedList({
+    required this.groups,
+    required this.selectedKey,
+    required this.colors,
+    required this.onSelect,
+  });
+
+  final List<SettingsGroupDef> groups;
+  final String selectedKey;
+  final NightshadeColors colors;
   final void Function(String key) onSelect;
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
       key: SettingsTutorialKeys.categories,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: EdgeInsets.zero,
       itemCount: groups.length,
       itemBuilder: (context, index) {
         final group = groups[index];
-        final expanded = expandedGroups.contains(group.title);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _GroupHeader(
-              // Display title: the group's `title` is the structural id and
-              // stays English, so rendering it would leave the header
-              // untranslated above translated child items.
-              title: group.displayTitle,
-              icon: group.icon,
-              expanded: expanded,
-              colors: colors,
-              onTap: () => onToggleGroup(group.title),
-            ),
-            if (expanded)
-              ...group.sections.map(
-                (section) => Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: _CategoryItem(
-                    icon: section.icon,
-                    label: section.label,
-                    isSelected: section.key == selectedKey,
-                    onTap: () => onSelect(section.key),
-                    colors: colors,
-                  ),
-                ),
+            // Display title: the group's `title` is the structural id and stays
+            // English, so rendering it would leave the header untranslated
+            // above translated child items.
+            _NavEyebrow(label: group.displayTitle, colors: colors),
+            ...group.sections.map(
+              (section) => _CategoryItem(
+                icon: section.icon,
+                label: section.label,
+                isSelected: section.key == selectedKey,
+                onTap: () => onSelect(section.key),
+                colors: colors,
               ),
+            ),
           ],
         );
       },
@@ -116,92 +171,25 @@ class _DesktopGroupedList extends StatelessWidget {
   }
 }
 
-class _GroupHeader extends StatefulWidget {
-  const _GroupHeader({
-    required this.title,
-    required this.icon,
-    required this.expanded,
-    required this.colors,
-    required this.onTap,
-  });
+/// The quiet group label above a run of navigation items.
+class _NavEyebrow extends StatelessWidget {
+  const _NavEyebrow({required this.label, required this.colors});
 
-  final String title;
-  final IconData icon;
-  final bool expanded;
+  final String label;
   final NightshadeColors colors;
-  final VoidCallback onTap;
-
-  @override
-  State<_GroupHeader> createState() => _GroupHeaderState();
-}
-
-class _GroupHeaderState extends State<_GroupHeader> {
-  bool _hovered = false;
-  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    final colors = widget.colors;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      // InkWell, not GestureDetector: the whole section navigator was
-      // mouse-only — 24 Tab presses never landed on it, and AT read every
-      // entry as "panel" rather than a control. InkWell joins the traversal
-      // order, activates on Enter/Space, and reports itself as a button.
-      child: MergeSemantics(
-        child: Semantics(
-          // Semantics publishes isEnabled only when this field is given;
-          // omitting it makes assistive tech announce a live control as
-          // disabled. Measured on the running app 2026-08-09.
-          enabled: true,
-          button: true,
-          expanded: widget.expanded,
-          child: InkWell(
-            onTap: widget.onTap,
-            onFocusChange: (value) => setState(() => _focused = value),
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            child: Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: _hovered ? colors.surfaceAlt : Colors.transparent,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-                // Keyboard focus has to be VISIBLE, not just held.
-                border: _focused
-                    ? Border.all(color: colors.primary, width: 2)
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Icon(widget.icon, size: 16, color: colors.textMuted),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.title.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: widget.expanded ? 0.25 : 0.0,
-                    duration: const Duration(milliseconds: 150),
-                    child: Icon(
-                      LucideIcons.chevronRight,
-                      size: 16,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceXs,
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
       ),
     );
   }
@@ -225,18 +213,15 @@ class _DesktopSearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (results.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(20),
-        child: Text(
-          'No settings match your search.',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              color: colors.textMuted),
-        ),
+      return const EmptyState.compact(
+        icon: LucideIcons.searchX,
+        title: 'No settings match',
+        body:
+            'Try a shorter word, or the name of the thing you want to change.',
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: EdgeInsets.zero,
       itemCount: results.length,
       itemBuilder: (context, index) {
         final result = results[index];
@@ -311,35 +296,39 @@ class _SearchRowResultState extends State<_SearchRowResult> {
       child: InkWell(
         onTap: widget.onTap,
         onFocusChange: (value) => setState(() => _focused = value),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        borderRadius: NightshadeTokens.borderRadiusSm,
         child: MouseRegion(
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: Container(
             margin: EdgeInsets.only(
-              left: 20,
+              left: NightshadeTokens.spaceXl,
               right: widget.endInset,
-              bottom: 4,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
             decoration: BoxDecoration(
-              color: _hovered ? colors.surfaceAlt : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              color: _hovered ? colors.surfaceHover : Colors.transparent,
+              borderRadius: NightshadeTokens.borderRadiusSm,
               border:
                   _focused ? Border.all(color: colors.primary, width: 2) : null,
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.cornerDownRight,
-                    size: 12, color: colors.textMuted),
-                const SizedBox(width: 8),
+                Icon(
+                  LucideIcons.cornerDownRight,
+                  size: NightshadeTokens.iconXs,
+                  color: colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
                     widget.label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.bodySm.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
