@@ -44,7 +44,7 @@ void main() {
       expect(normal.border, Color.lerp(base, Colors.black, 0.12));
     });
 
-    test('kpiBadge uses score badge fill and border', () {
+    test('kpiBadge keeps its shape and drops its border', () {
       const color = Color(0xFF3DAA6D);
       final decoration = NightshadeDecorations.kpiBadge(color);
 
@@ -52,13 +52,13 @@ void main() {
         decoration.color,
         color.withValues(alpha: NightshadeTokens.opacityStatusFill),
       );
-      expect(
-        decoration.border,
-        Border.all(color: color.withValues(alpha: 0.4)),
-      );
+      // A chip has no border in this language: the fill is its boundary. The
+      // SHAPE survives, because a circle and a rounded rect are not one box.
+      expect(decoration.border, isNull);
+      expect(decoration.shape, BoxShape.circle);
     });
 
-    test('cardSelected uses 4% tint without shadow', () {
+    test('cardSelected uses a 4% tint and a 50% ring, without shadow', () {
       const accent = Color(0xFF5B9EC4);
       const background = Color(0xFF111418);
       final decoration = NightshadeDecorations.cardSelected(
@@ -71,13 +71,20 @@ void main() {
         Color.alphaBlend(accent.withValues(alpha: 0.04), background),
       );
       expect(decoration.boxShadow, isNull);
+      expect(
+        decoration.border,
+        Border.all(
+          color: accent.withValues(alpha: NightshadeTokens.opacitySelectedRing),
+        ),
+      );
     });
 
-    test('dragFeedback uses neutral elevation shadow', () {
+    test('dragFeedback is the popover decoration', () {
       const colors = NightshadeColors.dark;
       final decoration = NightshadeDecorations.dragFeedback(colors);
 
-      expect(decoration.boxShadow, NightshadeTokens.elevationLevel2);
+      expect(decoration, NightshadeDecorations.popover(colors));
+      expect(decoration.boxShadow, isNotNull);
     });
 
     test('statusChip uses status fill alpha', () {

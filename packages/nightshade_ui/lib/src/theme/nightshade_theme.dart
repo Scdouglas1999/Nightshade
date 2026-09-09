@@ -20,6 +20,62 @@ enum AppThemeMode {
   system,
 }
 
+/// The accent swatches Settings › Appearance offers, PER THEME.
+///
+/// A dark-safe accent is not light-safe. The dark set's #6EB3EC measures 8.1:1
+/// as link text on the dark canvas and 2.4:1 on white, so one shared row of
+/// swatches would hand half of them to a theme that cannot read them.
+/// `docs/design/overhaul/tools/check_tokens.py` validates every entry twice —
+/// as a FILL under the ink [NightshadeColors] would pick for it, and as link
+/// TEXT on that theme's `background` and `surface` — and every value below
+/// clears 4.5:1 on both counts.
+///
+/// Red night returns an empty list on purpose: its palette is fixed by the
+/// wavelength rule, so the picker is hidden rather than filled with colours
+/// that would undo the mode.
+abstract final class AppearanceAccents {
+  AppearanceAccents._();
+
+  /// Ink 5.83–9.23:1, as link text 5.83–8.68:1 on the dark canvas.
+  static const List<Color> dark = <Color>[
+    Color(0xFF6EB3EC),
+    Color(0xFF43B67A),
+    Color(0xFFE0A53E),
+    Color(0xFFE86A6A),
+    Color(0xFFA48CF2),
+    Color(0xFFE77FB3),
+    Color(0xFF4FC3C8),
+  ];
+
+  /// The same seven hues taken down to where white ink and a white ground both
+  /// work: ink 5.46–5.75:1, as link text 5.00–5.27:1.
+  static const List<Color> light = <Color>[
+    Color(0xFF256F9E),
+    Color(0xFF277549),
+    Color(0xFF8F5D14),
+    Color(0xFFBC3838),
+    Color(0xFF6A4FD1),
+    Color(0xFFB03A7A),
+    Color(0xFF1B7278),
+  ];
+
+  /// Swatches for [mode]. Empty means "hide the picker".
+  static List<Color> forTheme(AppThemeMode mode) {
+    switch (mode) {
+      case AppThemeMode.dark:
+        return dark;
+      case AppThemeMode.light:
+        return light;
+      case AppThemeMode.redNight:
+        return const <Color>[];
+      case AppThemeMode.system:
+        // The system row follows the platform brightness at paint time; the
+        // caller resolves that before asking. Dark is the app's default.
+        return dark;
+    }
+  }
+}
+
 /// Parse a hex accent color (`#RRGGBB` or `RRGGBB`). Returns null if invalid.
 Color? parseNightshadeAccentColor(String? hexColor) {
   if (hexColor == null || hexColor.isEmpty) return null;

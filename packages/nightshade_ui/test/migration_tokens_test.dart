@@ -2,28 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Pins the value-preserving migration tokens added so the per-directory
-/// screen migration can swap `BorderRadius.circular(8)` / `fontSize: 13` for a
-/// NAMED token with ZERO visual change. If any of these values drift, a
-/// migrated screen silently changes pixels — so they are locked here.
+/// Pins the migration tokens added so the per-directory screen migration could
+/// swap `BorderRadius.circular(8)` / `fontSize: 13` for a NAMED token. The
+/// font-size half is still value-preserving and still locked below.
 ///
-/// Mapping table of record: docs/design/token-migration-map.md.
+/// The RADIUS half no longer is. The Observatory design pass those tokens were
+/// waiting for has landed (`docs/design/overhaul/03-tokens.md` §3.2): there are
+/// four radii — 4, 6, 8, 12 — and every `radiusInline*` now forwards to the one
+/// it maps to, so the 979 call sites take the new value without an edit. What
+/// this group locks is therefore no longer "each token equals its old literal"
+/// but "each token equals the scale value it folds onto", which is what wave 4
+/// will sed-replace them with.
+///
+/// Mapping table of record: docs/design/overhaul/03-tokens.md §3.2.
 void main() {
-  group('In-use radius tokens are exact-valued', () {
-    test('every in-use BorderRadius.circular literal has an exact token', () {
-      // value -> token (covers all radius literals found in
-      // nightshade_app/lib/screens: 2,3,4,5,6,7,8,9,10,11,999).
-      expect(NightshadeTokens.radiusInline2, 2.0);
-      expect(NightshadeTokens.radiusXs, 3.0);
-      expect(NightshadeTokens.radiusInline4, 4.0);
-      expect(NightshadeTokens.radiusSm, 5.0);
+  group('In-use radius tokens fold onto the Observatory scale', () {
+    test('the scale is the four values and nothing else', () {
+      expect(NightshadeTokens.radiusXs, 4.0);
+      expect(NightshadeTokens.radiusSm, 6.0);
       expect(NightshadeTokens.radiusMd, 6.0);
-      expect(NightshadeTokens.radiusButton, 7.0);
-      expect(NightshadeTokens.radiusInline8, 8.0);
-      expect(NightshadeTokens.radiusInline9, 9.0);
-      expect(NightshadeTokens.radiusLg, 10.0);
-      expect(NightshadeTokens.radiusInline11, 11.0);
+      expect(NightshadeTokens.radiusButton, 6.0);
+      expect(NightshadeTokens.radiusLg, 8.0);
+      expect(NightshadeTokens.radiusXl, 12.0);
       expect(NightshadeTokens.radiusFull, 999.0);
+    });
+
+    test('every migration alias equals its wave-4 replacement', () {
+      expect(NightshadeTokens.radiusInline2, NightshadeTokens.radiusXs);
+      expect(NightshadeTokens.radiusInline4, NightshadeTokens.radiusXs);
+      expect(NightshadeTokens.radiusInline8, NightshadeTokens.radiusLg);
+      expect(NightshadeTokens.radiusInline9, NightshadeTokens.radiusLg);
+      expect(NightshadeTokens.radiusInline11, NightshadeTokens.radiusXl);
     });
 
     test('convenience BorderRadius objects match their double tokens', () {

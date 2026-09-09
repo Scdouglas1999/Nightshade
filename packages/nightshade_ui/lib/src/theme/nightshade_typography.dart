@@ -6,9 +6,9 @@ import 'nightshade_colors.dart';
 ///
 /// Usage:
 /// ```dart
-/// Text('Title', style: NightshadeTypography.h1)
+/// Text('Tonight', style: NightshadeTypography.pageTitle)
 /// Text('Body text', style: NightshadeTypography.body)
-/// Text('12.5"', style: NightshadeTypography.mono)
+/// Text('12.5"', style: NightshadeTypography.readoutSm)
 /// ```
 abstract final class NightshadeTypography {
   NightshadeTypography._();
@@ -67,10 +67,166 @@ abstract final class NightshadeTypography {
   static const double fontSize26 = 26.0;
   static const double fontSize28 = 28.0;
 
+  // Observatory scale
+  //
+  // The go-forward named styles (`docs/design/overhaul/03-tokens.md` §2, and
+  // `design-tokens.json` for the numbers). There are no other sizes: 13.5,
+  // 12.5, 9 and 16 do not exist in this scale. Rail labels and settings items
+  // are [button] (14), settings descriptions are [caption] (12), dialog and
+  // empty-state titles are [sectionTitle] (15), checklist titles are
+  // [bodyStrong]. A readout is ALWAYS a `readout*` for the value plus
+  // [readoutLabel] for the label, never a bare `TextStyle(fontFamily: mono)`.
+  //
+  // `.copyWith(fontSize:)` is forbidden exactly as `TextStyle(fontSize:)` is;
+  // `design_tokens_audit.dart` matches both.
+
+  /// Display - the Tonight hero line, and nothing else.
+  /// 28px, Semi-bold
+  static const TextStyle display = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 28,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+    letterSpacing: -0.4,
+  );
+
+  /// Page title - the screen title in the page header.
+  /// 20px, Semi-bold
+  static const TextStyle pageTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+    letterSpacing: -0.2,
+  );
+
+  /// Section title - section titles inside side panels and settings pages,
+  /// dialog titles, empty-state titles.
+  /// 15px, Semi-bold
+  static const TextStyle sectionTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    letterSpacing: 0,
+  );
+
+  /// Eyebrow - panel labels, rail group labels, list column headers.
+  /// 11px, Semi-bold, UPPERCASE at the call site.
+  ///
+  /// Pair with [NightshadeColors.textMuted]; the label never competes with the
+  /// value beneath it.
+  static const TextStyle eyebrow = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    letterSpacing: 0.7,
+  );
+
+  /// Body strong - names in lists, checklist titles.
+  /// 14px, Semi-bold
+  static const TextStyle bodyStrong = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.5,
+    letterSpacing: 0,
+  );
+
+  /// Readout large - hero numbers (camera temperature on Equipment, HFR in the
+  /// HUD in glance mode).
+  /// 28px, Medium, tabular
+  static const TextStyle readoutLg = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 28,
+    fontWeight: FontWeight.w500,
+    height: 1.15,
+    letterSpacing: -0.6,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Readout medium - the standard readout value.
+  /// 20px, Medium, tabular
+  static const TextStyle readoutMd = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 20,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+    letterSpacing: -0.3,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Readout small - readouts in dense rows and key/value lists.
+  /// 14px, Medium, tabular
+  static const TextStyle readoutSm = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.3,
+    letterSpacing: 0,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Readout extra small - instrument-bar clock and LST, chip counts.
+  /// 12px, Medium, tabular
+  static const TextStyle readoutXs = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.3,
+    letterSpacing: 0,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Readout badge - Plan score badge, checklist step number.
+  /// 16px, Semi-bold, tabular
+  static const TextStyle readoutBadge = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+    letterSpacing: 0,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Readout label - the label under a readout value.
+  /// 11px, Medium, UPPERCASE at the call site. Sans, not mono: it is a word.
+  static const TextStyle readoutLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    height: 1.3,
+    letterSpacing: 0.5,
+  );
+
+  /// Mono caption - night-band legend, `kbd` hints, thumbnail timestamps,
+  /// discovery "sim"/"ascom" tags.
+  /// 11px, Regular, tabular
+  static const TextStyle monoCaption = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+    height: 1.3,
+    letterSpacing: 0,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Button large - the hero Start button.
+  /// 15px, Medium
+  static const TextStyle buttonLg = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    letterSpacing: 0,
+  );
+
   // Heading styles
 
   /// H1 - Page titles, hero text
   /// 32px, Semi-bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle h1 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 32,
@@ -81,6 +237,7 @@ abstract final class NightshadeTypography {
 
   /// H2 - Section titles
   /// 24px, Semi-bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle h2 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 24,
@@ -91,6 +248,7 @@ abstract final class NightshadeTypography {
 
   /// H3 - Card titles, subsection headers
   /// 20px, Semi-bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle h3 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 20,
@@ -101,6 +259,7 @@ abstract final class NightshadeTypography {
 
   /// H4 - Small headers, widget titles
   /// 16px, Semi-bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle h4 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 16,
@@ -111,6 +270,7 @@ abstract final class NightshadeTypography {
 
   /// H5 - Labels, small titles
   /// 14px, Semi-bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle h5 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 14,
@@ -121,6 +281,7 @@ abstract final class NightshadeTypography {
 
   /// H6 - Smallest heading
   /// 12px, Semi-bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle h6 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 12,
@@ -343,6 +504,7 @@ abstract final class NightshadeTypography {
 
   /// Stat value - Large statistic displays
   /// 36px, Bold
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle statValue = TextStyle(
     fontFamily: fontFamilyMono,
     fontSize: 36,
@@ -353,6 +515,7 @@ abstract final class NightshadeTypography {
 
   /// Stat label - Labels for stat values
   /// 12px, Medium, uppercase
+  @Deprecated('Use pageTitle/sectionTitle/display/readout*')
   static const TextStyle statLabel = TextStyle(
     fontFamily: fontFamily,
     fontSize: 12,
