@@ -337,7 +337,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     final backend = _backend;
 
     return SettingsPage(
-      title: 'Appliance Catalogs',
+      title: 'Appliance catalogs',
       description: 'Download and verify the rig\'s plate-solve / star catalogs',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
@@ -349,10 +349,10 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
           Row(
             children: [
               Text('Installed on appliance',
-                  style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w600)),
+                  style: NightshadeTypography.buttonSm.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  )),
               const Spacer(),
               NightshadeButton(
                 onPressed: (_loading || _busy) ? null : _refresh,
@@ -391,10 +391,10 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
             for (final c in _installed) _installedTile(colors, c),
           const SizedBox(height: 16),
           Text('Available to download',
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600)),
+              style: NightshadeTypography.buttonSm.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              )),
           const SizedBox(height: 8),
           if (_available.isEmpty)
             _Info(
@@ -421,8 +421,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   Widget _installedTile(NightshadeColors colors, RemoteCatalogStatus c) {
     final ok =
         c.status.toLowerCase() == 'ok' || c.status.toLowerCase() == 'installed';
-    return NightshadeCard(
-      padding: const EdgeInsets.all(12),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -433,10 +433,9 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(_displayNameFor(c),
-                    style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600)),
+                    style: NightshadeTypography.bodyStrong.copyWith(
+                      color: colors.textPrimary,
+                    )),
               ),
               NightshadeButton(
                 onPressed: (_busy || _confirmationOpen)
@@ -462,15 +461,15 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
           Text(
             '${c.version ?? '—'} · ${_fmtBytes(c.sizeBytes)} · '
             '${c.objectCount != null ? '${c.objectCount} objects · ' : ''}${c.status}',
-            style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize12),
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textMuted,
+            ),
           ),
           if (c.errors.isNotEmpty)
             Text(c.errors.join('; '),
-                style: TextStyle(
-                    color: colors.error,
-                    fontSize: NightshadeTypography.fontSize12)),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.error,
+                )),
         ],
       ),
     );
@@ -480,8 +479,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     final installed = _installed.any(
       (c) => c.name.toLowerCase() == a.name.toLowerCase(),
     );
-    return NightshadeCard(
-      padding: const EdgeInsets.all(12),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Row(
         children: [
           Expanded(
@@ -492,10 +491,9 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
                   children: [
                     Flexible(
                       child: Text(a.displayName,
-                          style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: NightshadeTypography.fontSize14,
-                              fontWeight: FontWeight.w600)),
+                          style: NightshadeTypography.bodyStrong.copyWith(
+                            color: colors.textPrimary,
+                          )),
                     ),
                     if (a.requiredForPlateSolve) ...[
                       const SizedBox(width: 6),
@@ -506,9 +504,9 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
                 const SizedBox(height: 2),
                 Text(
                     '${a.version} · ${_fmtBytes(a.sizeBytes)} · ${a.description}',
-                    style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize12)),
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textMuted,
+                    )),
               ],
             ),
           ),
@@ -538,8 +536,7 @@ class _NotConnected extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final router = GoRouter.maybeOf(context);
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -554,9 +551,8 @@ class _NotConnected extends StatelessWidget {
                   'no appliance is connected. It is separate from this '
                   "device's own planetarium catalogs, which live under "
                   'Catalogs.',
-                  style: TextStyle(
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13,
                   ),
                 ),
               ),
@@ -579,7 +575,7 @@ class _NotConnected extends StatelessWidget {
               NightshadeButton(
                 label: "This device's catalogs",
                 icon: LucideIcons.library,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: router == null
                     ? null
@@ -602,8 +598,7 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -611,9 +606,9 @@ class _Info extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13)),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                )),
           ),
         ],
       ),

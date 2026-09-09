@@ -162,7 +162,7 @@ class _CapturedImagesSettingsState
     final backend = _backend;
 
     return SettingsPage(
-      title: 'Captured Images',
+      title: 'Captured images',
       description: 'Browse frames captured on the connected appliance',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
@@ -174,9 +174,9 @@ class _CapturedImagesSettingsState
           Row(
             children: [
               Text('${_rows.length} frame${_rows.length == 1 ? '' : 's'}',
-                  style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize13)),
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  )),
               const Spacer(),
               NightshadeButton(
                 onPressed: _loading ? null : _refresh,
@@ -253,18 +253,21 @@ class _CapturedImagesSettingsState
               child: Column(
                 children: [
                   Text(label,
-                      style:
-                          const TextStyle(color: Colors.white, fontSize: 13)),
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: Colors.white,
+                      )),
                   const SizedBox(height: 2),
                   // The appliance only serves a JPEG thumbnail sidecar; the
                   // full frame is raw FITS (`/download`) that can't render
                   // inline. Say so rather than passing the thumbnail off as
                   // the capture.
-                  const Text(
+                  Text(
                     'Full-frame preview unavailable — showing the thumbnail. '
                     'Download the frame to inspect it at full resolution.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: Colors.white70,
+                    ),
                   ),
                 ],
               ),
@@ -277,8 +280,7 @@ class _CapturedImagesSettingsState
   }
 
   Widget _info(NightshadeColors colors, IconData icon, String text) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -286,9 +288,9 @@ class _CapturedImagesSettingsState
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13)),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                )),
           ),
         ],
       ),
@@ -296,8 +298,7 @@ class _CapturedImagesSettingsState
   }
 
   Widget _loadError(NightshadeColors colors) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -306,9 +307,8 @@ class _CapturedImagesSettingsState
           Expanded(
             child: Text(
               'Could not load captured frames: $_error',
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
           ),
@@ -405,7 +405,9 @@ class _GalleryTile extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

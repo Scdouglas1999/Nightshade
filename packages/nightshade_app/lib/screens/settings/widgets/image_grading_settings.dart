@@ -166,7 +166,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
         final enabled = settings.enableImageGrading;
 
         return SettingsPage(
-          title: 'Image Grading',
+          title: 'Image grading',
           description:
               'Auto-reject blurry / trailed / clouded frames at capture time',
           isMobile: widget.isMobile,
@@ -627,10 +627,7 @@ class _OptionalNumericInputState<T extends num>
             controller: widget.controller,
             focusNode: _focusNode,
             keyboardType: widget.keyboardType,
-            style: TextStyle(
-              fontSize: widget.isMobile
-                  ? NightshadeTypography.fontSize13
-                  : NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(

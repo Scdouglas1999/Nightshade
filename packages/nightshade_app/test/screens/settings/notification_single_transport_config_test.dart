@@ -67,8 +67,8 @@ void main() {
 
       // Section headings. `find.text` is exact, so the "Test Discord" /
       // "Save Discord config" row titles do not count here.
-      expect(find.text('Discord'), findsOneWidget);
-      expect(find.text('Pushover'), findsOneWidget);
+      expect(find.text('Discord'.toUpperCase()), findsOneWidget);
+      expect(find.text('Pushover'.toUpperCase()), findsOneWidget);
       expect(find.text('Discord (routing matrix)'), findsNothing);
       expect(find.text('Pushover (routing matrix)'), findsNothing);
 
@@ -76,9 +76,11 @@ void main() {
       expect(find.text('Webhook URL'), findsOneWidget);
       expect(find.text('API token'), findsOneWidget);
       expect(find.text('User key'), findsOneWidget);
-      // The legacy row's distinct labels are gone from the local page.
-      expect(find.text('API Key'), findsNothing);
-      expect(find.text('User Key'), findsNothing);
+      // The legacy routing-matrix rows used to be told apart from these by
+      // their Title Case ('API Key', 'User Key'); both spellings are sentence
+      // case now, so absence is no longer expressible as text. The
+      // findsOneWidget above is the same claim and a stronger one: exactly one
+      // credential field per transport, so no legacy row is duplicating them.
 
       // One test action per transport.
       expect(find.text('Test Discord'), findsOneWidget);

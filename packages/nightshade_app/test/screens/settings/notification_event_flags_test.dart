@@ -99,7 +99,7 @@ Future<HarnessHandle> _pump(WidgetTester tester, _Store store) async {
 /// Scoped to the built-in section on purpose: "Meridian flip" is also a Push
 /// to Mobile row title, and an unscoped `find.text` matches both.
 Finder _builtInSection() => find.ancestor(
-      of: find.text('Built-in event alerts'),
+      of: find.text('Built-in event alerts'.toUpperCase()),
       matching: find.byType(SettingsSection),
     );
 

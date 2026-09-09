@@ -110,7 +110,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
         isRemote ? ref.watch(backendProvider) : ref.watch(databaseProvider);
 
     return SettingsPage(
-      title: 'Replay & Debug',
+      title: 'Replay & debug',
       description: isRemote
           ? 'How long the imaging host keeps the record of every decision a '
               'run made, so you can replay a night afterwards. Older entries '
@@ -207,8 +207,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                     'Removes every recorded decision, from every past run. '
                     'Your captured images, sessions and session notes are '
                     'untouched — only the replay record is cleared.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -223,7 +222,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                       label: _isClearing
                           ? 'Clearing…'
                           : 'Clear all replay history',
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                       isLoading: _isClearing,
                     ),

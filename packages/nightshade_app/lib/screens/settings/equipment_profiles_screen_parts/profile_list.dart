@@ -37,18 +37,15 @@ class _ProfileList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Equipment Profiles',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize20,
-                    fontWeight: FontWeight.w700,
+                  'Equipment profiles',
+                  style: NightshadeTypography.pageTitle.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Manage your imaging rigs and configurations',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -70,33 +67,28 @@ class _ProfileList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
-                onPressed: onImportProfiles,
-                icon: isImportingProfiles
-                    ? SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      )
-                    : Icon(
-                        LucideIcons.download,
-                        color: colors.textSecondary,
-                        size: 18,
+              // The spinner keeps the button's footprint while the import runs,
+              // so the row beside "New profile" does not reflow.
+              if (isImportingProfiles)
+                SizedBox.square(
+                  dimension: NightshadeTokens.iconButtonSize,
+                  child: Tooltip(
+                    message: 'Importing profiles…',
+                    child: Padding(
+                      padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
                       ),
-                tooltip: isImportingProfiles
-                    ? 'Importing profiles…'
-                    : 'Import profiles',
-                style: IconButton.styleFrom(
-                  backgroundColor: colors.surfaceAlt,
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    side: BorderSide(color: colors.border),
+                    ),
                   ),
+                )
+              else
+                NightshadeIconButton(
+                  icon: LucideIcons.download,
+                  tooltip: 'Import profiles',
+                  onPressed: onImportProfiles,
                 ),
-              ),
             ],
           ),
         ),
@@ -108,7 +100,9 @@ class _ProfileList extends StatelessWidget {
               ? Center(
                   child: Text(
                     'No profiles yet',
-                    style: TextStyle(color: colors.textMuted),
+                    style: NightshadeTypography.body.copyWith(
+                      color: colors.textMuted,
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -186,7 +180,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
             color: widget.isSelected
                 ? NightshadeColors.of(context).primary.withValues(alpha: 0.1)
                 : _isHovered
-                    ? NightshadeColors.of(context).surfaceAlt
+                    ? NightshadeColors.of(context).well
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: widget.isSelected
@@ -206,7 +200,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                       ? NightshadeColors.of(context)
                           .primary
                           .withValues(alpha: 0.2)
-                      : NightshadeColors.of(context).surfaceAlt,
+                      : NightshadeColors.of(context).well,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
@@ -236,9 +230,15 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         ),
                         if (widget.isActive) ...[
                           const SizedBox(width: 8),
-                          _ProfileBadge(
-                            label: 'Active',
-                            color: NightshadeColors.of(context).primary,
+                          // Flexible, not fixed: the badge label is an 11 px
+                          // eyebrow now, and two of them beside a long profile
+                          // name overflowed the row by 5 px. The name shrinks
+                          // first (it is Expanded); these give way after it.
+                          Flexible(
+                            child: _ProfileBadge(
+                              label: 'Active',
+                              color: NightshadeColors.of(context).primary,
+                            ),
                           ),
                         ],
                         // "Active" and "startup default" are different flags —
@@ -246,9 +246,11 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         // to be able to see which row that is.
                         if (widget.profile.isDefault) ...[
                           const SizedBox(width: 4),
-                          _ProfileBadge(
-                            label: 'Default',
-                            color: NightshadeColors.of(context).textSecondary,
+                          Flexible(
+                            child: _ProfileBadge(
+                              label: 'Default',
+                              color: NightshadeColors.of(context).textSecondary,
+                            ),
                           ),
                         ],
                       ],
@@ -257,8 +259,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                       const SizedBox(height: 2),
                       Text(
                         widget.profile.description!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: NightshadeColors.of(context).textMuted,
                         ),
                         maxLines: 1,
@@ -292,9 +293,10 @@ class _ProfileBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize10,
-          fontWeight: FontWeight.w600,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: NightshadeTypography.eyebrow.copyWith(
           color: color,
         ),
       ),

@@ -311,7 +311,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
       // bundle-based (replace, never merge) semantics explicit.
       final confirmed = await ConfirmDialog.show(
         context: context,
-        title: 'Restore Remote Backup?',
+        title: 'Restore remote backup?',
         message: 'This restores "${bundle.file}" from machine "$machine". '
             'Sync is bundle-based: restoring replaces local configuration '
             'with the contents of this backup — nothing is merged. '
@@ -367,7 +367,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       const SizedBox(width: 8),
                       Text(
                         'Backup & Sync',
-                        style: NightshadeTypography.h4
+                        style: NightshadeTypography.sectionTitle
                             .copyWith(color: colors.textPrimary),
                       ),
                     ],
@@ -379,9 +379,8 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                     'store (AWS S3, MinIO, Backblaze B2) and restore them on '
                     'another machine. Sync is bundle-based: restoring replaces '
                     'local configuration — nothing is merged.',
-                    style: TextStyle(
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -427,18 +426,16 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                     dense: true,
                     title: Text(
                       'Auto-push after the daily backup',
-                      style: TextStyle(
+                      style: NightshadeTypography.body.copyWith(
                         color: colors.textPrimary,
-                        fontSize: NightshadeTypography.fontSize14,
                       ),
                     ),
                     subtitle: Text(
                       'Uploads a fresh bundle whenever the scheduled '
                       'auto-backup completes. The newest '
                       '$kSyncDefaultRetainCount bundles are kept per machine.',
-                      style: TextStyle(
+                      style: NightshadeTypography.caption.copyWith(
                         color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize12,
                       ),
                     ),
                     value: _autoPushEnabled,
@@ -461,14 +458,14 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       NightshadeButton(
                         label: _testing ? 'Testing...' : 'Test Connection',
                         icon: LucideIcons.plugZap,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         isLoading: _testing,
                         onPressed: _busy ? null : _testConnection,
                       ),
                       NightshadeButton(
                         label: _pushing ? 'Working...' : 'Push Now',
                         icon: LucideIcons.uploadCloud,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         isLoading: _pushing,
                         onPressed: _busy ? null : _pushNow,
                       ),
@@ -476,7 +473,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                         label:
                             _browsing ? 'Browsing...' : 'Browse Remote Backups',
                         icon: LucideIcons.folderSearch,
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         isLoading: _browsing,
                         onPressed: _busy ? null : _browseRemote,
                       ),
@@ -488,17 +485,15 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       Text(
                         'Last push: '
                         '${DateFormat('MMM d, yyyy HH:mm').format(_lastPushAt!.toLocal())}',
-                        style: TextStyle(
+                        style: NightshadeTypography.caption.copyWith(
                           color: colors.textSecondary,
-                          fontSize: NightshadeTypography.fontSize12,
                         ),
                       ),
                     if (_lastError != null)
                       Text(
                         'Last sync error: $_lastError',
-                        style: TextStyle(
+                        style: NightshadeTypography.caption.copyWith(
                           color: colors.error,
-                          fontSize: NightshadeTypography.fontSize12,
                         ),
                       ),
                   ],
@@ -603,17 +598,15 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
         dense: true,
         title: Text(
           'Path-style addressing (required for MinIO)',
-          style: TextStyle(
+          style: NightshadeTypography.body.copyWith(
             color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
           ),
         ),
         subtitle: Text(
           'Use <endpoint>/<bucket>/<key> instead of virtual-host style. '
           'Leave off for AWS S3; turn on for MinIO.',
-          style: TextStyle(
+          style: NightshadeTypography.caption.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize12,
           ),
         ),
         value: _s3PathStyle,

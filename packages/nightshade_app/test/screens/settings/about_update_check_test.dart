@@ -1,7 +1,7 @@
 // The desktop app has to be able to tell you a new version exists.
 //
 // Without a check here, searching Settings for "update" returns About (no update
-// control at all) and "Appliance Updates", which is about a REMOTE rig and
+// control at all) and "Appliance updates", which is about a REMOTE rig and
 // off-network renders one sentence claiming "The local desktop app updates
 // itself through its own installer" — untrue of every shipped build: nothing
 // calls UpdateNotifier.configure on desktop, so the bundled updater never issues

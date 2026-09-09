@@ -42,7 +42,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
     final uiState = ref.watch(darkLibraryNotifierProvider);
 
     return SettingsPage(
-      title: 'Dark Library',
+      title: 'Dark library',
       description: 'Manage dark and bias calibration frames',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
@@ -64,11 +64,12 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     ? '${librarySettingsAsync.error}'
                     : 'Reading settings from the imaging host',
                 trailing: librarySettingsAsync.hasError
-                    ? IconButton(
+                    ? NightshadeIconButton(
+                        icon: LucideIcons.refreshCw,
                         tooltip: 'Retry',
                         onPressed: () =>
                             ref.invalidate(darkLibrarySettingsProvider),
-                        icon: const Icon(LucideIcons.refreshCw),
+                        size: IconButtonSize.sm,
                       )
                     : const SizedBox(
                         width: 18,
@@ -130,9 +131,8 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       const SizedBox(width: 4),
                       Text(
                         '\u00b0C',
-                        style: TextStyle(
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: NightshadeColors.of(context).textSecondary,
-                          fontSize: NightshadeTypography.fontSize13,
                         ),
                       ),
                     ],
@@ -147,7 +147,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // Library statistics
         SettingsSection(
-          title: 'Library Statistics',
+          title: 'Library statistics',
           isMobile: widget.isMobile,
           children: [
             statsAsync.when(
@@ -158,8 +158,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load dark library stats.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: NightshadeColors.of(context).error,
+                    )),
               ),
               data: (stats) => Padding(
                 padding: const EdgeInsets.all(16),
@@ -216,20 +217,19 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   Expanded(
                     child: Text(
                       uiState.statusMessage!,
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textPrimary,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: NightshadeColors.of(context).textPrimary,
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x,
-                        size: 14,
-                        color: NightshadeColors.of(context).textMuted),
+                  NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Dismiss this message',
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .clearStatus(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    size: IconButtonSize.sm,
+                    color: NightshadeColors.of(context).textMuted,
                   ),
                 ],
               ),
@@ -253,20 +253,19 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   Expanded(
                     child: Text(
                       uiState.errorMessage!,
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textPrimary,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: NightshadeColors.of(context).textPrimary,
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x,
-                        size: 14,
-                        color: NightshadeColors.of(context).textMuted),
+                  NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Dismiss this error',
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .clearError(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    size: IconButtonSize.sm,
+                    color: NightshadeColors.of(context).textMuted,
                   ),
                 ],
               ),
@@ -275,7 +274,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // Library actions
         SettingsSection(
-          title: 'Library Management',
+          title: 'Library management',
           isMobile: widget.isMobile,
           children: [
             Padding(
@@ -317,7 +316,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // Frame groups
         SettingsSection(
-          title: 'Frame Groups',
+          title: 'Frame groups',
           isMobile: widget.isMobile,
           children: [
             groupsAsync.when(
@@ -328,8 +327,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load dark frame groups.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: NightshadeColors.of(context).error,
+                    )),
               ),
               data: (groups) {
                 if (groups.isEmpty) {
@@ -347,19 +347,17 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                           const SizedBox(height: 12),
                           Text(
                             'No dark frames in library',
-                            style: TextStyle(
+                            style: NightshadeTypography.body.copyWith(
                               color: NightshadeColors.of(context).textMuted,
-                              fontSize: NightshadeTypography.fontSize14,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Capture dark or bias frames to populate the library',
-                            style: TextStyle(
+                            style: NightshadeTypography.caption.copyWith(
                               color: NightshadeColors.of(context)
                                   .textMuted
                                   .withValues(alpha: 0.7),
-                              fontSize: NightshadeTypography.fontSize12,
                             ),
                           ),
                         ],
@@ -391,7 +389,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // All entries list
         SettingsSection(
-          title: 'All Entries',
+          title: 'All entries',
           isMobile: widget.isMobile,
           children: [
             entriesAsync.when(
@@ -402,8 +400,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load dark library entries.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: NightshadeColors.of(context).error,
+                    )),
               ),
               data: (entries) {
                 if (entries.isEmpty) {
@@ -411,8 +410,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       'No entries',
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textMuted),
+                      style: NightshadeTypography.body.copyWith(
+                        color: NightshadeColors.of(context).textMuted,
+                      ),
                     ),
                   );
                 }
@@ -486,7 +486,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 );
               },
               child: Text('Clear',
-                  style: TextStyle(color: NightshadeColors.of(context).error)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: NightshadeColors.of(context).error,
+                  )),
             ),
           ],
         ),
@@ -657,7 +659,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     )
                   : Text(
                       'Delete',
-                      style: TextStyle(
+                      style: NightshadeTypography.body.copyWith(
                         color: NightshadeColors.of(context).error,
                       ),
                     ),
@@ -683,9 +685,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               const SizedBox(height: 4),
               Text(
                 entry.filePath,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: NightshadeColors.of(context).textMuted),
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: NightshadeColors.of(context).textMuted,
+                ),
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
@@ -716,7 +718,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 );
               },
               child: Text('Delete',
-                  style: TextStyle(color: NightshadeColors.of(context).error)),
+                  style: NightshadeTypography.body.copyWith(
+                    color: NightshadeColors.of(context).error,
+                  )),
             ),
           ],
         ),

@@ -92,16 +92,14 @@ extension _LogViewerActions on _LogViewerState {
             contentPadding: EdgeInsets.zero,
             title: Text(
               title,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.buttonSm.copyWith(
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
             ),
             subtitle: Text(
               subtitle,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
               ),
             ),
@@ -117,7 +115,8 @@ extension _LogViewerActions on _LogViewerState {
           ),
           title: Text(
             'Export logs',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           content: SizedBox(
             width: 420,
@@ -345,7 +344,8 @@ extension _LogViewerActions on _LogViewerState {
           ),
           title: Text(
             'Download log file',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           content: SizedBox(
             width: 420,
@@ -365,17 +365,14 @@ extension _LogViewerActions on _LogViewerState {
                   ),
                   title: Text(
                     file.name,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontFamily: 'monospace',
+                    style: NightshadeTypography.readoutSm.copyWith(
                       color: colors.textPrimary,
                     ),
                   ),
                   subtitle: Text(
                     '${_formatFileSize(file.sizeBytes)}'
                     '${file.isCurrent ? ' · current' : ''}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: colors.textMuted,
                     ),
                   ),
@@ -432,11 +429,8 @@ extension _LogViewerActions on _LogViewerState {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: NightshadeDecorations.tintedBadge(
-                    colors.error,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  ),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.error),
                   child: Icon(
                     LucideIcons.alertTriangle,
                     color: colors.error,
@@ -446,16 +440,15 @@ extension _LogViewerActions on _LogViewerState {
                 const SizedBox(width: 12),
                 Text(
                   'Clear logs?',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
             content: Text(
               message,
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
             actions: [

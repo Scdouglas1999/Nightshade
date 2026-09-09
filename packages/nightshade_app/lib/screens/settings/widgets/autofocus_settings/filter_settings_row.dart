@@ -115,10 +115,8 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             width: 40,
             child: Text(
               '${widget.position}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.readoutXs.copyWith(
                 color: NightshadeColors.of(context).textSecondary,
-                fontFamily: 'monospace',
               ),
             ),
           ),
@@ -425,7 +423,7 @@ class _FilterSettingsNumberInputState
     final input = Container(
       height: widget.height,
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         border:
             Border.all(color: _error == null ? colors.border : colors.error),
@@ -448,8 +446,7 @@ class _FilterSettingsNumberInputState
             ),
           ),
         ],
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
+        style: NightshadeTypography.captionSm.copyWith(
           color: colors.textPrimary,
         ),
         textAlign: TextAlign.right,
@@ -459,8 +456,7 @@ class _FilterSettingsNumberInputState
               const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           isDense: true,
           hintText: widget.hint,
-          hintStyle: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
+          hintStyle: NightshadeTypography.captionSm.copyWith(
             color: colors.textMuted,
           ),
         ),

@@ -51,7 +51,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 NightshadeButton(
                   label: 'Retry annotation settings',
                   icon: LucideIcons.refreshCw,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: onRetry,
                 ),
@@ -217,7 +217,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
 
         // Magnitude Filtering
         SettingsSection(
-          title: 'Magnitude Filter',
+          title: 'Magnitude filter',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -260,7 +260,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
 
         // Object Types
         SettingsSection(
-          title: 'Object Types',
+          title: 'Object types',
           isMobile: isMobile,
           children: [
             ObjectTypeToggle(
@@ -284,7 +284,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
-              title: 'Star Clusters',
+              title: 'Star clusters',
               icon: LucideIcons.sparkles,
               color: Color(markerStyle.clusterColor),
               isEnabled: settings.visibleTypes
@@ -294,7 +294,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
-              title: 'Planetary Nebulae',
+              title: 'Planetary nebulae',
               icon: LucideIcons.target,
               color: Color(markerStyle.planetaryNebulaColor),
               isEnabled: settings.visibleTypes
@@ -314,7 +314,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
-              title: 'Other Objects',
+              title: 'Other objects',
               icon: LucideIcons.helpCircle,
               color: Color(markerStyle.otherColor),
               isEnabled:
@@ -330,7 +330,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
 
         // Fade Effects
         SettingsSection(
-          title: 'Fade Effects',
+          title: 'Fade effects',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -400,7 +400,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
 
         // Click to Identify
         SettingsSection(
-          title: 'Click to Identify',
+          title: 'Click to identify',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -438,7 +438,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
 
         // Marker Styles
         SettingsSection(
-          title: 'Marker Styles',
+          title: 'Marker styles',
           isMobile: isMobile,
           children: [
             SettingRow(

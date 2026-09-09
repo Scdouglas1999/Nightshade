@@ -152,7 +152,7 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
                 const SizedBox(width: 8),
                 Text(
                   'Backup & Sync (imaging host)',
-                  style: NightshadeTypography.h4.copyWith(
+                  style: NightshadeTypography.sectionTitle.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
@@ -163,9 +163,8 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
               'Pushes the imaging host’s configuration bundle. Provider and '
               'credentials are edited on the desktop host so secrets never '
               'cross to this controller.',
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
             const SizedBox(height: 16),
@@ -175,12 +174,15 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_error!, style: TextStyle(color: colors.error)),
+                  Text(_error!,
+                      style: NightshadeTypography.body.copyWith(
+                        color: colors.error,
+                      )),
                   const SizedBox(height: 12),
                   NightshadeButton(
                     label: 'Retry',
                     icon: LucideIcons.refreshCw,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _load,
                   ),
                 ],
@@ -220,9 +222,8 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
                 const SizedBox(height: 12),
                 Text(
                   _error ?? 'Last host error: ${status.lastError}',
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.error,
-                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 ),
               ],
@@ -231,9 +232,8 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
                 Text(
                   'Open Settings → Backup & Sync on the desktop imaging host '
                   'to choose a provider and enter its credentials.',
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 ),
               ],
@@ -257,7 +257,7 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
                   NightshadeButton(
                     label: 'Refresh',
                     icon: LucideIcons.refreshCw,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _pushing ? null : _load,
                   ),
                 ],
@@ -291,18 +291,16 @@ class _RemoteSyncStatusRow extends StatelessWidget {
           width: 120,
           child: Text(
             label,
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: valueColor ?? colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -389,19 +387,20 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
       title: Row(
         children: [
           if (machine != null)
-            IconButton(
-              icon: const Icon(LucideIcons.arrowLeft, size: 18),
+            NightshadeIconButton(
+              icon: LucideIcons.arrowLeft,
               tooltip: 'Back to machines',
               onPressed: () => setState(() {
                 _selectedMachine = null;
                 _bundles = const [];
               }),
+              size: IconButtonSize.md,
             ),
           Expanded(
             child: Text(
               machine == null ? 'Remote Backups' : 'Backups from "$machine"',
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
           ),
         ],
@@ -434,7 +433,9 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
             Text(
               _error!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: colors.textSecondary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -446,7 +447,9 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
         return Center(
           child: Text(
             'No machines have pushed backups yet.',
-            style: TextStyle(color: colors.textSecondary),
+            style: NightshadeTypography.body.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         );
       }
@@ -456,7 +459,10 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
           final m = _machines[index];
           return ListTile(
             leading: Icon(LucideIcons.monitor, color: colors.primary),
-            title: Text(m.name, style: TextStyle(color: colors.textPrimary)),
+            title: Text(m.name,
+                style: NightshadeTypography.body.copyWith(
+                  color: colors.textPrimary,
+                )),
             trailing: const Icon(LucideIcons.chevronRight, size: 16),
             onTap: () => _loadBundles(m.name),
           );
@@ -467,7 +473,9 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
       return Center(
         child: Text(
           'No bundles found for "$machine".',
-          style: TextStyle(color: colors.textSecondary),
+          style: NightshadeTypography.body.copyWith(
+            color: colors.textSecondary,
+          ),
         ),
       );
     }
@@ -480,18 +488,16 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
           leading: Icon(LucideIcons.archive, color: colors.primary),
           title: Text(
             bundle.file,
-            style: TextStyle(
+            style: NightshadeTypography.body.copyWith(
               color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize14,
             ),
           ),
           subtitle: Text(
             '$sizeKb KB | '
             '${DateFormat('MMM d, yyyy HH:mm').format(bundle.createdAt.toLocal())}'
             '${bundle.sha256.isEmpty ? ' | no integrity hash' : ''}',
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
           trailing: TextButton(

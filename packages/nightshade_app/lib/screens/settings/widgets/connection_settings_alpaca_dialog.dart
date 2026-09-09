@@ -199,7 +199,9 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
           const SizedBox(width: 12),
           Text(
             'Alpaca Server Configuration',
-            style: TextStyle(color: colors.textPrimary),
+            style: NightshadeTypography.body.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
         ],
       ),
@@ -226,8 +228,7 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
                       'ASCOM Alpaca exposes equipment over the network, so the '
                       'server is often another machine on the LAN (an ASCOM '
                       'Remote host or a device with built-in Alpaca).',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
+                      style: NightshadeTypography.captionSm.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),
@@ -239,7 +240,9 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
             TextField(
               key: const ValueKey('alpaca-host-field'),
               controller: _hostController,
-              style: TextStyle(color: colors.textPrimary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textPrimary,
+              ),
               onChanged: (_) {
                 _hostEdited = true;
                 setState(() {
@@ -249,10 +252,13 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
               },
               decoration: InputDecoration(
                 labelText: 'Alpaca Server Host',
-                labelStyle: TextStyle(color: colors.textMuted),
+                labelStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 hintText: 'localhost or IP address',
-                hintStyle:
-                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted.withValues(alpha: 0.5),
+                ),
                 errorText: _hostError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
@@ -266,7 +272,9 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
             TextField(
               key: const ValueKey('alpaca-port-field'),
               controller: _portController,
-              style: TextStyle(color: colors.textPrimary),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.textPrimary,
+              ),
               keyboardType: TextInputType.number,
               onChanged: (_) {
                 _portEdited = true;
@@ -277,10 +285,13 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
               },
               decoration: InputDecoration(
                 labelText: 'Port',
-                labelStyle: TextStyle(color: colors.textMuted),
+                labelStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted,
+                ),
                 hintText: '11111 (default)',
-                hintStyle:
-                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle: NightshadeTypography.body.copyWith(
+                  color: colors.textMuted.withValues(alpha: 0.5),
+                ),
                 errorText: _portError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
@@ -297,7 +308,7 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
                 onPressed: (_isTesting || _isSaving) ? null : _testConnection,
                 icon: NightshadeIcons.refresh,
                 label: _isTesting ? 'Testing...' : 'Test Connection',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: _isTesting,
               ),
             ),
@@ -325,8 +336,7 @@ class _AlpacaServerDialogState extends ConsumerState<AlpacaServerDialog> {
                     Expanded(
                       child: Text(
                         _statusMessage!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),

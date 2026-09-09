@@ -51,7 +51,7 @@ void main() {
 
     final selected = find.descendant(
       of: find.byType(DropdownButton<String>),
-      matching: find.text('Extra Large (1.4x)'),
+      matching: find.text('Extra large 1.4×'),
     );
     expect(selected, findsWidgets);
     final (needed, given) = _fit(tester, selected.first);
@@ -87,7 +87,7 @@ void main() {
 
     final selected = find.descendant(
       of: find.byType(DropdownButton<String>),
-      matching: find.text('Extra Large (1.4x)'),
+      matching: find.text('Extra large 1.4×'),
     );
     expect(selected, findsWidgets);
     final (needed, given) = _fit(tester, selected.first);

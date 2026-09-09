@@ -35,7 +35,10 @@ class SettingsPage extends StatelessWidget {
 
     final padding = isMobile
         ? NightshadeTokens.paddingLg
-        : const EdgeInsets.all(NightshadeTokens.space3xl);
+        : const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.space3xl,
+            vertical: NightshadeTokens.space2xl,
+          );
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,25 +46,20 @@ class SettingsPage extends StatelessWidget {
         if (!hideHeader) ...[
           Text(
             title,
-            style:
-                (isMobile ? NightshadeTypography.h3 : NightshadeTypography.h2)
-                    .copyWith(
-              fontWeight: FontWeight.w700,
+            style: NightshadeTypography.pageTitle.copyWith(
               color: colors.textPrimary,
             ),
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
+          // The ONE lead line a Settings page is allowed (06 §Settings): it
+          // carries a fact the rows do not, not a description of the screen.
           Text(
             description,
-            style: (isMobile
-                    ? NightshadeTypography.caption
-                    : NightshadeTypography.bodySm)
-                .copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
-          SizedBox(
-              height: isMobile
-                  ? NightshadeTokens.spaceXl
-                  : NightshadeTokens.space3xl),
+          const SizedBox(height: NightshadeTokens.spaceXl),
         ],
         ...children,
       ],
@@ -92,9 +90,11 @@ class SettingsPage extends StatelessWidget {
 
 /// Widest a settings leaf's content column may get on desktop.
 ///
-/// Chosen so a 1920px window is unaffected (its leaf area is narrower than
-/// this) while an ultrawide window stops stretching rows across the screen.
-const double settingsContentMaxWidth = 1180;
+/// 880 px, from the mockup (`mockups/settings.html` `.page`). Settings rows are
+/// label-left / control-right, so an unbounded column on a wide window put
+/// metres of empty space between the two and made every line a sentence-long
+/// scan. Mobile keeps the full width (it is never wider than the cap anyway).
+const double settingsContentMaxWidth = 880;
 
 class SettingsLoadingState extends StatelessWidget {
   final bool isMobile;
@@ -117,54 +117,52 @@ class SettingsLoadingState extends StatelessWidget {
 
     final padding = isMobile
         ? NightshadeTokens.paddingLg
-        : const EdgeInsets.all(NightshadeTokens.space3xl);
+        : const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.space3xl,
+            vertical: NightshadeTokens.space2xl,
+          );
 
+    // The skeleton is the loaded page's own anatomy (title, lead line, then
+    // eyebrow + panel groups) drawn in `well`, so nothing jumps when the real
+    // rows arrive.
     final shimmer = ShimmerLoading(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 220,
-            height: isMobile ? 24 : 28,
+            height: NightshadeTokens.space3xl - NightshadeTokens.spaceXs,
             decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: NightshadeTokens.borderRadiusMd,
+              color: colors.well,
+              borderRadius: NightshadeTokens.borderRadiusSm,
             ),
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Container(
             width: 320,
-            height: 14,
+            height: NightshadeTokens.spaceMd + 2,
             decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+              color: colors.well,
+              borderRadius: NightshadeTokens.borderRadiusSm,
             ),
           ),
-          SizedBox(
-              height: isMobile
-                  ? NightshadeTokens.spaceXl
-                  : NightshadeTokens.space3xl),
+          const SizedBox(height: NightshadeTokens.spaceXl),
           for (var i = 0; i < 2; i++) ...[
             Container(
               width: 140,
-              height: 18,
+              height: NightshadeTokens.spaceMd,
               decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+                color: colors.well,
+                borderRadius: NightshadeTokens.borderRadiusXs,
               ),
             ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             Container(
               width: double.infinity,
               height: isMobile ? 164 : 188,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(
-                    isMobile ? 10 : NightshadeTokens.radiusLg),
-                border: Border.all(color: colors.border),
-              ),
+              decoration: NightshadeDecorations.panel(colors),
             ),
-            SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
+            const SizedBox(height: NightshadeTokens.space2xl),
           ],
           Center(
             child: Padding(
@@ -205,72 +203,21 @@ class SettingsErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
-    final horizontalPadding =
-        isMobile ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl;
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: dialogMaxWidth(context, 520),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(horizontalPadding),
-          child: NightshadeCard(
-            variant: CardVariant.subtle,
-            padding: EdgeInsets.all(isMobile
-                ? NightshadeTokens.spaceXl
-                : NightshadeTokens.space2xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: NightshadeDecorations.iconChip(
-                    colors.error,
-                    borderRadius: NightshadeTokens.borderRadiusMd,
-                  ),
-                  child: Icon(
-                    LucideIcons.alertTriangle,
-                    color: colors.error,
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceLg),
-                Text(
-                  'Failed to load settings',
-                  textAlign: TextAlign.center,
-                  style: NightshadeTypography.bold(
-                    isMobile
-                        ? NightshadeTypography.bodyLg
-                        : NightshadeTypography.bodyLg.copyWith(
-                            fontSize: NightshadeTypography.fontSize18),
-                  ).copyWith(color: colors.textPrimary),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                Text(
-                  error.toString(),
-                  textAlign: TextAlign.center,
-                  style: (isMobile
-                          ? NightshadeTypography.caption
-                          : NightshadeTypography.bodySm)
-                      .copyWith(color: colors.textSecondary),
-                ),
-                if (onRetry != null) ...[
-                  const SizedBox(height: NightshadeTokens.spaceLg),
-                  NightshadeButton(
-                    label: 'Retry',
-                    icon: LucideIcons.refreshCw,
-                    onPressed: onRetry,
-                    size: isMobile ? ButtonSize.small : ButtonSize.medium,
-                  ),
-                ],
-              ],
+    // The ONE error pattern (05 §12): glyph, title, one sentence, one button.
+    // No panel around it — the detail pane already is the container.
+    return EmptyState(
+      icon: LucideIcons.alertTriangle,
+      title: 'Settings did not load',
+      body: error.toString(),
+      action: onRetry == null
+          ? null
+          : NightshadeButton(
+              label: 'Try again',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: onRetry,
             ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -10,6 +10,7 @@
 // keyboard-only or screen-reader user could not change settings section at
 // all.
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
@@ -90,7 +91,7 @@ void main() {
     );
   });
 
-  testWidgets('sections and group headers announce themselves as buttons', (
+  testWidgets('sections announce themselves as buttons; group labels do not', (
     tester,
   ) async {
     _swallowKnownOverflows();
@@ -125,20 +126,18 @@ void main() {
         isEnabled: true,
       ),
     );
-    // The group header is a control too: it collapses/expands the group.
+    // The group label is NOT a control any more. The Observatory nav is a flat
+    // list under three quiet eyebrows (06 §Settings), so there is nothing to
+    // expand and nothing for focus to land on between one section and the next
+    // — which is the point: 7 stops removed from a 42-stop tab order. It must
+    // therefore publish no button role, no expanded state and no tap action.
+    final groupLabel = tester.getSemantics(find.text('GENERAL'));
+    expect(groupLabel.hasFlag(SemanticsFlag.isButton), isFalse);
+    expect(groupLabel.hasFlag(SemanticsFlag.hasExpandedState), isFalse);
     expect(
-      tester.getSemantics(find.text('GENERAL')),
-      matchesSemantics(
-        label: 'GENERAL',
-        isButton: true,
-        hasExpandedState: true,
-        isExpanded: true,
-        hasTapAction: true,
-        hasFocusAction: true,
-        isFocusable: true,
-        hasEnabledState: true,
-        isEnabled: true,
-      ),
+      groupLabel.getSemanticsData().hasAction(SemanticsAction.tap),
+      isFalse,
+      reason: 'a group label is a label, not a control',
     );
     semantics.dispose();
   });

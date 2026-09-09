@@ -158,7 +158,7 @@ class _PredictiveAfSettingsPageState
     final controller = ref.watch(predictiveAfSettingsControllerProvider);
 
     return SettingsPage(
-      title: 'Predictive Autofocus',
+      title: 'Predictive autofocus',
       description:
           'Learn per-filter focus/temperature slope across sessions and skip '
           'manual autofocus when the model is confident.',
@@ -394,17 +394,17 @@ class _DriftWarningBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textPrimary,
               ),
             ),
           ),
-          IconButton(
-            iconSize: 14,
+          NightshadeIconButton(
+            icon: LucideIcons.x,
             tooltip: 'Dismiss',
             onPressed: onDismiss,
-            icon: Icon(LucideIcons.x, color: colors.textMuted),
+            size: IconButtonSize.sm,
+            color: colors.textMuted,
           ),
         ],
       ),
@@ -445,8 +445,7 @@ class _ModelViewer extends StatelessWidget {
                     : 'No focus models have been learned for this profile yet. '
                         'Run autofocus across a few temperatures and they will '
                         'appear here.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: NightshadeColors.of(context).textSecondary,
                 ),
               ),
@@ -582,7 +581,7 @@ class _ModelRowState extends State<_ModelRow> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: c.surfaceAlt,
+        color: c.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: c.border),
       ),
@@ -603,14 +602,13 @@ class _ModelRowState extends State<_ModelRow> {
                   ),
                 ),
               ),
-              IconButton(
+              NightshadeIconButton(
+                icon:
+                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
                 tooltip: _expanded ? 'Hide samples' : 'View samples',
-                iconSize: 14,
                 onPressed: () => setState(() => _expanded = !_expanded),
-                icon: Icon(
-                  _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-                  color: c.textMuted,
-                ),
+                size: IconButtonSize.sm,
+                color: c.textMuted,
               ),
             ],
           ),
@@ -632,29 +630,38 @@ class _ModelRowState extends State<_ModelRow> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  tooltip: 'Export JSON',
-                  iconSize: 14,
-                  onPressed: _busy ? null : _export,
-                  icon: _busy
-                      ? SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: c.textMuted,
-                          ),
-                        )
-                      : Icon(LucideIcons.download, color: c.textMuted),
-                ),
+                // The spinner keeps the button's footprint while the export
+                // runs, so the row does not reflow under the pointer.
+                if (_busy)
+                  SizedBox.square(
+                    dimension: NightshadeTokens.iconButtonSizeSm,
+                    child: Tooltip(
+                      message: 'Exporting…',
+                      child: Padding(
+                        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: c.textMuted,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  NightshadeIconButton(
+                    icon: LucideIcons.download,
+                    tooltip: 'Export the samples as JSON',
+                    onPressed: _export,
+                    size: IconButtonSize.sm,
+                    color: c.textMuted,
+                  ),
                 TextButton.icon(
                   onPressed: _busy ? null : _confirmClear,
                   icon: Icon(LucideIcons.refreshCw, size: 13, color: c.warning),
                   label: Text(
                     'Re-train',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: c.warning),
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: c.warning,
+                    ),
                   ),
                 ),
               ],
@@ -669,9 +676,9 @@ class _ModelRowState extends State<_ModelRow> {
                 Text(
                   'Drift: ${m.consecutiveBadPredictions} consecutive bad '
                   'predictions; ${m.accumulatedDriftSteps} accumulated steps',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: c.warning),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: c.warning,
+                  ),
                 ),
               ],
             ),
@@ -681,9 +688,9 @@ class _ModelRowState extends State<_ModelRow> {
             Text(
               'Last used: ${_formatTimeAgo(m.lastUsedAt!)} · '
               'Last trained: ${_formatTimeAgo(m.lastTrainedAt)}',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: c.textMuted),
+              style: NightshadeTypography.captionSm.copyWith(
+                color: c.textMuted,
+              ),
             ),
           ],
           if (_expanded) ...[
@@ -701,13 +708,12 @@ class _ModelRowState extends State<_ModelRow> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9, color: c.textMuted)),
+            style: NightshadeTypography.captionSm.copyWith(
+              color: c.textMuted,
+            )),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.eyebrow.copyWith(
             color: c.textPrimary,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
@@ -757,17 +763,15 @@ class _SampleScatter extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return SizedBox(
       height: 140,
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        borderRadius: NightshadeTokens.radiusInline4,
-        padding: const EdgeInsets.all(8),
+      child: NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
         child: samples.isEmpty
             ? Center(
                 child: Text(
                   'No samples',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: colors.textMuted,
+                  ),
                 ),
               )
             : CustomPaint(

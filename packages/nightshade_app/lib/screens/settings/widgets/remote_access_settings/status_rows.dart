@@ -17,7 +17,7 @@ class _PairingCallout extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
@@ -35,8 +35,7 @@ class _PairingCallout extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -165,8 +164,7 @@ class _StatusRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -182,12 +180,8 @@ class _StatusRow extends StatelessWidget {
           ),
           if (copyable != null) ...[
             const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(LucideIcons.copy, size: 14),
-              color: colors.textSecondary,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              padding: EdgeInsets.zero,
+            NightshadeIconButton(
+              icon: LucideIcons.copy,
               tooltip: 'Copy the full error',
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: copyable));
@@ -199,6 +193,8 @@ class _StatusRow extends StatelessWidget {
                   ),
                 );
               },
+              size: IconButtonSize.sm,
+              color: colors.textSecondary,
             ),
           ],
         ],

@@ -25,21 +25,22 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
   Future<AppSettingsState> build() async => initial;
 }
 
-/// The seven swatches the picker renders, keyed by hex in the widget tree.
+/// The seven swatches the picker renders on the DARK theme, keyed by hex in
+/// the widget tree (03 §1.4: the offered set is per theme).
 const _swatchKeys = [
-  '#5B9EC4',
-  '#10B981',
-  '#F59E0B',
-  '#EF4444',
-  '#2878A8',
-  '#EC4899',
-  '#06B6D4',
+  '#6EB3EC',
+  '#43B67A',
+  '#E0A53E',
+  '#E86A6A',
+  '#A48CF2',
+  '#E77FB3',
+  '#4FC3C8',
 ];
 
 Future<void> _pump(
   WidgetTester tester, {
   required String theme,
-  String accent = '#F59E0B',
+  String accent = '#E0A53E',
 }) async {
   await pumpAppScreen(
     tester,
@@ -72,15 +73,15 @@ void main() {
   });
 
   testWidgets('red night says the accent does not apply', (tester) async {
-    await _pump(tester, theme: 'redNight', accent: '#10B981');
+    await _pump(tester, theme: 'redNight', accent: '#43B67A');
 
-    expect(find.text('Accent color'), findsOneWidget);
+    expect(find.text('Accent'), findsOneWidget);
     expect(
       find.textContaining('no effect while it is selected'),
       findsOneWidget,
     );
     // The stored choice is still reported, so the row is not simply missing.
-    expect(find.textContaining('#10B981'), findsOneWidget);
+    expect(find.textContaining('#43B67A'), findsOneWidget);
   });
 
   testWidgets('dark still offers the swatches', (tester) async {
@@ -89,6 +90,9 @@ void main() {
     for (final hex in _swatchKeys) {
       expect(find.byKey(ValueKey('settings-color-$hex')), findsOneWidget);
     }
-    expect(find.text('Primary accent color'), findsOneWidget);
+    expect(
+      find.textContaining('Used for the primary action'),
+      findsOneWidget,
+    );
   });
 }

@@ -8,7 +8,6 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
   Widget _buildDetails(BuildContext context) {
     final padding = widget.isMobile ? 16.0 : 32.0;
-    final titleFontSize = widget.isMobile ? 20.0 : 24.0;
 
     Widget content = SingleChildScrollView(
       padding: EdgeInsets.all(padding),
@@ -25,18 +24,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                     if (widget.isEditing)
                       _EditableField(
                         controller: _nameController,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.w700,
+                        style: NightshadeTypography.pageTitle.copyWith(
                           color: NightshadeColors.of(context).textPrimary,
                         ),
                       )
                     else
                       Text(
                         widget.profile.name,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.w700,
+                        style: NightshadeTypography.pageTitle.copyWith(
                           color: NightshadeColors.of(context).textPrimary,
                         ),
                       ),
@@ -45,16 +40,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       _EditableField(
                         controller: _descController,
                         hint: 'Add a description...',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: NightshadeColors.of(context).textSecondary,
                         ),
                       )
                     else
                       Text(
                         widget.profile.description ?? 'No description',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: NightshadeColors.of(context).textMuted,
                         ),
                       ),
@@ -84,7 +77,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   NightshadeButton(
                     label: 'Set Active',
                     icon: LucideIcons.check,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed: widget.onSetActive,
                   ),
@@ -123,9 +116,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                   NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Edit',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context)
-                                      .textPrimary)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).textPrimary,
+                              )),
                         ],
                       ),
                     ),
@@ -147,9 +140,10 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                             // this is the longest item label on the menu.
                             Flexible(
                               child: Text('Set as default',
-                                  style: TextStyle(
-                                      color: NightshadeColors.of(context)
-                                          .textPrimary)),
+                                  style: NightshadeTypography.body.copyWith(
+                                    color: NightshadeColors.of(context)
+                                        .textPrimary,
+                                  )),
                             ),
                           ],
                         ),
@@ -164,9 +158,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                   NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Duplicate',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context)
-                                      .textPrimary)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).textPrimary,
+                              )),
                         ],
                       ),
                     ),
@@ -180,9 +174,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                   NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Export',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context)
-                                      .textPrimary)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).textPrimary,
+                              )),
                         ],
                       ),
                     ),
@@ -196,8 +190,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                               color: NightshadeColors.of(context).error),
                           const SizedBox(width: 8),
                           Text('Delete',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context).error)),
+                              style: NightshadeTypography.body.copyWith(
+                                color: NightshadeColors.of(context).error,
+                              )),
                         ],
                       ),
                     ),
@@ -210,7 +205,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Optical Configuration
           _Section(
-            title: 'Optical Configuration',
+            title: 'Optical configuration',
             icon: LucideIcons.aperture,
             isMobile: widget.isMobile,
             children: [
@@ -312,7 +307,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Camera Defaults
           _Section(
-            title: 'Camera Defaults',
+            title: 'Camera defaults',
             icon: LucideIcons.camera,
             isMobile: widget.isMobile,
             children: [
@@ -459,7 +454,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Filter Configuration
           _Section(
-            title: 'Filter Configuration',
+            title: 'Filter configuration',
             icon: LucideIcons.layers,
             isMobile: widget.isMobile,
             trailing: Row(
@@ -477,17 +472,17 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                 NightshadeColors.of(context).primary),
                           ),
                         )
-                      : IconButton(
-                          icon: Icon(LucideIcons.refreshCw,
-                              size: 16,
-                              color: NightshadeColors.of(context).primary),
-                          onPressed: _syncFiltersFromHardware,
+                      : NightshadeIconButton(
+                          icon: LucideIcons.refreshCw,
                           tooltip: 'Sync from filter wheel',
+                          onPressed: _syncFiltersFromHardware,
+                          size: IconButtonSize.sm,
+                          color: NightshadeColors.of(context).primary,
                         ),
                 if (widget.isEditing)
-                  IconButton(
-                    icon: Icon(LucideIcons.plus,
-                        size: 16, color: NightshadeColors.of(context).primary),
+                  NightshadeIconButton(
+                    icon: LucideIcons.plus,
+                    tooltip: 'Add filter',
                     onPressed: () {
                       _update(() {
                         _filterControllers.add(TextEditingController());
@@ -495,7 +490,8 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                             .add(TextEditingController(text: '0'));
                       });
                     },
-                    tooltip: 'Add filter',
+                    size: IconButtonSize.sm,
+                    color: NightshadeColors.of(context).primary,
                   ),
               ],
             ),
@@ -505,15 +501,16 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: NightshadeColors.of(context).surfaceAlt,
+                    color: NightshadeColors.of(context).well,
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No filters configured',
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textMuted),
+                      style: NightshadeTypography.body.copyWith(
+                        color: NightshadeColors.of(context).textMuted,
+                      ),
                     ),
                   ),
                 )
@@ -555,15 +552,15 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
           // Filter Focus Offsets section
           if (_hasFilters()) ...[
             _Section(
-              title: 'Filter Focus Offsets',
+              title: 'Filter focus offsets',
               icon: LucideIcons.gitBranch,
               isMobile: widget.isMobile,
               children: [
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
-                  style: TextStyle(
-                      color: NightshadeColors.of(context).textMuted,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: NightshadeColors.of(context).textMuted,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ..._buildFilterOffsetRows(),
@@ -574,7 +571,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Device Assignments
           _Section(
-            title: 'Device Assignments',
+            title: 'Device assignments',
             icon: LucideIcons.cpu,
             isMobile: widget.isMobile,
             trailing: widget.isEditing
@@ -591,15 +588,16 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: NightshadeColors.of(context).surfaceAlt,
+                    color: NightshadeColors.of(context).well,
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No devices assigned. Connect devices from the Equipment tab.',
-                      style: TextStyle(
-                          color: NightshadeColors.of(context).textMuted),
+                      style: NightshadeTypography.body.copyWith(
+                        color: NightshadeColors.of(context).textMuted,
+                      ),
                     ),
                   ),
                 )
@@ -655,9 +653,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     'Click "Copy from Connected" to assign currently connected devices, or use X to clear individual assignments.',
-                    style: TextStyle(
-                        color: NightshadeColors.of(context).textMuted,
-                        fontSize: NightshadeTypography.fontSize11),
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: NightshadeColors.of(context).textMuted,
+                    ),
                   ),
                 ),
             ],
@@ -683,18 +681,17 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: Icon(LucideIcons.arrowLeft,
-                          color: NightshadeColors.of(context).textPrimary),
+                    NightshadeIconButton(
+                      icon: LucideIcons.arrowLeft,
+                      tooltip: 'Back to profiles',
                       onPressed: widget.onBack,
+                      color: NightshadeColors.of(context).textPrimary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.profile.name,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize18,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.pageTitle.copyWith(
                           color: NightshadeColors.of(context).textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,

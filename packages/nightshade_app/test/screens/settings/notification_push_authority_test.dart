@@ -90,7 +90,7 @@ void main() {
     // section heading rather than a field label: Discord is keyring-backed, so
     // in this bare container it renders its own load-error card — which is
     // still proof that the push outage did not take the rest of the page out.)
-    expect(find.text('Discord'), findsOneWidget);
+    expect(find.text('Discord'.toUpperCase()), findsOneWidget);
     expect(_pushLoadAttempts, 1);
 
     // The leaf grew a precedence-disclosure section above this card, so the

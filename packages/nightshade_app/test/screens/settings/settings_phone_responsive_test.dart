@@ -24,6 +24,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/general_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
@@ -154,9 +155,9 @@ void main() {
           reason: 'The detail pane is full-screen on phone; the grouped list '
               'must not also be visible at $label.');
 
-      // Back returns to the list. The detail header has a single IconButton
-      // (the back arrow).
-      await tester.tap(find.byType(IconButton).first);
+      // Back returns to the list. The detail header has a single icon button
+      // (the back arrow), now the design system's NightshadeIconButton.
+      await tester.tap(find.byType(NightshadeIconButton).first);
       await tester.pumpAndSettle(const Duration(seconds: 1));
       expect(find.text('GENERAL'), findsOneWidget,
           reason: 'Back from the detail pane must restore the grouped list '
@@ -305,16 +306,20 @@ void main() {
       expect(data.hasAction(SemanticsAction.tap), isTrue, reason: label);
     }
 
-    // The group headers of the unsearched list carry the same contract, plus
-    // whether they are open.
+    // The group label of the unsearched list carries the OPPOSITE contract.
+    // The Observatory nav is a flat list under three quiet eyebrows
+    // (06 §Settings): there is nothing to expand, so the label must publish no
+    // button role, no expanded state and no tap action — seven dead stops
+    // removed from the traversal order rather than seven controls to operate
+    // before the sections can be read.
     await tester.enterText(find.byType(TextField).first, '');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
     final header = published('GENERAL');
-    expect(header, isNotNull);
+    expect(header, isNotNull, reason: 'the group label must still be read out');
     final headerData = header!.getSemanticsData();
-    expect(headerData.hasFlag(SemanticsFlag.isButton), isTrue);
-    expect(headerData.hasFlag(SemanticsFlag.isEnabled), isTrue);
-    expect(headerData.hasFlag(SemanticsFlag.hasExpandedState), isTrue);
+    expect(headerData.hasFlag(SemanticsFlag.isButton), isFalse);
+    expect(headerData.hasFlag(SemanticsFlag.hasExpandedState), isFalse);
+    expect(headerData.hasAction(SemanticsAction.tap), isFalse);
 
     semantics.dispose();
   });

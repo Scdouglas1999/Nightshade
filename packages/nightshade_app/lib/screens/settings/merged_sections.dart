@@ -83,7 +83,7 @@ class _SubHeader extends StatelessWidget {
         vertical: NightshadeTokens.spaceMd,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         border: Border(
           top: withTopBorder
               ? BorderSide(color: colors.border)

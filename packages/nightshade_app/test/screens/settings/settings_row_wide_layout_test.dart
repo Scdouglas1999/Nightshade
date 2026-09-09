@@ -1,7 +1,7 @@
 // Geometry tests for SettingRow / SettingsPage on wide desktop windows.
 //
 // Audit 2026-07-29: on a 5120x1440 window every settings control sat at the
-// row's horizontal MIDPOINT with ~2100px of empty card to its right, because
+// row's horizontal MIDPOINT with ~2100px of empty panel to its right, because
 // `Expanded(title) + Flexible(trailing)` splits the free space 50/50 and the
 // trailing control was left-aligned inside its half. At ~1600px it lands near
 // the right edge by coincidence, which is why the defect only showed on wide
@@ -55,10 +55,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   /// Row padding plus a little slack. Anything larger means the control is
-  /// floating in dead space instead of hugging the card edge.
+  /// floating in dead space instead of hugging the panel edge.
   const edgeSlack = 32.0;
 
-  testWidgets('trailing control hugs the card edge, not the flex midpoint',
+  testWidgets('trailing control hugs the panel edge, not the flex midpoint',
       (tester) async {
     await pumpAppScreen(
       tester,
@@ -66,13 +66,13 @@ void main() {
       size: const Size(1600, 900),
     );
 
-    final card = tester.getRect(find.byType(NightshadeCard).first);
+    final card = tester.getRect(find.byType(NightshadePanel).first);
     final control = tester.getRect(find.byKey(_controlKey));
 
     expect(
       card.right - control.right,
       lessThan(edgeSlack),
-      reason: 'control must sit at the card edge, not mid-row',
+      reason: 'control must sit at the panel edge, not mid-row',
     );
   });
 
@@ -84,12 +84,12 @@ void main() {
       size: const Size(5120, 1440),
     );
 
-    final card = tester.getRect(find.byType(NightshadeCard).first);
+    final card = tester.getRect(find.byType(NightshadePanel).first);
     final control = tester.getRect(find.byKey(_controlKey));
 
-    // Content width is capped, so the card cannot span the whole window...
+    // Content width is capped, so the panel cannot span the whole window...
     expect(card.width, lessThanOrEqualTo(settingsContentMaxWidth));
-    // ...and the control still hugs the card's right edge inside it.
+    // ...and the control still hugs the panel's right edge inside it.
     expect(card.right - control.right, lessThan(edgeSlack));
     // A control that begins near the row's midpoint sits thousands of pixels
     // short of the right edge.

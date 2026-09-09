@@ -158,7 +158,10 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           scrollable: !widget.embedded,
           children: [
             SettingsSection(
-              title: 'Autofocus',
+              // Not 'Autofocus': the merged page already bands this pane
+              // AUTOFOCUS, and an eyebrow repeating it printed the word twice
+              // in a row once section labels became uppercase.
+              title: 'Behavior',
               isMobile: widget.isMobile,
               children: [
                 if (!widget.isMobile)
@@ -491,7 +494,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: NightshadeColors.of(context).surfaceAlt,
+              color: NightshadeColors.of(context).well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusButton),
             ),
@@ -512,8 +515,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   const SizedBox(height: 1),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: NightshadeColors.of(context).textMuted,
                     ),
                   ),
@@ -522,7 +524,13 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             ),
           ),
           const SizedBox(width: 8),
-          trailing,
+          // Flexible, not fixed: this page lays its rows out in TWO columns, so
+          // each row gets about half the 880 px reading column (06 §Settings)
+          // — 411 px — and a fixed-width dropdown beside a 32 px icon and a
+          // label overflowed it. The control gives way after the label now.
+          Flexible(
+            child: Align(alignment: Alignment.centerRight, child: trailing),
+          ),
         ],
       ),
     );

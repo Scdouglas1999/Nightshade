@@ -106,7 +106,7 @@ class _DestinationRow extends ConsumerWidget {
             width: isMobile ? 32.0 : 36.0,
             height: isMobile ? 32.0 : 36.0,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: NightshadeTokens.borderRadiusMd,
             ),
             child: Icon(
@@ -202,10 +202,9 @@ class _DestinationRow extends ConsumerWidget {
                               _setEnabled(context, ref, id, value: value),
                     ),
                   ),
-                  AccessibleIconButton(
+                  NightshadeIconButton(
                     icon: LucideIcons.settings2,
-                    label: 'Edit ${destination.name}',
-                    size: 18,
+                    tooltip: 'Edit ${destination.name}',
                     onPressed: id == null
                         ? null
                         : () => _DestinationEditorDialog.edit(
@@ -308,7 +307,7 @@ class _UnreadableDestinationRowState
             width: widget.isMobile ? 32.0 : 36.0,
             height: widget.isMobile ? 32.0 : 36.0,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: NightshadeTokens.borderRadiusMd,
             ),
             child: Icon(
@@ -437,7 +436,7 @@ class _RetryNowButtonState extends ConsumerState<_RetryNowButton> {
           child: NightshadeButton(
             label: 'Retry now',
             icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _running,
             onPressed: _running ? null : _retry,
@@ -681,7 +680,7 @@ class _AddDestinationRow extends ConsumerWidget {
           NightshadeButton(
             label: 'Add watched folder',
             icon: LucideIcons.folderPlus,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => _DestinationEditorDialog.create(
               context,
@@ -692,7 +691,7 @@ class _AddDestinationRow extends ConsumerWidget {
           NightshadeButton(
             label: 'Add SFTP destination',
             icon: LucideIcons.serverCog,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => _DestinationEditorDialog.create(
               context,

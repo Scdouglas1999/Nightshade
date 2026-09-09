@@ -63,7 +63,9 @@ void main() {
     await _pumpLocation(tester, settings: fresh);
 
     expect(
-      find.text('Observing site not set'),
+      // The banner renders its title and message as ONE rich text (05 §11),
+      // so the title is a substring of a node, not a node of its own.
+      find.textContaining('Observing site not set'),
       findsOneWidget,
       reason: 'the page rendered 0 °/0 °/0 m with no not-set state at all',
     );
@@ -87,7 +89,11 @@ void main() {
       ),
     );
 
-    expect(find.text('Observing site not set'), findsNothing);
+    expect(
+        // The banner renders its title and message as ONE rich text (05 §11),
+        // so the title is a substring of a node, not a node of its own.
+        find.textContaining('Observing site not set'),
+        findsNothing);
   });
 
   testWidgets('a longitude-only site counts as set', (tester) async {
@@ -98,6 +104,10 @@ void main() {
       settings: const AppSettingsState(latitude: 0.0, longitude: -74.0),
     );
 
-    expect(find.text('Observing site not set'), findsNothing);
+    expect(
+        // The banner renders its title and message as ONE rich text (05 §11),
+        // so the title is a substring of a node, not a node of its own.
+        find.textContaining('Observing site not set'),
+        findsNothing);
   });
 }

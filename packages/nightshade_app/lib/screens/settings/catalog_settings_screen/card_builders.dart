@@ -59,11 +59,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Icon(icon, color: colors.primary, size: 24),
               ),
               const SizedBox(width: 16),
@@ -78,7 +75,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                       children: [
                         Text(
                           title,
-                          style: NightshadeTypography.h4
+                          style: NightshadeTypography.sectionTitle
                               .copyWith(color: colors.textPrimary),
                         ),
                         if (isInstalled)
@@ -110,19 +107,19 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       description,
-                      style: TextStyle(
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize13,
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(NightshadeIcons.folderOpen,
-                    color: colors.textSecondary),
-                onPressed: _isDownloading ? null : () => _importCatalog(type),
+              NightshadeIconButton(
+                icon: NightshadeIcons.folderOpen,
                 tooltip: 'Import from file',
+                onPressed: _isDownloading ? null : () => _importCatalog(type),
+                size: IconButtonSize.sm,
+                color: colors.textSecondary,
               ),
             ],
           ),
@@ -137,9 +134,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
               Expanded(
                 child: Text(
                   usedFor,
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary.withValues(alpha: 0.9),
-                    fontSize: NightshadeTypography.fontSize12,
                     height: 1.3,
                   ),
                 ),
@@ -149,10 +145,8 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
           const SizedBox(height: 8),
           Text(
             'Source: $sourceUrl',
-            style: TextStyle(
+            style: NightshadeTypography.monoCaption.copyWith(
               color: colors.textSecondary.withValues(alpha: 0.7),
-              fontSize: NightshadeTypography.fontSize11,
-              fontFamily: 'monospace',
             ),
           ),
           if (isInstalled && status != null) ...[
@@ -319,19 +313,15 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
         const SizedBox(height: 2),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: NightshadeDecorations.statusChip(
-            colors.textPrimary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            bordered: false,
-          ),
+          decoration:
+              NightshadeDecorations.chip(colors, tone: colors.textPrimary),
           child: Text(
             value,
             style:

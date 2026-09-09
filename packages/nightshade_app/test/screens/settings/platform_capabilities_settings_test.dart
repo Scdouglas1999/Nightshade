@@ -34,7 +34,7 @@ void main() {
 
     final platform =
         PlatformCapabilityMatrix.normalizePlatform(Platform.operatingSystem);
-    expect(find.text('Platform Capabilities'), findsOneWidget);
+    expect(find.text('Platform capabilities'.toUpperCase()), findsOneWidget);
     expect(find.text('Current platform: ${_platformLabel(platform)}'),
         findsOneWidget);
     expect(find.text('ASCOM COM'), findsOneWidget);

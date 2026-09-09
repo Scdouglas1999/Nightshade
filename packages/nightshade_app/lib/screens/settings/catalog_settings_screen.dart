@@ -377,7 +377,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   Future<void> _deleteCatalogs() async {
     if (_isDownloading || _deleteConfirmationOpen) return;
     final confirm = await _confirmDeletion(
-      title: 'Delete Catalogs',
+      title: 'Delete catalogs',
       message: 'Are you sure you want to delete the downloaded star and '
           'deep-sky catalogs? You will need to download them again to use '
           'the affected planetarium features.',
@@ -524,9 +524,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                               'downloading here will not fix them.'
                           : 'The cards below describe catalogs stored on this '
                               'device. The rig keeps its own copies.',
-                  style: TextStyle(
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13,
                     height: 1.3,
                   ),
                 ),
@@ -537,7 +536,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           NightshadeButton(
             label: 'Manage rig catalogs',
             icon: NightshadeIcons.download,
-            variant: missing ? ButtonVariant.primary : ButtonVariant.outline,
+            variant: missing ? ButtonVariant.primary : ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: router == null
                 ? null
@@ -684,7 +683,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   Future<void> _deleteAnnotationCatalog() async {
     if (_isDownloading || _deleteConfirmationOpen) return;
     final confirm = await _confirmDeletion(
-      title: 'Delete Annotation Catalog',
+      title: 'Delete annotation catalog',
       message: 'Are you sure you want to delete the annotation catalog? '
           'You will need to download it again to use image annotation features.',
     );

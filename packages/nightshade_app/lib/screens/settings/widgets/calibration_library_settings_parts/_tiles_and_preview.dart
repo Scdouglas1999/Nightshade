@@ -47,27 +47,31 @@ class _MasterTile extends StatelessWidget {
                 ),
                 _FreshnessChip(freshness: freshness, ageDays: age),
                 if (onPublish != null)
-                  IconButton(
+                  NightshadeIconButton(
+                    icon: LucideIcons.share2,
                     tooltip: 'Share to hub',
-                    icon: const Icon(LucideIcons.share2, size: 18),
                     onPressed: onPublish,
+                    size: IconButtonSize.md,
                   ),
                 if (onRetract != null)
-                  IconButton(
+                  NightshadeIconButton(
+                    icon: LucideIcons.link2Off,
                     tooltip: 'Un-share from hub',
-                    icon: const Icon(LucideIcons.link2Off, size: 18),
                     onPressed: onRetract,
+                    size: IconButtonSize.md,
                   ),
-                IconButton(
+                NightshadeIconButton(
+                  icon: LucideIcons.tag,
                   tooltip: 'Edit tags / notes',
-                  icon: const Icon(LucideIcons.tag, size: 18),
                   onPressed: onEditTags,
+                  size: IconButtonSize.md,
                 ),
-                IconButton(
+                NightshadeIconButton(
+                  icon: LucideIcons.trash2,
                   tooltip: 'Delete',
-                  icon: Icon(LucideIcons.trash2,
-                      size: 18, color: theme.colorScheme.error),
                   onPressed: onDelete,
+                  size: IconButtonSize.md,
+                  color: theme.colorScheme.error,
                 ),
               ],
             ),
@@ -150,8 +154,9 @@ class _TypeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       ),
       child: Text(label,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+          style: NightshadeTypography.eyebrow.copyWith(
+            color: color,
+          )),
     );
   }
 }
@@ -178,7 +183,10 @@ class _FreshnessChip extends StatelessWidget {
           children: [
             Icon(LucideIcons.clock, size: 13, color: color),
             const SizedBox(width: 3),
-            Text('${ageDays}d', style: TextStyle(color: color, fontSize: 12)),
+            Text('${ageDays}d',
+                style: NightshadeTypography.caption.copyWith(
+                  color: color,
+                )),
           ],
         ),
       ),
@@ -390,8 +398,9 @@ class _MatchingPreviewState extends State<_MatchingPreview> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text('Preview failed: $_error',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error)),
+                    style: NightshadeTypography.body.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    )),
               ),
             ],
           ),
@@ -439,7 +448,9 @@ class _MatchingPreviewState extends State<_MatchingPreview> {
                 const SizedBox(width: 6),
                 Expanded(
                     child: Text(w,
-                        style: TextStyle(color: theme.colorScheme.error))),
+                        style: NightshadeTypography.body.copyWith(
+                          color: theme.colorScheme.error,
+                        ))),
               ],
             ),
         ],

@@ -45,9 +45,7 @@ class _ObservationLogSettingsState
               const SizedBox(width: 12),
               Text(
                 'Observation Log',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize20,
-                  fontWeight: FontWeight.bold,
+                style: NightshadeTypography.pageTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -56,7 +54,7 @@ class _ObservationLogSettingsState
               NightshadeButton(
                 onPressed: _isExporting ? null : () => _exportCsv(context),
                 label: _isExporting ? 'Exporting...' : 'Export CSV',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.download,
               ),
@@ -70,7 +68,9 @@ class _ObservationLogSettingsState
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text(
               'Could not load observation log stats.',
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.error,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -151,7 +151,9 @@ class _ObservationLogSettingsState
                               ? 'No observations logged yet.\nTap an object in the planetarium and use "Log Observation".'
                               : 'No observations match your search.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: colors.textSecondary),
+                          style: NightshadeTypography.body.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -174,7 +176,9 @@ class _ObservationLogSettingsState
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text(
               'Could not load observation logs.',
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.error,
+              ),
             ),
           ),
         ],
@@ -256,13 +260,13 @@ class _ObservationLogSettingsState
               children: [
                 Text(
                   _formatDate(log.timestamp),
-                  style: NightshadeTypography.h6
+                  style: NightshadeTypography.caption
+                      .copyWith(fontWeight: FontWeight.w600)
                       .copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   _formatTime(log.timestamp),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
+                  style: NightshadeTypography.captionSm.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -280,7 +284,7 @@ class _ObservationLogSettingsState
                   children: [
                     Text(
                       log.objectName,
-                      style: NightshadeTypography.h5
+                      style: NightshadeTypography.bodyStrong
                           .copyWith(color: colors.textPrimary),
                     ),
                     if (log.catalogId != null) ...[
@@ -288,17 +292,11 @@ class _ObservationLogSettingsState
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
-                        decoration: NightshadeDecorations.statusChip(
-                          colors.primary,
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                          bordered: false,
-                        ),
+                        decoration: NightshadeDecorations.chip(colors,
+                            tone: colors.primary),
                         child: Text(
                           log.catalogId!,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            fontWeight: FontWeight.w600,
+                          style: NightshadeTypography.eyebrow.copyWith(
                             color: colors.primary,
                           ),
                         ),
@@ -312,8 +310,7 @@ class _ObservationLogSettingsState
                     if (log.objectType != null) ...[
                       Text(
                         log.objectType!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -322,8 +319,7 @@ class _ObservationLogSettingsState
                     if (log.altitude != null)
                       Text(
                         'Alt: ${log.altitude!.toStringAsFixed(1)}°',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -331,8 +327,7 @@ class _ObservationLogSettingsState
                       const SizedBox(width: 8),
                       Text(
                         'Seeing: ${log.seeingConditions}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -343,8 +338,7 @@ class _ObservationLogSettingsState
                   const SizedBox(height: 4),
                   Text(
                     log.notes!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textPrimary.withValues(alpha: 0.8),
                       fontStyle: FontStyle.italic,
                     ),
@@ -375,18 +369,27 @@ class _ObservationLogSettingsState
 
           // Delete button
           const SizedBox(width: 8),
-          IconButton(
-            icon: isDeleting
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(LucideIcons.trash2, size: 16, color: colors.error),
-            iconSize: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: isDeleting ? null : () => _confirmDelete(log),
-          ),
+          // The spinner keeps the button's footprint while the delete is in
+          // flight, so the row does not reflow under the pointer.
+          if (isDeleting)
+            SizedBox.square(
+              dimension: NightshadeTokens.iconButtonSizeSm,
+              child: Padding(
+                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.textMuted,
+                ),
+              ),
+            )
+          else
+            NightshadeIconButton(
+              icon: LucideIcons.trash2,
+              tooltip: 'Delete this observation',
+              onPressed: () => _confirmDelete(log),
+              size: IconButtonSize.sm,
+              color: colors.error,
+            ),
         ],
       ),
     );
@@ -519,8 +522,7 @@ class _StatChip extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
@@ -528,9 +530,7 @@ class _StatChip extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.bold,
+          style: NightshadeTypography.sectionTitle.copyWith(
             color: colors.textPrimary,
           ),
         ),
