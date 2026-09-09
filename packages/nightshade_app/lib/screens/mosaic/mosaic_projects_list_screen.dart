@@ -49,7 +49,7 @@ class MosaicProjectsListScreen extends ConsumerWidget {
               const Expanded(
                 child: EmptyState(
                   icon: NightshadeIcons.device,
-                  title: 'Open Mosaic Projects on the imaging host',
+                  title: 'Open mosaic projects on the imaging host',
                   body: 'Durable mosaic projects, panel masters, and stitched '
                       'outputs are stored and processed on the imaging '
                       'computer. Remote project control is unavailable in '
@@ -115,9 +115,14 @@ class MosaicProjectsListScreen extends ConsumerWidget {
                                 'Start one with "New mosaic" above, or design '
                                 'a mosaic in Framing or the Planetarium and '
                                 'save it as a project.',
+                            // The page's one primary is the header's "New
+                            // mosaic" (02, rule 4); the empty state repeats
+                            // the action as a secondary, never a second
+                            // primary.
                             action: NightshadeButton(
                               label: 'New mosaic',
                               icon: NightshadeIcons.add,
+                              variant: ButtonVariant.secondary,
                               size: ButtonSize.small,
                               onPressed: () => _newMosaic(context, ref),
                             ),

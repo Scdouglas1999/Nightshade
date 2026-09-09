@@ -95,7 +95,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-        find.text('Open Mosaic Projects on the imaging host'), findsOneWidget);
+        find.text('Open mosaic projects on the imaging host'), findsOneWidget);
     expect(_backAction, findsOneWidget);
   });
 }

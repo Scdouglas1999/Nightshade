@@ -51,7 +51,7 @@ void main() {
     await tester.pump();
 
     expect(
-      find.text('Open Mosaic Projects on the imaging host'),
+      find.text('Open mosaic projects on the imaging host'),
       findsOneWidget,
     );
     expect(find.text('Could not load mosaic projects'), findsNothing);
