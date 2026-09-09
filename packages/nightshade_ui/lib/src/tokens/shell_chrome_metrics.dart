@@ -46,6 +46,14 @@ abstract final class ShellChromeMetrics {
   /// expanded.
   static const double railItemSize = 40.0;
 
+  /// How long the pointer rests on a collapsed rail item before its label
+  /// appears (04 §3.1).
+  ///
+  /// A hover DELAY, not a transition, which is why it is not on the motion
+  /// scale (120 / 160 / 220): those say how long a change takes, this says how
+  /// long to wait before deciding the pointer meant to stop there.
+  static const Duration railTooltipDelay = Duration(milliseconds: 200);
+
   /// Rail width, icons only. The default.
   ///
   // TODO(observatory): promote to NightshadeTokens.sidebarCollapsed (72 -> 64)

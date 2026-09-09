@@ -7,7 +7,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../utils/snackbar_helper.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/plate_solver_required_banner.dart';
 import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
 import 'polar_alignment_body_layout.dart';
@@ -290,34 +289,26 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
     final isRunning = state.isRunning;
 
-    return ContextualTourPrompt(
-      screenId: 'polar_alignment',
-      tourCategory: TutorialCategory.polarAlignmentTour,
-      title: 'Polar Alignment Tour',
-      description: 'Learn how to polar align your mount for accurate tracking.',
-      durationMinutes: 3,
-      alignment: Alignment.bottomRight,
-      child: Scaffold(
-        backgroundColor: colors.background,
-        body: Column(
-          children: [
-            // Header bar
-            _buildHeader(colors, isRunning),
+    return Scaffold(
+      backgroundColor: colors.background,
+      body: Column(
+        children: [
+          // Header bar
+          _buildHeader(colors, isRunning),
 
-            // Main content — responsive layout avoids squeezing the guide
-            // column when embedded beside the app shell or on smaller displays.
-            Expanded(
-              child: PolarAlignmentBodyLayout(
-                leftPanel: _buildLeftPanel(colors, state, config, isRunning),
-                centerPanel: _buildCenterPanel(colors, state, config),
-                rightPanel: _buildRightPanel(colors, state, config),
-              ),
+          // Main content — responsive layout avoids squeezing the guide
+          // column when embedded beside the app shell or on smaller displays.
+          Expanded(
+            child: PolarAlignmentBodyLayout(
+              leftPanel: _buildLeftPanel(colors, state, config, isRunning),
+              centerPanel: _buildCenterPanel(colors, state, config),
+              rightPanel: _buildRightPanel(colors, state, config),
             ),
+          ),
 
-            // Footer with actions
-            _buildFooter(colors, state, isRunning),
-          ],
-        ),
+          // Footer with actions
+          _buildFooter(colors, state, isRunning),
+        ],
       ),
     );
   }

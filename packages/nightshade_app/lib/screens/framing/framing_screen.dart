@@ -11,7 +11,6 @@ import 'framing_altaz.dart';
 import 'framing_hips_layer_wiring.dart';
 import 'framing_search_provider.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import 'widgets/optical_config_panel.dart';
 import 'widgets/framing_canvas.dart';
 import 'widgets/framing_sidebar.dart';
@@ -174,40 +173,31 @@ class _FramingViewState extends ConsumerState<FramingView> {
       currentAltAz,
     );
 
-    return ContextualTourPrompt(
-      screenId: 'framing',
-      tourCategory: TutorialCategory.framingTour,
-      title: 'Framing Tour',
-      description:
-          'Learn how to frame and compose your astrophotography targets.',
-      durationMinutes: 3,
-      alignment: Alignment.bottomRight,
-      child: SafeArea(
-        child: AdaptivePanelLayout(
-          primary: canvas,
-          panelSide: PanelSide.end,
-          // Desktop/tablet keep the familiar right-hand sidebar.
-          initialPanelWidth: 320,
-          minPanelWidth: 250,
-          maxPanelWidth: 500,
-          // Phone portrait: the sidebar collapses to a bottom sheet so the
-          // canvas keeps the full screen. Phone landscape: a side-by-side split
-          // (canvas left, controls right) once there is room.
-          phoneStrategy: PhonePanelStrategy.bottomSheet,
-          secondary: [
-            AdaptivePanel(
-              title: 'Framing Controls',
-              icon: NightshadeIcons.sliders,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  border: Border(left: BorderSide(color: colors.border)),
-                ),
-                child: controls,
+    return SafeArea(
+      child: AdaptivePanelLayout(
+        primary: canvas,
+        panelSide: PanelSide.end,
+        // Desktop/tablet keep the familiar right-hand sidebar.
+        initialPanelWidth: 320,
+        minPanelWidth: 250,
+        maxPanelWidth: 500,
+        // Phone portrait: the sidebar collapses to a bottom sheet so the
+        // canvas keeps the full screen. Phone landscape: a side-by-side split
+        // (canvas left, controls right) once there is room.
+        phoneStrategy: PhonePanelStrategy.bottomSheet,
+        secondary: [
+          AdaptivePanel(
+            title: 'Framing Controls',
+            icon: NightshadeIcons.sliders,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                border: Border(left: BorderSide(color: colors.border)),
               ),
+              child: controls,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

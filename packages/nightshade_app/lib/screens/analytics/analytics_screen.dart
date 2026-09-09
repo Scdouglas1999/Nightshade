@@ -22,7 +22,6 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
 import '../accessible_dropdown.dart';
 import '../diagnostics/diagnostics_screen.dart';
@@ -164,89 +163,88 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final tabs = _tabs(context);
     final isPhone = Responsive.isPhone(context);
 
-    return ContextualTourPrompt(
-      screenId: 'analytics',
-      tourCategory: TutorialCategory.analyticsTour,
-      title: l10n.text('analyticsTourTitle'),
-      description: l10n.text('analyticsTourDescription'),
-      durationMinutes: 2,
-      alignment: Alignment.bottomRight,
-      child: FocusTraversalGroup(
-        policy: ReadingOrderTraversalPolicy(),
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: Column(
-            children: [
-              // Title + sub-tabs share ONE row: the title folds inline to the
-              // left of the tab strip — icon-only on a phone. AdaptiveTabBar
-              // scrolls horizontally (and collapses to icons on a compact
-              // phone) instead of overflowing the six tabs.
-              Container(
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  border: Border(bottom: BorderSide(color: colors.border)),
-                ),
-                child: Row(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(
-                        left: NightshadeTokens.spaceLg,
-                        right: isPhone
-                            ? NightshadeTokens.spaceSm
-                            : NightshadeTokens.spaceMd,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            LucideIcons.barChart3,
-                            size: 18,
-                            color: colors.primary,
-                          ),
-                          if (!isPhone) ...[
-                            const SizedBox(width: NightshadeTokens.spaceSm),
-                            Text(
-                              l10n.text('navAnalytics'),
-                              style: NightshadeTypography.h5.copyWith(
-                                color: colors.textPrimary,
-                              ),
+    return FocusTraversalGroup(
+      policy: ReadingOrderTraversalPolicy(),
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Column(
+          children: [
+            // Title + sub-tabs share ONE row: the title folds inline to the
+            // left of the tab strip — icon-only on a phone. AdaptiveTabBar
+            // scrolls horizontally (and collapses to icons on a compact
+            // phone) instead of overflowing the six tabs.
+            Container(
+              // `surface`, not the deprecated `surfaceAlt`: this row is a
+              // container, and 03-tokens routes containers to `surface` and
+              // insets to `well`. Swapped here because unwrapping the tour
+              // prompt re-indented the line into the wave's diff, and the
+              // deprecated-name gate reads added lines.
+              decoration: BoxDecoration(
+                color: colors.surface,
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: NightshadeTokens.spaceLg,
+                      right: isPhone
+                          ? NightshadeTokens.spaceSm
+                          : NightshadeTokens.spaceMd,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.barChart3,
+                          size: 18,
+                          color: colors.primary,
+                        ),
+                        if (!isPhone) ...[
+                          const SizedBox(width: NightshadeTokens.spaceSm),
+                          Text(
+                            l10n.text('navAnalytics'),
+                            // bodyStrong is h5's replacement and its twin:
+                            // both are 14 / 600.
+                            style: NightshadeTypography.bodyStrong.copyWith(
+                              color: colors.textPrimary,
                             ),
-                          ],
+                          ),
                         ],
-                      ),
+                      ],
                     ),
-                    Expanded(
-                      child: AdaptiveTabBar(
-                        tabs: tabs,
-                        selectedIndex: _currentSubTab,
-                        onSelected: (index) =>
-                            setState(() => _currentSubTab = index),
-                      ),
+                  ),
+                  Expanded(
+                    child: AdaptiveTabBar(
+                      tabs: tabs,
+                      selectedIndex: _currentSubTab,
+                      onSelected: (index) =>
+                          setState(() => _currentSubTab = index),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
 
-              // Content. Order must match the AnalyticsTab enum.
-              Expanded(
-                child: IndexedStack(
-                  index: _currentSubTab,
-                  children: [
-                    const _SessionTab(),
-                    const _HistoryTab(),
-                    const _ProjectsTab(),
-                    const _EquipmentStatsTab(),
-                    ScienceWorkspaceView(
-                      initialViewQuery: widget.initialScienceView,
-                      showHeader: false,
-                    ),
-                    const DiagnosticsTabContent(),
-                  ],
-                ),
+            // Content. Order must match the AnalyticsTab enum.
+            Expanded(
+              child: IndexedStack(
+                index: _currentSubTab,
+                children: [
+                  const _SessionTab(),
+                  const _HistoryTab(),
+                  const _ProjectsTab(),
+                  const _EquipmentStatsTab(),
+                  ScienceWorkspaceView(
+                    initialViewQuery: widget.initialScienceView,
+                    showHeader: false,
+                  ),
+                  const DiagnosticsTabContent(),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

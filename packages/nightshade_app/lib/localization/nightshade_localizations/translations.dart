@@ -132,6 +132,10 @@ final Map<String, Map<String, String>> _localizedValues = {
     'navScience': 'Science',
     // The rail groups (04 §3.2). Rendered as 11px uppercase eyebrows above
     // each group when the rail is expanded.
+    // The command palette's field, which doubles as the top bar's placeholder.
+    'commandPalettePlaceholder':
+        'Search targets, settings, or jump to a screen',
+    'snapshot': 'Snapshot',
     'navGroupObserve': 'Observe',
     'navGroupPrepare': 'Prepare',
     'navGroupReview': 'Review',
@@ -873,6 +877,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'savedServersUnreachableShort': 'Inaccesible',
     'navAnalytics': 'Anal\u00EDtica',
     'navScience': 'Ciencia',
+    'commandPalettePlaceholder':
+        'Busca objetivos, ajustes o salta a una pantalla',
+    'snapshot': 'Captura',
     'navGroupObserve': 'Observar',
     'navGroupPrepare': 'Preparar',
     'navGroupReview': 'Revisar',

@@ -11,7 +11,6 @@ import '../../widgets/weather/radar_timeline_scrubber.dart';
 import '../../widgets/weather/weather_status_card.dart';
 import '../../widgets/weather/satellite_legend.dart';
 import '../../widgets/tutorial_keys/weather_keys.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 
 part 'weather_screen/header_and_radar_controls.dart';
 part 'weather_screen/safety_and_settings.dart';
@@ -153,113 +152,104 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     // Get current alert
     final alert = alertAsync.valueOrNull;
 
-    return ContextualTourPrompt(
-      screenId: 'weather',
-      tourCategory: TutorialCategory.weatherTour,
-      title: 'Weather Tour',
-      description:
-          'Learn how to monitor weather conditions for your imaging sessions.',
-      durationMinutes: 2,
-      alignment: Alignment.bottomRight,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // A phone is a phone in either orientation: held in landscape it
-            // reports a tablet/desktop-ish WIDTH (~932 px) but is still a phone
-            // and must NOT take the desktop multi-column / tall-radar layouts —
-            // those overflow its short (~430 px) height. Decide the structure
-            // on device class first; the desktop tiers only apply on real
-            // tablets/desktops (or a narrowed desktop window, where
-            // `Responsive.isPhone` falls back to live width).
-            final isPhone = Responsive.isPhone(context) ||
-                MediaQuery.sizeOf(context).shortestSide <
-                    BreakpointTokens.breakpointPhone;
-            final isWide = !isPhone &&
-                constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
-            final isMedium = !isPhone &&
-                constraints.maxWidth > NightshadeTokens.breakpointTablet;
-            // Phone landscape: enough width to put the map beside the scrolling
-            // data column. Any landscape phone qualifies (a large phone is
-            // ~932 px wide in landscape); below 560 px the stacked fallback
-            // reads better, so keep that floor.
-            final isPhoneLandscape = isPhone &&
-                constraints.maxWidth > constraints.maxHeight &&
-                constraints.maxWidth >= 560;
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // A phone is a phone in either orientation: held in landscape it
+          // reports a tablet/desktop-ish WIDTH (~932 px) but is still a phone
+          // and must NOT take the desktop multi-column / tall-radar layouts —
+          // those overflow its short (~430 px) height. Decide the structure
+          // on device class first; the desktop tiers only apply on real
+          // tablets/desktops (or a narrowed desktop window, where
+          // `Responsive.isPhone` falls back to live width).
+          final isPhone = Responsive.isPhone(context) ||
+              MediaQuery.sizeOf(context).shortestSide <
+                  BreakpointTokens.breakpointPhone;
+          final isWide = !isPhone &&
+              constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
+          final isMedium = !isPhone &&
+              constraints.maxWidth > NightshadeTokens.breakpointTablet;
+          // Phone landscape: enough width to put the map beside the scrolling
+          // data column. Any landscape phone qualifies (a large phone is
+          // ~932 px wide in landscape); below 560 px the stacked fallback
+          // reads better, so keep that floor.
+          final isPhoneLandscape = isPhone &&
+              constraints.maxWidth > constraints.maxHeight &&
+              constraints.maxWidth >= 560;
 
-            return Scaffold(
-              backgroundColor: colors.background,
-              body: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    // Header
-                    _WeatherHeader(
-                      colors: colors,
-                      onRefresh: _refreshWeatherData,
-                      onSettingsTap: () =>
-                          context.go('/settings?section=weather-safety'),
-                      isLoading: settingsAsync.isLoading ||
-                          weatherSettingsAsync.isLoading ||
-                          weatherStatus.isLoading,
-                    ),
+          return Scaffold(
+            backgroundColor: colors.background,
+            body: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  // Header
+                  _WeatherHeader(
+                    colors: colors,
+                    onRefresh: _refreshWeatherData,
+                    onSettingsTap: () =>
+                        context.go('/settings?section=weather-safety'),
+                    isLoading: settingsAsync.isLoading ||
+                        weatherSettingsAsync.isLoading ||
+                        weatherStatus.isLoading,
+                  ),
 
-                    // Offline / fetch-failure cue so an empty radar is never
-                    // read as "Clear".
-                    if (!settingsAsync.isLoading &&
-                        !weatherSettingsAsync.isLoading &&
-                        !settingsAsync.hasError &&
-                        !weatherSettingsAsync.hasError &&
-                        hasLocation &&
-                        weatherStatus.errorMessage != null)
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: NightshadeInlineBanner(
-                          message:
-                              'Weather data unavailable — conditions may be out '
-                              'of date. Check your connection.',
-                          severity: NightshadeAlertSeverity.error,
-                        ),
+                  // Offline / fetch-failure cue so an empty radar is never
+                  // read as "Clear".
+                  if (!settingsAsync.isLoading &&
+                      !weatherSettingsAsync.isLoading &&
+                      !settingsAsync.hasError &&
+                      !weatherSettingsAsync.hasError &&
+                      hasLocation &&
+                      weatherStatus.errorMessage != null)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: NightshadeInlineBanner(
+                        message:
+                            'Weather data unavailable — conditions may be out '
+                            'of date. Check your connection.',
+                        severity: NightshadeAlertSeverity.error,
                       ),
-
-                    // Main content
-                    Expanded(
-                      child: settingsAsync.isLoading ||
-                              weatherSettingsAsync.isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : settingsAsync.hasError ||
-                                  weatherSettingsAsync.hasError
-                              ? _SettingsUnavailableContent(
-                                  colors: colors,
-                                  onRetry: () =>
-                                      ref.invalidate(appSettingsProvider),
-                                )
-                              : hasLocation
-                                  ? _buildMainContent(
-                                      context,
-                                      colors,
-                                      isWide,
-                                      isMedium,
-                                      isPhoneLandscape,
-                                      latitude,
-                                      longitude,
-                                      alertRadiusKm,
-                                      radarFrames,
-                                      motionDirection,
-                                      motion,
-                                      alert,
-                                      weatherStatus,
-                                      cloudCoverAsync.valueOrNull,
-                                      radarSource,
-                                    )
-                                  : _NoLocationContent(colors: colors),
                     ),
-                  ],
-                ),
+
+                  // Main content
+                  Expanded(
+                    child: settingsAsync.isLoading ||
+                            weatherSettingsAsync.isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : settingsAsync.hasError ||
+                                weatherSettingsAsync.hasError
+                            ? _SettingsUnavailableContent(
+                                colors: colors,
+                                onRetry: () =>
+                                    ref.invalidate(appSettingsProvider),
+                              )
+                            : hasLocation
+                                ? _buildMainContent(
+                                    context,
+                                    colors,
+                                    isWide,
+                                    isMedium,
+                                    isPhoneLandscape,
+                                    latitude,
+                                    longitude,
+                                    alertRadiusKm,
+                                    radarFrames,
+                                    motionDirection,
+                                    motion,
+                                    alert,
+                                    weatherStatus,
+                                    cloudCoverAsync.valueOrNull,
+                                    radarSource,
+                                  )
+                                : _NoLocationContent(colors: colors),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }

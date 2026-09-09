@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-import '../../localization/nightshade_localizations.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import '../sequencer/widgets/run_dashboard/critical_event_banner.dart';
 import '../sequencer/widgets/run_dashboard/recovery_banner.dart';
 import '../sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
@@ -98,62 +96,54 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       _pulseController.stop();
     }
 
-    return ContextualTourPrompt(
-      screenId: 'dashboard',
-      tourCategory: TutorialCategory.dashboardTour,
-      title: context.l10n.text('dashboardTourTitle'),
-      description: context.l10n.text('dashboardTourDescription'),
-      durationMinutes: 3,
-      alignment: Alignment.bottomRight,
-      child: layoutAsync.when(
-        data: (layout) => Stack(
-          children: [
-            _ZoneBasedDashboard(
-              layout: layout,
-              colors: colors,
-              pulseController: _pulseController,
-              isEditing: _isEditing,
-              showStandby: showStandby,
-              onToggleEdit: _toggleEdit,
-              onManageWidgets: _showWidgetPicker,
-              onResetLayout: _resetLayout,
-              onReorder: (dragged, target) {
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .reorder(dragged, target);
-              },
-              onResize: (id) {
-                final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileSize(id, tile.size.next());
-              },
-              onToggleEnabled: (id, enabled) {
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileEnabled(id, enabled);
-              },
-              onSetZone: (id, zone) {
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileZone(id, zone);
-              },
-            ),
-            // Both prompt cards anchor bottom-centre. They are mutually
-            // exclusive by construction: NextUsePromptCard reads the same Smart
-            // Night base-eligibility signal and stands down whenever Smart
-            // Night is eligible, so at most one occupies the slot. Smart Night
-            // ("plan tonight") wins; otherwise the next-use nudge walks the
-            // user through framing, solving, focus, and first light.
-            SmartNightPromptCard(colors: colors),
-            NextUsePromptCard(colors: colors),
-          ],
-        ),
-        loading: () => const DashboardLoading(),
-        error: (error, _) => DashboardLayoutError(
-          error: error,
-          onReset: _resetLayout,
-        ),
+    return layoutAsync.when(
+      data: (layout) => Stack(
+        children: [
+          _ZoneBasedDashboard(
+            layout: layout,
+            colors: colors,
+            pulseController: _pulseController,
+            isEditing: _isEditing,
+            showStandby: showStandby,
+            onToggleEdit: _toggleEdit,
+            onManageWidgets: _showWidgetPicker,
+            onResetLayout: _resetLayout,
+            onReorder: (dragged, target) {
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .reorder(dragged, target);
+            },
+            onResize: (id) {
+              final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .setTileSize(id, tile.size.next());
+            },
+            onToggleEnabled: (id, enabled) {
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .setTileEnabled(id, enabled);
+            },
+            onSetZone: (id, zone) {
+              ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .setTileZone(id, zone);
+            },
+          ),
+          // Both prompt cards anchor bottom-centre. They are mutually
+          // exclusive by construction: NextUsePromptCard reads the same Smart
+          // Night base-eligibility signal and stands down whenever Smart
+          // Night is eligible, so at most one occupies the slot. Smart Night
+          // ("plan tonight") wins; otherwise the next-use nudge walks the
+          // user through framing, solving, focus, and first light.
+          SmartNightPromptCard(colors: colors),
+          NextUsePromptCard(colors: colors),
+        ],
+      ),
+      loading: () => const DashboardLoading(),
+      error: (error, _) => DashboardLayoutError(
+        error: error,
+        onReset: _resetLayout,
       ),
     );
   }

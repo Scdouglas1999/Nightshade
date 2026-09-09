@@ -213,7 +213,7 @@ class SideNavigation extends ConsumerWidget {
               ? button
               : NightshadeTooltip(
                   message: entry.label,
-                  waitDuration: const Duration(milliseconds: 200),
+                  waitDuration: ShellChromeMetrics.railTooltipDelay,
                   showArrow: false,
                   position: NightshadeTooltipPosition.right,
                   child: button,

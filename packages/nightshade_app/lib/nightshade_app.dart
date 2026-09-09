@@ -42,7 +42,6 @@ export 'widgets/session_recovery_dialog.dart';
 export 'widgets/auto_discovery_launcher.dart';
 export 'widgets/database_recovery_launcher.dart';
 export 'widgets/tutorial_overlay.dart';
-export 'widgets/contextual_tour_prompt.dart';
 export 'widgets/connection_stale_banner.dart';
 export 'widgets/equipment_status_indicator.dart';
 export 'widgets/ios_background_banner.dart';

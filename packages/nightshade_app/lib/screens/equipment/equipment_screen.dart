@@ -14,13 +14,12 @@ import 'widgets/equipment_readiness_panel.dart';
 import 'widgets/switch_control_card.dart';
 import 'dialogs/profile_editor_dialog.dart';
 import 'tabs/settings_tab.dart';
-import 'utils/connect_all_summary.dart';
+import 'utils/connect_all_action.dart';
 import 'utils/equipment_disconnect.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/cooled_camera_guard.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/equipment_keys.dart';
-import '../../widgets/contextual_tour_prompt.dart';
 import '../sequencer/widgets/run_dashboard/recovery_banner.dart';
 
 part 'equipment_screen/layout_rail.dart';
@@ -153,97 +152,79 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
     final sidebarCollapsed = ref.watch(equipmentSidebarCollapsedProvider);
 
-    return ContextualTourPrompt(
-      screenId: 'equipment',
-      tourCategory: TutorialCategory.equipmentTour,
-      title: context.l10n.text('equipmentTourTitle'),
-      description: context.l10n.text('equipmentTourDescription'),
-      durationMinutes: 3,
-      alignment: Alignment.bottomRight,
-      // Equipment is the host the floating card cannot share a corner with.
-      // Measured at 1000x800 on a fresh install, the card (x 745-985,
-      // y 620-745) lands on the DISCOVERY panel header's Scan All / Collapse
-      // buttons and abuts the mount card's Unpark / Track / Home / Flip row;
-      // at 1600x900 it covers the STATUS rail's "Ready to image" blockers
-      // block. Those are live, non-scrollable controls in exactly the corner
-      // the nudge anchors to — the case
-      // [ContextualTourPrompt.reserveSpaceForCard] exists for. Every other
-      // screen keeps the floating default.
-      reserveSpaceForCard: true,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Structure decision is device-class, not viewport width: a phone
-          // held in landscape reports a tablet-ish width (~932 px) but is still
-          // a phone and must take the stacked mobile layout — the desktop
-          // profile sidebar + rail would overflow its short height. On desktop
-          // `Responsive.isPhone` falls back to live width, so narrowing a
-          // window still collapses to the mobile column as before. Genuine
-          // tablets keep the desktop split.
-          final isMobile = Responsive.isPhone(context) ||
-              constraints.maxWidth < NightshadeTokens.breakpointTablet;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Structure decision is device-class, not viewport width: a phone
+        // held in landscape reports a tablet-ish width (~932 px) but is still
+        // a phone and must take the stacked mobile layout — the desktop
+        // profile sidebar + rail would overflow its short height. On desktop
+        // `Responsive.isPhone` falls back to live width, so narrowing a
+        // window still collapses to the mobile column as before. Genuine
+        // tablets keep the desktop split.
+        final isMobile = Responsive.isPhone(context) ||
+            constraints.maxWidth < NightshadeTokens.breakpointTablet;
 
-          final profileSidebar = ProfileSidebar(
-            // Spotlight target for the Equipment Setup tour's first step.
-            key: EquipmentTutorialKeys.profileSelector,
-            selectedProfileId: selectedProfileId,
-            onProfileSelected: (id) {
-              ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
-            },
-            onCreateProfile: () => _showProfileEditor(context, null),
-            onEditProfile: (profile) => _showProfileEditor(context, profile),
-            onConnectAll: _connectAllDevices,
-            onDisconnectAll: _disconnectAllDevices,
-            onSetDefault: _setDefaultProfile,
-            onActivateProfile: _activateProfile,
-            onDuplicateProfile: _duplicateProfile,
-            onDeleteProfile: _deleteProfile,
-            onReorderProfiles: _reorderProfiles,
-            onCollapse: isMobile
-                ? null
-                : () {
-                    ref.read(equipmentSidebarCollapsedProvider.notifier).state =
-                        true;
-                  },
-          );
+        final profileSidebar = ProfileSidebar(
+          // Spotlight target for the Equipment Setup tour's first step.
+          key: EquipmentTutorialKeys.profileSelector,
+          selectedProfileId: selectedProfileId,
+          onProfileSelected: (id) {
+            ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
+          },
+          onCreateProfile: () => _showProfileEditor(context, null),
+          onEditProfile: (profile) => _showProfileEditor(context, profile),
+          onConnectAll: _connectAllDevices,
+          onDisconnectAll: _disconnectAllDevices,
+          onSetDefault: _setDefaultProfile,
+          onActivateProfile: _activateProfile,
+          onDuplicateProfile: _duplicateProfile,
+          onDeleteProfile: _deleteProfile,
+          onReorderProfiles: _reorderProfiles,
+          onCollapse: isMobile
+              ? null
+              : () {
+                  ref.read(equipmentSidebarCollapsedProvider.notifier).state =
+                      true;
+                },
+        );
 
-          final mainColumn = _EquipmentMainColumn(
-            selectedProfile: selectedProfile,
-            // Rail is desktop-only. On mobile the supporting panels stack as
-            // collapsed bars instead of competing with a second side panel.
-            allowRail: !isMobile,
-            onSettings: () => _showSettings(context),
-            onProfileTap: isMobile
-                ? () => _showProfilePickerSheet(context, profileSidebar)
-                : null,
-            onConnectAll: _connectAllDevices,
-            onEditProfile: (profile) => _showProfileEditor(context, profile),
-          );
+        final mainColumn = _EquipmentMainColumn(
+          selectedProfile: selectedProfile,
+          // Rail is desktop-only. On mobile the supporting panels stack as
+          // collapsed bars instead of competing with a second side panel.
+          allowRail: !isMobile,
+          onSettings: () => _showSettings(context),
+          onProfileTap: isMobile
+              ? () => _showProfilePickerSheet(context, profileSidebar)
+              : null,
+          onConnectAll: _connectAllDevices,
+          onEditProfile: (profile) => _showProfileEditor(context, profile),
+        );
 
-          if (isMobile) {
-            return FocusTraversalGroup(
-              policy: ReadingOrderTraversalPolicy(),
-              child: mainColumn,
-            );
-          }
-
+        if (isMobile) {
           return FocusTraversalGroup(
             policy: ReadingOrderTraversalPolicy(),
-            child: Row(
-              children: [
-                _CollapsibleSidebar(
-                  isCollapsed: sidebarCollapsed,
-                  onToggle: () {
-                    ref.read(equipmentSidebarCollapsedProvider.notifier).state =
-                        !sidebarCollapsed;
-                  },
-                  child: profileSidebar,
-                ),
-                Expanded(child: mainColumn),
-              ],
-            ),
+            child: mainColumn,
           );
-        },
-      ),
+        }
+
+        return FocusTraversalGroup(
+          policy: ReadingOrderTraversalPolicy(),
+          child: Row(
+            children: [
+              _CollapsibleSidebar(
+                isCollapsed: sidebarCollapsed,
+                onToggle: () {
+                  ref.read(equipmentSidebarCollapsedProvider.notifier).state =
+                      !sidebarCollapsed;
+                },
+                child: profileSidebar,
+              ),
+              Expanded(child: mainColumn),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -559,114 +540,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
   // Device connection operations
 
-  Future<void> _connectAllDevices(EquipmentProfileModel profile) async {
-    final deviceService = ref.read(deviceServiceProvider);
-    final discoveryNotifier = ref.read(unifiedDiscoveryProvider.notifier);
-    final progressNotifier =
-        ref.read(deviceConnectionProgressProvider.notifier);
-
-    // Count how many devices we need to connect. Must list every slot the
-    // sweep itself dispatches (see DeviceService.connectAllFromProfile),
-    // otherwise a profile holding only a safety monitor and a power switch is
-    // turned away as "no devices configured" and then connects nothing.
-    final deviceIds = [
-      profile.cameraId,
-      profile.mountId,
-      profile.focuserId,
-      profile.filterWheelId,
-      profile.guiderId,
-      profile.rotatorId,
-      profile.domeId,
-      profile.weatherId,
-      profile.safetyMonitorId,
-      profile.switchId,
-      profile.coverCalibratorId,
-    ].where((id) => id != null && id.isNotEmpty).toList();
-
-    if (deviceIds.isEmpty) {
-      if (mounted) {
-        context.showWarningSnackBar(
-          context.l10n.text('equipmentNoDevicesConfigured'),
-        );
-      }
-      return;
-    }
-
-    if (mounted) {
-      context.showInfoSnackBar('Connecting devices...');
-    }
-    // The connect path uses the profile's persisted device ids and does not
-    // depend on a fresh scan; startup discovery already populated
-    // the "Available Devices" sidebar, and device topology rarely changes
-    // mid-session. So refresh the sidebar in the background with a long
-    // freshness window rather than blocking the connect on a redundant
-    // rescan — the user clicked "Connect all", not "Scan". (Without the long
-    // maxAge the default 30s window forces a full rescan every time the user
-    // spends more than half a minute setting up before connecting.)
-    unawaited(
-      discoveryNotifier.discoverIfNeeded(maxAge: const Duration(minutes: 10)),
-    );
-
-    // Parallel connect with per-device progress. We push each
-    // event into [deviceConnectionProgressProvider] so the per-device
-    // chips can render live status, and we tally counts locally for the
-    // post-sweep snackbar summary.
-    progressNotifier.startSweep();
-
-    int successCount = 0;
-    int failCount = 0;
-    final List<ConnectAllFailure> failures = [];
-
-    try {
-      await for (final event in deviceService.connectAllFromProfile(profile)) {
-        progressNotifier.record(event);
-        if (event.status == DeviceConnectProgressStatus.connected) {
-          successCount++;
-        } else if (event.status == DeviceConnectProgressStatus.failed) {
-          failCount++;
-          final failure = ConnectAllFailure.fromProgress(event);
-          failures.add(failure);
-          ref.read(loggingServiceProvider).warning(
-            'Connect All failed for ${event.deviceType} (${event.deviceId}): '
-            '${event.errorMessage ?? event.error}',
-            source: 'EquipmentScreen',
-            fields: {
-              'deviceType': event.deviceType,
-              'deviceId': event.deviceId,
-              if (event.error != null) 'error': event.error.toString(),
-            },
-          );
-        }
-      }
-    } finally {
-      progressNotifier.endSweep();
-    }
-
-    // NOTHING ELSE IS CONNECTED HERE. "Connect All" sits under the profile
-    // card and means "connect this profile's devices" — the sweep above, which
-    // already includes the profile's safety monitor and switch.
-    //
-    // Reaching past the profile — e.g. to the discovery cache's first safety
-    // monitor — makes two identical presses connect different rigs, and leaves
-    // a device the header counts that the profile does not, so it vanishes on
-    // the next launch. A device that is not in the profile is assigned in
-    // Discovery, deliberately, once.
-
-    if (!mounted) return;
-
-    final message = formatConnectAllSnackBar(
-      successCount: successCount,
-      failCount: failCount,
-      failures: failures,
-    );
-    if (successCount > 0 && failCount == 0) {
-      context.showSuccessSnackBar(message);
-    } else if (successCount > 0 && failCount > 0) {
-      context.showWarningSnackBar(message);
-    } else if (failCount > 0) {
-      context.showErrorSnackBar(message);
-    }
-  }
+  /// Delegates to the shared sweep so the command palette's "Connect all"
+  /// and this button cannot drift apart about which slots the sweep covers.
+  Future<void> _connectAllDevices(EquipmentProfileModel profile) =>
+      runConnectAllForProfile(context, ref, profile);
 
   Future<void> _disconnectAllDevices() async {
     // Disconnect All includes the camera: gate on an active cooler so the TEC
