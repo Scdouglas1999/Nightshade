@@ -29,7 +29,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               // optical-train step uses the same).
               icon: LucideIcons.aperture,
               label: 'Telescope library',
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: _pickTelescopeFromLibrary,
             ),
@@ -57,7 +57,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                   children: [
                     _fieldLabelWithHelp(
                       colors,
-                      label: 'Focal Length',
+                      label: 'Focal length',
                       helpTitle: 'Focal length (mm)',
                       helpBody:
                           "The telescope's NATIVE focal length in millimetres "
@@ -145,10 +145,9 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
 
           // Computed values. A Wrap, not a Row: the effective focal length is a
           // third entry on a 600px-wide dialog that a Row would overflow.
-          NightshadeCard(
-            variant: CardVariant.subtle,
-            borderRadius: NightshadeTokens.radiusInline8,
-            padding: const EdgeInsets.all(16),
+          Container(
+            padding: NightshadeTokens.paddingLg,
+            decoration: NightshadeDecorations.well(colors),
             child: Wrap(
               spacing: 32,
               runSpacing: 12,
@@ -157,14 +156,14 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                   label: 'f/Ratio',
                   value: _computedFRatio != null
                       ? 'f/${_computedFRatio!.toStringAsFixed(1)}'
-                      : '---',
+                      : kReadoutUnknown,
                   colors: colors,
                 ),
                 _ComputedValue(
                   label: 'Scale',
                   value: _computedScale != null
                       ? '${_computedScale!.toStringAsFixed(2)}"/px'
-                      : '---',
+                      : kReadoutUnknown,
                   subtitle: _pixelSize != null
                       ? 'at ${_pixelSize!.toStringAsFixed(2)}\u00B5m'
                       : null,
@@ -176,7 +175,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                     _effectiveFocalLengthMm !=
                         double.tryParse(_focalLengthController.text.trim()))
                   _ComputedValue(
-                    label: 'Effective FL',
+                    label: 'Effective focal length',
                     value: '${_formatOptic(_effectiveFocalLengthMm!)} mm',
                     subtitle: 'stored in the profile',
                     colors: colors,

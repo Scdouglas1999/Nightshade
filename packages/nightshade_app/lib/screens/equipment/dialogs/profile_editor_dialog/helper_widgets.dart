@@ -24,9 +24,8 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
+    return NightshadePanel(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           // Header (always visible, clickable to toggle)
@@ -57,17 +56,15 @@ class _SectionCard extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: NightshadeTypography.h5
+                          style: NightshadeTypography.sectionTitle
                               .copyWith(color: colors.textPrimary),
                         ),
                         if (!isExpanded) ...[
                           const SizedBox(height: 2),
                           Text(
                             summary,
-                            style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize12,
-                            ),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: colors.textMuted),
                           ),
                         ],
                       ],
@@ -119,9 +116,8 @@ class _IconOption extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.2)
-              : colors.surfaceAlt,
+          color:
+              isSelected ? colors.primary.withValues(alpha: 0.2) : colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
@@ -137,8 +133,7 @@ class _IconOption extends StatelessWidget {
                 )
               : Text(
                   icon,
-                  style: const TextStyle(
-                      fontSize: NightshadeTypography.fontSize20),
+                  style: NightshadeTypography.pageTitle,
                 ),
         ),
       ),
@@ -170,7 +165,7 @@ class _ColorOption extends StatelessWidget {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: color ?? colors.surfaceAlt,
+          color: color ?? colors.well,
           shape: BoxShape.circle,
           border: Border.all(
             color: isSelected ? onPrimary : (color ?? colors.border),
@@ -219,28 +214,20 @@ class _ComputedValue extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: colors.textMuted,
-            fontSize: NightshadeTypography.fontSize11,
-          ),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
-            color: colors.primary,
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: NightshadeTypography.sectionTitle
+              .copyWith(color: colors.primary, fontWeight: FontWeight.bold),
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 1),
           Text(
             subtitle!,
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize10,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ],
@@ -280,7 +267,7 @@ class _DeviceRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: deviceId != null
@@ -321,16 +308,12 @@ class _DeviceRow extends StatelessWidget {
                         height: 32,
                         child: TextField(
                           controller: nameController,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: NightshadeTypography.fontSize13,
-                          ),
+                          style: NightshadeTypography.bodySm
+                              .copyWith(color: colors.textPrimary),
                           decoration: InputDecoration(
                             hintText: 'Friendly name...',
-                            hintStyle: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize13,
-                            ),
+                            hintStyle: NightshadeTypography.bodySm
+                                .copyWith(color: colors.textMuted),
                             isDense: true,
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 6),
@@ -369,13 +352,11 @@ class _DeviceRow extends StatelessWidget {
               ),
               // Clear button
               if (deviceId != null)
-                IconButton(
+                NightshadeIconButton(
+                  icon: LucideIcons.x,
+                  tooltip: 'Clear this device',
+                  size: IconButtonSize.sm,
                   onPressed: onClear,
-                  icon: Icon(LucideIcons.x, size: 16, color: colors.textMuted),
-                  splashRadius: 16,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 28, minHeight: 28),
                 ),
             ],
           ),
@@ -387,11 +368,8 @@ class _DeviceRow extends StatelessWidget {
               padding: const EdgeInsets.only(left: 38),
               child: Text(
                 deviceId!,
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontFamily: 'monospace',
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted, fontFamily: 'monospace'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -455,7 +433,8 @@ class _DeviceDropdown extends StatelessWidget {
                 Expanded(
                   child: Text(
                     _getDeviceDisplayName(deviceId!),
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
               ],
@@ -475,13 +454,13 @@ class _DeviceDropdown extends StatelessWidget {
                 children: [
                   Text(
                     device.displayName,
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                   ),
                   Text(
                     device.activeBackend.shortLabel,
-                    style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize11),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ],
               ),
@@ -498,7 +477,9 @@ class _DeviceDropdown extends StatelessWidget {
               Icon(LucideIcons.refreshCw,
                   size: 14, color: colors.textSecondary),
               const SizedBox(width: 8),
-              Text('Scan...', style: TextStyle(color: colors.textSecondary)),
+              Text('Scan…',
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textSecondary)),
             ],
           ),
         ));
@@ -509,7 +490,8 @@ class _DeviceDropdown extends StatelessWidget {
               Icon(LucideIcons.edit3, size: 14, color: colors.textSecondary),
               const SizedBox(width: 8),
               Text('Enter manually...',
-                  style: TextStyle(color: colors.textSecondary)),
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textSecondary)),
             ],
           ),
         ));
@@ -528,10 +510,9 @@ class _DeviceDropdown extends StatelessWidget {
           children: [
             Text(
               deviceId != null ? 'Selected' : 'Select...',
-              style: TextStyle(
-                color: deviceId != null ? colors.textPrimary : colors.textMuted,
-                fontSize: NightshadeTypography.fontSize12,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color:
+                      deviceId != null ? colors.textPrimary : colors.textMuted),
             ),
             const SizedBox(width: 4),
             Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
@@ -612,10 +593,8 @@ class _FilterRow extends StatelessWidget {
             width: 36,
             child: Text(
               '$index',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13,
-              ),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -624,14 +603,12 @@ class _FilterRow extends StatelessWidget {
               height: 32,
               child: TextField(
                 controller: nameController,
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize13),
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Filter name',
-                  hintStyle: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize13),
+                  hintStyle: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textMuted),
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -663,18 +640,15 @@ class _FilterRow extends StatelessWidget {
             child: TextField(
               controller: offsetController,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
-              style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize13),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 hintText: '0',
-                hintStyle: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize13),
+                hintStyle: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textMuted),
                 suffixText: 'steps',
-                suffixStyle: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize10),
+                suffixStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -698,12 +672,12 @@ class _FilterRow extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
+          NightshadeIconButton(
+            icon: LucideIcons.trash2,
+            tooltip: 'Remove this filter',
+            size: IconButtonSize.sm,
+            color: colors.error,
             onPressed: onRemove,
-            icon: Icon(LucideIcons.trash2, size: 14, color: colors.error),
-            splashRadius: 14,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 32),
           ),
         ],
       ),

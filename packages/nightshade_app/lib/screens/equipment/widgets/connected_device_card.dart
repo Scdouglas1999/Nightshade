@@ -11,8 +11,10 @@ import '../../../utils/cooled_camera_guard.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
-import '../../accessible_dropdown.dart';
 import '../utils/device_error_subtitle.dart';
+import 'device_tile_width.dart';
+import '../utils/profile_mutation_epoch.dart';
+import '../utils/session_device_save.dart';
 
 part 'connected_device_card/status_and_display.dart';
 part 'connected_device_card/actions_and_telemetry.dart';
@@ -55,28 +57,30 @@ final equipmentSafetyCancelSnoozeActionProvider = Provider<VoidCallback>(
 );
 
 extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
+  /// The device's ROLE, in sentence case. The card's eyebrow uppercases it for
+  /// display; nothing else should ship shouting text.
   String get displayName {
     switch (this) {
       case ConnectedDeviceType.camera:
-        return 'CAMERA';
+        return 'Camera';
       case ConnectedDeviceType.mount:
-        return 'MOUNT';
+        return 'Mount';
       case ConnectedDeviceType.focuser:
-        return 'FOCUSER';
+        return 'Focuser';
       case ConnectedDeviceType.filterWheel:
-        return 'FILTER WHEEL';
+        return 'Filter wheel';
       case ConnectedDeviceType.guider:
-        return 'GUIDER';
+        return 'Guider';
       case ConnectedDeviceType.rotator:
-        return 'ROTATOR';
+        return 'Rotator';
       case ConnectedDeviceType.dome:
-        return 'DOME';
+        return 'Dome';
       case ConnectedDeviceType.weather:
-        return 'WEATHER';
+        return 'Weather';
       case ConnectedDeviceType.safetyMonitor:
-        return 'SAFETY MONITOR';
+        return 'Safety monitor';
       case ConnectedDeviceType.coverCalibrator:
-        return 'COVER CALIBRATOR';
+        return 'Cover calibrator';
     }
   }
 
@@ -89,7 +93,7 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
       case ConnectedDeviceType.focuser:
         return LucideIcons.focus;
       case ConnectedDeviceType.filterWheel:
-        return LucideIcons.circle;
+        return LucideIcons.disc;
       case ConnectedDeviceType.guider:
         return LucideIcons.crosshair;
       case ConnectedDeviceType.rotator:
@@ -455,75 +459,82 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     }
   }
 
+  /// Writes this device into the active profile so it comes back on the next
+  /// launch — the remedy the "Connected but not in this profile" line offers.
+  Future<void> _addToProfile() async {
+    final profile = ref.read(activeEquipmentProfileProvider);
+    final profileId = profile?.id;
+    final slot = _profileSlot;
+    if (profileId == null || slot == null) return;
+    try {
+      await saveSessionDevicesToProfile(
+        ref,
+        profileId: profileId,
+        slots: <ProfileDeviceSlot>{slot},
+      );
+      if (!mounted) return;
+      ref.read(profileMutationEpochProvider.notifier).state++;
+      context.showSuccessSnackBar('Added to "${profile!.name}".');
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Could not add to the profile: $e');
+    }
+  }
+
+  /// The profile slot this card's device occupies.
+  ProfileDeviceSlot? get _profileSlot => switch (widget.type) {
+        ConnectedDeviceType.camera => ProfileDeviceSlot.camera,
+        ConnectedDeviceType.mount => ProfileDeviceSlot.mount,
+        ConnectedDeviceType.focuser => ProfileDeviceSlot.focuser,
+        ConnectedDeviceType.filterWheel => ProfileDeviceSlot.filterWheel,
+        ConnectedDeviceType.guider => ProfileDeviceSlot.guider,
+        ConnectedDeviceType.rotator => ProfileDeviceSlot.rotator,
+        ConnectedDeviceType.dome => ProfileDeviceSlot.dome,
+        ConnectedDeviceType.weather => ProfileDeviceSlot.weather,
+        ConnectedDeviceType.safetyMonitor => ProfileDeviceSlot.safetyMonitor,
+        ConnectedDeviceType.coverCalibrator =>
+          ProfileDeviceSlot.coverCalibrator,
+      };
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final connectionState = _getConnectionState();
-    final borderColor = _getBorderColor(connectionState, colors);
     final accentColor = widget.type.accentColor(colors);
 
-    // On desktop/tablet a fixed tile width keeps the Wrap layout tidy:
-    // 320 px fits the longest action labels (e.g. "Stop
-    // Tracking") without wrap and keeps two columns at 720+ px. On a phone
-    // (`width < 600`) the dashboard lays cards out one-per-row full-width, so
-    // the card stretches to the column instead of pinning to 320 and
-    // overflowing a 360 px viewport.
-    final cardWidth = Responsive.isPhone(context) ? double.infinity : 320.0;
+    // A panel, not a bordered card: the connection state is carried by the
+    // status chip in the header, so the container needs no coloured ring
+    // (06 §Equipment removes the green device-card borders).
+    return NightshadePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeader(colors, accentColor, connectionState),
 
-    // On a phone (especially landscape, ~410 px tall) the desktop card padding
-    // and inter-section gaps crowd device cards off-screen; tighten them so
-    // more cards fit without clipping.
-    final isPhone = Responsive.isPhone(context);
-    final cardPad = isPhone ? 14.0 : 20.0;
-    final sectionGap = isPhone ? 12.0 : 16.0;
+          const SizedBox(height: NightshadeTokens.spaceMd),
 
-    return SizedBox(
-      width: cardWidth,
-      child: GestureDetector(
-        onTap: _toggleExpanded,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.all(cardPad),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: Border.all(color: borderColor, width: 1.5),
+          // Primary readouts
+          _buildMetricsRow(colors),
+
+          // Troubleshooter-backed error subtitle + Diagnose affordance, shown
+          // only when the device is in an error state.
+          _buildErrorSubtitle(colors, connectionState),
+
+          // "Connected but not saved to the profile" notice.
+          _buildSessionOnlyNotice(colors, connectionState),
+
+          const SizedBox(height: NightshadeTokens.spaceMd),
+
+          // Quick actions
+          _buildActionsRow(colors),
+
+          // Expanded telemetry
+          SizeTransition(
+            sizeFactor: _expandAnimation,
+            child: _buildExpandedContent(colors),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header Row
-              _buildHeader(colors, accentColor, connectionState),
-
-              // Troubleshooter-backed error subtitle + Diagnose
-              // affordance, shown only when the device is in an error state.
-              _buildErrorSubtitle(colors, connectionState),
-
-              // "Connected but not saved to the profile" notice. A full-width
-              // row rather than a header chip: the 320 px header already seats
-              // the icon, name and connection badge, and squeezing a fourth
-              // element in overflowed it by 81 px.
-              _buildSessionOnlyNotice(colors, connectionState),
-
-              SizedBox(height: sectionGap),
-
-              // Primary Metrics Row
-              _buildMetricsRow(colors),
-
-              const SizedBox(height: 12),
-
-              // Quick Actions Row
-              _buildActionsRow(colors),
-
-              // Expanded Content
-              SizeTransition(
-                sizeFactor: _expandAnimation,
-                child: _buildExpandedContent(colors),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }

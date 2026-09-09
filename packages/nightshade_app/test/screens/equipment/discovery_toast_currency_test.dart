@@ -76,6 +76,12 @@ class _FakeDeviceService extends DeviceService {
   Future<void> disconnectCamera() async => camera._apply(connected: false);
 }
 
+/// `NightshadeIconButton` carries its tooltip through `Semantics` and
+/// `NightshadeTooltip`, not a Material `Tooltip`, so `find.byTooltip` misses it.
+Finder _iconButton(String tooltip) => find.byWidgetPredicate(
+      (w) => w is NightshadeIconButton && w.tooltip == tooltip,
+    );
+
 void main() {
   testWidgets(
       'the newest device toast replaces the previous one, and both '
@@ -114,7 +120,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('DISCOVERY'));
+    await tester.tap(_iconButton('Expand'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(NightshadeButton, 'Connect').first);

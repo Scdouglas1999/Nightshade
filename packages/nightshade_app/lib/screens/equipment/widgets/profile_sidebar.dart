@@ -131,105 +131,40 @@ class ProfileSidebar extends ConsumerWidget {
   }
 
   Widget _buildHeader(BuildContext context, NightshadeColors colors) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: colors.border),
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.spaceSm,
+        NightshadeTokens.spaceSm,
       ),
-      child: Row(
-        children: [
-          Text(
-            'PROFILES',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-              color: colors.textMuted,
-            ),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: 28,
-            height: 28,
-            child: IconButton(
-              // Spotlight target for the Equipment Setup tour's "Create a
-              // Profile" step; without the key the step had nothing to point at.
-              key: EquipmentTutorialKeys.createProfileBtn,
-              onPressed: onCreateProfile,
-              icon: const Icon(LucideIcons.plus, size: 16),
-              padding: EdgeInsets.zero,
-              style: IconButton.styleFrom(
-                foregroundColor: colors.textSecondary,
-                backgroundColor: colors.surfaceAlt,
-                shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
-              ),
-              tooltip: 'Create new profile',
-            ),
-          ),
-          if (onCollapse != null) ...[
-            const SizedBox(width: 4),
-            Tooltip(
-              message: 'Collapse panel',
-              child: InkWell(
-                onTap: onCollapse,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline4),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(
-                    LucideIcons.panelLeftClose,
-                    size: 16,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
+      child: SectionTitle(
+        icon: LucideIcons.layers,
+        title: 'Profiles',
+        trailing: NightshadeIconButton(
+          // Spotlight target for the Equipment Setup tour's "Create a
+          // Profile" step; without the key the step had nothing to point at.
+          key: EquipmentTutorialKeys.createProfileBtn,
+          icon: LucideIcons.plus,
+          tooltip: 'Create a profile',
+          onPressed: onCreateProfile,
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState(BuildContext context, NightshadeColors colors) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.compass,
-              size: 48,
-              color: colors.textMuted,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No profiles yet',
-              style:
-                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Create a profile to save your equipment configuration',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            NightshadeButton(
-              label: 'Create First Profile',
-              icon: LucideIcons.plus,
-              variant: ButtonVariant.primary,
-              onPressed: onCreateProfile,
-            ),
-          ],
+      child: EmptyState(
+        icon: LucideIcons.layers,
+        title: 'No profiles yet',
+        body: 'A profile saves which devices your rig uses so one press '
+            'reconnects the lot.',
+        action: NightshadeButton(
+          label: 'Create a profile',
+          icon: LucideIcons.plus,
+          size: ButtonSize.small,
+          onPressed: onCreateProfile,
         ),
       ),
     );
@@ -329,7 +264,7 @@ class ProfileSidebar extends ConsumerWidget {
           if (!isActive) ...[
             NightshadeButton(
               key: profileSidebarActivateButtonKey,
-              label: 'Use This Profile',
+              label: 'Use this profile',
               icon: LucideIcons.check,
               variant: ButtonVariant.primary,
               onPressed: () => onActivateProfile(selectedProfile),
@@ -342,11 +277,12 @@ class ProfileSidebar extends ConsumerWidget {
               // Spotlight target for the Equipment Setup tour's "Connect
               // Devices" step.
               key: EquipmentTutorialKeys.quickConnectBar,
-              label: 'Connect All',
+              label: 'Connect all',
               icon: LucideIcons.plug,
               // Two primaries side by side is no emphasis at all: on a profile
               // that is not in use yet, switching to it is the first move.
-              variant: isActive ? ButtonVariant.primary : ButtonVariant.outline,
+              variant:
+                  isActive ? ButtonVariant.primary : ButtonVariant.secondary,
               onPressed: () => onConnectAll(selectedProfile),
             ),
             const SizedBox(height: 8),
@@ -354,7 +290,7 @@ class ProfileSidebar extends ConsumerWidget {
           // Show Disconnect All when any devices connected
           if (hasConnectedDevices) ...[
             NightshadeButton(
-              label: 'Disconnect All',
+              label: 'Disconnect all',
               icon: LucideIcons.unplug,
               variant: ButtonVariant.ghost,
               onPressed: onDisconnectAll,
@@ -363,7 +299,7 @@ class ProfileSidebar extends ConsumerWidget {
           ],
           // Always show Edit Profile when a profile is selected
           NightshadeButton(
-            label: 'Edit Profile',
+            label: 'Edit profile',
             icon: LucideIcons.pencil,
             variant: ButtonVariant.ghost,
             onPressed: () => onEditProfile(selectedProfile),
@@ -404,8 +340,9 @@ class ProfileSidebar extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Use This Profile',
-                    style: TextStyle(color: colors.textPrimary),
+                    'Use this profile',
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -427,9 +364,10 @@ class ProfileSidebar extends ConsumerWidget {
               Expanded(
                 child: Text(
                   profile.isDefault
-                      ? 'Startup Default'
-                      : 'Make Startup Default',
-                  style: TextStyle(color: colors.textPrimary),
+                      ? 'Starts up with this profile'
+                      : 'Start up with this profile',
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -442,7 +380,9 @@ class ProfileSidebar extends ConsumerWidget {
             children: [
               Icon(LucideIcons.pencil, size: 16, color: colors.textSecondary),
               const SizedBox(width: 8),
-              Text('Edit Profile', style: TextStyle(color: colors.textPrimary)),
+              Text('Edit profile',
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textPrimary)),
             ],
           ),
         ),
@@ -452,7 +392,9 @@ class ProfileSidebar extends ConsumerWidget {
             children: [
               Icon(LucideIcons.copy, size: 16, color: colors.textSecondary),
               const SizedBox(width: 8),
-              Text('Duplicate', style: TextStyle(color: colors.textPrimary)),
+              Text('Duplicate',
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textPrimary)),
             ],
           ),
         ),
@@ -463,7 +405,9 @@ class ProfileSidebar extends ConsumerWidget {
             children: [
               Icon(LucideIcons.trash2, size: 16, color: colors.error),
               const SizedBox(width: 8),
-              Text('Delete', style: TextStyle(color: colors.error)),
+              Text('Delete',
+                  style:
+                      NightshadeTypography.body.copyWith(color: colors.error)),
             ],
           ),
         ),
@@ -506,8 +450,9 @@ class ProfileSidebar extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         backgroundColor: colors.surface,
         title: Text(
-          'Delete Profile',
-          style: TextStyle(color: colors.textPrimary),
+          'Delete profile',
+          style: NightshadeTypography.sectionTitle
+              .copyWith(color: colors.textPrimary),
         ),
         // Say what actually happens: the delete raises a 6-second Undo that
         // restores the profile in full, so "This cannot be undone" would be
@@ -517,7 +462,8 @@ class ProfileSidebar extends ConsumerWidget {
         content: Text(
           'Delete "${profile.name}" (${profile.subtitle})?\n\n'
           'You can undo this from the message that appears, for a few seconds.',
-          style: TextStyle(color: colors.textSecondary),
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
         ),
         actions: [
           NightshadeButton(
@@ -668,54 +614,51 @@ class _ProfileCardState extends State<_ProfileCard>
           child: ReorderableDragStartListener(
             index: widget.index,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: widget.isSelected
-                    ? widget.colors.surfaceAlt
-                    : _isHovered
-                        ? widget.colors.surface
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                border: Border.all(
-                  color: widget.isSelected
-                      ? profileColor
-                      : _isHovered
-                          ? widget.colors.border
-                          : Colors.transparent,
-                  width: widget.isSelected ? 2 : 1,
-                ),
-                boxShadow: widget.isSelected
-                    ? [
-                        BoxShadow(
-                          color: profileColor.withValues(alpha: 0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
+              duration: NightshadeTokens.durationNormal,
+              curve: NightshadeTokens.curveStandard,
+              margin: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceSm,
+                vertical: NightshadeTokens.spaceXs,
               ),
+              padding: NightshadeTokens.paddingMd,
+              // Selection is a primary ring, not a coloured border and a glow:
+              // depth comes from tone (02 §2), and the profile's own colour
+              // stays where it belongs — on the profile's dot.
+              decoration: widget.isSelected
+                  ? NightshadeDecorations.panelSelected(widget.colors)
+                  : _isHovered
+                      ? NightshadeDecorations.panel(widget.colors)
+                      : const BoxDecoration(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Top row: icon, name, default star
                   Row(
                     children: [
-                      // Profile icon
-                      Text(
-                        widget.profile.profileIcon ??
-                            '\u{1F52D}', // Default telescope emoji
-                        style: const TextStyle(
-                            fontSize: NightshadeTypography.fontSize18),
-                      ),
-                      const SizedBox(width: 8),
+                      // Profile glyph. The stored emoji is a user choice and
+                      // is honoured; the DEFAULT is an icon, never the
+                      // telescope emoji 06 §Equipment removes.
+                      if (widget.profile.profileIcon != null &&
+                          widget.profile.profileIcon!.isNotEmpty)
+                        Text(
+                          widget.profile.profileIcon!,
+                          style: NightshadeTypography.body.copyWith(
+                            color: profileColor,
+                          ),
+                        )
+                      else
+                        Icon(
+                          LucideIcons.aperture,
+                          size: NightshadeTokens.iconSm,
+                          color: profileColor,
+                        ),
+                      const SizedBox(width: NightshadeTokens.spaceSm),
 
                       // Profile name
                       Expanded(
                         child: Text(
                           widget.profile.name,
-                          style: NightshadeTypography.labelStrong
+                          style: NightshadeTypography.bodyStrong
                               .copyWith(color: widget.colors.textPrimary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -734,29 +677,20 @@ class _ProfileCardState extends State<_ProfileCard>
                         ),
 
                       // Keep profile actions discoverable without a context menu.
-                      SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: IconButton(
-                          key: profileCardMenuButtonKey(widget.profile.id),
-                          onPressed: () {
-                            final box =
-                                context.findRenderObject() as RenderBox?;
-                            final origin = box == null
-                                ? Offset.zero
-                                : box.localToGlobal(
-                                    Offset(box.size.width, box.size.height),
-                                  );
-                            widget.onShowContextMenu(origin);
-                          },
-                          padding: EdgeInsets.zero,
-                          iconSize: 14,
-                          tooltip: 'Profile actions',
-                          icon: Icon(
-                            LucideIcons.moreVertical,
-                            color: widget.colors.textMuted,
-                          ),
-                        ),
+                      NightshadeIconButton(
+                        key: profileCardMenuButtonKey(widget.profile.id),
+                        icon: LucideIcons.moreVertical,
+                        tooltip: 'Profile actions',
+                        size: IconButtonSize.sm,
+                        onPressed: () {
+                          final box = context.findRenderObject() as RenderBox?;
+                          final origin = box == null
+                              ? Offset.zero
+                              : box.localToGlobal(
+                                  Offset(box.size.width, box.size.height),
+                                );
+                          widget.onShowContextMenu(origin);
+                        },
                       ),
                     ],
                   ),
@@ -766,8 +700,7 @@ class _ProfileCardState extends State<_ProfileCard>
                   // Subtitle row
                   Text(
                     widget.profile.subtitle,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.caption.copyWith(
                       color: widget.colors.textMuted,
                     ),
                     maxLines: 1,
@@ -788,16 +721,13 @@ class _ProfileCardState extends State<_ProfileCard>
                       // panel follows the latter. Without this the two are
                       // indistinguishable.
                       if (widget.isActive)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 6, right: 6),
-                          child: Text(
-                            'IN USE',
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color: widget.colors.primary,
-                            ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: NightshadeTokens.spaceXs + 2,
+                          ),
+                          child: NightshadeChip(
+                            label: 'In use',
+                            tone: ChipTone.primary,
                           ),
                         ),
 
@@ -805,9 +735,7 @@ class _ProfileCardState extends State<_ProfileCard>
                       if (widget.totalCount > 0)
                         Text(
                           '${widget.connectedCount}/${widget.totalCount}',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            fontWeight: FontWeight.w500,
+                          style: NightshadeTypography.monoCaption.copyWith(
                             color: widget.connectedCount == widget.totalCount
                                 ? widget.colors.success
                                 : widget.connectedCount > 0

@@ -157,14 +157,14 @@ void main() {
     );
     expect(refreshCalls, 1, reason: 'the card performs its initial refresh');
 
-    final refreshButton = find.byType(IconButton);
+    final refreshButton = find.byType(NightshadeIconButton);
     expect(refreshButton, findsOneWidget);
     await tester.tap(refreshButton);
     await tester.pump();
 
     expect(refreshCalls, 2);
     expect(
-      tester.widget<IconButton>(refreshButton).onPressed,
+      tester.widget<NightshadeIconButton>(refreshButton).onPressed,
       isNull,
       reason: 'a second refresh cannot start while the first is pending',
     );
@@ -176,7 +176,8 @@ void main() {
       find.textContaining('Channel refresh failed:'),
       findsOneWidget,
     );
-    expect(tester.widget<IconButton>(refreshButton).onPressed, isNotNull);
+    expect(tester.widget<NightshadeIconButton>(refreshButton).onPressed,
+        isNotNull);
     expect(tester.takeException(), isNull);
   });
 
@@ -225,15 +226,17 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final refreshButton = find.byType(IconButton);
-    expect(tester.widget<IconButton>(refreshButton).onPressed, isNull);
+    final refreshButton = find.byType(NightshadeIconButton);
+    expect(
+        tester.widget<NightshadeIconButton>(refreshButton).onPressed, isNull);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SwitchControlCard)),
     );
     container.read(_serviceSlotProvider.notifier).state = serviceB;
     await tester.pump();
-    expect(tester.widget<IconButton>(refreshButton).onPressed, isNotNull);
+    expect(tester.widget<NightshadeIconButton>(refreshButton).onPressed,
+        isNotNull);
 
     await tester.tap(refreshButton);
     await tester.pump();

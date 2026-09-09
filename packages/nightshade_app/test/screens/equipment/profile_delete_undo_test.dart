@@ -99,6 +99,8 @@ Future<_Harness> _pumpEquipment(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        // The profile list is the Profiles tab now (06 §Equipment).
+        equipmentTabIndexProvider.overrideWith((ref) => 1),
         backendProvider
             .overrideWith((ref) => _StubBackendNotifier(ref, backend)),
         databaseProvider.overrideWithValue(database),

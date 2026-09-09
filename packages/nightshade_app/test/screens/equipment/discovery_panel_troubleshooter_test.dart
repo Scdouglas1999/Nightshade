@@ -77,6 +77,12 @@ class _ThrowingDeviceService extends DeviceService {
   }
 }
 
+/// `NightshadeIconButton` carries its tooltip through `Semantics` and
+/// `NightshadeTooltip`, not a Material `Tooltip`, so `find.byTooltip` misses it.
+Finder _iconButton(String tooltip) => find.byWidgetPredicate(
+      (w) => w is NightshadeIconButton && w.tooltip == tooltip,
+    );
+
 void main() {
   group('DiscoveryPanel.showConnectionTroubleshooter', () {
     testWidgets(
@@ -198,7 +204,7 @@ void main() {
 
       // Expand the discovery panel so the device rows (and their Connect
       // buttons) are laid out.
-      await tester.tap(find.text('DISCOVERY'));
+      await tester.tap(_iconButton('Expand'));
       await tester.pumpAndSettle();
 
       final connectButton =

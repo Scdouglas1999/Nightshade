@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'device_action_finder.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../harness/harness.dart';
 
@@ -13,11 +13,6 @@ class _MountNotifier extends MountStateNotifier {
 
   final MountState initial;
 }
-
-NightshadeButton button(WidgetTester tester, String label) =>
-    tester.widget<NightshadeButton>(
-      find.widgetWithText(NightshadeButton, label),
-    );
 
 Future<HarnessHandle> pumpMount(
   WidgetTester tester, {
@@ -58,7 +53,7 @@ void main() {
     );
 
     for (final label in ['Park', 'Stop Tracking', 'Home', 'Flip']) {
-      expect(button(tester, label).onPressed, isNull, reason: label);
+      await expectDeviceAction(tester, label, enabled: false, reason: label);
     }
   });
 
@@ -78,7 +73,7 @@ void main() {
     );
 
     for (final label in ['Park', 'Stop Tracking', 'Home', 'Flip']) {
-      expect(button(tester, label).onPressed, isNotNull, reason: label);
+      await expectDeviceAction(tester, label, enabled: true, reason: label);
     }
   });
 
@@ -95,7 +90,7 @@ void main() {
       ),
     );
 
-    expect(button(tester, 'Flip').onPressed, isNull);
+    await expectDeviceAction(tester, 'Flip', enabled: false);
   });
 
   testWidgets('parked mount requires explicit unpark capability',
@@ -105,13 +100,13 @@ void main() {
       state: connected.copyWith(isParked: true),
       capabilities: const MountCapabilities(canPark: true, canUnpark: false),
     );
-    expect(button(tester, 'Unpark').onPressed, isNull);
+    await expectDeviceAction(tester, 'Unpark', enabled: false);
 
     await pumpMount(
       tester,
       state: connected.copyWith(isParked: true),
       capabilities: const MountCapabilities(canPark: true, canUnpark: true),
     );
-    expect(button(tester, 'Unpark').onPressed, isNotNull);
+    await expectDeviceAction(tester, 'Unpark', enabled: true);
   });
 }

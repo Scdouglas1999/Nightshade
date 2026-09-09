@@ -130,10 +130,8 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                         ? 'Enter a target position of 0 or greater. '
                             'The driver did not report a maximum.'
                         : 'Enter target position (0 - $maxPosition):',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize13,
-                    ),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -142,10 +140,12 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                     enabled: !isMoving,
                     autofocus: true,
                     keyboardType: TextInputType.number,
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Position',
-                      hintStyle: TextStyle(color: colors.textMuted),
+                      hintStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -158,10 +158,8 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       errorText!,
-                      style: TextStyle(
-                        color: colors.error,
-                        fontSize: NightshadeTypography.fontSize13,
-                      ),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.error),
                     ),
                   ],
                 ],
@@ -317,10 +315,8 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                   Text(
                     'Enter target angle (${formatBound(minAngle)} - '
                     '${formatBound(maxAngle)} degrees):',
-                    style: TextStyle(
-                      color: dialogColors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize13,
-                    ),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: dialogColors.textSecondary),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -330,12 +326,15 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                     autofocus: true,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: dialogColors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: dialogColors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Angle',
                       suffixText: 'degrees',
-                      suffixStyle: TextStyle(color: dialogColors.textMuted),
-                      hintStyle: TextStyle(color: dialogColors.textMuted),
+                      suffixStyle: NightshadeTypography.bodySm
+                          .copyWith(color: dialogColors.textMuted),
+                      hintStyle: NightshadeTypography.bodySm
+                          .copyWith(color: dialogColors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: dialogColors.border),
                       ),
@@ -348,10 +347,8 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       errorText!,
-                      style: TextStyle(
-                        color: dialogColors.error,
-                        fontSize: NightshadeTypography.fontSize13,
-                      ),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: dialogColors.error),
                     ),
                   ],
                 ],
@@ -448,10 +445,8 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                 children: [
                   Text(
                     'Enter target azimuth (0 - 360 degrees):',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize13,
-                    ),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -461,12 +456,15 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                     autofocus: true,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Azimuth',
                       suffixText: 'degrees',
-                      suffixStyle: TextStyle(color: colors.textMuted),
-                      hintStyle: TextStyle(color: colors.textMuted),
+                      suffixStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
+                      hintStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -479,10 +477,8 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       errorText!,
-                      style: TextStyle(
-                        color: colors.error,
-                        fontSize: NightshadeTypography.fontSize13,
-                      ),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.error),
                     ),
                   ],
                 ],

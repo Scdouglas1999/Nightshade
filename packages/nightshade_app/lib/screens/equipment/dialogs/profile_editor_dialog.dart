@@ -24,6 +24,9 @@ part 'profile_editor_dialog/helper_widgets.dart';
 ///
 /// Kept as constants (not an enum) because they double as the map keys the
 /// section builders read, and widget tests match on them.
+/// Widest the Optical train page's form column gets before it stops growing.
+const double opticalTrainPageMaxWidth = 720.0;
+
 abstract final class ProfileEditorField {
   static const focalLength = 'focalLength';
   static const reducer = 'reducer';
@@ -34,13 +37,31 @@ abstract final class ProfileEditorField {
   static const centeringExposure = 'centeringExposure';
 }
 
+/// How the editor is presented.
+enum ProfileEditorMode {
+  /// The whole editor, as a dialog (desktop) or a full-screen route (phone).
+  full,
+
+  /// Only the optical-train section, embedded as a page — the Equipment
+  /// screen's "Optical train" tab (06 §Equipment). No dialog chrome, no
+  /// Navigator pops: the tab stays put and the footer just saves.
+  opticalTrainPage,
+}
+
 /// Single-page profile editor dialog replacing the multi-step wizard.
 /// Allows creating new profiles or editing existing ones.
 class ProfileEditorDialog extends ConsumerStatefulWidget {
   /// The profile to edit, or null to create a new profile.
   final EquipmentProfileModel? profile;
 
-  const ProfileEditorDialog({super.key, this.profile});
+  /// Which slice of the editor to present. See [ProfileEditorMode].
+  final ProfileEditorMode mode;
+
+  const ProfileEditorDialog({
+    super.key,
+    this.profile,
+    this.mode = ProfileEditorMode.full,
+  });
 
   /// Show the profile editor.
   ///
@@ -355,6 +376,43 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         _buildFooter(colors),
       ],
     );
+
+    // Embedded as the Equipment screen's Optical train tab: only that section,
+    // on the page's own background, with no dialog chrome.
+    if (widget.mode == ProfileEditorMode.opticalTrainPage) {
+      return Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NightshadeTokens.space2xl,
+                  vertical: NightshadeTokens.spaceXl,
+                ),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: opticalTrainPageMaxWidth,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildValidationBanner(colors),
+                        _buildOpticalTrainSection(colors, theme),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            _buildFooter(colors),
+          ],
+        ),
+      );
+    }
 
     // Phone: the editor is presented as a full-screen route (see [show]). Fill
     // the screen with a Scaffold + SafeArea instead of a small centered card.

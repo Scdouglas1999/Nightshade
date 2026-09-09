@@ -97,8 +97,8 @@ void main() {
       reason: 'a chip that outlives its sweep must not claim a live state — '
           'this one sat next to "No devices connected" after a Disconnect All',
     );
-    expect(find.text('Succeeded'), findsOneWidget);
-    expect(find.text('Failed'), findsOneWidget);
+    expect(find.textContaining('Succeeded'), findsOneWidget);
+    expect(find.textContaining('Failed'), findsOneWidget);
   }, timeout: const Timeout(Duration(seconds: 60)));
 
   testWidgets('an in-flight sweep still reads as happening now',

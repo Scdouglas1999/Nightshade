@@ -26,73 +26,42 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     }
   }
 
-  Color _getBorderColor(DeviceConnectionState state, NightshadeColors colors) {
-    switch (state) {
-      case DeviceConnectionState.connected:
-        return colors.success;
-      case DeviceConnectionState.connecting:
-        return colors.warning;
-      case DeviceConnectionState.error:
-        return colors.error;
-      case DeviceConnectionState.disconnected:
-        return colors.border;
-    }
-  }
-
-  /// Header icon tint — never use category [accentColor] when disconnected.
-  /// Safety-monitor accent is `colors.success`, which would read as "connected"
-  /// if we fell back to accent.
-  Color _iconColorForState(
-      DeviceConnectionState state, NightshadeColors colors) {
-    return switch (state) {
-      DeviceConnectionState.connected => colors.success,
-      DeviceConnectionState.connecting => colors.warning,
-      DeviceConnectionState.error => colors.error,
-      DeviceConnectionState.disconnected => colors.textSecondary,
-    };
-  }
-
   Widget _buildHeader(
       NightshadeColors colors, Color accentColor, DeviceConnectionState state) {
     final deviceName = _getDeviceName();
 
     return Row(
       children: [
+        // 32 px icon square in a well — tone, not a tinted accent chip.
         Container(
-          width: 40,
-          height: 40,
-          decoration: NightshadeDecorations.iconChip(
-            accentColor,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          ),
+          width: _deviceIconSquare,
+          height: _deviceIconSquare,
+          decoration: NightshadeDecorations.well(colors),
           child: Icon(
             widget.type.icon,
-            size: 18,
-            color: _iconColorForState(state, colors),
+            size: _deviceIconSize,
+            color: colors.textSecondary,
           ),
         ),
-
-        const SizedBox(width: 12),
-
-        // Device type and name
+        const SizedBox(width: NightshadeTokens.spaceSm + 2),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                widget.type.displayName,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w500,
+                widget.type.displayName.toUpperCase(),
+                style: NightshadeTypography.eyebrow.copyWith(
                   color: colors.textMuted,
-                  letterSpacing: 0.5,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               // A name a couple of characters over the column width must
               // shrink to fit before any of it is dropped: at 1600x900 the
-              // FILTER WHEEL card ellipsises to "Simulated Filter ..." beside
+              // FILTER WHEEL card ellipsised to "Simulated Filter ..." beside
               // camera, mount and focuser cards of the same width showing
-              // their full names, so one card looks like it holds a different,
+              // their full names, so one card looked like it held a different,
               // mangled device. The ellipsis (and a tooltip) stays for a name
               // that is genuinely too long.
               Tooltip(
@@ -103,8 +72,9 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
                   child: Text(
                     deviceName,
                     maxLines: 1,
-                    style: NightshadeTypography.h5
-                        .copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.bodyStrong.copyWith(
+                      color: colors.textPrimary,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -112,8 +82,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
             ],
           ),
         ),
-
-        // Connection badge
+        const SizedBox(width: NightshadeTokens.spaceSm),
         _buildConnectionBadge(state, colors),
       ],
     );
@@ -133,7 +102,10 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     }
     return Padding(
       padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
-      child: _SessionOnlyNotice(colors: colors),
+      child: _SessionOnlyNotice(
+        colors: colors,
+        onAddToProfile: _addToProfile,
+      ),
     );
   }
 
@@ -346,120 +318,91 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
 
   Widget _buildConnectionBadge(
       DeviceConnectionState state, NightshadeColors colors) {
-    final (color, icon, text) = switch (state) {
-      DeviceConnectionState.connected => (
-          colors.success,
-          LucideIcons.check,
-          'Connected'
-        ),
-      DeviceConnectionState.connecting => (
-          colors.warning,
-          LucideIcons.loader,
-          'Connecting'
-        ),
-      DeviceConnectionState.error => (colors.error, LucideIcons.x, 'Error'),
-      DeviceConnectionState.disconnected => (
-          colors.textMuted,
-          LucideIcons.circle,
-          'Disconnected'
-        ),
+    // A device connected outside the profile is reported as "Session only" so
+    // the chip and the note beneath it say the same thing once.
+    if (state == DeviceConnectionState.connected && widget.sessionOnly) {
+      return const NightshadeChip(
+        label: 'Session only',
+        tone: ChipTone.warning,
+        dot: true,
+      );
+    }
+    final (tone, text) = switch (state) {
+      DeviceConnectionState.connected => (ChipTone.success, 'Connected'),
+      DeviceConnectionState.connecting => (ChipTone.warning, 'Connecting'),
+      DeviceConnectionState.error => (ChipTone.error, 'Error'),
+      DeviceConnectionState.disconnected => (ChipTone.neutral, 'Not connected'),
     };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        bordered: false,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-            ),
-          ),
-          const SizedBox(width: 6),
-          if (state == DeviceConnectionState.connecting)
-            SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
-            )
-          else
-            Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w500,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
+    return NightshadeChip(label: text, tone: tone, dot: true);
   }
 
   Widget _buildMetricsRow(NightshadeColors colors) {
     final metrics = _getMetrics();
+    if (metrics.isEmpty) return const SizedBox.shrink();
 
-    return Row(
-      children: metrics.map((metric) {
-        return Expanded(
-          child: Padding(
-            // Gutter between columns: at full width a sexagesimal Dec fills its
-            // share exactly, so without this the value ran straight into the
-            // next column's ("+00:00:00Parked").
-            padding: const EdgeInsets.only(right: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Scale down rather than wrap. These columns are equal-width
-                // `Expanded`s, and a sexagesimal Dec is one character wider than
-                // an RA because of its sign — so `+00:00:00` wrapped after
-                // `+00:00:0` and left a stray `0` on the line below, which reads
-                // as a completely different declination. Shrinking keeps the whole
-                // value on one line and legible; ellipsis would be worse here,
-                // since a truncated coordinate is indistinguishable from a real
-                // one.
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    metric.value,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize18,
-                      fontWeight: FontWeight.w600,
-                      color: metric.valueColor ?? colors.textPrimary,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  metric.label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
+    // A readout NEVER ellipsises: an "00:00:…" or "+47° 1…" is not a smaller
+    // reading, it is a different one. When the widest value cannot fit the
+    // panel at 20 px, the whole row steps down to 14 px together (so the row
+    // still reads as one scale) and the gap tightens with it.
+    //
+    // The width comes from [DeviceTileWidth], NOT a LayoutBuilder: the grid
+    // lays its rows out inside an IntrinsicHeight, and a LayoutBuilder has no
+    // intrinsic height — which collapsed the panel to its header and painted
+    // the actions outside it.
+    final available = DeviceTileWidth.of(context) -
+        NightshadeTokens.spaceLg * 2 -
+        _deviceReadoutGap * (metrics.length - 1);
+    final widest = metrics.fold<double>(
+      0,
+      (best, metric) {
+        final width = _readoutWidth(metric, ReadoutSize.md);
+        return width > best ? width : best;
+      },
     );
+    final fits = widest * metrics.length <= available;
+
+    return ReadoutRow(
+      gap: fits ? _deviceReadoutGap : _deviceReadoutGapDense,
+      children: [
+        for (final metric in metrics)
+          Readout(
+            value: metric.value,
+            unit: metric.unit,
+            label: metric.label,
+            size: fits ? ReadoutSize.md : ReadoutSize.sm,
+            valueColor: metric.valueColor,
+          ),
+      ],
+    );
+  }
+
+  /// Width [metric] needs at [size], measured with the real style rather than
+  /// guessed from the character count (the mono face is not the UI face, and
+  /// the label can be wider than the value).
+  double _readoutWidth(_DeviceMetric metric, ReadoutSize size) {
+    final valueStyle = switch (size) {
+      ReadoutSize.lg => NightshadeTypography.readoutLg,
+      ReadoutSize.md => NightshadeTypography.readoutMd,
+      ReadoutSize.sm => NightshadeTypography.readoutSm,
+    };
+    final text = '${metric.value ?? kReadoutUnknown}${metric.unit ?? ''}';
+    final value = _measure(text, valueStyle);
+    final label = _measure(
+      metric.label.toUpperCase(),
+      NightshadeTypography.readoutLabel,
+    );
+    return value > label ? value : label;
+  }
+
+  double _measure(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
   }
 
   List<_DeviceMetric> _getMetrics() {
@@ -468,38 +411,37 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(cameraStateProvider);
         return [
           _DeviceMetric(
-            value: formatCelsius(state.temperature),
-            label: 'Sensor Temp',
+            value: state.temperature?.toStringAsFixed(1),
+            unit: '°C',
+            label: 'Sensor',
           ),
           _DeviceMetric(
-            value: state.coolerPower != null
-                ? '${state.coolerPower!.toStringAsFixed(0)}%'
-                : '---',
+            value: state.coolerPower?.toStringAsFixed(0),
+            unit: '%',
             label: 'Cooler',
           ),
           _DeviceMetric(
             value: state.isExposing ? 'Exposing' : 'Idle',
-            label: 'Status',
+            label: 'State',
           ),
         ];
 
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return [
+          // Hours + minutes, degrees + arcminutes. A padded-colon sexagesimal
+          // with seconds is one field too wide for a 378 px panel and was
+          // ellipsising to "00:00:…", which reads as a different coordinate;
+          // the seconds live on Imaging's mount tab.
           _DeviceMetric(
             value: state.ra != null
-                ? CoordinateFormat.ra(state.ra!,
-                    style: SexagesimalStyle.paddedColons,
-                    seconds: SecondsPrecision.integerRounded)
-                : '---',
+                ? CoordinateFormat.raHm(state.ra!, wrapHours: true)
+                : null,
             label: 'RA',
           ),
           _DeviceMetric(
-            value: state.dec != null
-                ? CoordinateFormat.dec(state.dec!,
-                    style: SexagesimalStyle.paddedColons,
-                    seconds: SecondsPrecision.integerRounded)
-                : '---',
+            value:
+                state.dec != null ? CoordinateFormat.decDm(state.dec!) : null,
             label: 'Dec',
           ),
           _DeviceMetric(
@@ -510,7 +452,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
                     : state.isTracking
                         ? 'Tracking'
                         : 'Idle',
-            label: 'Status',
+            label: 'State',
           ),
         ];
 
@@ -518,31 +460,34 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(focuserStateProvider);
         return [
           _DeviceMetric(
-            value: state.position?.toString() ?? '---',
+            value: _stepCount(state.position),
             label: 'Position',
           ),
           _DeviceMetric(
-            value: formatCelsius(state.temperature),
+            value: state.temperature?.toStringAsFixed(1),
+            unit: '°C',
             label: 'Temp',
           ),
           _DeviceMetric(
             value: state.isMoving ? 'Moving' : 'Ready',
-            label: 'Status',
+            label: 'State',
           ),
         ];
 
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
+        final slots = state.filterNames.length;
         return [
           _DeviceMetric(
-            value: state.currentFilterName ?? 'Unknown',
+            value: state.currentFilterName,
             label: 'Filter',
           ),
           _DeviceMetric(
             value: state.currentPosition != null
-                ? '#${state.currentPosition! + 1}'
-                : '#?',
-            label: 'Position',
+                ? '${state.currentPosition! + 1}'
+                : null,
+            unit: slots > 0 ? '/$slots' : null,
+            label: 'Slot',
           ),
         ];
 
@@ -550,20 +495,18 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(guiderStateProvider);
         return [
           _DeviceMetric(
-            value: state.rmsTotal != null
-                ? '${state.rmsTotal!.toStringAsFixed(2)}"'
-                : '---',
-            label: 'RMS Total',
+            value: state.rmsTotal?.toStringAsFixed(2),
+            unit: '"',
+            label: 'RMS total',
           ),
           _DeviceMetric(
-            value: state.rmsRa != null
-                ? 'RA: ${state.rmsRa!.toStringAsFixed(2)}"'
-                : '---',
-            label: 'RA/Dec RMS',
+            value: state.rmsRa?.toStringAsFixed(2),
+            unit: '"',
+            label: 'RMS RA',
           ),
           _DeviceMetric(
             value: state.isGuiding ? 'Guiding' : 'Idle',
-            label: 'Status',
+            label: 'State',
           ),
         ];
 
@@ -571,14 +514,13 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(rotatorStateProvider);
         return [
           _DeviceMetric(
-            value: state.position != null
-                ? state.position!.toStringAsFixed(1)
-                : '---',
+            value: state.position?.toStringAsFixed(1),
+            unit: '°',
             label: 'Angle',
           ),
           _DeviceMetric(
             value: state.isMoving ? 'Moving' : 'Ready',
-            label: 'Status',
+            label: 'State',
           ),
         ];
 
@@ -586,9 +528,8 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(domeStateProvider);
         return [
           _DeviceMetric(
-            value: state.azimuth != null
-                ? '${state.azimuth!.toStringAsFixed(1)}\u00B0'
-                : '---',
+            value: state.azimuth?.toStringAsFixed(1),
+            unit: '°',
             label: 'Azimuth',
           ),
           _DeviceMetric(
@@ -603,7 +544,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
                     : state.isSlaved
                         ? 'Slaved'
                         : 'Idle',
-            label: 'Status',
+            label: 'State',
           ),
         ];
 
@@ -613,26 +554,27 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final hasRain = state.rainRate != null && state.rainRate! > 0;
         return [
           _DeviceMetric(
-            value: state.temperature != null
-                ? '${state.temperature!.toStringAsFixed(1)}\u00B0C'
-                : '---',
+            value: state.temperature?.toStringAsFixed(1),
+            unit: '°C',
             label: 'Temp',
           ),
           _DeviceMetric(
-            value: state.humidity != null
-                ? '${state.humidity!.toStringAsFixed(0)}%'
-                : '---',
+            value: state.humidity?.toStringAsFixed(0),
+            unit: '%',
             label: 'Humidity',
           ),
-          _DeviceMetric(
-            value: hasRain
-                ? 'Rain!'
-                : state.dewPoint != null
-                    ? '${state.dewPoint!.toStringAsFixed(1)}\u00B0C'
-                    : '---',
-            label: hasRain ? 'Alert' : 'Dew Point',
-            valueColor: hasRain ? weatherColors.error : null,
-          ),
+          if (hasRain)
+            _DeviceMetric(
+              value: 'Rain',
+              label: 'Alert',
+              valueColor: weatherColors.error,
+            )
+          else
+            _DeviceMetric(
+              value: state.dewPoint?.toStringAsFixed(1),
+              unit: '°C',
+              label: 'Dew point',
+            ),
         ];
 
       case ConnectedDeviceType.safetyMonitor:
@@ -649,16 +591,16 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
           // A stale reading is NOT a safe reading: once the read is older
-          // than the staleness budget the card reports STALE, never SAFE.
+          // than the staleness budget the card reports Stale, never Safe.
           _DeviceMetric(
             value: lastChecked == null
-                ? 'UNKNOWN'
+                ? null
                 : isStale
-                    ? 'STALE'
+                    ? 'Stale'
                     : state.isSafe
-                        ? 'SAFE'
-                        : 'UNSAFE',
-            label: 'Status',
+                        ? 'Safe'
+                        : 'Unsafe',
+            label: 'State',
             valueColor: lastChecked == null || isStale
                 ? colors.warning
                 : state.isSafe
@@ -666,8 +608,9 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
                     : colors.error,
           ),
           _DeviceMetric(
-            value: age != null ? '${_formatAge(age)} ago' : '---',
-            label: 'Last Checked',
+            value: age != null ? _formatAge(age) : null,
+            unit: age != null ? 'ago' : null,
+            label: 'Last checked',
             valueColor: isStale ? colors.warning : null,
           ),
         ];
@@ -681,7 +624,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         if (snapshot == null) {
           return [
             _DeviceMetric(
-              value: capabilities.hasError ? 'Unavailable' : 'Loading...',
+              value: capabilities.hasError ? 'Unavailable' : null,
               label: 'Capabilities',
             ),
           ];
@@ -701,10 +644,11 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
             ),
             _DeviceMetric(
               // Brightness is a driver reading. A calibrator that reports no
-              // brightness, or no brightness scale, must read '---' — showing
+              // brightness, or no brightness scale, must read "—" — showing
               // "0/0" or "0/100" claims the panel is measurably dark when the
               // truth is that nothing was measured.
-              value: _calibratorBrightnessLabel(snapshot),
+              value: _calibratorBrightnessLevel(snapshot),
+              unit: _calibratorBrightnessScale(snapshot),
               label: 'Brightness',
             ),
           ],
@@ -762,20 +706,28 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     };
   }
 
-  /// `<level>/<max>` only when the driver actually reported both halves.
+  /// The calibrator's brightness LEVEL, or null when the driver reported none.
   ///
   /// `maxBrightness` arrives as 0 when neither the host payload nor the native
   /// capability probe carries a brightness scale, and `brightness` is null when
-  /// the level itself is unreported. Either way there is no reading to show.
-  String _calibratorBrightnessLabel(
+  /// the level itself is unreported. Either way there is no reading to show, so
+  /// the readout renders the em dash rather than a fabricated "0/0".
+  String? _calibratorBrightnessLevel(
       CoverCalibratorCapabilitySnapshot snapshot) {
     final isPowered = snapshot.calibratorStatus == CalibratorStatus.ready ||
         snapshot.calibratorStatus == CalibratorStatus.notReady;
-    if (!isPowered) return '---';
+    if (!isPowered) return null;
     final level = snapshot.brightness;
-    final max = snapshot.maxBrightness;
-    if (level == null || max <= 0) return '---';
-    return '$level/$max';
+    if (level == null || snapshot.maxBrightness <= 0) return null;
+    return '$level';
+  }
+
+  /// The `/max` half of the brightness reading, attached to the level as its
+  /// unit. Null whenever the level itself is unknown.
+  String? _calibratorBrightnessScale(
+      CoverCalibratorCapabilitySnapshot snapshot) {
+    if (_calibratorBrightnessLevel(snapshot) == null) return null;
+    return '/${snapshot.maxBrightness}';
   }
 
   /// "Now" as seen by the card's own 5 s freshness clock
@@ -791,43 +743,76 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
 /// Marks a card whose device is connected but is NOT the device the active
 /// profile assigns to that slot.
 ///
-/// Discovery's "Assign" (persistent) and "Connect" (ephemeral) sat side by side
-/// with no wording, icon or hint that Connect alone would not survive a restart,
-/// and the resulting cards were pixel-identical to the profile devices. A user
-/// who set up nine devices at dusk saw "9 connected" and reasonably concluded the
-/// rig was configured; the next night four came up.
+/// Discovery's "Add to profile" (persistent) and "Connect" (ephemeral) sit side
+/// by side, and the resulting cards were pixel-identical to the profile
+/// devices. A user who set up nine devices at dusk saw "9 connected" and
+/// reasonably concluded the rig was configured; the next night four came up.
+///
+/// ONE 12 px muted line with the remedy as a link, not the amber paragraph:
+/// the "Session only" chip in the header already carries the warning colour.
 class _SessionOnlyNotice extends StatelessWidget {
   final NightshadeColors colors;
+  final VoidCallback? onAddToProfile;
 
-  const _SessionOnlyNotice({required this.colors});
+  const _SessionOnlyNotice({required this.colors, this.onAddToProfile});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: NightshadeDecorations.tintedBadge(
-        colors.warning,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(LucideIcons.bookmarkMinus, size: 12, color: colors.warning),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              'This session only — not saved to your profile, so it will not '
-              'reconnect next launch. Use Assign in Discovery to keep it.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                fontWeight: FontWeight.w500,
-                color: colors.warning,
-                height: 1.35,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(LucideIcons.info, size: 13, color: colors.textMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              text: 'Connected but not in this profile. ',
+              children: [
+                if (onAddToProfile != null)
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: _AddToProfileLink(onTap: onAddToProfile!),
+                  ),
+              ],
+            ),
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textMuted,
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The inline "Add to profile" link inside [_SessionOnlyNotice].
+class _AddToProfileLink extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AddToProfileLink({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    // `enabled` and `onTap` both matter: a Semantics node marked `button` with
+    // neither reports as DISABLED to AT-SPI, so a screen reader (and the audit
+    // harness) sees a dead control where the link works fine with a mouse.
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: 'Add to profile',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Text(
+            'Add to profile',
+            style: NightshadeTypography.caption.copyWith(color: colors.primary),
+          ),
+        ),
       ),
     );
   }
@@ -851,3 +836,23 @@ String _formatAge(Duration age) {
 /// completes well inside 10 s. 30 s therefore cannot fire on ordinary jitter but
 /// still catches a wedged or unresponsive monitor within half a minute.
 const Duration _safetyStatusStaleAfter = Duration(seconds: 30);
+
+/// Side of the device panel's leading icon square (mockup: 32).
+const double _deviceIconSquare = 32.0;
+
+/// The glyph inside that square.
+const double _deviceIconSize = 16.0;
+
+/// Gap between the device panel's readouts (mockup: 20).
+const double _deviceReadoutGap = NightshadeTokens.spaceXl;
+
+/// The dense gap the readout row falls back to when the panel cannot seat the
+/// 20 px scale.
+const double _deviceReadoutGapDense = NightshadeTokens.spaceMd;
+
+/// The focuser's step count.
+///
+/// Plain digits: the bundled fonts carry no thin space (U+2009), so a grouped
+/// "25 000" rendered as `25<tofu>000` — a separator that is not there is worse
+/// than no separator.
+String? _stepCount(int? value) => value?.toString();

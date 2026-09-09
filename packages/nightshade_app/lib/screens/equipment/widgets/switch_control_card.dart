@@ -126,50 +126,59 @@ class _SwitchControlCardState extends ConsumerState<SwitchControlCard> {
     final names = state.channelNames;
     final states = state.channelStates;
 
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(LucideIcons.power, size: 16, color: colors.primary),
-              const SizedBox(width: 8),
-              Text(
-                state.deviceName ?? 'Switch',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
+              Container(
+                width: _switchIconSquare,
+                height: _switchIconSquare,
+                decoration: NightshadeDecorations.well(colors),
+                child: Icon(
+                  LucideIcons.power,
+                  size: NightshadeTokens.iconSm,
+                  color: colors.textSecondary,
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                icon: _refreshing
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      )
-                    : Icon(
-                        LucideIcons.refreshCw,
-                        size: 16,
+              const SizedBox(width: NightshadeTokens.spaceSm + 2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Switch'.toUpperCase(),
+                      style: NightshadeTypography.eyebrow.copyWith(
                         color: colors.textMuted,
                       ),
+                    ),
+                    Text(
+                      state.deviceName ?? 'Switch',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: NightshadeTypography.bodyStrong.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              NightshadeIconButton(
+                icon: LucideIcons.refreshCw,
                 tooltip: 'Refresh channels',
+                size: IconButtonSize.sm,
                 onPressed: _refreshing ? null : _refresh,
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: NightshadeTokens.spaceSm),
           if (count == 0)
             Text('No channels reported',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12))
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textMuted))
           else
             for (var i = 0; i < count; i++)
               _buildChannel(
@@ -293,10 +302,8 @@ class _SwitchControlCardState extends ConsumerState<SwitchControlCard> {
           else
             Text(
               'Driver reported an invalid numeric range',
-              style: TextStyle(
-                color: colors.warning,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
+              style:
+                  NightshadeTypography.caption.copyWith(color: colors.warning),
             ),
         ],
       ),
@@ -332,20 +339,16 @@ class _ChannelLabel extends StatelessWidget {
           name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
         ),
         if (description.isNotEmpty)
           Text(
             description,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize10,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
       ],
     );
@@ -390,12 +393,13 @@ class _ReadOnlyValue extends StatelessWidget {
         ],
         Text(
           label,
-          style: TextStyle(
-            color: colors.textMuted,
-            fontSize: NightshadeTypography.fontSize12,
-          ),
+          style:
+              NightshadeTypography.readoutSm.copyWith(color: colors.textMuted),
         ),
       ],
     );
   }
 }
+
+/// Side of the switch panel's leading icon square, matching a device panel.
+const double _switchIconSquare = 32.0;

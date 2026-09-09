@@ -6,7 +6,7 @@
 // the plate-solve scale hint, the framing FOV and the guider px->arcsec
 // conversion. An editor with no reducer field, seeding one Focal Length box from
 // the telescope column and writing that same number back into BOTH on save,
-// turns "Save Changes" with zero edits on a 0.80x-reduced profile into
+// turns "Save changes" with zero edits on a 0.80x-reduced profile into
 // 440.0 mm / f/4.4 rewritten as 550.0 mm / f/5.5 — a silent 25% image-scale
 // error.
 
@@ -20,7 +20,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/mock_database.dart';
 
-Finder get _saveButton => find.text('Save Changes');
+Finder get _saveButton => find.text('Save changes');
 
 /// Locate an optics field by hint + suffix so the finder does not depend on
 /// field ordering (mirrors profile_editor_dialog_validation_test.dart).

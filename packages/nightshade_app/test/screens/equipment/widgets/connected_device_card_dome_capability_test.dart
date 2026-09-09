@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'device_action_finder.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../harness/harness.dart';
 
@@ -23,11 +23,6 @@ class _SwappableBackendNotifier extends BackendNotifier {
 
   void switchTo(NightshadeBackend backend) => state = backend;
 }
-
-NightshadeButton button(WidgetTester tester, String label) =>
-    tester.widget<NightshadeButton>(
-      find.widgetWithText(NightshadeButton, label),
-    );
 
 Future<void> pumpDome(
   WidgetTester tester, {
@@ -61,8 +56,8 @@ void main() {
       capabilities: const DomeCapabilities(),
     );
 
-    for (final label in ['Open Shutter', 'Park', 'Slew...', 'Home', 'Halt']) {
-      expect(button(tester, label).onPressed, isNull, reason: label);
+    for (final label in ['Open shutter', 'Park', 'Slew…', 'Home', 'Halt']) {
+      await expectDeviceAction(tester, label, enabled: false, reason: label);
     }
   });
 
@@ -80,10 +75,10 @@ void main() {
       ),
     );
 
-    for (final label in ['Open Shutter', 'Park', 'Slew...', 'Home']) {
-      expect(button(tester, label).onPressed, isNotNull, reason: label);
+    for (final label in ['Open shutter', 'Park', 'Slew…', 'Home']) {
+      await expectDeviceAction(tester, label, enabled: true, reason: label);
     }
-    expect(button(tester, 'Halt').onPressed, isNull);
+    await expectDeviceAction(tester, 'Halt', enabled: false);
   });
 
   testWidgets('parked dome is not offered a fabricated Unpark command',
@@ -95,7 +90,7 @@ void main() {
     );
 
     expect(find.text('Unpark'), findsNothing);
-    expect(button(tester, 'Parked').onPressed, isNull);
+    await expectDeviceAction(tester, 'Parked', enabled: false);
   });
 
   testWidgets('only Halt remains available while the dome is slewing',
@@ -111,10 +106,10 @@ void main() {
       ),
     );
 
-    expect(button(tester, 'Park').onPressed, isNull);
-    expect(button(tester, 'Slew...').onPressed, isNull);
-    expect(button(tester, 'Home').onPressed, isNull);
-    expect(button(tester, 'Halt').onPressed, isNotNull);
+    await expectDeviceAction(tester, 'Park', enabled: false);
+    await expectDeviceAction(tester, 'Slew…', enabled: false);
+    await expectDeviceAction(tester, 'Home', enabled: false);
+    await expectDeviceAction(tester, 'Halt', enabled: true);
   });
 
   testWidgets(
@@ -143,16 +138,16 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Park'));
+    await tapDeviceAction(tester, 'Park');
     await tester.pump();
     backendNotifier.switchTo(hostB);
     oldHostCommand.complete();
     await tester.pumpAndSettle();
 
     expect(find.text('Parking dome'), findsNothing);
-    expect(button(tester, 'Park').onPressed, isNotNull);
+    await expectDeviceAction(tester, 'Park', enabled: true);
 
-    await tester.tap(find.text('Park'));
+    await tapDeviceAction(tester, 'Park');
     await tester.pumpAndSettle();
     verify(() => hostB.domePark('dome-1')).called(1);
     expect(find.text('Parking dome'), findsOneWidget);
@@ -182,13 +177,13 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Open Shutter'));
+    await tester.tap(find.text('Open shutter'));
     await tester.pump();
     backendNotifier.switchTo(hostB);
     oldHostCommand.completeError(StateError('host A went away'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('host A went away'), findsNothing);
-    expect(button(tester, 'Open Shutter').onPressed, isNotNull);
+    await expectDeviceAction(tester, 'Open shutter', enabled: true);
   });
 }

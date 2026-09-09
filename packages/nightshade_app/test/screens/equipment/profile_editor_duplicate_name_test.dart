@@ -16,7 +16,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../harness/mock_database.dart';
 
 Finder get _nameField => find.byType(TextField).first;
-Finder get _saveButton => find.text('Save Changes');
+Finder get _saveButton => find.text('Save changes');
 
 const _existing = EquipmentProfileModel(
   id: 1,
