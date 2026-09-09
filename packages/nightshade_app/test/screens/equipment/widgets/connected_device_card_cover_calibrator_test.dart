@@ -49,8 +49,8 @@ void main() {
       ),
     );
 
-    await expectDeviceAction(tester, 'Open Cover', enabled: true);
-    expect(find.text('Light On'), findsNothing);
+    await expectDeviceAction(tester, 'Open cover', enabled: true);
+    expect(find.text('Light on'), findsNothing);
     expect(nightshadeIconButton('Settings'), findsNothing);
   });
 
@@ -66,7 +66,7 @@ void main() {
       ),
     );
 
-    await expectDeviceAction(tester, 'Cover Unavailable', enabled: false);
+    await expectDeviceAction(tester, 'Cover unavailable', enabled: false);
   });
 
   testWidgets('first light-on uses a safe midpoint and is single-flight',
@@ -88,9 +88,9 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Light On'));
+    await tester.tap(find.text('Light on'));
     await tester.pump();
-    await tester.tap(find.text('Light On'));
+    await tester.tap(find.text('Light on'));
     await tester.pump();
 
     verify(() => backend.calibratorOn('cover-1', 50)).called(1);

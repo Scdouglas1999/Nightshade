@@ -56,7 +56,7 @@ void main() {
       capabilities: const DomeCapabilities(),
     );
 
-    for (final label in ['Open Shutter', 'Park', 'Slew…', 'Home', 'Halt']) {
+    for (final label in ['Open shutter', 'Park', 'Slew…', 'Home', 'Halt']) {
       await expectDeviceAction(tester, label, enabled: false, reason: label);
     }
   });
@@ -75,7 +75,7 @@ void main() {
       ),
     );
 
-    for (final label in ['Open Shutter', 'Park', 'Slew…', 'Home']) {
+    for (final label in ['Open shutter', 'Park', 'Slew…', 'Home']) {
       await expectDeviceAction(tester, label, enabled: true, reason: label);
     }
     await expectDeviceAction(tester, 'Halt', enabled: false);
@@ -177,13 +177,13 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Open Shutter'));
+    await tester.tap(find.text('Open shutter'));
     await tester.pump();
     backendNotifier.switchTo(hostB);
     oldHostCommand.completeError(StateError('host A went away'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('host A went away'), findsNothing);
-    await expectDeviceAction(tester, 'Open Shutter', enabled: true);
+    await expectDeviceAction(tester, 'Open shutter', enabled: true);
   });
 }

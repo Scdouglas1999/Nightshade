@@ -371,15 +371,16 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                   color: colors.textMuted,
                 ),
                 const SizedBox(width: NightshadeTokens.spaceSm + 2),
-                Flexible(
-                  child: Text(
-                    'Discovered devices'.toUpperCase(),
-                    style: NightshadeTypography.eyebrow.copyWith(
-                      color: colors.textMuted,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                // NOT Flexible: a Flexible child beside a Spacer shares the
+                // row's slack with it and gets half, which truncated the label
+                // to "DISCOVERED DEVIC…" in a 652 px row it fits twice over.
+                // The eyebrow is the row's name; the summary is what gives way.
+                Text(
+                  'Discovered devices'.toUpperCase(),
+                  style: NightshadeTypography.eyebrow.copyWith(
+                    color: colors.textMuted,
                   ),
+                  maxLines: 1,
                 ),
                 if (!compact) ...[
                   const SizedBox(width: NightshadeTokens.spaceMd),

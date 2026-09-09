@@ -303,7 +303,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         final state = ref.watch(guiderStateProvider);
         return [
           _ActionButton(
-            label: state.isGuiding ? 'Stop' : 'Start Guiding',
+            label: state.isGuiding ? 'Stop' : 'Start guiding',
             onTap: state.connectionState == DeviceConnectionState.connected &&
                     state.deviceId != null &&
                     state.deviceId!.isNotEmpty &&
@@ -376,8 +376,8 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         return [
           _ActionButton(
             label: state.shutterStatus == ShutterStatus.open
-                ? 'Close Shutter'
-                : 'Open Shutter',
+                ? 'Close shutter'
+                : 'Open shutter',
             onTap: connected &&
                     canSetShutter &&
                     !shutterMoving &&
@@ -476,10 +476,10 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           if (snapshot.coverPresent)
             _ActionButton(
               label: switch (coverStatus) {
-                CoverStatus.open => 'Close Cover',
-                CoverStatus.closed => 'Open Cover',
+                CoverStatus.open => 'Close cover',
+                CoverStatus.closed => 'Open cover',
                 CoverStatus.moving => 'Cover Moving',
-                _ => 'Cover Unavailable',
+                _ => 'Cover unavailable',
               },
               onTap: connected &&
                       coverCanMove &&
@@ -492,7 +492,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             const SizedBox(width: 8),
           if (snapshot.calibratorPresent)
             _ActionButton(
-              label: calibratorOn ? 'Light Off' : 'Light On',
+              label: calibratorOn ? 'Light off' : 'Light on',
               onTap: connected &&
                       calibratorCanToggle &&
                       (calibratorOn || snapshot.maxBrightness > 0) &&

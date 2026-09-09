@@ -44,7 +44,7 @@ void main() {
       const ConnectedDeviceCard(type: ConnectedDeviceType.guider),
     );
 
-    expect(_button(tester, 'Start Guiding').onPressed, isNull);
+    expect(_button(tester, 'Start guiding').onPressed, isNull);
   });
 
   testWidgets('host switch unlocks guiding and suppresses the old result',
@@ -74,19 +74,19 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Start Guiding'));
+    await tester.tap(find.text('Start guiding'));
     await tester.pump();
-    expect(_button(tester, 'Start Guiding').onPressed, isNull);
+    expect(_button(tester, 'Start guiding').onPressed, isNull);
 
     backendNotifier.replaceBackend(backendB);
     await tester.pump();
-    expect(_button(tester, 'Start Guiding').onPressed, isNotNull);
+    expect(_button(tester, 'Start guiding').onPressed, isNotNull);
 
     oldStart.complete();
     await tester.pump();
     expect(find.text('Guiding started'), findsNothing);
 
-    await tester.tap(find.text('Start Guiding'));
+    await tester.tap(find.text('Start guiding'));
     await tester.pump();
     verify(() => serviceB.startGuiding()).called(1);
     expect(find.text('Guiding started'), findsOneWidget);
