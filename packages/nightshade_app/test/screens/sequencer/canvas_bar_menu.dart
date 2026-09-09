@@ -15,15 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// The canvas bar's "more actions" button.
-///
-/// Two shapes, one control: NightshadeIconButton on a pointer platform, and
-/// AccessibleIconButton on touch, where the Observatory button's fixed 28 dp
-/// box is under Android's 48 dp rule (see the notes' "owed to wave 4").
 Finder canvasBarMoreButton() => find.byWidgetPredicate(
       (widget) =>
-          (widget is NightshadeIconButton &&
-              widget.tooltip == 'More actions') ||
-          (widget is AccessibleIconButton && widget.label == 'More actions'),
+          widget is NightshadeIconButton && widget.tooltip == 'More actions',
       description: 'the canvas bar\'s "More actions" button',
     );
 

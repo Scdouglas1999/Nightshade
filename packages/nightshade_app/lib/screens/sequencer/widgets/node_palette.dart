@@ -8,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'node_palette_empty_state.dart';
 import 'node_palette_search.dart';
+import 'palette_copy.dart';
 import 'palette_icon_map.dart';
 
 class NodePalette extends ConsumerStatefulWidget {
@@ -695,7 +696,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                 ),
                 SizedBox(width: Responsive.spacing(context, 8)),
                 Text(
-                  widget.item.name,
+                  paletteSentenceCase(widget.item.name),
                   style: NightshadeTypography.bodySm.copyWith(
                     color: widget.colors.textPrimary,
                   ),
@@ -753,7 +754,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.item.name,
+                            paletteSentenceCase(widget.item.name),
                             style: NightshadeTypography.bodySm.copyWith(
                               color: _isHovered
                                   ? widget.colors.textPrimary

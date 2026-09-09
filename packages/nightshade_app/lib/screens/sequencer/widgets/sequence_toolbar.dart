@@ -60,14 +60,26 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// so the bar shrinks by a whole group instead of overflowing.
   static const double _toggleToolbarWidth = 560.0;
 
-  /// How the name and the meta chips divide the bar's flexible middle.
+  /// The narrowest canvas that can still afford the summary chip
+  /// ("1 target · 27 nodes · ~2 h 54 m").
   ///
-  /// The name only ever takes its NATURAL width — its share is a ceiling, not
-  /// a claim — so the chips get the larger flex: measured at 1600 x 900 with
-  /// both side panels open, an even split clipped "0 targets · 0 nodes" to
-  /// "0 node". The name still ellipsises last, because it is served first.
-  static const int _nameFlex = 2;
-  static const int _metaFlex = 3;
+  /// It is the one chip in the bar that is informational rather than
+  /// actionable, so it is the first thing dropped — a clipped summary reading
+  /// "~2h 54" is worse than no summary, and the counts beside it open the
+  /// issue list. Measured: at a 1280 px window with both side panels open the
+  /// canvas is ~496 px, which cannot hold the name, both counts, the summary
+  /// AND the toolbar.
+  static const double _summaryChipWidth = 900.0;
+
+  /// The most of the bar the sequence name may take before it ellipsises.
+  ///
+  /// The name is CAPPED rather than flexed, the way `PageHeader` caps its
+  /// title: a flexible name beside flexible chips leaves BOTH short at
+  /// 1280 px, which is the worst of both — the title read
+  /// "Mono LRGB M51 (Whi…" while the summary lost the "m" off "~2h 54m". The
+  /// chips state facts that are only useful whole, so they take their
+  /// intrinsic width and the name takes what is left, up to this fraction.
+  static const double _nameWidthFraction = 0.4;
 
   bool _fileActionRunning = false;
 
@@ -675,6 +687,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // the glyphs keep the tooltips and the menu entries keep the words.
           final labelledToggles = constraints.maxWidth >= _labelledToolbarWidth;
           final inlineToggles = constraints.maxWidth >= _toggleToolbarWidth;
+          final showSummary = constraints.maxWidth >= _summaryChipWidth;
 
           // When the bar cannot hold the toggle group, the toggles do not
           // vanish — they join the menu, with the words the buttons had.
@@ -770,36 +783,33 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 color: colors.textMuted,
               ),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              // The name and the meta chips share ONE flexible region, so the
-              // toolbar is the row's only inflexible child and is measured for
-              // free — the bar cannot overflow whatever the sequence is
-              // called. Inside the region the name has the larger flex and
-              // takes only its natural width, so the chips sit right beside it
-              // and are the ones that shrink and scroll.
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      flex: _nameFlex,
-                      child: _CanvasBarName(colors: colors, sequence: sequence),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    Flexible(
-                      flex: _metaFlex,
-                      child: ClipRect(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: _CanvasBarMeta(
-                            sequence: sequence,
-                            validation: validation,
-                            inSimulation: executorInSimulation,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+              // The name is capped; the chips are whole. Nothing in this bar
+              // may clip — a half-read count is worse than a shorter title.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * _nameWidthFraction,
+                ),
+                child: _CanvasBarName(colors: colors, sequence: sequence),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              // A scroll view is the last line of defence, not a ClipRect: a
+              // ClipRect hides the pixels but the Row inside it still asserts.
+              // The width tiers above mean this never actually clips at any
+              // window the app is used at; it is here so a width nobody
+              // anticipated cannot throw.
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: _CanvasBarMeta(
+                    sequence: sequence,
+                    validation: validation,
+                    inSimulation: executorInSimulation,
+                    showSummary: showSummary,
+                  ),
                 ),
               ),
+              const Spacer(),
               const SizedBox(width: NightshadeTokens.spaceSm),
               NightshadeToolbar(
                 groups: <List<Widget>>[
@@ -953,10 +963,14 @@ class _CanvasBarMeta extends ConsumerWidget {
     required this.sequence,
     required this.validation,
     required this.inSimulation,
+    required this.showSummary,
   });
 
   final Sequence? sequence;
   final LiveValidationState validation;
+
+  /// Whether the bar is wide enough for the informational summary chip.
+  final bool showSummary;
 
   /// What the EXECUTOR is driving, not what anyone asked for. A run against
   /// simulated devices has to say so on the surface the operator is watching,
@@ -988,25 +1002,39 @@ class _CanvasBarMeta extends ConsumerWidget {
         // builder admits the sequence has problems, and decoding "2" otherwise
         // means pressing Start and reading the pre-flight dialog — "press the
         // button that starts the rig" is not how you ask what is wrong.
+        // The numeral is the design; the NAME is what a screen reader says,
+        // and "4" on its own is not a fact about anything.
         if (validation.errorCount > 0) ...[
-          NightshadeChip(
-            label: '${validation.errorCount}',
-            icon: LucideIcons.xCircle,
-            tone: ChipTone.error,
-            onTap: () => SequenceIssuesDialog.show(context),
+          Semantics(
+            button: true,
+            label: countLabel(validation.errorCount, 'error'),
+            child: ExcludeSemantics(
+              child: NightshadeChip(
+                label: '${validation.errorCount}',
+                icon: LucideIcons.xCircle,
+                tone: ChipTone.error,
+                onTap: () => SequenceIssuesDialog.show(context),
+              ),
+            ),
           ),
           const SizedBox(width: NightshadeTokens.spaceXs + 2),
         ],
         if (validation.warningCount > 0) ...[
-          NightshadeChip(
-            label: '${validation.warningCount}',
-            icon: LucideIcons.alertTriangle,
-            tone: ChipTone.warning,
-            onTap: () => SequenceIssuesDialog.show(context),
+          Semantics(
+            button: true,
+            label: countLabel(validation.warningCount, 'warning'),
+            child: ExcludeSemantics(
+              child: NightshadeChip(
+                label: '${validation.warningCount}',
+                icon: LucideIcons.alertTriangle,
+                tone: ChipTone.warning,
+                onTap: () => SequenceIssuesDialog.show(context),
+              ),
+            ),
           ),
           const SizedBox(width: NightshadeTokens.spaceXs + 2),
         ],
-        NightshadeChip(label: summary),
+        if (showSummary) NightshadeChip(label: summary),
         if (inSimulation) ...[
           const SizedBox(width: NightshadeTokens.spaceXs + 2),
           const NightshadeChip(

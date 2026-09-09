@@ -105,20 +105,6 @@ class _ToolbarOverflowMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // NightshadeIconButton is a fixed 28/32/36 box on every platform: 05 §6
-    // gives it no touch behaviour, so on a phone its tappable rect is 20 dp
-    // under Android's 48 dp rule. Until wave 4 grows the component's hit area
-    // (see reports/observatory/w3-sequencer/notes.md), touch platforms keep
-    // the nightshade_ui button that already implements that padding
-    // correctly. Same glyph, same tooltip, legal target.
-    if (NightshadeTouchTarget.isTouch(context)) {
-      return AccessibleIconButton(
-        icon: LucideIcons.moreHorizontal,
-        label: 'More actions',
-        tooltip: 'More actions',
-        onPressed: () => _open(context),
-      );
-    }
     return NightshadeIconButton(
       icon: LucideIcons.moreHorizontal,
       tooltip: 'More actions',

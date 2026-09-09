@@ -131,9 +131,9 @@ void main() {
     // The three searches from the sweep, asserted against the REAL palette
     // as rendered inside SequencerScreen.
     const cases = <(String, String, String)>[
-      ('Dither', 'Dither', 'Smart Exposure'),
-      ('loop', 'Loop', 'Instruction Set'),
-      ('start guiding', 'Start Guiding', 'Photometry Run (template)'),
+      ('Dither', 'Dither', 'Smart exposure'),
+      ('loop', 'Loop', 'Instruction set'),
+      ('start guiding', 'Start guiding', 'Photometry run (template)'),
     ];
 
     for (final (query, wanted, decoy) in cases) {

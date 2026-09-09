@@ -80,7 +80,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.widgetWithText(NightshadeButton, 'Replace with this starter'),
+      find.widgetWithText(NightshadeButton, 'Use this starter'),
       findsOneWidget,
     );
   });
@@ -91,7 +91,7 @@ void main() {
     final before = editor.state!.id;
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Replace with this starter'),
+      find.widgetWithText(NightshadeButton, 'Use this starter'),
     );
     await tester.pump();
 

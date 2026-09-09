@@ -111,7 +111,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
     final lat = settings.latitude;
     final lon = settings.longitude;
-    // No observing site: the chips already say '--' and there is nothing to
+    // No observing site: the chips already say '—' and there is nothing to
     // refresh them to.
     if (!settings.hasObserverLocation) return;
 
@@ -365,7 +365,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
   Widget _buildCurrentValues(NightshadeColors colors) {
     final altitude = _currentAltitude;
-    // Unknown altitude: show the same '--' the Coordinates card uses, with no
+    // Unknown altitude: show the same '—' the Coordinates card uses, with no
     // severity colouring. A red "0.0°" here read as "your target is on the
     // horizon", which the app cannot know without an observing site.
     // Wrap, not Row: these chips size to their own content, so in a narrow
@@ -378,8 +378,10 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         spacing: 8,
         runSpacing: 8,
         children: [
-          _buildValueChip(colors, 'Alt', '--', colors.textMuted),
-          _buildValueChip(colors, 'Airmass', '--', colors.textMuted),
+          // An unknown value is an em dash (05 §3), never '--': two hyphens
+          // read as a value that happens to be punctuation.
+          _buildValueChip(colors, 'Alt', kReadoutUnknown, colors.textMuted),
+          _buildValueChip(colors, 'Airmass', kReadoutUnknown, colors.textMuted),
         ],
       );
     }

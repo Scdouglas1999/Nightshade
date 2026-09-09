@@ -250,32 +250,17 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
           // (see reports/observatory/w3-sequencer/notes.md), touch platforms keep
           // the nightshade_ui button that already implements that padding
           // correctly. Same glyph, same tooltip, legal target.
-          if (NightshadeTouchTarget.isTouch(context))
-            AccessibleIconButton(
-              icon: _showAltitudeChart
-                  ? LucideIcons.chevronUp
-                  : LucideIcons.chevronDown,
-              onPressed: () =>
-                  setState(() => _showAltitudeChart = !_showAltitudeChart),
-              label: _showAltitudeChart
-                  ? 'Hide altitude chart'
-                  : 'Show altitude chart',
-              tooltip: _showAltitudeChart
-                  ? 'Hide altitude chart'
-                  : 'Show altitude chart',
-            )
-          else
-            NightshadeIconButton(
-              icon: _showAltitudeChart
-                  ? LucideIcons.chevronUp
-                  : LucideIcons.chevronDown,
-              size: IconButtonSize.sm,
-              onPressed: () =>
-                  setState(() => _showAltitudeChart = !_showAltitudeChart),
-              tooltip: _showAltitudeChart
-                  ? 'Hide altitude chart'
-                  : 'Show altitude chart',
-            ),
+          NightshadeIconButton(
+            icon: _showAltitudeChart
+                ? LucideIcons.chevronUp
+                : LucideIcons.chevronDown,
+            size: IconButtonSize.sm,
+            onPressed: () =>
+                setState(() => _showAltitudeChart = !_showAltitudeChart),
+            tooltip: _showAltitudeChart
+                ? 'Hide altitude chart'
+                : 'Show altitude chart',
+          ),
 
           // Menu button
           PopupMenuButton<String>(

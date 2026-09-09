@@ -230,7 +230,7 @@ class _DraggableNodeItemCompactState
               ),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
-                widget.item.name,
+                paletteSentenceCase(widget.item.name),
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textPrimary,
                 ),
@@ -273,7 +273,11 @@ class _DraggableNodeItemCompactState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.item.name,
+                        // Sentence case at the point of DRAWING: the strings
+                        // live in nightshade_core, which this wave may not
+                        // touch, and the name a node carries once it is in a
+                        // sequence is the user's data (see palette_copy.dart).
+                        paletteSentenceCase(widget.item.name),
                         style: NightshadeTypography.bodySm.copyWith(
                           color: colors.textPrimary,
                         ),

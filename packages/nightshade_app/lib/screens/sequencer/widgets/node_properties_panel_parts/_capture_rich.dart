@@ -160,47 +160,49 @@ class _FilterChangeProperties extends ConsumerWidget {
                 ),
         ),
         if (missingFromProfile) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          // ONE inline line, not a paragraph: it says what is wrong and what
+          // to do, and the button beside it is the doing.
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
-              const SizedBox(width: 4),
+              const SizedBox(width: NightshadeTokens.spaceXs),
               Expanded(
                 child: Text(
-                  'Stored filter no longer in this profile — pick a current '
-                  'filter or edit the profile.',
-                  style: TextStyle(
-                    fontSize: Responsive.fontSize(context, 11),
+                  'Filter is not in this profile.',
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.warning,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
         ],
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: () => ProfileEditorDialog.show(
-            context,
-            profile: ref.read(activeEquipmentProfileProvider),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.settings, size: 12, color: colors.textMuted),
-                const SizedBox(width: 4),
-                Text(
-                  'Edit filters...',
-                  style: TextStyle(
-                    fontSize: Responsive.fontSize(context, 12),
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        // A real button, not a link dressed as a row of muted text. Disabled
+        // when there is no profile to edit, with the reason on the control
+        // rather than in a sentence beside it.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Builder(
+            builder: (context) {
+              final profile = ref.watch(activeEquipmentProfileProvider);
+              return NightshadeButton(
+                label: 'Edit filters',
+                icon: LucideIcons.settings,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                semanticsHint: profile == null
+                    ? 'No equipment profile is active, so there are no '
+                        'filters to edit.'
+                    : null,
+                onPressed: profile == null
+                    ? null
+                    : () => ProfileEditorDialog.show(context, profile: profile),
+              );
+            },
           ),
         ),
       ],

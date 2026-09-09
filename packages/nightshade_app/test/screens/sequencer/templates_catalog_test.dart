@@ -201,7 +201,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Replace with this starter'),
+      find.widgetWithText(NightshadeButton, 'Use this starter'),
     );
     await tester.pump();
 

@@ -113,10 +113,16 @@ class _SequencerPageHeader extends ConsumerWidget {
         // not one of NightshadeButton's slots, and inventing a local
         // button-with-badge would be a second button style on the page.
         if (blocking > 0)
-          NightshadeChip(
-            label: '$blocking',
-            tone: validation.hasErrors ? ChipTone.error : ChipTone.warning,
-            onTap: openPreflight,
+          Semantics(
+            button: true,
+            label: countLabel(blocking, 'preflight issue'),
+            child: ExcludeSemantics(
+              child: NightshadeChip(
+                label: '$blocking',
+                tone: validation.hasErrors ? ChipTone.error : ChipTone.warning,
+                onTap: openPreflight,
+              ),
+            ),
           ),
         if (!isPhone)
           ..._transportActions(

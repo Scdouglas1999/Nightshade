@@ -235,8 +235,8 @@ void main() {
 
     await _pumpPanel(tester, container);
 
-    await tester.ensureVisible(find.text('Run Test Exposure'));
-    await tester.tap(find.text('Run Test Exposure'));
+    await tester.ensureVisible(find.text('Run test exposure'));
+    await tester.tap(find.text('Run test exposure'));
     await tester.pumpAndSettle();
 
     expect(spy.calls, 1);

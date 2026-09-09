@@ -62,6 +62,22 @@ class NodeQuickTimeButton extends StatelessWidget {
   }
 }
 
+/// A numeric field's text: as many decimals as the value HAS, never more.
+///
+/// The field allows three decimals so sub-second exposures can be typed, but
+/// printing that precision unconditionally turns a 120-second sub into
+/// "120.000", which reads like a measurement rather than a setting. Trailing
+/// zeros are dropped; a value that really is 1.5 still shows "1.5".
+String formatNodeNumber(double value, int decimals) {
+  if (decimals == 0) return value.toInt().toString();
+  final fixed = value.toStringAsFixed(decimals);
+  if (!fixed.contains('.')) return fixed;
+  final trimmed = fixed.replaceFirst(RegExp(r'0+$'), '');
+  return trimmed.endsWith('.')
+      ? trimmed.substring(0, trimmed.length - 1)
+      : trimmed;
+}
+
 class NodePropertyField extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
@@ -279,9 +295,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
     _focusNode.addListener(_onFocusChange);
   }
 
-  String _formatValue(double value) => widget.decimals == 0
-      ? value.toInt().toString()
-      : value.toStringAsFixed(widget.decimals);
+  String _formatValue(double value) => formatNodeNumber(value, widget.decimals);
 
   void _onFocusChange() {
     final hadFocus = _hasFocus;
@@ -499,9 +513,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
     _focusNode.addListener(_onFocusChange);
   }
 
-  String _formatValue(double value) => widget.decimals == 0
-      ? value.toInt().toString()
-      : value.toStringAsFixed(widget.decimals);
+  String _formatValue(double value) => formatNodeNumber(value, widget.decimals);
 
   void _flushDebounce() {
     if (_debounce?.isActive ?? false) {
@@ -634,9 +646,15 @@ class NodeToggleSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeSwitch(
-      value: value,
-      onChanged: onChanged,
+    // Right-aligned at its own size. `FormRow` gives its control an
+    // `Expanded`, and a bare switch inside one stretches its track across the
+    // whole 300 px column — a 200 px switch reads as a progress bar.
+    return Align(
+      alignment: Alignment.centerRight,
+      child: NightshadeSwitch(
+        value: value,
+        onChanged: onChanged,
+      ),
     );
   }
 }
