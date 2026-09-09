@@ -58,6 +58,7 @@ Future<void> _pumpAt(WidgetTester tester, Size size) async {
 }
 
 void main() {
+  _NoTabs.register();
   testWidgets('at 1600px every tab label is rendered and nothing overflows', (
     tester,
   ) async {
@@ -120,4 +121,42 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+// A header WITHOUT tabs (Onboarding, Settings, Tonight) must still put its
+// actions at the right edge. A Flexible title used to split the free space with
+// the trailing Spacer and, being a loose fit, leave its unused share after the
+// actions — they sat mid-row on every tab-less screen.
+Widget _hostNoTabs() {
+  return MaterialApp(
+    theme: NightshadeTheme.dark,
+    home: Scaffold(
+      body: PageHeader(
+        icon: Icons.settings,
+        title: 'Settings',
+        actions: const [NightshadeChip(label: 'Backup', key: Key('trail'))],
+      ),
+    ),
+  );
+}
+
+class _NoTabs {
+  static void register() {
+    testWidgets('without tabs the actions sit at the right edge', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1600, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(_hostNoTabs());
+      await tester.pump();
+      final chip = tester.getRect(find.byKey(const Key('trail')));
+      // 24 px gutter: the chip's right edge is within one gutter of the window.
+      expect(chip.right, greaterThan(1600 - 24 - 2));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

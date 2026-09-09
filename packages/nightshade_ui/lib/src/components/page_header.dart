@@ -52,6 +52,9 @@ class PageHeader extends StatelessWidget {
   /// Gap between the title block and the tab strip.
   static const double _titleToTabsGap = 28.0;
 
+  /// Cap on the title block (icon + title + context) before it ellipsizes.
+  static const double _titleMaxWidth = 420.0;
+
   @override
   Widget build(BuildContext buildContext) {
     final colors = NightshadeColors.of(buildContext);
@@ -95,19 +98,21 @@ class PageHeader extends StatelessWidget {
       // the whole strip. The title is inflexible now (it sizes to its words and
       // ellipsises inside its own Text), the strip is `Expanded`, and the
       // actions keep their natural width at the right edge.
-      child: Row(
-        children: [
-          _titleBlock(colors, yieldToTabs: tabs != null && !narrow),
-          if (tabs != null && !narrow) ...[
-            const SizedBox(width: _titleToTabsGap),
-            Expanded(child: tabs!),
-          ] else
-            const Spacer(),
-          for (var i = 0; i < actions.length; i++) ...[
-            if (i > 0) const SizedBox(width: NightshadeTokens.spaceSm),
-            actions[i],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            _titleBlock(colors, maxWidth: _titleCap(constraints.maxWidth)),
+            if (tabs != null && !narrow) ...[
+              const SizedBox(width: _titleToTabsGap),
+              Expanded(child: tabs!),
+            ] else
+              const Spacer(),
+            for (var i = 0; i < actions.length; i++) ...[
+              if (i > 0) const SizedBox(width: NightshadeTokens.spaceSm),
+              actions[i],
+            ],
           ],
-        ],
+        ),
       ),
     );
 
@@ -135,15 +140,19 @@ class PageHeader extends StatelessWidget {
 
   /// The title block.
   ///
-  /// [yieldToTabs] makes it `flex: 0`, so it takes the width of its words and
-  /// leaves ALL the rest to the tab strip beside it — the whole point of the
-  /// fix above. Without tabs there is nothing to yield to, and the title keeps
-  /// its flex share so that a long title on a 390px window shrinks instead of
-  /// pushing the actions off the row (the design-system gallery renders exactly
-  /// that case).
-  Widget _titleBlock(NightshadeColors colors, {required bool yieldToTabs}) {
-    return Flexible(
-      flex: yieldToTabs ? 0 : 1,
+  /// The title may take up to half the header, capped at [_titleMaxWidth];
+  /// beyond that it ellipsizes. Relative, so a 390 px phone header still fits.
+  static double _titleCap(double rowWidth) {
+    final half = rowWidth.isFinite ? rowWidth * 0.5 : _titleMaxWidth;
+    return half < _titleMaxWidth ? half : _titleMaxWidth;
+  }
+
+  Widget _titleBlock(NightshadeColors colors, {required double maxWidth}) {
+    // Intrinsic width up to a cap. A Flexible title split the free space with
+    // the trailing Spacer and, being a loose fit, left its unused half AFTER
+    // the actions — which then sat mid-row on every tab-less screen.
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
