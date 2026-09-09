@@ -97,7 +97,7 @@ class _Body extends StatelessWidget {
   }
 
   String _formatDate(DateTime? dt) {
-    if (dt == null) return '-';
+    if (dt == null) return kReadoutUnknown;
     return DateFormat('MMM d, yyyy').format(dt);
   }
 
@@ -206,21 +206,22 @@ class _Body extends StatelessWidget {
                     // integration tile and the per-filter table describe.
                     _SummaryTile(
                       label: 'Mean HFR (session avg)',
-                      value: rollup.meanSessionHfr?.toStringAsFixed(2) ?? '-',
+                      value: rollup.meanSessionHfr?.toStringAsFixed(2) ??
+                          kReadoutUnknown,
                       colors: colors,
                     ),
                     _SummaryTile(
                       label: 'Mean seeing (session avg)',
                       value: rollup.meanSessionSeeing != null
                           ? '${rollup.meanSessionSeeing!.toStringAsFixed(2)}"'
-                          : '-',
+                          : kReadoutUnknown,
                       colors: colors,
                     ),
                     _SummaryTile(
                       label: 'Effective imaging',
                       value: hasClosedSession
                           ? '${(rollup.meanEffectiveImagingFraction * 100).toStringAsFixed(1)}%'
-                          : '-',
+                          : kReadoutUnknown,
                       colors: colors,
                     ),
                   ],
@@ -582,9 +583,9 @@ class _SessionRow extends StatelessWidget {
     final durationSecs = session.wallClockDuration.inSeconds;
     final durationLabel = durationSecs > 0
         ? '${(durationSecs / 3600.0).toStringAsFixed(2)}h wall'
-        : '-';
+        : kReadoutUnknown;
     return Material(
-      color: Colors.transparent,
+      type: MaterialType.transparency,
       child: Semantics(
           button: true,
           enabled: true,

@@ -188,7 +188,7 @@ class ScienceSessionSummary extends ConsumerWidget {
                     icon: LucideIcons.gauge,
                     label: 'Zero point',
                     value: latestCal?.zeroPoint == null
-                        ? '—'
+                        ? kReadoutUnknown
                         : latestCal!.zeroPoint!.toStringAsFixed(2),
                     sub: latestCal == null
                         ? null
@@ -207,7 +207,7 @@ class ScienceSessionSummary extends ConsumerWidget {
                     icon: LucideIcons.cloud,
                     label: 'Transparency',
                     value: latestTransparency == null
-                        ? '—'
+                        ? kReadoutUnknown
                         : '${latestTransparency.transparencyPercent.toStringAsFixed(0)}%',
                     sub: latestTransparency?.qualityBucket,
                     tone: _toneForTransparency(latestTransparency, colors),
@@ -222,7 +222,7 @@ class ScienceSessionSummary extends ConsumerWidget {
                     icon: LucideIcons.layoutGrid,
                     label: 'Uniformity CV',
                     value: latestFrameQuality == null
-                        ? '—'
+                        ? kReadoutUnknown
                         : latestFrameQuality.uniformityCv.toStringAsFixed(3),
                     sub: latestFrameQuality == null
                         ? null
@@ -339,7 +339,7 @@ class _SolveStats {
   });
 
   String get label {
-    if (rate == null) return '—';
+    if (rate == null) return kReadoutUnknown;
     return '$solved / $total';
   }
 

@@ -545,7 +545,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
               _DetailRow('Calibrated', c.isCalibrated ? 'Yes' : 'No', colors),
               _DetailRow(
                 'Zero point',
-                c.zeroPoint == null ? '—' : c.zeroPoint!.toStringAsFixed(3),
+                c.zeroPoint == null
+                    ? kReadoutUnknown
+                    : c.zeroPoint!.toStringAsFixed(3),
                 colors,
               ),
               _DetailRow(

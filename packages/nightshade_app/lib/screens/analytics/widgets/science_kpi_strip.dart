@@ -64,12 +64,13 @@ class _CalibrationKpi extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = calibration;
     final headline = c == null
-        ? 'N/A'
+        ? kReadoutUnknown
         : c.isCalibrated
             ? 'Calibrated'
             : 'Uncalibrated';
-    final value =
-        c?.zeroPoint == null ? '—' : 'ZP ${c!.zeroPoint!.toStringAsFixed(2)}';
+    final value = c?.zeroPoint == null
+        ? kReadoutUnknown
+        : 'ZP ${c!.zeroPoint!.toStringAsFixed(2)}';
     final tone = c == null
         ? colors.textMuted
         : c.isCalibrated
@@ -133,7 +134,8 @@ class _TransparencyKpi extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = transparency;
     final pct = t?.transparencyPercent;
-    final headline = pct == null ? 'N/A' : '${pct.toStringAsFixed(1)}%';
+    final headline =
+        pct == null ? kReadoutUnknown : '${pct.toStringAsFixed(1)}%';
     final tone = pct == null
         ? colors.textMuted
         : pct >= 90
@@ -168,7 +170,7 @@ class _TransparencyKpi extends StatelessWidget {
       title: 'Transparency',
       headline: headline,
       headlineTone: tone,
-      value: t == null ? '—' : 'Sky model',
+      value: t == null ? kReadoutUnknown : 'Sky model',
       trust: trust,
     );
   }
@@ -183,7 +185,8 @@ class _UniformityKpi extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fq = frameQuality;
-    final value = fq == null ? '—' : fq.uniformityCv.toStringAsFixed(3);
+    final value =
+        fq == null ? kReadoutUnknown : fq.uniformityCv.toStringAsFixed(3);
     final tone = fq == null
         ? colors.textMuted
         : fq.uniformityCv > 0.28

@@ -534,7 +534,7 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
 /// Formats a field-map value at a precision that survives both a 0.02 spread
 /// and a 4000 ADU background.
 String _formatValue(double value) {
-  if (!value.isFinite) return '—';
+  if (!value.isFinite) return kReadoutUnknown;
   final magnitude = value.abs();
   if (magnitude >= 1000) return value.toStringAsFixed(0);
   if (magnitude >= 10) return value.toStringAsFixed(1);

@@ -64,7 +64,7 @@ class ScienceSolveRateCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                total == 0 ? '—' : '$pct%',
+                total == 0 ? kReadoutUnknown : '$pct%',
                 style: NightshadeTypography.readoutLg.copyWith(
                     color: tier.color(colors), fontWeight: FontWeight.w600),
               ),

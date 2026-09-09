@@ -19,7 +19,9 @@ extension _ScienceExportHubStateHelpers on _ScienceExportHubState {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Text('-', style: TextStyle(color: colors.textMuted)),
+          child: Text(kReadoutUnknown,
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textMuted)),
         ),
         _DateButton(
           colors: colors,

@@ -646,7 +646,7 @@ class _Rail extends StatelessWidget {
                   child: Center(
                     child: Container(
                       width: 1.5,
-                      color: top ? colors.border : Colors.transparent,
+                      color: top ? colors.border : null,
                     ),
                   ),
                 ),
@@ -654,7 +654,7 @@ class _Rail extends StatelessWidget {
                   child: Center(
                     child: Container(
                       width: 1.5,
-                      color: bottom ? colors.border : Colors.transparent,
+                      color: bottom ? colors.border : null,
                     ),
                   ),
                 ),

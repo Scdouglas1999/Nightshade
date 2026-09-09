@@ -493,7 +493,9 @@ class _PsfHeatmapGrid extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        tile == null ? '-' : fwhm.toStringAsFixed(2),
+                        tile == null
+                            ? kReadoutUnknown
+                            : fwhm.toStringAsFixed(2),
                         style: NightshadeTypography.caption.copyWith(
                             color: labelColor, fontWeight: FontWeight.w600),
                       ),

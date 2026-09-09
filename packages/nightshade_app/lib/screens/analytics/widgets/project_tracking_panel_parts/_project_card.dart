@@ -242,7 +242,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                 label: 'Remaining',
                 value: progress.isTracked
                     ? _formatHours(progress.remainingSecs)
-                    : '-',
+                    : kReadoutUnknown,
                 colors: colors,
               ),
               _MetricChip(

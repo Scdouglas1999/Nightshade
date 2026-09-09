@@ -239,8 +239,10 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 ),
                 decoration: BoxDecoration(
                   color: selected
-                      ? colors.primary.withValues(alpha: 0.14)
-                      : Colors.transparent,
+                      ? colors.primary.withValues(
+                          alpha: NightshadeTokens.opacityAccentTint,
+                        )
+                      : null,
                   borderRadius: NightshadeTokens.borderRadiusLg,
                   border: Border.all(
                     color: selected ? colors.primary : colors.border,
