@@ -85,17 +85,17 @@ class TonightGuidingPanel extends ConsumerWidget {
             children: <Readout>[
               Readout(
                 value: rms(guider.rmsRa),
-                unit: '″',
+                unit: '"',
                 label: l10n.text('tnRaRms'),
               ),
               Readout(
                 value: rms(guider.rmsDec),
-                unit: '″',
+                unit: '"',
                 label: l10n.text('tnDecRms'),
               ),
               Readout(
                 value: rms(guider.rmsTotal),
-                unit: '″',
+                unit: '"',
                 label: l10n.text('tnTotal'),
               ),
               Readout(

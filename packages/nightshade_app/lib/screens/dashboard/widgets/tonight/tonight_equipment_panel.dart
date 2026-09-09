@@ -111,7 +111,7 @@ class TonightEquipmentPanel extends ConsumerWidget {
           Readout(
             value:
                 guider.isGuiding ? guider.rmsTotal?.toStringAsFixed(2) : null,
-            unit: '″',
+            unit: '"',
             label: l10n.text('tnTotalRms'),
             size: ReadoutSize.sm,
           ),
@@ -185,13 +185,16 @@ class TonightEquipmentPanel extends ConsumerWidget {
     return '${h}h ${m.toString().padLeft(2, '0')}m';
   }
 
-  /// `+47° 11′`.
+  /// `+47° 11'`.
+  ///
+  /// ASCII apostrophe, not U+2032 PRIME: neither bundled font carries the prime
+  /// glyphs, so the real one renders as a tofu box on the rig.
   static String _dec(double degrees) {
     final sign = degrees < 0 ? '-' : '+';
     final abs = degrees.abs();
     final d = abs.floor();
     final m = ((abs - d) * 60).round();
-    return '$sign$d° ${m.toString().padLeft(2, '0')}′';
+    return "$sign$d° ${m.toString().padLeft(2, '0')}'";
   }
 }
 

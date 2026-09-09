@@ -180,31 +180,18 @@ class _QualityGlass extends ConsumerWidget {
             label: l10n.text('tnEcc'),
           ),
           Readout(
-            value: latest?.starCount == null
-                ? null
-                : _thousands(latest!.starCount!),
+            value: latest?.starCount?.toString(),
             label: l10n.text('tnStars'),
           ),
           Readout(
             value: rms?.toStringAsFixed(2),
-            unit: '″',
+            unit: '"',
             label: l10n.text('tnRms'),
           ),
         ],
       ),
     );
   }
-}
-
-/// `1 243` — figures with a thin space for thousands (06 copy rules).
-String _thousands(int value) {
-  final digits = value.abs().toString();
-  final buffer = StringBuffer(value < 0 ? '-' : '');
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(' ');
-    buffer.write(digits[i]);
-  }
-  return buffer.toString();
 }
 
 /// The 32 px strip of the newest captures under the frame.
