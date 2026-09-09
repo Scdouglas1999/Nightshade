@@ -21,12 +21,14 @@ class _EquipmentMainColumn extends ConsumerWidget {
   final VoidCallback onSettings;
   final void Function(EquipmentProfileModel) onConnectAll;
   final void Function(EquipmentProfileModel) onEditProfile;
+  final VoidCallback onDisconnectAll;
 
   const _EquipmentMainColumn({
     required this.selectedProfile,
     required this.onSettings,
     required this.onConnectAll,
     required this.onEditProfile,
+    required this.onDisconnectAll,
   });
 
   /// The device grid with the discovery drawer beneath it, in ONE column.
@@ -91,6 +93,7 @@ class _EquipmentMainColumn extends ConsumerWidget {
                 selectedProfile: selectedProfile,
                 onSettings: onSettings,
                 onEditProfile: onEditProfile,
+                onDisconnectAll: onDisconnectAll,
               ),
             ],
           );
@@ -104,6 +107,7 @@ class _EquipmentMainColumn extends ConsumerWidget {
             selectedProfile: selectedProfile,
             onSettings: onSettings,
             onEditProfile: onEditProfile,
+            onDisconnectAll: onDisconnectAll,
             padding: _bodyPadding,
           ),
         );
@@ -121,11 +125,13 @@ class _EquipmentSidePanel extends ConsumerWidget {
   final EquipmentProfileModel? selectedProfile;
   final VoidCallback onSettings;
   final void Function(EquipmentProfileModel) onEditProfile;
+  final VoidCallback onDisconnectAll;
 
   const _EquipmentSidePanel({
     required this.selectedProfile,
     required this.onSettings,
     required this.onEditProfile,
+    required this.onDisconnectAll,
   });
 
   @override
@@ -138,6 +144,7 @@ class _EquipmentSidePanel extends ConsumerWidget {
           selectedProfile: selectedProfile,
           onSettings: onSettings,
           onEditProfile: onEditProfile,
+          onDisconnectAll: onDisconnectAll,
         ),
       ),
     );
@@ -150,12 +157,14 @@ class _SidePanelContent extends ConsumerWidget {
   final EquipmentProfileModel? selectedProfile;
   final VoidCallback onSettings;
   final void Function(EquipmentProfileModel) onEditProfile;
+  final VoidCallback onDisconnectAll;
   final EdgeInsets padding;
 
   const _SidePanelContent({
     required this.selectedProfile,
     required this.onSettings,
     required this.onEditProfile,
+    required this.onDisconnectAll,
     this.padding = EdgeInsets.zero,
   });
 
@@ -171,6 +180,7 @@ class _SidePanelContent extends ConsumerWidget {
             profile: selectedProfile,
             onSettings: onSettings,
             onEditProfile: onEditProfile,
+            onDisconnectAll: onDisconnectAll,
           ),
           const _SaveSessionDevicesButton(),
           const SizedBox(height: SidePanel.sectionGap),
@@ -188,11 +198,13 @@ class _ProfileBlock extends ConsumerWidget {
   final EquipmentProfileModel? profile;
   final VoidCallback onSettings;
   final void Function(EquipmentProfileModel) onEditProfile;
+  final VoidCallback onDisconnectAll;
 
   const _ProfileBlock({
     required this.profile,
     required this.onSettings,
     required this.onEditProfile,
+    required this.onDisconnectAll,
   });
 
   /// Side of the profile's icon square.
@@ -257,13 +269,14 @@ class _ProfileBlock extends ConsumerWidget {
           profile: model,
           onSettings: onSettings,
           onEditProfile: onEditProfile,
+          onDisconnectAll: onDisconnectAll,
         ),
       ],
     );
   }
 }
 
-enum _ProfileMenuAction { edit, profiles, settings }
+enum _ProfileMenuAction { edit, disconnectAll, profiles, settings }
 
 /// The `⋮` beside the profile name. A [NightshadeIconButton] that opens the
 /// menu itself rather than a `PopupMenuButton`, so the control is the sheet's
@@ -272,11 +285,13 @@ class _ProfileMenuButton extends ConsumerStatefulWidget {
   final EquipmentProfileModel? profile;
   final VoidCallback onSettings;
   final void Function(EquipmentProfileModel) onEditProfile;
+  final VoidCallback onDisconnectAll;
 
   const _ProfileMenuButton({
     required this.profile,
     required this.onSettings,
     required this.onEditProfile,
+    required this.onDisconnectAll,
   });
 
   @override
@@ -315,6 +330,13 @@ class _ProfileMenuButtonState extends ConsumerState<_ProfileMenuButton> {
           enabled: model != null,
           child: const Text('Edit profile'),
         ),
+        // The page header drops its actions on a phone (they cannot reach the
+        // 48 dp tap target beside a title), so this is where Disconnect all
+        // lives there — and a second route to it on desktop costs nothing.
+        const PopupMenuItem<_ProfileMenuAction>(
+          value: _ProfileMenuAction.disconnectAll,
+          child: Text('Disconnect all'),
+        ),
         const PopupMenuItem<_ProfileMenuAction>(
           value: _ProfileMenuAction.profiles,
           child: Text('All profiles'),
@@ -329,6 +351,8 @@ class _ProfileMenuButtonState extends ConsumerState<_ProfileMenuButton> {
     switch (action) {
       case _ProfileMenuAction.edit:
         if (model != null) widget.onEditProfile(model);
+      case _ProfileMenuAction.disconnectAll:
+        widget.onDisconnectAll();
       case _ProfileMenuAction.profiles:
         ref.read(equipmentTabIndexProvider.notifier).state = 1;
       case _ProfileMenuAction.settings:

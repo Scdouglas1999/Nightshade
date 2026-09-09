@@ -182,36 +182,45 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
               // 700 px header does not have, and the TITLE was the thing that
               // gave way ("Equi…"). The verbs move into the tooltips instead:
               // a truncated screen name is a worse trade than an icon.
-              if (narrowHeader)
-                NightshadeIconButton(
-                  icon: LucideIcons.unplug,
-                  tooltip: 'Disconnect all',
-                  onPressed: _disconnectAllDevices,
-                )
-              else
-                NightshadeButton(
-                  label: 'Disconnect all',
-                  icon: LucideIcons.unplug,
-                  variant: ButtonVariant.secondary,
-                  size: ButtonSize.small,
-                  onPressed: _disconnectAllDevices,
-                ),
-              if (narrowHeader)
-                NightshadeIconButton(
-                  icon: LucideIcons.search,
-                  tooltip: 'Scan for devices',
-                  selected: true,
-                  onPressed: () =>
-                      ref.read(discoveryScanRequestProvider.notifier).state++,
-                )
-              else
-                NightshadeButton(
-                  label: 'Scan for devices',
-                  icon: LucideIcons.search,
-                  size: ButtonSize.small,
-                  onPressed: () =>
-                      ref.read(discoveryScanRequestProvider.notifier).state++,
-                ),
+              // On a PHONE the header carries the title and the tabs and
+              // nothing else. A 32 px icon button is under Android's 48 dp tap
+              // target, and there is nowhere in a 360 dp row to put two
+              // 48 px ones beside a title and a chip — so both actions move to
+              // where they already exist: "Scan for devices" is the drawer's
+              // own "Scan all" (the same code path), and "Disconnect all" is in
+              // the profile menu.
+              if (!phoneHeader) ...[
+                if (narrowHeader)
+                  NightshadeIconButton(
+                    icon: LucideIcons.unplug,
+                    tooltip: 'Disconnect all',
+                    onPressed: _disconnectAllDevices,
+                  )
+                else
+                  NightshadeButton(
+                    label: 'Disconnect all',
+                    icon: LucideIcons.unplug,
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    onPressed: _disconnectAllDevices,
+                  ),
+                if (narrowHeader)
+                  NightshadeIconButton(
+                    icon: LucideIcons.search,
+                    tooltip: 'Scan for devices',
+                    selected: true,
+                    onPressed: () =>
+                        ref.read(discoveryScanRequestProvider.notifier).state++,
+                  )
+                else
+                  NightshadeButton(
+                    label: 'Scan for devices',
+                    icon: LucideIcons.search,
+                    size: ButtonSize.small,
+                    onPressed: () =>
+                        ref.read(discoveryScanRequestProvider.notifier).state++,
+                  ),
+              ],
             ],
           ),
           Expanded(
@@ -246,6 +255,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
                         onConnectAll: _connectAllDevices,
                         onEditProfile: (profile) =>
                             _showProfileEditor(context, profile),
+                        onDisconnectAll: _disconnectAllDevices,
                       ),
                   },
           ),
