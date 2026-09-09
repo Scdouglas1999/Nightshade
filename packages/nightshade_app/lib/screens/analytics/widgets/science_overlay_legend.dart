@@ -84,22 +84,16 @@ class ScienceOverlayLegend {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: NightshadeDecorations.tintedBadge(
-                colors.primary,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              ),
+              decoration:
+                  NightshadeDecorations.chip(colors, tone: colors.primary),
               child: Icon(entry.icon, color: colors.primary, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 entry.label,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize17,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: NightshadeTypography.sectionTitle.copyWith(
+                    color: colors.textPrimary, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -115,11 +109,8 @@ class ScienceOverlayLegend {
             children: [
               Text(
                 entry.summary,
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize13,
-                  height: 1.5,
-                ),
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textSecondary, height: 1.5),
               ),
               if (entry.gradientStops != null &&
                   entry.gradientColors != null) ...[
@@ -203,7 +194,6 @@ class _GradientRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final swatchSize = compact ? 10.0 : 14.0;
-    final fontSize = compact ? 10.0 : 11.0;
     // The entries above name the ramp as fixed [NightshadeChartColors]
     // constants; this is where it becomes a painted colour. Red night is a
     // WAVELENGTH constraint, so drawing `seriesGreen` raw put a solid green
@@ -229,8 +219,9 @@ class _GradientRow extends StatelessWidget {
       children.add(
         Text(
           stops[i],
-          style: TextStyle(
-            fontSize: fontSize,
+          // 03 §2: 10 and 11 are not sizes. A legend stop is a caption in
+          // both the compact and the full legend.
+          style: NightshadeTypography.caption.copyWith(
             color: colors.textSecondary,
             fontWeight: FontWeight.w500,
           ),

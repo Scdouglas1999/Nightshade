@@ -90,9 +90,9 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SectionHeader(
+        const SectionTitle(
+          icon: NightshadeIcons.layers,
           title: 'Integration',
-          subtitle: 'Choose a profile, or open Advanced for full control.',
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         _PresetChips(
@@ -385,7 +385,7 @@ class _PresetChips extends StatelessWidget {
           ),
           selected: selected,
           selectedColor: colors.primary.withValues(alpha: 0.2),
-          backgroundColor: colors.surfaceAlt,
+          backgroundColor: colors.well,
           side: BorderSide(color: selected ? colors.primary : colors.border),
           onSelected: (_) => onSelected(preset),
           visualDensity: VisualDensity.compact,
@@ -425,8 +425,7 @@ class _ReadoutCard extends StatelessWidget {
       RejectAlgorithm.auto => 'Auto',
     };
     final cull = autoCullPercentile;
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

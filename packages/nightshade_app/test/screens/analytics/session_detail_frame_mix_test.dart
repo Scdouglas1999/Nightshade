@@ -111,17 +111,20 @@ void main() {
     // The stats block now carries a THIRD reading beside those two: the
     // culling's verdict on the light frames. The four darks are excluded —
     // calibration is never graded, so counting it would inflate Accepted.
-    expect(
-      find.descendant(
-        of: find
-            .ancestor(
-              of: find.text('Accepted'),
-              matching: find.byType(Column),
-            )
-            .first,
-        matching: find.text('12'),
-      ),
-      findsOneWidget,
-    );
+    // The pair is one Readout widget now, so the test reads the widget
+    // instead of walking to the Column that used to hold label and value as
+    // separate Texts. Scoped to the dialog: the History row behind it carries
+    // readouts of its own.
+    final accepted = tester
+        .widgetList<Readout>(
+          find.descendant(
+            of: find.byType(Dialog),
+            matching: find.byType(Readout),
+          ),
+        )
+        .where((r) => r.label == 'Accepted')
+        .toList(growable: false);
+    expect(accepted, hasLength(1));
+    expect(accepted.single.value, '12');
   });
 }

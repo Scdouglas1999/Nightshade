@@ -7,20 +7,16 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       children: [
         Text(
           'Matching detected stars to catalog',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w500,
-          ),
+          style:
+              NightshadeTypography.button.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Text(
           'Nightshade is matching stars detected in the selected frame against '
           'the star catalog. Stars with a known V magnitude and B-V color '
           'index will be used for the transformation fit.',
-          style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 16),
         if (_isComputing)
@@ -41,11 +37,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         if (failed) ...[
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: NightshadeDecorations.emphasisSurface(
-              colors.error,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-            ),
+            decoration: NightshadeDecorations.chip(colors, tone: colors.error),
             child: Row(
               children: [
                 Icon(LucideIcons.alertTriangle, color: colors.error, size: 16),
@@ -81,10 +73,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: NightshadeDecorations.emphasisSurface(
-            colors.success,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          ),
+          decoration: NightshadeDecorations.chip(colors, tone: colors.success),
           child: Row(
             children: [
               Icon(LucideIcons.checkCircle2, color: colors.success, size: 16),
@@ -102,12 +91,10 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
           const SizedBox(height: 8),
           Text(
             _statusMessage,
-            style: TextStyle(
-              color: _statusMessage.contains('extinction is fittable')
-                  ? colors.success
-                  : colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: _statusMessage.contains('extinction is fittable')
+                    ? colors.success
+                    : colors.textSecondary),
           ),
         ],
         const SizedBox(height: 8),
@@ -125,9 +112,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                     width: 30,
                     child: Text(
                       '${index + 1}',
-                      style: TextStyle(
-                          color: colors.textMuted,
-                          fontSize: NightshadeTypography.fontSize11),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
                   Expanded(
@@ -136,11 +122,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                       'B-V=${match.colorIndex.toStringAsFixed(2)}  '
                       'Flux=${match.instrumentalFlux.toStringAsFixed(0)}  '
                       'SNR=${match.snr.toStringAsFixed(1)}',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontFamily: 'monospace',
-                      ),
+                      style: NightshadeTypography.monoCaption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ),
                 ],

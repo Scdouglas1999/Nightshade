@@ -27,7 +27,7 @@ class _FlakyProfilesDao extends EquipmentProfilesDao {
 
 /// The Profile Name field is the first text field in the form.
 Finder get _nameField => find.byType(TextField).first;
-Finder get _saveButton => find.text('Save Changes');
+Finder get _saveButton => find.text('Save changes');
 
 /// Locate an optics field by its hint plus its `mm` suffix, so the finder does
 /// not depend on field ordering and does not collide with the Gain field, which
@@ -157,7 +157,7 @@ void main() {
 
     // The derived readout must not report an impossible ratio as a fact.
     expect(find.textContaining('9999999990000'), findsNothing);
-    expect(find.text('---'), findsWidgets);
+    expect(find.text(kReadoutUnknown), findsWidgets);
 
     await tester.tap(_saveButton);
     await tester.pump();

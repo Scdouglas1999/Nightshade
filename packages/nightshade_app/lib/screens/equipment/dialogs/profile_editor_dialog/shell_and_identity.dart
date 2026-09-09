@@ -50,11 +50,8 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         '• $message',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textPrimary,
-                          height: 1.35,
-                        ),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textPrimary, height: 1.35),
                       ),
                     ),
                 ],
@@ -112,11 +109,13 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
               ],
             ),
           ),
-          IconButton(
-            onPressed:
-                _isSaving ? null : () => Navigator.of(context).pop(false),
-            icon: Icon(LucideIcons.x, color: colors.textMuted),
-          ),
+          if (widget.mode == ProfileEditorMode.full)
+            NightshadeIconButton(
+              icon: LucideIcons.x,
+              tooltip: 'Close',
+              onPressed:
+                  _isSaving ? null : () => Navigator.of(context).pop(false),
+            ),
         ],
       ),
     );
@@ -131,16 +130,17 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          NightshadeButton(
-            onPressed:
-                _isSaving ? null : () => Navigator.of(context).pop(false),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-          ),
-          const SizedBox(width: 12),
+          if (widget.mode == ProfileEditorMode.full)
+            NightshadeButton(
+              onPressed:
+                  _isSaving ? null : () => Navigator.of(context).pop(false),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+            ),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           NightshadeButton(
             onPressed: _isSaving ? null : _save,
-            label: 'Save Changes',
+            label: 'Save changes',
             icon: LucideIcons.check,
             variant: ButtonVariant.primary,
             isLoading: _isSaving,
@@ -166,7 +166,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
         children: [
           // Name field
           NightshadeTextField(
-            label: 'Profile Name *',
+            label: 'Profile name *',
             controller: _nameController,
             hint: 'e.g., Main Imaging Rig, Widefield Setup',
             errorText: _nameError,
@@ -250,17 +250,13 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
                 onChanged: (v) => setState(() => _isDefault = v ?? false),
                 title: Text(
                   'Default profile',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize14,
-                  ),
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textPrimary),
                 ),
                 subtitle: Text(
                   'Set as active profile on startup',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 activeColor: colors.primary,
                 checkColor: Theme.of(context).colorScheme.onPrimary,

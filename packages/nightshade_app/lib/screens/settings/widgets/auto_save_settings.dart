@@ -140,7 +140,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
     if (isRemoteClient) {
       return SettingsPage(
-        title: 'Automatic Backups',
+        title: 'Automatic backups',
         description: 'Backups run on the imaging host',
         isMobile: isMobile,
         hideHeader: isMobile || widget.embedded,
@@ -200,14 +200,14 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
         ref.watch(autoSaveStatusProvider).valueOrNull ?? service.status;
 
     return SettingsPage(
-      title: 'Automatic Backups',
+      title: 'Automatic backups',
       description: 'Schedule recurring backups of Nightshade data',
       isMobile: isMobile,
       hideHeader: isMobile || widget.embedded,
       scrollable: !widget.embedded,
       children: [
         SettingsSection(
-          title: 'Sequence Auto-Save',
+          title: 'Sequence auto-save',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -252,7 +252,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
         // Backup section
         SettingsSection(
-          title: 'Automatic Backups',
+          title: 'Automatic backups',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -333,8 +333,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         status.lastBackup,
                         config.backupInterval,
                       ),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                         color: colors.textMuted,
                       ),
                     ),
@@ -367,8 +366,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                   const SizedBox(width: 12),
                   Text(
                     'Creates a full backup immediately',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textMuted,
                     ),
                   ),

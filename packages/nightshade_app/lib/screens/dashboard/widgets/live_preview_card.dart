@@ -142,10 +142,8 @@ class _CaptureStatusIndicator extends ConsumerWidget {
           isCapturing
               ? context.l10n.text('capturing')
               : context.l10n.text('idle'),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: isCapturing ? colors.success : colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption.copyWith(
+              color: isCapturing ? colors.success : colors.textSecondary),
         ),
       ],
     );
@@ -225,19 +223,16 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       isConnected
                           ? context.l10n.text('noImage')
                           : context.l10n.text('noCameraConnected'),
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textSecondary),
+                      style: NightshadeTypography.button
+                          .copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       isConnected
                           ? context.l10n.text('takeSnapshotOrStartSequence')
                           : context.l10n.text('connectCameraInEquipment'),
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -260,11 +255,11 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                   ),
                   child: Text(
                     '${(_currentZoom * 100).toInt()}%',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w600,
+                    // A zoom percentage is a readout, so it takes the mono
+                    // caption style rather than a hand-rolled 'monospace'
+                    // family the app does not otherwise ship.
+                    style: NightshadeTypography.monoCaption.copyWith(
                       color: colors.textSecondary,
-                      fontFamily: 'monospace',
                     ),
                   ),
                 ),
@@ -286,10 +281,8 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                   ),
                   child: Text(
                     '${currentImage.width} × ${currentImage.height}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
               ),
@@ -331,20 +324,20 @@ class _ImageStatsRow extends ConsumerWidget {
                   label: 'Size',
                   value: width != null && height != null
                       ? '${width}x$height'
-                      : '---',
+                      : kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Stars',
-                  value: lastStats?.starCount?.toString() ?? '---',
+                  value: lastStats?.starCount?.toString() ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'HFR',
-                  value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
+                  value: lastStats?.hfr?.toStringAsFixed(2) ?? kReadoutUnknown,
                   colors: colors,
                   highlight: true),
               _StatCell(
                   label: 'FWHM',
-                  value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---',
+                  value: lastStats?.fwhm?.toStringAsFixed(2) ?? kReadoutUnknown,
                   colors: colors),
             ],
           ),
@@ -354,19 +347,20 @@ class _ImageStatsRow extends ConsumerWidget {
             children: [
               _StatCell(
                   label: 'Mean',
-                  value: lastStats?.mean?.toStringAsFixed(0) ?? '---',
+                  value: lastStats?.mean?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Median',
-                  value: lastStats?.median?.toStringAsFixed(0) ?? '---',
+                  value:
+                      lastStats?.median?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Min',
-                  value: lastStats?.min?.toStringAsFixed(0) ?? '---',
+                  value: lastStats?.min?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
               _StatCell(
                   label: 'Max',
-                  value: lastStats?.max?.toStringAsFixed(0) ?? '---',
+                  value: lastStats?.max?.toStringAsFixed(0) ?? kReadoutUnknown,
                   colors: colors),
             ],
           ),
@@ -403,9 +397,8 @@ class _StatCell extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),

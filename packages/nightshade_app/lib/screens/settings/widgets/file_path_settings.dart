@@ -326,7 +326,7 @@ class FilePathSettings extends ConsumerWidget {
         final hostHint = isRemoteMode ? ' (on imaging host)' : '';
         return SettingsPage(
           key: SettingsTutorialKeys.filePaths,
-          title: 'File Paths',
+          title: 'File paths',
           description: isRemoteMode
               ? 'Storage locations on the connected imaging host'
               : 'Configure storage locations',
@@ -390,7 +390,7 @@ class FilePathSettings extends ConsumerWidget {
             ),
             if (!isRemoteMode)
               SettingsSection(
-                title: 'Application Data',
+                title: 'Application data',
                 children: [
                   _AppDataFolderRow(isMobile: isMobile),
                   _BackupFolderRow(isMobile: isMobile),
@@ -578,7 +578,7 @@ class _BackupFolderRow extends ConsumerWidget {
           NightshadeButton(
             label: 'Change…',
             icon: LucideIcons.folderOpen,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () async {
               final picked = await ref.read(filePathSettingsPickerProvider)(

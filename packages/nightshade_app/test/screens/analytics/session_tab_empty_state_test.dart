@@ -119,7 +119,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Quick Capture'), findsOneWidget);
-    expect(find.byType(ResponsiveStatStrip), findsOneWidget);
+    // The four summary numbers are Readouts since the Observatory pass. The
+    // charts below carry readouts of their own (median / p90 / range / n), so
+    // this asserts the four the summary panel owns, by label.
+    final labels = tester
+        .widgetList<Readout>(find.byType(Readout))
+        .map((r) => r.label)
+        .toList(growable: false);
+    expect(labels, containsAll(<String>['Exposures', 'Median HFR']));
   });
 
   testWidgets('with sessions on record the picker stays and says so',

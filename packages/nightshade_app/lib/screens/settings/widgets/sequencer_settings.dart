@@ -75,7 +75,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   ) {
     final notifier = ref.read(sequencerDefaultsProvider.notifier);
     return SettingsSection(
-      title: 'Live Stacking & Broadcast',
+      title: 'Live stacking & broadcast',
       children: [
         SettingRow(
           icon: LucideIcons.shieldOff,
@@ -210,7 +210,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         flipSettings.triggerMethod.supportsStandaloneMonitoring;
 
     return SettingsSection(
-      title: 'Meridian Flip',
+      title: 'Meridian flip',
       children: [
         // Standalone monitoring
         SettingRow(
@@ -559,7 +559,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             ),
             _buildMeridianFlipSection(flipSettings, authority),
             SettingsSection(
-              title: 'Auto Focus',
+              title: 'Auto focus',
               children: [
                 SettingRow(
                   icon: LucideIcons.focus,
@@ -696,7 +696,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             // Placed before Development so the user always sees the
             // toggle (Development section is hidden in release builds).
             SettingsSection(
-              title: 'Notes & Journal',
+              title: 'Notes & journal',
               children: [
                 SettingRow(
                   icon: LucideIcons.bookOpen,
@@ -721,7 +721,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             // them back on next launch so preferences persist across
             // restarts.
             SettingsSection(
-              title: 'Smart Night Defaults',
+              title: 'Smart night defaults',
               children: [
                 SettingRow(
                   icon: LucideIcons.bell,

@@ -256,10 +256,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           'accumulated so far cannot be recovered afterwards. Save the '
           'stacked master first — a FITS master carrying the integration time '
           'and frame count — or discard it and stop.',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
       ),
     );
@@ -580,9 +578,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Status',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Container(
@@ -625,10 +622,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                       'the next captured frame becomes the reference and every '
                       'frame after is stacked automatically, even while this '
                       'tablet is asleep.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: widget.colors.textMuted,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.textMuted),
                     ),
                   ),
 
@@ -806,9 +801,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Enabled',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
                     NightshadeSwitch(
                       value: config.sigmaClipEnabled,
                       onChanged: (value) {

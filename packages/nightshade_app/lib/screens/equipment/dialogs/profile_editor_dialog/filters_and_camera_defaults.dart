@@ -27,7 +27,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(NightshadeTokens.radiusLg)),
             ),
@@ -37,7 +37,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   width: 36,
                   child: Text(
                     '#',
-                    style: NightshadeTypography.h6
+                    style: NightshadeTypography.body
                         .copyWith(color: colors.textMuted),
                   ),
                 ),
@@ -45,7 +45,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   flex: 2,
                   child: Text(
                     'Filter Name',
-                    style: NightshadeTypography.h6
+                    style: NightshadeTypography.body
                         .copyWith(color: colors.textMuted),
                   ),
                 ),
@@ -54,7 +54,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   width: dialogMaxWidth(context, 100),
                   child: Text(
                     'Focus Offset',
-                    style: NightshadeTypography.h6
+                    style: NightshadeTypography.body
                         .copyWith(color: colors.textMuted),
                   ),
                 ),
@@ -77,7 +77,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       'No filters configured',
-                      style: TextStyle(color: colors.textMuted),
+                      style: NightshadeTypography.body
+                          .copyWith(color: colors.textMuted),
                     ),
                   )
                 else
@@ -102,7 +103,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
           Row(
             children: [
               NightshadeButton(
-                label: 'Add Filter',
+                label: 'Add filter',
                 icon: LucideIcons.plus,
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
@@ -191,10 +192,9 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                           value: _binning,
                           isExpanded: true,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          dropdownColor: colors.surfaceAlt,
-                          style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: NightshadeTypography.fontSize13),
+                          dropdownColor: colors.well,
+                          style: NightshadeTypography.bodySm
+                              .copyWith(color: colors.textPrimary),
                           items: [1, 2, 3, 4].map((b) {
                             return DropdownMenuItem(
                               value: b,
@@ -225,7 +225,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             children: [
               Expanded(
                 child: NightshadeTextField(
-                  label: 'Cooling Target',
+                  label: 'Cooling target',
                   controller: _coolingTargetController,
                   hint: 'e.g., -10',
                   suffix: '\u00B0C',
@@ -257,10 +257,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                               setState(() => _coolOnConnect = v ?? false),
                           title: Text(
                             'Cool on connect',
-                            style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: NightshadeTypography.fontSize13,
-                            ),
+                            style: NightshadeTypography.bodySm
+                                .copyWith(color: colors.textPrimary),
                           ),
                           activeColor: colors.primary,
                           checkColor: Theme.of(context).colorScheme.onPrimary,
@@ -283,7 +281,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             children: [
               Expanded(
                 child: NightshadeTextField(
-                  label: 'Centering Exposure',
+                  label: 'Centering exposure',
                   controller: _centeringExposureController,
                   hint: 'e.g., 5',
                   suffix: 's',
@@ -303,10 +301,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                     Text(
                       'Default exposure time used for plate-solve centering. '
                       'Can be adjusted per-session in the centering dialog.',
-                      style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize11,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -355,7 +351,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             onPressed: enabled ? () => _runAutoDetect(queryDeviceId) : null,
             icon: LucideIcons.zap,
             label: 'Auto-detect from camera',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _isQueryingRecommendation,
           ),
@@ -367,7 +363,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
         NightshadeButton(
           label: 'Camera library',
           icon: LucideIcons.camera,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: _pickCameraFromLibrary,
         ),
@@ -376,9 +372,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             constraints: const BoxConstraints(maxWidth: 240),
             child: Text(
               disabledReason,
-              style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize11),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
       ],
@@ -423,9 +418,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
+      child: NightshadePanel(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,7 +435,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   hasAny
                       ? 'Camera SDK reported:'
                       : 'Camera SDK did not report any recommendation',
-                  style: NightshadeTypography.h6
+                  style: NightshadeTypography.body
                       .copyWith(color: colors.textPrimary),
                 ),
               ],
@@ -457,11 +450,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
               const SizedBox(height: 6),
               Text(
                 rec.notes,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontStyle: FontStyle.italic,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.caption.copyWith(
+                    fontStyle: FontStyle.italic, color: colors.textMuted),
               ),
             ],
             if (canApplyGain || canApplyOffset) ...[
@@ -494,18 +484,16 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             width: 110,
             child: Text(
               '$label:',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           Text(
             value == null ? 'Not reported' : value.toString(),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: value == null ? colors.textMuted : colors.textPrimary,
-              fontWeight: value == null ? FontWeight.normal : FontWeight.w600,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: value == null ? colors.textMuted : colors.textPrimary,
+                fontWeight:
+                    value == null ? FontWeight.normal : FontWeight.w600),
           ),
         ],
       ),

@@ -54,10 +54,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
-import 'package:nightshade_app/screens/imaging/widgets/imaging_bottom_banner.dart';
+import 'package:nightshade_app/screens/imaging/widgets/imaging_capture_bar.dart';
+import 'package:nightshade_app/screens/imaging/widgets/imaging_side_panel.dart';
 import 'package:nightshade_app/screens/imaging/widgets/live_preview_area.dart';
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
-import 'package:nightshade_app/widgets/filter_wheel_selector.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/imaging_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -162,7 +162,9 @@ void main() {
     await _drainAsyncFrames(tester);
 
     final exposureRow = find.byWidgetPredicate(
-      (widget) => widget is InputRowEditable && widget.label == 'Exposure',
+      (widget) =>
+          widget is InlineNumberField &&
+          widget.semanticLabel == 'Exposure seconds',
     );
     final exposure = find.descendant(
       of: exposureRow,
@@ -188,9 +190,8 @@ void main() {
   });
 
   testWidgets(
-      'phone_layout_renders: width < 600 keeps the preview + a persistent '
-      'capture bar, with controls collapsed into AdaptivePanelLayout',
-      (tester) async {
+      'phone_layout_renders: width < 600 keeps the canvas and puts the '
+      'controls in a sheet with the shutter on it', (tester) async {
     // Phone tier per the mobile-responsive standard: width < 600. 390x844
     // is a modern phone in portrait. The screen now drives all tiers
     // through AdaptivePanelLayout (no bespoke mobile column), so we assert
@@ -205,23 +206,22 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(find.byType(LivePreviewArea), findsOneWidget);
-    expect(find.byType(AdaptivePanelLayout), findsOneWidget,
-        reason: 'All tiers route through AdaptivePanelLayout now.');
-    // The desktop-only ResizablePanel must be gone entirely.
-    expect(find.byType(ResizablePanel), findsNothing,
-        reason:
-            'AdaptivePanelLayout replaced the desktop-only ResizablePanel.');
-    // The primary capture action lives in the persistent bar under the
-    // preview, reachable without opening the controls sheet.
+    // Below the shell breakpoint the side panel becomes a bottom sheet, so
+    // the 44 px icon strip must not be on screen at all.
+    expect(find.byType(ImagingSidePanel), findsNothing,
+        reason: 'the narrow layout uses the controls sheet, not the strip');
+    expect(find.byType(ResizablePanel), findsNothing);
+    // The primary capture action is on the sheet, reachable without scrolling
+    // or expanding anything (mobile-responsive standard rule 5).
     expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsOneWidget,
         reason:
-            'On phones the Snapshot button must be visible under the preview '
-            'without opening the controls sheet (standard rule 5).');
+            'On phones the Snapshot button must be visible under the canvas '
+            'without opening anything (standard rule 5).');
   });
 
   testWidgets(
-      'desktop_layout_renders: width >= 768 picks the resizable split via '
-      'AdaptivePanelLayout', (tester) async {
+      'desktop_layout_renders: width >= 768 puts the side panel beside the '
+      'canvas and the capture bar over it', (tester) async {
     // 1600x900 is a representative laptop/desktop size. The desktop split
     // is now provided by AdaptivePanelLayout (resizable divider) rather
     // than the removed ResizablePanel; both the preview and the tab strip
@@ -235,17 +235,12 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(find.byType(LivePreviewArea), findsOneWidget);
-    expect(find.byType(PanelTabs), findsOneWidget);
-    expect(find.byType(AdaptivePanelLayout), findsOneWidget,
-        reason: 'Desktop layout is provided by AdaptivePanelLayout (resizable '
-            'split) now that ResizablePanel has been removed.');
+    expect(find.byType(ImagingSidePanel), findsOneWidget,
+        reason: 'the eight control sections live on the side-panel strip');
     expect(find.byType(ResizablePanel), findsNothing);
-    // Desktop keeps the thin bottom control banner (only rendered on the
-    // non-phone primary branch), proving we took that branch.
-    expect(find.byType(ImagingBottomBanner), findsOneWidget,
-        reason:
-            'The desktop primary column keeps the thin bottom control banner '
-            '(Snapshot/Loop + duration + filters + stats + display).');
+    // The capture bar is glass over the frame, not a full-width row under it.
+    expect(find.byType(ImagingCaptureBar), findsOneWidget,
+        reason: 'the desktop canvas carries the glass capture bar');
   });
 
   testWidgets(
@@ -296,12 +291,15 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.text('No Camera Connected'), findsOneWidget,
+    expect(find.text('No camera connected'), findsOneWidget,
         reason:
             'Camera error state must render the same empty preview as a plain '
             'disconnect so users see a clear "connect a camera" prompt rather '
             'than a blank canvas.');
-    expect(find.text('Connect a camera in Equipment settings'), findsOneWidget);
+    expect(
+      find.text('Connect a camera in Equipment to start imaging.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -318,10 +316,10 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    final disconnectedBtn = tester.widget<SmallButton>(
+    final disconnectedBtn = tester.widget<NightshadeButton>(
       find.byKey(ImagingTutorialKeys.snapshotBtn),
     );
-    expect(disconnectedBtn.isEnabled, isFalse,
+    expect(disconnectedBtn.onPressed, isNull,
         reason:
             'Snapshot button must be disabled when no camera is connected — '
             'firing _takeSnapshot would call the imaging service against null.');
@@ -359,18 +357,18 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    final snapshotBtn = tester.widget<SmallButton>(
+    final snapshotBtn = tester.widget<NightshadeButton>(
       find.byKey(ImagingTutorialKeys.snapshotBtn),
     );
-    expect(snapshotBtn.isEnabled, isTrue,
+    expect(snapshotBtn.onPressed, isNotNull,
         reason:
             'Snapshot button must be enabled when cameraStateProvider reports '
             'connected and no capture is in-flight.');
 
-    final loopBtn = tester.widget<SmallButton>(
+    final loopBtn = tester.widget<NightshadeButton>(
       find.byKey(ImagingTutorialKeys.loopBtn),
     );
-    expect(loopBtn.isEnabled, isTrue,
+    expect(loopBtn.onPressed, isNotNull,
         reason:
             'Loop button shares the isConnected gate; if it is disabled while '
             'Snapshot is enabled the gating logic has drifted.');
@@ -407,15 +405,15 @@ void main() {
     expect(find.text('Saving…'), findsOneWidget);
     expect(
       tester
-          .widget<SmallButton>(find.byKey(ImagingTutorialKeys.snapshotBtn))
-          .isEnabled,
-      isFalse,
+          .widget<NightshadeButton>(find.byKey(ImagingTutorialKeys.snapshotBtn))
+          .onPressed,
+      isNull,
     );
     expect(
       tester
-          .widget<SmallButton>(find.byKey(ImagingTutorialKeys.loopBtn))
-          .isEnabled,
-      isFalse,
+          .widget<NightshadeButton>(find.byKey(ImagingTutorialKeys.loopBtn))
+          .onPressed,
+      isNull,
     );
 
     service.capturePersistence.complete();
@@ -423,9 +421,9 @@ void main() {
     expect(find.text('Snapshot'), findsOneWidget);
     expect(
       tester
-          .widget<SmallButton>(find.byKey(ImagingTutorialKeys.snapshotBtn))
-          .isEnabled,
-      isTrue,
+          .widget<NightshadeButton>(find.byKey(ImagingTutorialKeys.snapshotBtn))
+          .onPressed,
+      isNotNull,
     );
     expect(tester.takeException(), isNull);
   });
@@ -466,78 +464,8 @@ void main() {
   });
 
   testWidgets(
-      'filter_change_updates_selected_filter: filterWheelStateProvider drives the '
-      'highlighted button inside the imaging control panel', (tester) async {
-    // The control panel embeds FilterWheelSelector in
-    // FilterSelectorStyle.buttons mode. With three filter names and
-    // currentPosition=1, the middle ("Green") button must be selected
-    // (FontWeight.bold + opaque color), and the others must be
-    // unselected. We assert via the Text widget's TextStyle so the test
-    // pins on the visible-to-user signal, not on internal _FilterButton
-    // identity (which is private).
-    await pumpAppScreen(
-      tester,
-      const ImagingScreen(),
-      size: const Size(1600, 900),
-      settle: false,
-      extraOverrides: [
-        cameraStateProvider.overrideWith((ref) {
-          final notifier = CameraStateNotifier(ref);
-          notifier
-            ..setConnecting('test-cam-1', 'Test Camera')
-            ..setConnected();
-          return notifier;
-        }),
-        filterWheelStateProvider.overrideWith((ref) {
-          final notifier = FilterWheelStateNotifier(ref);
-          notifier
-            ..setConnecting('test-fw-1', 'Test Wheel')
-            ..setConnected(filterNames: const ['Red', 'Green', 'Blue'])
-            ..updatePosition(1);
-          return notifier;
-        }),
-      ],
-    );
-    await _drainAsyncFrames(tester);
-
-    // Sanity: all three filter buttons rendered.
-    expect(find.text('Red'), findsWidgets);
-    expect(find.text('Green'), findsWidgets);
-    expect(find.text('Blue'), findsWidgets);
-
-    // The selector lives under the filter-selector tutorial key.
-    final selector = find.byKey(ImagingTutorialKeys.filterSelector);
-    expect(selector, findsOneWidget);
-
-    // Inside that selector, find the three label Texts and verify
-    // Green (position 1) is bold while Red and Blue are not. Why scope
-    // by descendant: the panel also has Text widgets elsewhere
-    // ("Capture", "Filter"…) that we don't want to match.
-    final greenText = tester.widget<Text>(
-      find.descendant(of: selector, matching: find.text('Green')),
-    );
-    final redText = tester.widget<Text>(
-      find.descendant(of: selector, matching: find.text('Red')),
-    );
-    final blueText = tester.widget<Text>(
-      find.descendant(of: selector, matching: find.text('Blue')),
-    );
-    expect(greenText.style?.fontWeight, equals(FontWeight.bold),
-        reason:
-            'Position 1 (Green) must be rendered bold to signal selection.');
-    expect(redText.style?.fontWeight, equals(FontWeight.normal),
-        reason: 'Non-selected filter labels must not be bold.');
-    expect(blueText.style?.fontWeight, equals(FontWeight.normal));
-
-    // Sanity: the FilterWheelSelector type is the widget we expect (rules
-    // out the import shadowing into a stub).
-    expect(find.byType(FilterWheelSelector), findsOneWidget);
-  });
-
-  testWidgets(
-      'camera_temperature_displays_when_connected: the bottom banner stats '
-      'readout formats cameraStateProvider.temperature as "X.X°C"',
-      (tester) async {
+      'camera_temperature_displays_when_connected: the Capture section chip '
+      'formats cameraStateProvider.temperature as "X.X °C"', (tester) async {
     // The banner's stats readout renders '---' when disconnected, 'N/A' when
     // connected without a temperature reading, and 'X.X°C' when both
     // are present. We exercise the happy path: connected + 17.3°C →
@@ -564,19 +492,16 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(find.byKey(ImagingTutorialKeys.statsPanel), findsOneWidget,
-        reason:
-            'The banner stats readout renders only when the desktop control '
-            'banner is wide enough to fit it; 1600x900 should clear that '
-            'threshold.');
-    expect(find.text('17.3°C'), findsOneWidget,
-        reason: 'The connected camera temperature must surface in the sensor '
-            'stat readout — a missing match means the cameraStateProvider '
-            '→ banner stats binding has drifted.');
+        reason: 'the frame-stats glass owns the top-left corner of the canvas');
+    expect(find.text('17.3 °C'), findsWidgets,
+        reason: 'The connected camera temperature must surface on the Capture '
+            'section chip — a missing match means the cameraStateProvider '
+            'binding has drifted.');
   });
 
   testWidgets(
-      'switching_tabs_preserves_selectedImagingPanelProvider: tapping the '
-      'Camera tab flips selectedImagingPanelProvider to index 1',
+      'switching_sections_preserves_selectedImagingPanelProvider: tapping the '
+      'Camera strip button flips selectedImagingPanelProvider to index 1',
       (tester) async {
     // The IndexedStack is driven by selectedImagingPanelProvider, and
     // _selectPanel() updates the state-notifier. Tapping the Camera tab
@@ -595,19 +520,17 @@ void main() {
     // Sanity: the provider starts at 0 (Capture).
     expect(handle.container.read(selectedImagingPanelProvider), equals(0));
 
-    // The Camera tab label appears in PanelTabs. Tap it.
-    // Why find.text(...).first: 'Camera' may also appear elsewhere on
-    // screen (e.g. an icon label inside CameraPanel content); the tabs
-    // are rendered first in widget order so .first targets the strip.
-    await tester.tap(find.text('Camera').first);
+    // The Camera section is an icon on the side-panel strip; its tooltip is
+    // its accessible name, which is the only text it has.
+    await tester.tap(find.bySemanticsLabel('Camera').first);
     // Drain frames so the StateNotifier write propagates and the
     // _fadeController.reset()/forward() chain stabilises.
     await _drainAsyncFrames(tester);
 
     expect(handle.container.read(selectedImagingPanelProvider), equals(1),
-        reason:
-            'Tapping Camera tab must advance selectedImagingPanelProvider to 1 '
-            'so the panel state survives a route push/pop or hot reload.');
+        reason: 'Tapping the Camera strip button must advance '
+            'selectedImagingPanelProvider to 1 so the section survives a route '
+            'push/pop or hot reload.');
   });
 
   // The "Calibrated" badge surfaces in the upper-right of the
@@ -758,31 +681,22 @@ void main() {
             reason: 'ImagingScreen at $size ($orientation) must not overflow.');
 
         // Primary capture action reachable without opening a sheet. WHERE it
-        // lives differs by orientation, but it must ALWAYS exist — the audit
-        // found this screen with no exposure-start control at all in the
-        // landscape band:
-        //  * Portrait: controls collapse to a sheet, so the persistent bottom
-        //    capture bar carries the Snapshot button (its tutorial key).
-        //  * Landscape: the controls sit in a side-by-side split beside the
-        //    image, and the bottom bar is omitted there because stacking it
-        //    would overflow the short (~390 px) height — so the Capture TAB
-        //    carries the same keyed Snapshot/Loop cluster instead.
+        // lives differs by width, but it must ALWAYS exist — the audit found
+        // this screen with no exposure-start control at all in the landscape
+        // band:
+        //  * Below the shell breakpoint: the controls sheet carries a
+        //    full-width Snapshot button.
+        //  * Above it: the glass capture bar over the frame carries it.
         expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsOneWidget,
             reason: 'Every layout must offer a Snapshot button at $size '
                 '($orientation).');
-        final snapshotBtn = tester.widget<BigActionButton>(
+        final snapshotBtn = tester.widget<NightshadeButton>(
           find.byKey(ImagingTutorialKeys.snapshotBtn),
         );
-        expect(snapshotBtn.isEnabled, isTrue,
+        expect(snapshotBtn.onPressed, isNotNull,
             reason:
                 'With a connected camera the Snapshot button must be enabled '
                 'at $size ($orientation).');
-        if (orientation == 'landscape') {
-          expect(find.byType(PanelTabs), findsOneWidget,
-              reason:
-                  'Landscape shows the controls beside the image (split), so '
-                  'the tab strip must be visible at $size.');
-        }
 
         // The live preview keeps the dominant region.
         expect(find.byType(LivePreviewArea), findsOneWidget);

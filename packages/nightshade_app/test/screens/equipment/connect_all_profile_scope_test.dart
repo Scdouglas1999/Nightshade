@@ -1,4 +1,4 @@
-// "Connect All" must connect the PROFILE, and the same profile every time.
+// "Connect all" must connect the PROFILE, and the same profile every time.
 //
 // Live finding: the first press connected the profile's four devices; an
 // identical press five minutes later — after the Discovery panel had re-scanned
@@ -98,7 +98,8 @@ void main() {
       (tester) async {
     final container = await _pumpEquipment(tester);
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Connect All'));
+    await tester
+        .tap(find.widgetWithText(NightshadeButton, 'Connect devices').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 

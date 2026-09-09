@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../theme/nightshade_colors.dart';
+import '../../theme/nightshade_typography.dart';
 
 /// Widget that displays the PHD2 guide star subframe image
 ///
@@ -97,7 +98,8 @@ class _GuideStarViewState extends State<GuideStarView> {
               : null,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF0A0A12),
+              // Same rule as the empty state: the frame is an image surface.
+              color: _frameInk(colors).background,
               border: Border.all(
                 color: _frameColor(colors).withValues(alpha: 0.5),
                 width: 2,
@@ -190,10 +192,15 @@ class _GuideStarViewState extends State<GuideStarView> {
   }
 
   Widget _buildEmptyState(BoxConstraints constraints, NightshadeColors colors) {
+    // The frame is an image surface, and an astro frame is dark in every
+    // theme (05 §14). So its ink comes from the DARK palette, not the active
+    // one: in the light theme `textMuted` is a dark grey and this message
+    // rendered at about 1.5:1 on the black frame.
+    final frame = _frameInk(colors);
     return Container(
       width: constraints.maxWidth,
       height: constraints.maxHeight,
-      color: const Color(0xFF0A0A12),
+      color: frame.background,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -201,19 +208,21 @@ class _GuideStarViewState extends State<GuideStarView> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt.withValues(alpha: 0.5),
+                color: frame.surfaceHover,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 LucideIcons.starOff,
                 size: 20,
-                color: colors.textMuted,
+                color: frame.textMuted,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               widget.statusMessage,
-              style: TextStyle(color: colors.textMuted, fontSize: 11),
+              style: NightshadeTypography.caption.copyWith(
+                color: frame.textSecondary,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -221,6 +230,11 @@ class _GuideStarViewState extends State<GuideStarView> {
       ),
     );
   }
+
+  /// The palette to draw ON the frame with: the dark one, or the red-night one
+  /// when that is active (red night keeps its own axis over imagery too).
+  static NightshadeColors _frameInk(NightshadeColors colors) =>
+      colors.isRedNight ? colors : NightshadeColors.dark;
 
   Future<ui.Image> _createImage() async {
     if (_cachedImage != null && widget.pixels == _lastPixels) {

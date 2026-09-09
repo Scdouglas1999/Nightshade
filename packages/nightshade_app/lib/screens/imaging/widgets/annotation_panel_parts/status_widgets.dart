@@ -1,60 +1,35 @@
 part of '../annotation_panel.dart';
 
-class AnnotationCatalogBanner extends StatelessWidget {
-  final NightshadeColors colors;
-  final VoidCallback onDismiss;
+/// The ONE place the "annotations need a catalog" problem is stated on this
+/// screen (02 rule 5, 05 §11).
+///
+/// It used to be three: a full-width info bar above the viewer, a box floating
+/// over the frame, and a modal on the first snapshot. The same problem is also
+/// step 4 of the Tonight checklist; here it is a single inline banner inside
+/// the section it blocks, and it self-hides when a catalog is installed or
+/// annotations are off.
+class AnnotationCatalogBanner extends ConsumerWidget {
+  const AnnotationCatalogBanner({super.key, required this.onSetup});
+
+  /// Opens the catalog settings.
   final VoidCallback onSetup;
 
-  const AnnotationCatalogBanner({
-    super.key,
-    required this.colors,
-    required this.onDismiss,
-    required this.onSetup,
-  });
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: NightshadeTokens.opacityMedium),
-        border: Border(
-          bottom: BorderSide(
-            color: colors.primary
-                .withValues(alpha: NightshadeTokens.opacityStrong),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(NightshadeIcons.info, size: 16, color: colors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Annotations are enabled but no catalog is installed. Download the annotation catalog to identify objects in your images.',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          NightshadeButton(
-            onPressed: onSetup,
-            label: 'Setup',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          IconButton(
-            icon:
-                Icon(NightshadeIcons.close, size: 16, color: colors.textMuted),
-            onPressed: onDismiss,
-            tooltip: 'Dismiss',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-        ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(annotationSettingsProvider).valueOrNull;
+    final status = ref.watch(annotationStateProvider).status;
+    final missing = status == AnnotationStatus.catalogsNotInstalled;
+    if (settings?.enabled != true || !missing) return const SizedBox.shrink();
+
+    return NightshadeBanner(
+      title: 'No object catalog installed',
+      message: 'Download it to name the galaxies and nebulae in your frames.',
+      tone: BannerTone.warning,
+      action: NightshadeButton(
+        label: 'Download',
+        variant: ButtonVariant.secondary,
+        size: ButtonSize.small,
+        onPressed: onSetup,
       ),
     );
   }
@@ -189,20 +164,16 @@ class AnnotationEmptyState extends ConsumerWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize13,
-              ),
+              style:
+                  NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
             ),
             if (hint != null) ...[
               const SizedBox(height: 8),
               Text(
                 hint,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textMuted.withValues(alpha: 0.7),
-                  fontSize: NightshadeTypography.fontSize11,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted.withValues(alpha: 0.7)),
               ),
             ],
           ],
@@ -326,22 +297,18 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                             ? emptyResultHeadline
                             : (annotationState.message ??
                                 _getStatusText(annotationState.status)),
-                    style: TextStyle(
-                      color: _getTextColor(presentationStatus),
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: NightshadeTypography.caption.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: _getTextColor(presentationStatus)),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (secondaryMessage != null)
                     Text(
                       secondaryMessage,
-                      style: TextStyle(
-                        color: _getTextColor(presentationStatus)
-                            .withValues(alpha: 0.7),
-                        fontSize: NightshadeTypography.fontSize10,
-                      ),
+                      style: NightshadeTypography.caption.copyWith(
+                          color: _getTextColor(presentationStatus)
+                              .withValues(alpha: 0.7)),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),

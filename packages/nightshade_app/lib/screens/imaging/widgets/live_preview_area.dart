@@ -9,13 +9,13 @@ import 'package:path/path.dart' as p;
 import '../../../widgets/raw_preview_status_badge.dart';
 import '../../../utils/preview_transform.dart';
 import '../../../widgets/catalog_overlay_widget.dart';
-import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
 import 'frame_science_chip.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
+import 'imaging_hud.dart';
 import 'narrator_ticker.dart';
 import 'overlay_painters.dart';
 import 'overlay_widgets.dart';
@@ -38,6 +38,15 @@ class LivePreviewArea extends ConsumerStatefulWidget {
   /// [ExposureProgressOverlay.isAborting].
   final bool isStoppingCapture;
 
+  /// How wide the glass capture bar is on this canvas, or zero when the layout
+  /// does not draw one (below the shell breakpoint the controls sheet carries
+  /// the shutter instead).
+  ///
+  /// The canvas needs it to keep its bottom-right histogram off the bar; the
+  /// SCREEN is what knows both, so it passes the answer down rather than the
+  /// bar leaving a value behind for the canvas to misread.
+  final double captureBarWidth;
+
   /// Scroll-wheel zoom handlers. The discrete zoom/fit/1:1 buttons and overlay
   /// toggles now live in the off-canvas [ImagingPreviewToolbar] above the
   /// preview, so the canvas itself only needs the wheel handlers to keep
@@ -57,16 +66,40 @@ class LivePreviewArea extends ConsumerStatefulWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onPanUpdate,
+    this.captureBarWidth = 0,
   });
 
   @override
   ConsumerState<LivePreviewArea> createState() => _LivePreviewAreaState();
 }
 
-/// Vertical band at the bottom of the preview canvas owned by the corner
-/// readouts (histogram bottom-left, image stats bottom-right). Content centred
-/// in the canvas must keep clear of it.
+/// Vertical band at the bottom of the preview canvas owned by the capture bar
+/// and the histogram. Content centred in the canvas must keep clear of it.
 const double _cornerReadoutBandHeight = 120.0;
+
+/// Distance from the canvas edge to a glass HUD panel
+/// (`mockups/imaging.html`: 14 px).
+const double _hudInset = 14.0;
+
+/// Vertical room the capture bar needs above the canvas edge: its own height
+/// plus the gap it sits on plus the gap above it.
+const double _captureBarBand = NightshadeTokens.spaceLg + 48 + _hudInset;
+
+/// Where the bottom-right histogram sits.
+///
+/// The capture bar is CENTRED, so what the histogram competes for is the slack
+/// on one side of it. The histogram keeps the corner while that slack holds
+/// the panel, and steps up over the bar when it does not. A zero
+/// [captureBarWidth] means the bar has not been laid out yet, or is not on
+/// screen at all — the corner's case either way.
+double _histogramBottom({
+  required double canvasWidth,
+  required double captureBarWidth,
+}) {
+  final slack = (canvasWidth - captureBarWidth) / 2;
+  final clears = slack >= HistogramHud.width + 2 * _hudInset;
+  return clears ? _hudInset : _hudInset + _captureBarBand;
+}
 
 /// Whether the on-canvas measurement readouts — the histogram, the HFR / ECC /
 /// star-count chip and the image-stats panel — are drawn.
@@ -125,9 +158,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
     final onPanUpdate = widget.onPanUpdate;
     final currentImage = ref.watch(currentImageProvider);
     final readoutsVisible = ref.watch(previewReadoutsVisibleProvider);
-    final previewHistogram = ref.watch(previewDisplayHistogramProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
-    final lastStats = ref.watch(lastImageStatsProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final starDetectionResult = ref.watch(starDetectionResultProvider);
     final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull;
@@ -290,7 +321,9 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                 ? () => FullscreenImageViewer.show(context, currentImage)
                 : null,
             child: Container(
-              color: const Color(0xFF08080C),
+              // The canvas is a photo backdrop, so it stays on the dark
+              // ladder in every theme, exactly like the glass over it.
+              color: NightshadeColors.dark.background,
               child: Stack(
                 children: [
                   // Image display or empty state
@@ -330,69 +363,34 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                   minHeight: constraints.maxHeight,
                                 ),
                                 child: Center(
+                                  // The bottom of this canvas is spoken for by
+                                  // the capture bar and the histogram, so the
+                                  // prompt centres in the space actually free.
                                   child: Padding(
-                                    // The bottom corners of this same canvas
-                                    // are permanently occupied by the
-                                    // histogram and the HFR/Stars/Median/Mean
-                                    // readout (both `Positioned(bottom: 16)`).
-                                    // Centring the empty state in the FULL
-                                    // canvas ran "Take a snapshot or start a
-                                    // capture loop" straight through both
-                                    // cards — legible neither as prompt nor as
-                                    // readout, and worse at a 1.3 system font
-                                    // scale where the sentence is wider.
-                                    // Reserve the readout band so the prompt
-                                    // centres in the space actually free.
-                                    padding: const EdgeInsets.fromLTRB(
-                                      NightshadeTokens.spaceLg,
-                                      NightshadeTokens.spaceLg,
-                                      NightshadeTokens.spaceLg,
-                                      NightshadeTokens.spaceLg +
-                                          _cornerReadoutBandHeight,
+                                    padding: const EdgeInsets.only(
+                                      bottom: _cornerReadoutBandHeight,
                                     ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(
-                                              NightshadeTokens.space2xl),
-                                          decoration: BoxDecoration(
-                                            color: colors.surface
-                                                .withValues(alpha: 0.8),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                                color: colors.border),
-                                          ),
-                                          child: Icon(
-                                            NightshadeIcons.camera,
-                                            size: NightshadeTokens.icon2xl,
-                                            color: colors.textMuted,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                            height: NightshadeTokens.spaceXl),
-                                        Text(
-                                          isConnected
-                                              ? 'No Image'
-                                              : 'No Camera Connected',
-                                          style:
-                                              NightshadeTypography.h4.copyWith(
-                                            color: colors.textSecondary,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                            height: NightshadeTokens.spaceSm),
-                                        Text(
-                                          isConnected
-                                              ? 'Take a snapshot or start a capture loop'
-                                              : 'Connect a camera in Equipment settings',
-                                          textAlign: TextAlign.center,
-                                          style: NightshadeTypography.bodySm
-                                              .copyWith(
-                                            color: colors.textMuted,
-                                          ),
-                                        ),
-                                      ],
+                                    // The empty state sits ON the canvas, and
+                                    // the canvas is image-anchored dark in
+                                    // every theme (05 §14). Left on the app
+                                    // palette its ink was light-theme grey on
+                                    // near-black — the same grey-on-grey that
+                                    // got a white glass over a black frame
+                                    // rejected.
+                                    child: _OnCanvas(
+                                      child: EmptyState(
+                                        icon: isConnected
+                                            ? NightshadeIcons.imageOff
+                                            : NightshadeIcons.cameraOff,
+                                        title: isConnected
+                                            ? 'No frames yet'
+                                            : 'No camera connected',
+                                        body: isConnected
+                                            ? 'Take a snapshot or start a loop '
+                                                'and the frame appears here.'
+                                            : 'Connect a camera in Equipment '
+                                                'to start imaging.',
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -407,7 +405,13 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     Positioned.fill(
                       child: CustomPaint(
                         painter: CrosshairOverlayPainter(
-                          color: colors.primary.withValues(alpha: 0.4),
+                          // 06 puts the reticle in primary 35-50%; the two
+                          // tokens that bracket that band are opacityStrong
+                          // (axes) and opacitySelectedRing (the ring itself,
+                          // set inside the painter).
+                          color: colors.primary.withValues(
+                            alpha: NightshadeTokens.opacityStrong,
+                          ),
                         ),
                       ),
                     ),
@@ -631,32 +635,34 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
                     ),
 
-                  // Upper-right preview status badges: raw/HQ progress and
-                  // calibration provenance. Both ride above the overlay bar
-                  // chips so the user sees them even when zoomed in.
+                  // Top-right: what the frame on screen is and when it
+                  // landed, with the raw-load and calibration badges that
+                  // qualify the SAME frame riding inside the one glass panel
+                  // rather than as two more floating boxes (05 §14: at most
+                  // four glass elements, one per corner).
                   if (currentImage != null)
                     Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
-                            RawPreviewStatusBadge(
-                              status: currentImage.rawLoadStatus,
-                              colors: colors,
-                            ),
-                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
-                            const SizedBox(width: 6),
-                          // Surface whether the on-disk frame
-                          // backing the current preview has actually been
-                          // through the calibration pipeline. The provider
-                          // only reports true when the saved file path
-                          // ended up at `_cal.fits` — calibration failures
-                          // leave the original path untouched, so an
-                          // uncalibrated frame never wears the badge.
-                          _CalibratedBadge(colors: colors),
-                        ],
+                      top: _hudInset,
+                      right: _hudInset,
+                      child: _readout(
+                        LastFrameStatusHud(
+                          trailing: <Widget>[
+                            if (currentImage.rawLoadStatus !=
+                                RawLoadStatus.idle)
+                              RawPreviewStatusBadge(
+                                status: currentImage.rawLoadStatus,
+                                colors: colors,
+                              ),
+                            // Surface whether the on-disk frame backing the
+                            // current preview has actually been through the
+                            // calibration pipeline. The provider only reports
+                            // true when the saved file path ended up at
+                            // `_cal.fits`, so an uncalibrated frame never
+                            // wears the badge.
+                            _CalibratedBadge(colors: colors),
+                          ],
+                        ),
+                        visible: readoutsVisible,
                       ),
                     ),
 
@@ -672,7 +678,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   if (viewportSize.height > 120)
                     Positioned(
                       top: 56,
-                      right: 16,
+                      right: _hudInset,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: Responsive.previewOverlayMaxWidth(
@@ -698,30 +704,32 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
                     ),
 
-                  // Bottom-left histogram overlay
+                  // Top-left: the frame's measurements (06 §Imaging).
                   Positioned(
-                    bottom: 16,
-                    left: 16,
+                    top: _hudInset,
+                    left: _hudInset,
                     child: _readout(
-                      HistogramWidget(
-                        key: ImagingTutorialKeys.histogram,
-                        colors: colors,
-                        histogram: previewHistogram,
-                      ),
+                      FrameStatsHud(eccentricity: frameEccentricity),
                       visible: readoutsVisible,
                     ),
                   ),
 
-                  // Bottom-right stats readout
+                  // Bottom-right: the histogram and the stretch in force.
+                  //
+                  // The capture bar is centred on the same edge. On a wide
+                  // canvas the two clear each other; on a narrow one the bar
+                  // reaches the corner and would be drawn ON the histogram, so
+                  // the histogram steps up above it. Glass never overlaps
+                  // glass — a readout you cannot read is worse than one that
+                  // moved.
                   Positioned(
-                    bottom: 16,
-                    right: 16,
+                    bottom: _histogramBottom(
+                      canvasWidth: viewportSize.width,
+                      captureBarWidth: widget.captureBarWidth,
+                    ),
+                    right: _hudInset,
                     child: _readout(
-                      ImageStatsOverlay(
-                        key: ImagingTutorialKeys.statsPanel,
-                        colors: colors,
-                        stats: lastStats,
-                      ),
+                      const HistogramHud(),
                       visible: readoutsVisible,
                     ),
                   ),
@@ -749,8 +757,8 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   // of the canvas keeps its pan/zoom gestures.
                   if (currentImage != null)
                     Positioned(
-                      bottom: 112,
-                      left: 12,
+                      bottom: _hudInset,
+                      left: _hudInset,
                       child: _readout(
                         ConstrainedBox(
                           constraints: BoxConstraints(
@@ -764,7 +772,14 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                             children: [
                               const FrameScienceChip(),
                               const SizedBox(height: NightshadeTokens.spaceXs),
-                              SubQualityBadge(eccentricity: frameEccentricity),
+                              // Verdict only. HFR / ECC / stars used to be
+                              // repeated here under the capture bar; 06 removes
+                              // the on-canvas HFR/stars box and the top-left
+                              // glass readout says those numbers once, louder.
+                              SubQualityBadge(
+                                eccentricity: frameEccentricity,
+                                showMetrics: false,
+                              ),
                               const SizedBox(height: NightshadeTokens.spaceXs),
                               const GuidingActiveChip(),
                             ],
@@ -783,43 +798,11 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       child: AnnotationMiniChips(colors: colors),
                     ),
 
-                  // Annotation status indicator (top left, below the overlay bar + chips)
-                  if (currentImage != null)
-                    Positioned(
-                      top: 72,
-                      left: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Bounded like its sibling banner below: this
-                          // Positioned has no `right`, so without a max width
-                          // the status card is laid out unconstrained and a
-                          // long hint ("install ASTAP or set its path in
-                          // Settings to label objects") runs off the viewport
-                          // and is clipped mid-word by the Stack.
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                                maxAbsolute: 380,
-                              ),
-                            ),
-                            child: AnnotationStatusIndicator(colors: colors),
-                          ),
-                          const SizedBox(height: 6),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                                maxAbsolute: 380,
-                              ),
-                            ),
-                            child: ReAnnotateSuggestionBanner(colors: colors),
-                          ),
-                        ],
-                      ),
-                    ),
+                  // The annotation status card and the re-annotate
+                  // suggestion used to float over the top-left of the frame.
+                  // They live in the Annotations section of the side panel
+                  // now: a setup problem gets ONE banner in ONE place (02
+                  // rule 5), and the canvas belongs to the photons.
 
                   // Custom annotation drawing palette — docked bottom-centre
                   // just above the bottom histogram/stats strip, and shown
@@ -842,6 +825,30 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Resolves the DARK palette for anything drawn straight onto the canvas.
+///
+/// The canvas is a photograph of the night sky, dark in every theme, so text
+/// over it takes its colours from the dark ladder exactly as [Glass] does.
+/// Red night is the one exception and outranks the rule: the wavelength
+/// constraint applies to every pixel on the screen.
+class _OnCanvas extends StatelessWidget {
+  const _OnCanvas({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final inner = colors.isRedNight ? colors : NightshadeColors.dark;
+    return Theme(
+      data: Theme.of(
+        context,
+      ).copyWith(extensions: <ThemeExtension<dynamic>>[inner]),
+      child: child,
     );
   }
 }

@@ -18,7 +18,7 @@
 //                 latest real camera frame. A `SolverNotAvailableError`
 //                 surfaces the existing `PlateSolverRequiredBanner`; a
 //                 successful solve reports the RA/Dec delta versus the target
-//                 in a `NightshadeAlert`.
+//                 in a `NightshadeBanner`.
 //   4. GoTo    — embeds the existing `SlewDropdownButton` (the complete
 //                 slew + center + rotate flow), passing the framing rotation as
 //                 the target angle so "Slew, Center & Rotate" lights up when a
@@ -165,212 +165,215 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     final targetAltitudeDeg = _targetAltitudeDeg(target);
     final isBelowHorizon = targetAltitudeDeg != null && targetAltitudeDeg < 0;
 
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader(
-            title: 'Guided Framing',
-            subtitle: 'Resolve, frame, solve, and slew in order',
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-
-          // Step 1: target
-          _StepRow(
-            number: 1,
-            title: 'Target',
-            status: hasTarget
-                ? StatusPillStatus.success
-                : StatusPillStatus.inactive,
-            statusValue: hasTarget ? 'Resolved' : 'None',
-            colors: colors,
-            child: hasTarget
-                ? _TargetSummary(colors: colors, target: target)
-                : const EmptyState.compact(
-                    icon: NightshadeIcons.target,
-                    title: 'No target selected',
-                    body: 'Search for an object or enter coordinates to begin '
-                        'framing.',
-                  ),
-          ),
-
-          _stepDivider(colors),
-
-          // Step 2: frame
-          _StepRow(
-            number: 2,
-            title: 'Frame',
-            status: hasSurveyImage
-                ? StatusPillStatus.success
-                : StatusPillStatus.inactive,
-            statusValue: hasSurveyImage ? 'Loaded' : 'Pending',
-            colors: colors,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Survey Source',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceXs),
-                NightshadeDropdown(
-                  isExpanded: true,
-                  value: framingState.surveySource.name,
-                  items: SurveySource.values.map((s) => s.name).toList(),
-                  itemLabels:
-                      SurveySource.values.map((s) => s.displayName).toList(),
-                  onChanged: (name) {
-                    if (name == null) return;
-                    final source =
-                        SurveySource.values.firstWhere((s) => s.name == name);
-                    ref.read(framingProvider.notifier).setSurveySource(source);
-                  },
-                ),
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                Text(
-                  'Preview Field of View',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceXs),
-                FramingPreviewFovSlider(
-                  colors: colors,
-                  value: framingState.previewFovDegrees,
-                  hasEquipment: hasEquipment,
-                  equipmentFov: equipment?.equipment?.fovWidthDeg,
-                  onChanged: (value) {
-                    ref.read(framingProvider.notifier).setPreviewFov(value);
-                  },
-                ),
-              ],
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(
+              title: 'Guided Framing',
+              subtitle: 'Resolve, frame, solve, and slew in order',
             ),
-          ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
 
-          _stepDivider(colors),
-
-          // Step 3: solve current frame
-          _StepRow(
-            number: 3,
-            title: 'Solve latest camera frame',
-            status: (_lastSolve?.result?.success ?? false)
-                ? StatusPillStatus.success
-                : (_lastSolve?.error != null ||
-                        _lastSolve?.solverMissing == true
-                    ? StatusPillStatus.error
-                    : StatusPillStatus.inactive),
-            statusValue:
-                (_lastSolve?.result?.success ?? false) ? 'Solved' : 'Ready',
-            colors: colors,
-            child: _SolveStep(
+            // Step 1: target
+            _StepRow(
+              number: 1,
+              title: 'Target',
+              status: hasTarget
+                  ? StatusPillStatus.success
+                  : StatusPillStatus.inactive,
+              statusValue: hasTarget ? 'Resolved' : 'None',
               colors: colors,
-              isSolving: _isSolving,
-              canSolve: hasTarget && hasCameraFrame && hasSolver && !_isSolving,
-              hasTarget: hasTarget,
-              hasCameraFrame: hasCameraFrame,
-              hasSolver: hasSolver,
-              outcome: _lastSolve,
-              onSolve: _solveCurrentFrame,
+              child: hasTarget
+                  ? _TargetSummary(colors: colors, target: target)
+                  : const EmptyState.compact(
+                      icon: NightshadeIcons.target,
+                      title: 'No target selected',
+                      body:
+                          'Search for an object or enter coordinates to begin '
+                          'framing.',
+                    ),
             ),
-          ),
 
-          _stepDivider(colors),
+            _stepDivider(colors),
 
-          // Step 4: GoTo & frame
-          _StepRow(
-            number: 4,
-            statusKey: framingGotoStatusKey,
-            title: 'GoTo & Frame',
-            status: !hasTarget
-                ? StatusPillStatus.inactive
-                : (!canSlew || isBelowHorizon
-                    // A target but no usable mount (or a target under the
-                    // ground): the step cannot run as-is, and saying so is the
-                    // point. 'Ready' here was a lie.
-                    ? StatusPillStatus.warning
-                    : StatusPillStatus.active),
-            // Terse on purpose: these read in parallel down the rail and fit
-            // without ellipsizing. The full instruction is not lost — the step
-            // body spells it out directly beneath.
-            statusValue: !hasTarget
-                ? 'No target'
-                : !isMountConnected
-                    ? 'No mount'
-                    : isMountParked
-                        ? 'Parked'
-                        : isBelowHorizon
-                            ? 'Below horizon'
-                            : 'Ready',
-            colors: colors,
-            child: hasTarget
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: SlewDropdownButton(
-                          key: FramingTutorialKeys.slewBtn,
-                          ra: target.raHours,
-                          dec: target.decDegrees,
-                          targetName: target.name,
-                          targetRotation: framingState.rotation != 0
-                              ? framingState.rotation
-                              : null,
-                          icon: NightshadeIcons.compass,
-                          label: 'Slew to Target',
-                          // Without this the button stayed live over a parked
-                          // mount and every click was swallowed in silence.
-                          isEnabled: canSlew,
-                        ),
-                      ),
-                      // The disabled button explains itself instead of
-                      // swallowing the click with no feedback at all.
-                      if (!isMountConnected) ...[
-                        const SizedBox(height: NightshadeTokens.spaceXs),
-                        Text(
-                          'Connect the mount in Equipment to enable slewing.',
-                          style: NightshadeTypography.caption.copyWith(
-                            color: colors.warning,
-                          ),
-                        ),
-                      ] else if (isMountParked) ...[
-                        const SizedBox(height: NightshadeTokens.spaceXs),
-                        Text(
-                          'The mount is parked. Unpark it (Imaging → Mount) '
-                          'before slewing.',
-                          style: NightshadeTypography.caption.copyWith(
-                            color: colors.warning,
-                          ),
-                        ),
-                      ],
-                      // Advisory, and shown even when the slew is allowed: the
-                      // mount will happily drive into the ground.
-                      if (isBelowHorizon) ...[
-                        const SizedBox(height: NightshadeTokens.spaceXs),
-                        Text(
-                          '${target.name.isEmpty ? 'The target' : target.name} '
-                          'is ${targetAltitudeDeg.toStringAsFixed(1)}° below '
-                          'the horizon right now.',
-                          style: NightshadeTypography.caption.copyWith(
-                            color: colors.warning,
-                          ),
-                        ),
-                      ],
-                    ],
-                  )
-                : Text(
-                    'Resolve a target above to enable slewing.',
+            // Step 2: frame
+            _StepRow(
+              number: 2,
+              title: 'Frame',
+              status: hasSurveyImage
+                  ? StatusPillStatus.success
+                  : StatusPillStatus.inactive,
+              statusValue: hasSurveyImage ? 'Loaded' : 'Pending',
+              colors: colors,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Survey Source',
                     style: NightshadeTypography.caption.copyWith(
-                      color: colors.textMuted,
+                      color: colors.textSecondary,
                     ),
                   ),
-          ),
-        ],
-      ),
-    );
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  NightshadeDropdown(
+                    isExpanded: true,
+                    value: framingState.surveySource.name,
+                    items: SurveySource.values.map((s) => s.name).toList(),
+                    itemLabels:
+                        SurveySource.values.map((s) => s.displayName).toList(),
+                    onChanged: (name) {
+                      if (name == null) return;
+                      final source =
+                          SurveySource.values.firstWhere((s) => s.name == name);
+                      ref
+                          .read(framingProvider.notifier)
+                          .setSurveySource(source);
+                    },
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceMd),
+                  Text(
+                    'Preview Field of View',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  FramingPreviewFovSlider(
+                    colors: colors,
+                    value: framingState.previewFovDegrees,
+                    hasEquipment: hasEquipment,
+                    equipmentFov: equipment?.equipment?.fovWidthDeg,
+                    onChanged: (value) {
+                      ref.read(framingProvider.notifier).setPreviewFov(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            _stepDivider(colors),
+
+            // Step 3: solve current frame
+            _StepRow(
+              number: 3,
+              title: 'Solve latest camera frame',
+              status: (_lastSolve?.result?.success ?? false)
+                  ? StatusPillStatus.success
+                  : (_lastSolve?.error != null ||
+                          _lastSolve?.solverMissing == true
+                      ? StatusPillStatus.error
+                      : StatusPillStatus.inactive),
+              statusValue:
+                  (_lastSolve?.result?.success ?? false) ? 'Solved' : 'Ready',
+              colors: colors,
+              child: _SolveStep(
+                colors: colors,
+                isSolving: _isSolving,
+                canSolve:
+                    hasTarget && hasCameraFrame && hasSolver && !_isSolving,
+                hasTarget: hasTarget,
+                hasCameraFrame: hasCameraFrame,
+                hasSolver: hasSolver,
+                outcome: _lastSolve,
+                onSolve: _solveCurrentFrame,
+              ),
+            ),
+
+            _stepDivider(colors),
+
+            // Step 4: GoTo & frame
+            _StepRow(
+              number: 4,
+              statusKey: framingGotoStatusKey,
+              title: 'GoTo & Frame',
+              status: !hasTarget
+                  ? StatusPillStatus.inactive
+                  : (!canSlew || isBelowHorizon
+                      // A target but no usable mount (or a target under the
+                      // ground): the step cannot run as-is, and saying so is the
+                      // point. 'Ready' here was a lie.
+                      ? StatusPillStatus.warning
+                      : StatusPillStatus.active),
+              // Terse on purpose: these read in parallel down the rail and fit
+              // without ellipsizing. The full instruction is not lost — the step
+              // body spells it out directly beneath.
+              statusValue: !hasTarget
+                  ? 'No target'
+                  : !isMountConnected
+                      ? 'No mount'
+                      : isMountParked
+                          ? 'Parked'
+                          : isBelowHorizon
+                              ? 'Below horizon'
+                              : 'Ready',
+              colors: colors,
+              child: hasTarget
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: SlewDropdownButton(
+                            key: FramingTutorialKeys.slewBtn,
+                            ra: target.raHours,
+                            dec: target.decDegrees,
+                            targetName: target.name,
+                            targetRotation: framingState.rotation != 0
+                                ? framingState.rotation
+                                : null,
+                            icon: NightshadeIcons.compass,
+                            label: 'Slew to Target',
+                            // Without this the button stayed live over a parked
+                            // mount and every click was swallowed in silence.
+                            isEnabled: canSlew,
+                          ),
+                        ),
+                        // The disabled button explains itself instead of
+                        // swallowing the click with no feedback at all.
+                        if (!isMountConnected) ...[
+                          const SizedBox(height: NightshadeTokens.spaceXs),
+                          Text(
+                            'Connect the mount in Equipment to enable slewing.',
+                            style: NightshadeTypography.caption.copyWith(
+                              color: colors.warning,
+                            ),
+                          ),
+                        ] else if (isMountParked) ...[
+                          const SizedBox(height: NightshadeTokens.spaceXs),
+                          Text(
+                            'The mount is parked. Unpark it (Imaging → Mount) '
+                            'before slewing.',
+                            style: NightshadeTypography.caption.copyWith(
+                              color: colors.warning,
+                            ),
+                          ),
+                        ],
+                        // Advisory, and shown even when the slew is allowed: the
+                        // mount will happily drive into the ground.
+                        if (isBelowHorizon) ...[
+                          const SizedBox(height: NightshadeTokens.spaceXs),
+                          Text(
+                            '${target.name.isEmpty ? 'The target' : target.name} '
+                            'is ${targetAltitudeDeg.toStringAsFixed(1)}° below '
+                            'the horizon right now.',
+                            style: NightshadeTypography.caption.copyWith(
+                              color: colors.warning,
+                            ),
+                          ),
+                        ],
+                      ],
+                    )
+                  : Text(
+                      'Resolve a target above to enable slewing.',
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textMuted,
+                      ),
+                    ),
+            ),
+          ],
+        ));
   }
 
   /// Current altitude of [target] in degrees, or `null` when the app has no
@@ -517,7 +520,7 @@ class _StepRow extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.eyebrow.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -706,7 +709,7 @@ class _SolveStep extends StatelessWidget {
           child: NightshadeButton(
             label: 'Solve latest camera frame',
             icon: NightshadeIcons.crosshair,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             isLoading: isSolving,
             onPressed: canSolve ? onSolve : null,
           ),
@@ -759,21 +762,19 @@ class _SolveOutcomeView extends StatelessWidget {
     }
 
     if (outcome.error != null) {
-      return NightshadeAlert(
-        severity: NightshadeAlertSeverity.error,
-        title: 'Solve failed',
-        message: outcome.error!,
-      );
+      return NightshadeBanner(
+          title: 'Solve failed',
+          message: outcome.error!,
+          tone: BannerTone.error);
     }
 
     final result = outcome.result!;
     if (!result.success) {
-      return NightshadeAlert(
-        severity: NightshadeAlertSeverity.warning,
-        title: 'Plate solve did not converge',
-        message: result.error ??
-            'The solver ran but could not find a solution for this frame.',
-      );
+      return NightshadeBanner(
+          title: 'Plate solve did not converge',
+          message: result.error ??
+              'The solver ran but could not find a solution for this frame.',
+          tone: BannerTone.warning);
     }
 
     final against = outcome.against;
@@ -783,11 +784,8 @@ class _SolveOutcomeView extends StatelessWidget {
             '${CoordinateFormat.ra(result.ra, seconds: SecondsPrecision.integerRounded)} '
             '${CoordinateFormat.dec(result.dec, seconds: SecondsPrecision.integerRounded)}';
 
-    return NightshadeAlert(
-      severity: NightshadeAlertSeverity.success,
-      title: 'Frame solved',
-      message: deltaMessage,
-    );
+    return NightshadeBanner(
+        title: 'Frame solved', message: deltaMessage, tone: BannerTone.success);
   }
 
   /// Human-readable offset between the solved center and the target, plus the

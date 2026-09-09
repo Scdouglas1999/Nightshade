@@ -142,8 +142,7 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'cellular — without opening ports on your router. Scan this '
                   'QR while signed in to the same tailnet.',
             ),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -181,9 +180,9 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'remoteAccessTailscaleStartHint',
                   'Start pairing to arm the Tailscale QR for this session.',
                 ),
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textMuted),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
               ),
             ] else if (widget.pairingCode != null && qrPayload != null) ...[
               Center(
@@ -237,17 +236,14 @@ class _TailscaleReachableRow extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: SelectableText(
               url,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.readoutSm.copyWith(
                 color: colors.primary,
-                fontFamily: 'monospace',
               ),
             ),
           ),
@@ -279,8 +275,7 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
+        NightshadeBanner(
           icon: LucideIcons.globe2,
           title: _l10nOr(
             l10n,
@@ -297,7 +292,7 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
           action: NightshadeButton(
             label: _l10nOr(l10n, 'remoteAccessTailscaleRecheck', 'Re-check'),
             icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: onRecheck,
           ),
@@ -309,7 +304,8 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
             'remoteAccessTailscaleManualLabel',
             'Tailscale address (manual)',
           ),
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.caption
+              .copyWith(fontWeight: FontWeight.w600, color: colors.textPrimary),
         ),
         const SizedBox(height: 6),
         NightshadeTextField(

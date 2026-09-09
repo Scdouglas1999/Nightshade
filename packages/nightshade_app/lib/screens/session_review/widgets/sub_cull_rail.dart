@@ -277,6 +277,7 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
             hfrThreshold: _hfrCull,
             offer: _offer,
             acceptedCount: widget.subs.where((sub) => sub.isAccepted).length,
+            rejectedCount: widget.subs.where((sub) => !sub.isAccepted).length,
             onToggleBlink: _toggleBlink,
             onToggleSelect: _toggleSelectMode,
             onHfrChanged: (v) => setState(() => _hfrCull = v),

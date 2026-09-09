@@ -95,17 +95,17 @@ void main() {
       final results = await _search(tester, query);
       expect(
         results,
-        contains('Files & Storage'),
+        contains('Files & storage'),
         reason: '"$query" must reach the page that owns the capture directory',
       );
-      expect(results, isNot(contains('No settings match your search.')));
+      expect(results, isNot(contains('No settings match')));
     }
   });
 
   testWidgets('every token still has to match something', (tester) async {
     await _pump(tester);
     final results = await _search(tester, 'folder zzzqqqnotasetting');
-    expect(results, contains('No settings match your search.'));
+    expect(results, contains('No settings match'));
   });
 
   testWidgets('an autofocus term does not land on Files & Storage', (
@@ -120,7 +120,7 @@ void main() {
       final results = await _search(tester, query);
       expect(
         results,
-        isNot(contains('Files & Storage')),
+        isNot(contains('Files & storage')),
         reason: '"$query" is an Autofocus setting; Files & Storage has none',
       );
     }
@@ -135,7 +135,7 @@ void main() {
     final results = await _search(tester, 'updates');
     expect(results, contains('About'));
     expect(
-      results.indexOf('Appliance Updates'),
+      results.indexOf('Appliance updates'),
       lessThan(results.indexOf('About')),
     );
   });
@@ -153,9 +153,9 @@ void main() {
         // them made the search look like it worked while pointing at text the
         // page never renders.
         if (const {
-          'Delete Deep-Star Tiles',
+          'Delete deep-star tiles',
           'Roll back this rig?',
-          'Restore Remote Backup?',
+          'Restore remote backup?',
           'Clear logs?',
           'Could not load profiles',
           'PHD2 executable on imaging host',
@@ -176,6 +176,6 @@ void main() {
     // Equipment Profiles renders its rows from `part` files; the index used to
     // hold nothing but that page's two error strings.
     expect(kSettingsSearchTerms['equipment-profiles'],
-        contains('Camera Defaults'));
+        contains('Camera defaults'));
   });
 }

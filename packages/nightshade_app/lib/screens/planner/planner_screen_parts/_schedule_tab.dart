@@ -18,10 +18,13 @@ class _ScheduleTab extends ConsumerWidget {
 
     return Column(
       children: [
+        // The live scheduler's own pick, above the queue it comes from. It
+        // moved here from Tonight (06 §Plan) so the autopilot is described
+        // once, beside the list it runs.
+        const _AutopilotPreviewBanner(),
         if (showStrip)
           DecoratedBox(
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
               border: Border(bottom: BorderSide(color: colors.border)),
             ),
             child: const WeekForecastStrip(),

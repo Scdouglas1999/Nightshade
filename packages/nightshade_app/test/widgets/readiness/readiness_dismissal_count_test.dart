@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nightshade_app/screens/equipment/widgets/equipment_blocker_row.dart';
 import 'package:nightshade_app/screens/equipment/widgets/equipment_readiness_panel.dart';
 import 'package:nightshade_app/widgets/readiness/readiness_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -86,16 +87,21 @@ Widget _harness(ReadinessReport report) {
   );
 }
 
-/// The ✕ inside the readiness row carrying [title]. `_ReadinessRow` is private
-/// to readiness_panel.dart, so it is matched by runtime type name.
+/// The ✕ inside the readiness row carrying [title].
+///
+/// The row is an [EquipmentBlockerRow] and its ✕ is a [NightshadeIconButton],
+/// which carries its tooltip through `Semantics`, not a Material `Tooltip` —
+/// so `find.byTooltip` would miss it.
 Finder _dismissFor(String title) => find.descendant(
       of: find.ancestor(
         of: find.text(title),
-        matching: find.byWidgetPredicate(
-          (w) => w.runtimeType.toString() == '_ReadinessRow',
-        ),
+        matching: find.byType(EquipmentBlockerRow),
       ),
-      matching: find.byTooltip('Dismiss for this session'),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is NightshadeIconButton &&
+            w.tooltip == 'Dismiss for this session',
+      ),
     );
 
 void main() {
@@ -147,7 +153,7 @@ void main() {
     expect(find.text('Critical devices'), findsOneWidget);
     expect(find.text('Capture output folder'), findsOneWidget);
     expect(
-      find.text('2 items are blocking first light.'),
+      find.text('2 blockers'),
       findsOneWidget,
       reason: 'the count must equal the number of blocking rows on screen',
     );
@@ -159,16 +165,16 @@ void main() {
     await tester.pumpWidget(_harness(_cautionReport));
     await tester.pump();
 
-    expect(find.text('2 items to review before imaging.'), findsOneWidget);
+    expect(find.text('2 to review'), findsOneWidget);
 
     await tester.tap(_dismissFor('Plate solver'));
     await tester.pump();
 
     expect(find.text('Plate solver'), findsNothing);
     expect(
-      find.text('1 item to review before imaging (1 dismissed).'),
+      find.text('1 to review'),
       findsOneWidget,
-      reason: 'the header must count the rows shown and name the hidden one',
+      reason: 'the chip must count the rows shown',
     );
   });
 }

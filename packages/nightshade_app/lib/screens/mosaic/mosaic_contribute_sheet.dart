@@ -234,15 +234,15 @@ class _MosaicContributeSheetState
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           if (hubInfo.isLoading)
-            const NightshadeAlert(
-              severity: NightshadeAlertSeverity.info,
-              compact: true,
+            const NightshadeBanner(
+              title: 'Checking this hub\'s licenses',
+              tone: BannerTone.info,
               message: 'Checking the hub\'s supported sharing licenses…',
             )
           else if (hubInfo.hasError)
-            const NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              compact: true,
+            const NightshadeBanner(
+              title: 'The hub\'s sharing licenses could not be read',
+              tone: BannerTone.error,
               message: 'Could not verify this hub\'s sharing licenses. '
                   'Check the connection and try again.',
             )
@@ -263,9 +263,9 @@ class _MosaicContributeSheetState
                       }),
             )
           else
-            const NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              compact: true,
+            const NightshadeBanner(
+              title: 'No compatible sharing license',
+              tone: BannerTone.error,
               message: 'This hub does not advertise a compatible sharing '
                   'license. Ask its administrator to enable CC BY, CC0, '
                   'CC BY-SA, or CC BY-NC.',
@@ -306,8 +306,9 @@ class _MosaicContributeSheetState
           ),
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
+            NightshadeBanner(
+              title: 'This contribution was refused',
+              tone: BannerTone.error,
               message: _error!,
             ),
           ],

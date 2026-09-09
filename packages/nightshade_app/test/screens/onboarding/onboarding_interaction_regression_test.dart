@@ -94,6 +94,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(onboardingDraftProvider).currentStep,
         OnboardingStep.drivers);
+    // Let the previous step's input cooldown expire, so what the double tap
+    // below exercises is the cooldown it starts — not the one it inherited.
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.text('Next'));
     await tester.tap(find.text('Next'), warnIfMissed: false);

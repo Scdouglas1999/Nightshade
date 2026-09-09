@@ -57,7 +57,7 @@ class ContributionBar extends StatelessWidget {
             height: 6,
             child: Stack(
               children: [
-                Container(color: colors.surfaceAlt),
+                Container(color: colors.well),
                 FractionallySizedBox(
                   alignment: Alignment.centerLeft,
                   widthFactor: fraction == 0 ? 0.0 : fraction.clamp(0.04, 1.0),

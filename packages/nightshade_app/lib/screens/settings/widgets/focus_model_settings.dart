@@ -173,7 +173,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
     final m = model?['model'] as Map<String, dynamic>?;
 
     return SettingsPage(
-      title: 'Focus Model',
+      title: 'Focus model',
       description: 'Temperature-compensation focus model on the connected rig',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile || widget.embedded,
@@ -186,9 +186,9 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
           Row(
             children: [
               Text('Active equipment profile',
-                  style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize13)),
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  )),
               const Spacer(),
               NightshadeButton(
                 onPressed: (_loading || _clearToken != null) ? null : _refresh,
@@ -203,8 +203,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
           if (_loading && model == null)
             _info(colors, LucideIcons.loader, 'Loading…')
           else if (hasModel && m != null)
-            NightshadeCard(
-              padding: const EdgeInsets.all(16),
+            NightshadePanel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -223,10 +222,9 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
                           m['isReliable'] == true
                               ? 'Model healthy'
                               : 'Model low-confidence',
-                          style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: NightshadeTypography.fontSize15,
-                              fontWeight: FontWeight.w600)),
+                          style: NightshadeTypography.sectionTitle.copyWith(
+                            color: colors.textPrimary,
+                          )),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -237,9 +235,9 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text('${model!['description']}',
-                          style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize12)),
+                          style: NightshadeTypography.caption.copyWith(
+                            color: colors.textMuted,
+                          )),
                     ),
                 ],
               ),
@@ -284,23 +282,22 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
       child: Row(
         children: [
           Text(label,
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize13)),
+              style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textSecondary,
+              )),
           const Spacer(),
           Text(value,
-              style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600)),
+              style: NightshadeTypography.buttonSm.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              )),
         ],
       ),
     );
   }
 
   Widget _info(NightshadeColors colors, IconData icon, String text) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -308,9 +305,9 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13)),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                )),
           ),
         ],
       ),

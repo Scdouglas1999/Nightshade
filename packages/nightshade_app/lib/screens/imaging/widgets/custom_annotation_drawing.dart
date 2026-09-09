@@ -294,16 +294,17 @@ class CustomAnnotationPainter extends CustomPainter {
   }) {
     final textSpan = TextSpan(
       text: text,
-      style: TextStyle(
-        color: color.withValues(alpha: math.min(1.0, alpha + 0.15)),
-        fontSize: NightshadeTypography.fontSize11,
-        fontWeight: FontWeight.w600,
-        // absolute: label shadows for legibility over the image canvas
-        shadows: const [
-          Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
-          Shadow(blurRadius: 8, color: Colors.black, offset: Offset(0, 0)),
-        ],
-      ),
+      style: NightshadeTypography.caption.copyWith(
+          fontWeight: FontWeight.w600,
+          color: color.withValues(
+              alpha: math.min(
+                  1.0,
+                  alpha +
+                      0.15)), // absolute: label shadows for legibility over the image canvas
+          shadows: const [
+            Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+            Shadow(blurRadius: 8, color: Colors.black, offset: Offset(0, 0)),
+          ]),
     );
 
     final textPainter = TextPainter(
@@ -788,30 +789,36 @@ class CustomAnnotationToolbar extends ConsumerWidget {
       context: context,
       // absolute: fixed-palette annotation dialog (matches the image-overlay tool)
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text(
-          'Clear All Annotations?',
-          style: TextStyle(
-              color: Colors.white, fontSize: NightshadeTypography.fontSize16),
+        backgroundColor: context.nightshadeColors.surfaceOverlay,
+        title: Text(
+          'Clear all annotations?',
+          style: NightshadeTypography.sectionTitle.copyWith(
+            color: context.nightshadeColors.textPrimary,
+          ),
         ),
-        content: const Text(
-          'This will remove all custom annotations you have drawn on this image.',
-          style: TextStyle(
-              color: Colors.white70, fontSize: NightshadeTypography.fontSize13),
+        content: Text(
+          'This removes every annotation you have drawn on this frame.',
+          style: NightshadeTypography.bodySm.copyWith(
+            color: context.nightshadeColors.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               'Cancel',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+              style: NightshadeTypography.button.copyWith(
+                color: context.nightshadeColors.textSecondary,
+              ),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Clear All',
-              style: TextStyle(color: Color(0xFFEF5350)),
+            child: Text(
+              'Clear all',
+              style: NightshadeTypography.button.copyWith(
+                color: context.nightshadeColors.error,
+              ),
             ),
           ),
         ],

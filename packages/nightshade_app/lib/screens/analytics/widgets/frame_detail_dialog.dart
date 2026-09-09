@@ -89,7 +89,7 @@ class _FrameDetailDialogState extends ConsumerState<FrameDetailDialog> {
         NightshadeButton(
           label: _isAccepted ? 'Flag as poor quality' : 'Restore as good',
           icon: _isAccepted ? LucideIcons.flag : LucideIcons.check,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           onPressed: _busy ? null : _toggleAccepted,
         ),
         NightshadeButton(
@@ -105,8 +105,8 @@ class _FrameDetailDialogState extends ConsumerState<FrameDetailDialog> {
           _preview$(colors),
           const SizedBox(height: NightshadeTokens.spaceLg),
           if (!_isAccepted) ...[
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
+            NightshadeBanner(
+              tone: BannerTone.warning,
               title: 'Rejected',
               message: image.rejectionReason?.trim().isNotEmpty == true
                   ? image.rejectionReason!
@@ -126,7 +126,7 @@ class _FrameDetailDialogState extends ConsumerState<FrameDetailDialog> {
       width: double.infinity,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: NightshadeTokens.borderRadiusMd,
           border: Border.all(color: colors.border),
         ),

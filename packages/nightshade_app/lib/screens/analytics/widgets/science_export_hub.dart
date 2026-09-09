@@ -270,7 +270,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 border: Border(bottom: BorderSide(color: colors.border)),
               ),
               child: Row(
@@ -280,14 +280,14 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                   Expanded(
                     child: Text(
                       'Science Data Export',
-                      style: NightshadeTypography.h4.copyWith(
+                      style: NightshadeTypography.sectionTitle.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon:
-                        Icon(LucideIcons.x, size: 18, color: colors.textMuted),
+                  NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -305,7 +305,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 children: [
                   Text(
                     'Filters',
-                    style: NightshadeTypography.h6.copyWith(
+                    style: NightshadeTypography.bodyStrong.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -543,15 +543,13 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
+                  color: colors.well,
                   border: Border(top: BorderSide(color: colors.border)),
                 ),
                 child: Text(
                   _lastExportResult!,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                   // Room for the path AND a completeness caveat: a truncated
                   // "…rows were dropped" note would be worse than none.
                   maxLines: 4,
@@ -575,7 +573,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
             border: Border.all(color: colors.border),
           ),
@@ -592,10 +590,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
               const SizedBox(width: 8),
               Text(
                 'Loading sessions...',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -619,10 +615,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 'Could not load sessions: ${sessionsAsync.error}',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: colors.error,
-                  fontSize: NightshadeTypography.fontSize11,
-                ),
+                style:
+                    NightshadeTypography.caption.copyWith(color: colors.error),
               ),
             ),
             TextButton(

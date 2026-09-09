@@ -22,7 +22,7 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
 /// hand-roll scroll-then-tap.
 Future<void> _openAdaptiveConditions(WidgetTester tester) async {
   await expandSettingsGroup(tester, 'Automation & Safety');
-  await selectSettingsSection(tester, 'Adaptive Conditions');
+  await selectSettingsSection(tester, 'Adaptive conditions');
 }
 
 void main() {

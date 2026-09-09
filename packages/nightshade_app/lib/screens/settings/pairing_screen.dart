@@ -26,12 +26,13 @@ class PairingScreen extends ConsumerWidget {
         title: Text(l10n.text('pairingTitle')),
         // The framework's back arrow carries a tooltip and no accessible NAME
         // — read off the live tree, the only way off this page was an unnamed
-        // button. AccessibleIconButton publishes one node that says what it is
-        // and how to press it.
+        // button. NightshadeIconButton requires the tooltip and publishes it
+        // as the control's name, so the node says what it is and how to press
+        // it.
         leading: Navigator.of(context).canPop()
-            ? AccessibleIconButton(
+            ? NightshadeIconButton(
                 icon: NightshadeIcons.arrowLeft,
-                label: 'Back to Remote Access',
+                tooltip: 'Back to Remote access',
                 onPressed: () => Navigator.of(context).maybePop(),
               )
             : null,
@@ -195,7 +196,7 @@ class PairingScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         NightshadeButton(
           label: l10n.text('pairingCancel'),
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           isLoading: state.isLoading,
           onPressed: state.isLoading
               ? null
@@ -241,14 +242,15 @@ class PairingScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
-                IconButton(
+                NightshadeIconButton(
+                  icon: NightshadeIcons.refresh,
+                  tooltip: l10n.text('pairingRefresh'),
                   onPressed: state.isLoading
                       ? null
                       : () => ref
                           .read(pairingProvider.notifier)
                           .loadPairedDevices(),
-                  icon: const Icon(NightshadeIcons.refresh),
-                  tooltip: l10n.text('pairingRefresh'),
+                  size: IconButtonSize.sm,
                 ),
               ],
             ),
@@ -327,7 +329,7 @@ class PairingScreen extends ConsumerWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
@@ -393,8 +395,7 @@ class PairingScreen extends ConsumerWidget {
                     'pairingPairedAt',
                     params: {'time': _formatDate(context, device.pairedAt)},
                   ),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -412,8 +413,7 @@ class PairingScreen extends ConsumerWidget {
                       // verification, so a device that connects every night can
                       // legitimately have no entry here.
                       : 'No connection recorded yet',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),

@@ -12,12 +12,15 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
 import '../../../utils/exported_file_reveal.dart';
 import '../../../widgets/annotation_overlay.dart';
+import '../../settings/catalog_settings_screen.dart';
+import '../imaging_screen.dart' show annotationCatalogInstalledProvider;
 import '../imaging_science_state.dart';
 import 'annotation_filters.dart';
-import 'panel_widgets.dart';
+import 'annotation_reannotate_banner.dart';
 import 'annotation_search.dart';
 import 'annotation_quick_settings.dart';
 import 'annotation_object_list.dart';
+import 'imaging_side_panel.dart';
 
 part 'annotation_panel_parts/status_widgets.dart';
 part 'annotation_panel_parts/objects_panel.dart';
@@ -159,17 +162,17 @@ Widget _annotationAuthorityState({
           Text(
             error == null ? 'Loading $label…' : 'Could not load $label',
             textAlign: TextAlign.center,
-            style: TextStyle(color: colors.textPrimary),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
           if (error != null) ...[
             const SizedBox(height: 6),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
             const SizedBox(height: 10),
             NightshadeButton(

@@ -111,7 +111,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
     final lat = settings.latitude;
     final lon = settings.longitude;
-    // No observing site: the chips already say '—' and there is nothing to
+    // No observing site: the chips already say an em dash and there is nothing to
     // refresh them to.
     if (!settings.hasObserverLocation) return;
 
@@ -314,8 +314,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 'Altitude',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             const Spacer(),
@@ -334,9 +334,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   const SizedBox(width: 4),
                   Text(
                     'Airmass',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ],
               ),
@@ -365,7 +364,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
   Widget _buildCurrentValues(NightshadeColors colors) {
     final altitude = _currentAltitude;
-    // Unknown altitude: show the same '—' the Coordinates card uses, with no
+    // Unknown altitude: show the same em dash the Coordinates card uses, with no
     // severity colouring. A red "0.0°" here read as "your target is on the
     // horizon", which the app cannot know without an observing site.
     // Wrap, not Row: these chips size to their own content, so in a narrow
@@ -378,8 +377,6 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         spacing: 8,
         runSpacing: 8,
         children: [
-          // An unknown value is an em dash (05 §3), never '--': two hyphens
-          // read as a value that happens to be punctuation.
           _buildValueChip(colors, 'Alt', kReadoutUnknown, colors.textMuted),
           _buildValueChip(colors, 'Airmass', kReadoutUnknown, colors.textMuted),
         ],
@@ -419,7 +416,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
@@ -427,17 +424,13 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         children: [
           Text(
             '$label: ',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w600,
-              color: valueColor,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: valueColor, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -449,7 +442,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       height: 120,
       child: Container(
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: NightshadeTokens.borderRadiusInline8,
         ),
         child: Center(
@@ -460,9 +453,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               const SizedBox(height: 8),
               Text(
                 'Set location in Settings',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
             ],
           ),
@@ -518,9 +510,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                     if (value == 1 || value == 2 || value == 3 || value == 4) {
                       return Text(
                         value.toInt().toString(),
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize9,
-                            color: colors.textMuted),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
                       );
                     }
                   } else {
@@ -530,9 +521,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                         value == 90) {
                       return Text(
                         '${value.toInt()}°',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize9,
-                            color: colors.textMuted),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
                       );
                     }
                   }
@@ -549,9 +539,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   final time = _startTime.add(Duration(minutes: value.toInt()));
                   return Text(
                     _siteHhmm(time),
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize9,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   );
                 },
               ),
@@ -619,9 +608,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   label: VerticalLineLabel(
                     show: true,
                     alignment: Alignment.topRight,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize8,
-                        color: colors.error),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.error),
                     labelResolver: (_) => 'Now',
                   ),
                 ),
@@ -674,16 +662,14 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   if (_showAirmass) {
                     return LineTooltipItem(
                       '$timeStr\nAirmass: ${spot.y.toStringAsFixed(2)}',
-                      TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textPrimary),
+                      NightshadeTypography.caption
+                          .copyWith(color: colors.textPrimary),
                     );
                   }
                   return LineTooltipItem(
                     '$timeStr\nAlt: ${spot.y.toStringAsFixed(1)}°',
-                    TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textPrimary),
+                    NightshadeTypography.caption
+                        .copyWith(color: colors.textPrimary),
                   );
                 }).toList();
               },
@@ -771,14 +757,12 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           _visibility!.transitAltitude! > 0) {
         return Text(
           'Circumpolar - always visible',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10, color: colors.success),
+          style: NightshadeTypography.caption.copyWith(color: colors.success),
         );
       } else {
         return Text(
           'Never rises at this location',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10, color: colors.error),
+          style: NightshadeTypography.caption.copyWith(color: colors.error),
         );
       }
     }
@@ -800,7 +784,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
@@ -810,17 +794,13 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           const SizedBox(width: 4),
           Text(
             '$label: ',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize9,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textPrimary, fontWeight: FontWeight.w500),
           ),
         ],
       ),

@@ -287,17 +287,15 @@ void main() {
 
       // Header title is the target name.
       expect(find.text('M51'), findsOneWidget);
-      // Subtitle frames + integration.
-      expect(
-        find.textContaining('18 frames'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('01:30:00 integration'), findsOneWidget);
+      // The three headline numbers are Readouts now (05 §3), not a subtitle.
+      expect(find.text('18'), findsWidgets);
+      expect(find.text('STACKED'), findsOneWidget);
+      expect(find.text('01:30:00'), findsWidgets);
+      expect(find.text('INTEGRATED'), findsOneWidget);
 
-      // Stat rows render the integration, frames, rejected, and residual.
-      expect(find.text('Integration'), findsWidgets);
-      expect(find.text('Frames stacked'), findsOneWidget);
-      expect(find.text('Rejected'), findsOneWidget);
+      // The rejected count is the third Readout; the residual stays in the
+      // key/value list below.
+      expect(find.text('REJECTED'), findsOneWidget);
       expect(find.text('2'), findsWidgets); // 20 attempted - 18 stacked.
       expect(find.text('Avg residual'), findsOneWidget);
       expect(find.text('0.42 px'), findsOneWidget);
@@ -528,8 +526,14 @@ void main() {
         liveState: busyState,
       );
 
-      expect(find.byType(NightshadeAlert), findsOneWidget);
-      expect(find.text('Live stacking is active'), findsOneWidget);
+      // The banner sets title + message in one RichText, so match the widget
+      // and its title span rather than a bare Text.
+      expect(find.byType(NightshadeBanner), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) =>
+            w is NightshadeBanner && w.title == 'Live stacking is active'),
+        findsOneWidget,
+      );
       expect(
         find.widgetWithText(NightshadeButton, 'Stop live stacking'),
         findsOneWidget,

@@ -34,7 +34,7 @@ Future<void> _pump(WidgetTester tester) async {
 /// row title, so an unscoped `find.text` matches two rows.
 Finder _row(String title) => find.descendant(
       of: find.ancestor(
-        of: find.text('Built-in event alerts'),
+        of: find.text('Built-in event alerts'.toUpperCase()),
         matching: find.byType(SettingsSection),
       ),
       matching: find.widgetWithText(SettingRow, title),
@@ -62,7 +62,11 @@ void main() {
     expect(find.textContaining('not read by any delivery path'), findsNothing);
     expect(find.textContaining('no longer sends anything'), findsNothing);
     expect(find.text('Legacy event flags (not wired up)'), findsNothing);
-    expect(find.text('Built-in event alerts'), findsOneWidget);
+    // Uppercase: the section label is an eyebrow (06 §Settings).
+    expect(
+      find.text('Built-in event alerts'.toUpperCase()),
+      findsOneWidget,
+    );
   });
 
   testWidgets('all three built-in event switches are operable', (tester) async {

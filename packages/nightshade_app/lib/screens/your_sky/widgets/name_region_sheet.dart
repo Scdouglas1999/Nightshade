@@ -133,7 +133,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
                   const SizedBox(width: NightshadeTokens.spaceSm),
                   Text(
                     'Name a region',
-                    style: NightshadeTypography.h5
+                    style: NightshadeTypography.bodyStrong
                         .copyWith(color: colors.textPrimary),
                   ),
                 ],
@@ -183,7 +183,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
                   Expanded(
                     child: NightshadeButton(
                       label: 'Cancel',
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       // Live even mid-write: the write is fire-and-forget from
                       // here on (`_create` re-checks `mounted`), and a sheet
                       // that can only be left by killing the app takes any
@@ -240,16 +240,14 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
     return targetsAsync.when(
       data: (targets) {
         if (targets.isEmpty) {
-          return NightshadeCard(
-            variant: CardVariant.subtle,
-            padding: NightshadeTokens.cardPadding,
-            child: Text(
-              'No targets in your library yet — switch to Custom to enter a '
-              'sky position by hand.',
-              style: NightshadeTypography.caption
-                  .copyWith(color: colors.textMuted),
-            ),
-          );
+          return NightshadePanel(
+              padding: NightshadeTokens.cardPadding,
+              child: Text(
+                'No targets in your library yet — switch to Custom to enter a '
+                'sky position by hand.',
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
+              ));
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
+import 'package:nightshade_app/screens/equipment/widgets/device_tile_width.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
@@ -103,17 +104,26 @@ class _CardRow extends StatelessWidget {
             children: [
               SizedBox(
                 width: 320,
-                child: ConnectedDeviceCard(type: ConnectedDeviceType.camera),
+                child: DeviceTileWidth(
+                  width: 320,
+                  child: ConnectedDeviceCard(type: ConnectedDeviceType.camera),
+                ),
               ),
               SizedBox(width: 16),
               SizedBox(
                 width: 320,
-                child: ConnectedDeviceCard(type: ConnectedDeviceType.mount),
+                child: DeviceTileWidth(
+                  width: 320,
+                  child: ConnectedDeviceCard(type: ConnectedDeviceType.mount),
+                ),
               ),
               SizedBox(width: 16),
               SizedBox(
                 width: 320,
-                child: ConnectedDeviceCard(type: ConnectedDeviceType.dome),
+                child: DeviceTileWidth(
+                  width: 320,
+                  child: ConnectedDeviceCard(type: ConnectedDeviceType.dome),
+                ),
               ),
             ],
           ),

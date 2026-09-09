@@ -29,15 +29,13 @@ const String kBuiltinGuiderNoPauseReason =
     'Pause is a PHD2 feature. The built-in guider has no pause — '
     'use Stop to suspend guiding.';
 
-/// Full PHD2 guiding interface screen
+/// Full guiding interface (06 §Guiding).
 ///
-/// Provides comprehensive guiding control including:
-/// - Star image view with crosshairs
-/// - Target display (error history visualization)
-/// - Advanced guiding graph with configurable scales
-/// - PHD2 Brain settings panel
-/// - Calibration controls
-/// - Full guiding controls
+/// A [PageHeader] over three columns: the guide star, the target display and
+/// star statistics on the left; the guide graph in the middle; the controls,
+/// calibration and Brain settings in a [SidePanel] on the right. Below the
+/// shell's layout breakpoint the columns reflow to the graph over a tabbed
+/// body whose tabs live in the page header.
 class GuidingScreen extends ConsumerStatefulWidget {
   const GuidingScreen({super.key});
 
@@ -55,7 +53,10 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: _GuidingMobileSections._narrowTabs.length,
+      vsync: this,
+    );
   }
 
   @override
@@ -82,38 +83,66 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
       _hydrateGuidingSettings(settings);
     }
 
+    // A phone is a phone in either orientation — a large phone held in
+    // landscape is ~932 px wide yet must NOT get the three columns (they
+    // overflow). Branch on the shortest side so portrait AND landscape phones
+    // both take the reflowed layout, and on the shell breakpoint so a narrow
+    // desktop window reflows too.
+    final narrow = _isNarrowViewport(context);
+    // PageHeader gives the tabs their own row only below ITS breakpoint. A
+    // phone in landscape (844 x 390) is above that yet still takes the
+    // reflowed body, and squeezing the tab strip into the header row there
+    // scrolls the last tab out of reach — so it gets the `bottom` slot.
+    final headerIsNarrow = MediaQuery.sizeOf(context).width <
+        ShellChromeMetrics.shellLayoutBreakpoint;
+
     return Scaffold(
       // Connection/settings inputs live in modal dialogs that handle their
       // own IME insets. Resizing the complex guiding dashboard behind the
-      // modal can make its fixed status chrome overflow in short landscape
-      // viewports even though the user cannot interact with it.
+      // modal can make its fixed chrome overflow in short landscape viewports
+      // even though the user cannot interact with it.
       resizeToAvoidBottomInset: false,
       backgroundColor: colors.background,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // Status bar - adapts for phone
-            _buildStatusBar(colors, isConnected, phd2State, guideStats),
+            PageHeader(
+              key: GuidingTutorialKeys.statusBar,
+              icon: NightshadeIcons.guider,
+              title: 'Guiding',
+              // Below the breakpoint the header keeps the title, the state
+              // chip and the two actions; the connection sentence and the
+              // button labels are the content that goes, not the type size.
+              context: narrow ? null : _connectionLabel(isConnected),
+              tabs: narrow && headerIsNarrow ? _buildNarrowTabs() : null,
+              bottom:
+                  narrow && !headerIsNarrow ? _buildTabStripRow(colors) : null,
+              actions: _buildHeaderActions(isConnected, phd2State, narrow),
+            ),
             if (settingsAsync.hasError)
-              _GuidingSettingsAuthorityBanner(
-                error: settingsAsync.error!,
-                onRetry: () => ref.invalidate(appSettingsProvider),
-              )
-            else if (settingsAsync.isLoading)
-              LinearProgressIndicator(
-                minHeight: 2,
-                color: colors.primary,
-                backgroundColor: colors.border,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  NightshadeTokens.space2xl,
+                  NightshadeTokens.spaceMd,
+                  NightshadeTokens.space2xl,
+                  0,
+                ),
+                child: NightshadeBanner(
+                  title: 'Guiding defaults unavailable.',
+                  message: 'Settle and dither edits are disabled. '
+                      '${settingsAsync.error}',
+                  tone: BannerTone.error,
+                  action: NightshadeButton(
+                    label: 'Retry',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    onPressed: () => ref.invalidate(appSettingsProvider),
+                  ),
+                ),
               ),
-            // Main content. A phone is a phone in either orientation — a
-            // large phone held in landscape is ~932 px wide yet must NOT get
-            // the desktop split (its narrow side panels overflow). Branch on
-            // the shortest side so portrait AND landscape phones both take
-            // the reflowed mobile layout; genuine tablets/desktops keep the
-            // split, which scales fractionally.
             Expanded(
-              child: _isPhoneViewport(context)
+              child: narrow
                   ? _buildMobileLayout(
                       colors, isConnected, phd2State, guideStats)
                   : _buildDesktopLayout(
@@ -124,44 +153,91 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
       ),
     );
   }
-}
 
-class _GuidingSettingsAuthorityBanner extends StatelessWidget {
-  const _GuidingSettingsAuthorityBanner({
-    required this.error,
-    required this.onRetry,
-  });
+  /// The page header's actions: the guider state chip, the ONE connect action
+  /// and the settings icon button (06 §Guiding).
+  ///
+  /// Below the shell breakpoint the connect action collapses to an icon
+  /// button: at 360 px the labelled button, the chip and the title cannot
+  /// share the row, and 07 says reduce content rather than shrink type.
+  List<Widget> _buildHeaderActions(
+    bool isConnected,
+    Phd2State phd2State,
+    bool narrow,
+  ) {
+    final guiderState = ref.watch(guiderStateProvider);
+    final guiderId = guiderState.deviceId;
+    final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
+    final connecting =
+        guiderState.connectionState == DeviceConnectionState.connecting;
 
-  final Object error;
-  final VoidCallback onRetry;
+    final (IconData icon, String label, VoidCallback? onPressed) =
+        _connectAction(isConnected, isPhd2Guider, connecting);
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: colors.error.withValues(alpha: 0.1),
-      child: Row(
-        children: [
-          Icon(LucideIcons.alertTriangle, size: 15, color: colors.error),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Guiding defaults unavailable: $error. '
-              'Settle and dither edits are disabled.',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
+    return [
+      NightshadeChip(
+        label: _getStateLabel(phd2State),
+        tone: _getStateTone(phd2State),
+        dot: true,
       ),
+      if (narrow)
+        NightshadeIconButton(
+          key: GuidingTutorialKeys.connectBtn,
+          icon: icon,
+          tooltip: label,
+          onPressed: onPressed,
+        )
+      else
+        NightshadeButton(
+          key: GuidingTutorialKeys.connectBtn,
+          label: label,
+          icon: icon,
+          variant: ButtonVariant.secondary,
+          size: ButtonSize.small,
+          // While a connect is in flight the guider sits in the `connecting`
+          // state — a disabled, spinning affordance so a second tap cannot
+          // launch/socket PHD2 again (connect is not abortable mid-flight).
+          isLoading: connecting,
+          onPressed: onPressed,
+        ),
+      NightshadeIconButton(
+        icon: NightshadeIcons.settings,
+        tooltip: isPhd2Guider ? 'PHD2 connection settings' : 'Guider settings',
+        onPressed: () =>
+            isPhd2Guider ? _showConnectionDialog() : context.go('/equipment'),
+      ),
+    ];
+  }
+
+  /// The one connect-side action for the current guider state.
+  (IconData, String, VoidCallback?) _connectAction(
+    bool isConnected,
+    bool isPhd2Guider,
+    bool connecting,
+  ) {
+    if (connecting) {
+      return (NightshadeIcons.connected, 'Connecting\u2026', null);
+    }
+    if (!isConnected && isPhd2Guider) {
+      return (
+        NightshadeIcons.connected,
+        'Connect',
+        () => connectPhd2(ref, context: context),
+      );
+    }
+    if (isConnected) {
+      return (
+        LucideIcons.plugZap,
+        'Disconnect',
+        () => isPhd2Guider
+            ? disconnectPhd2(ref, context: context)
+            : _disconnectActiveGuider(),
+      );
+    }
+    return (
+      NightshadeIcons.guider,
+      'Equipment',
+      () => context.go('/equipment'),
     );
   }
 }

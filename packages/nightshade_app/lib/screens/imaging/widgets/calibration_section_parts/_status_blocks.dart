@@ -128,11 +128,8 @@ class _NoMapForBucketBlock extends ConsumerWidget {
         Text(
           'Capture 20+ dark frames at this temperature, then click Build '
           'to generate one.',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            color: colors.textSecondary,
-            height: 1.4,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary, height: 1.4),
         ),
         if (fallback != null) ...[
           const SizedBox(height: 10),
@@ -222,11 +219,8 @@ class _AlternateBucketChip extends ConsumerWidget {
             child: Text(
               'A map exists for ${alternateBucket.label} ($signedDelta C '
               'from current).',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textPrimary,
-                height: 1.4,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textPrimary, height: 1.4),
             ),
           ),
           const SizedBox(width: 8),
@@ -292,11 +286,8 @@ class _StatusLine extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textPrimary,
-                height: 1.4,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textPrimary, height: 1.4),
             ),
           ),
         ],

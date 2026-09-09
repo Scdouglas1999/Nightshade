@@ -78,8 +78,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             l10n.text('remoteAccessQrBody'),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -88,9 +87,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
           SelectableText(
             '${l10n.text('remoteAccessFingerprint')}: '
             '${shortServerFingerprint(webState.serverFingerprint)}',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontFamily: 'monospace',
+            style: NightshadeTypography.readoutXs.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -106,9 +103,9 @@ class _RemotePairingQrPanel extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               l10n.text('remoteAccessQrStartHint'),
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
             ),
           ] else if (pairingCode != null) ...[
             // The card promises "a QR code and pairing phrase", and a QR alone
@@ -129,15 +126,14 @@ class _RemotePairingQrPanel extends StatelessWidget {
             else
               Text(
                 l10n.text('remoteAccessQrNoLanIp'),
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.warning),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.warning,
+                ),
               ),
             const SizedBox(height: 10),
             Text(
               _l10nOr(l10n, 'remoteAccessQrPhraseLabel', 'Pairing phrase'),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
               ),
             ),
@@ -154,10 +150,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
               label: 'Pairing phrase: $pairingCode',
               child: SelectableText(
                 pairingCode!,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'monospace',
+                style: NightshadeTypography.readoutBadge.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -176,8 +169,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
                       'Expires in {left}',
                       params: {'left': countdown},
                     ),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: expired ? colors.warning : colors.textSecondary,
               ),
             ),
@@ -187,7 +179,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
                 label: _l10nOr(
                     l10n, 'remoteAccessQrStopButton', 'Stop pairing mode'),
                 icon: LucideIcons.x,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: onStopPairing,
               ),

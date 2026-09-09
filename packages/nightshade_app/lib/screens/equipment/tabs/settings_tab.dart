@@ -23,7 +23,7 @@ class EquipmentSettingsTab extends ConsumerWidget {
               child: Container(
                 height: 180,
                 decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
+                  color: colors.well,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
@@ -67,7 +67,7 @@ class _CameraSettingsCard extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -75,12 +75,12 @@ class _CameraSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Camera Settings',
-              style:
-                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
-              label: 'Default Gain',
+              label: 'Default gain',
               child: _compactNumberField(
                 context,
                 initialValue: settings.defaultGain.toString(),
@@ -92,7 +92,7 @@ class _CameraSettingsCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             _SettingRow(
-              label: 'Default Offset',
+              label: 'Default offset',
               child: _compactNumberField(
                 context,
                 initialValue: settings.defaultOffset.toString(),
@@ -119,7 +119,7 @@ class _MountSettingsCard extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -127,18 +127,18 @@ class _MountSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Mount Settings',
-              style:
-                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             NightshadeSwitchRow(
-              label: 'Meridian Flip',
+              label: 'Meridian flip',
               value: settings.enableMeridianFlip,
               onChanged: (value) => notifier.setEnableMeridianFlip(value),
             ),
             const SizedBox(height: 12),
             _SettingRow(
-              label: 'Flip Offset (min)',
+              label: 'Flip offset (min)',
               child: _compactNumberField(
                 context,
                 initialValue: settings.meridianFlipMinutes.toString(),
@@ -183,7 +183,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
       loadingDefault: true,
     );
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -191,8 +191,8 @@ class _FocuserSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Focuser Settings',
-              style:
-                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Tooltip(
@@ -205,7 +205,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
                 child: IgnorePointer(
                   ignoring: !tempCompAvailable,
                   child: NightshadeSwitchRow(
-                    label: 'Temp Compensation',
+                    label: 'Temperature compensation',
                     value: settings.tempCompensation,
                     onChanged: (value) => notifier.setTempCompensation(value),
                   ),
@@ -214,7 +214,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             _SettingRow(
-              label: 'Temp Coefficient',
+              label: 'Temperature coefficient',
               child: _compactNumberField(
                 context,
                 initialValue: settings.tempCoefficient.toString(),
@@ -226,7 +226,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             _SettingRow(
-              label: 'Backlash Comp',
+              label: 'Backlash compensation',
               child: _compactNumberField(
                 context,
                 initialValue: settings.backlashCompensation.toString(),
@@ -572,9 +572,7 @@ class _BuiltinGuiderSettingsCardState
           children: [
             Text(
               'Failed to load built-in guider config: $_loadError',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.error),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -649,7 +647,7 @@ class _BuiltinGuiderSettingsCardState
           ),
           const SizedBox(height: 12),
           _SettingRow(
-            label: 'Min Pulse (ms)',
+            label: 'Min pulse (ms)',
             subtitle: 'Corrections shorter than this are skipped to avoid '
                 'chasing seeing.',
             child: _builtinNumberField(
@@ -661,7 +659,7 @@ class _BuiltinGuiderSettingsCardState
           ),
           const SizedBox(height: 12),
           _SettingRow(
-            label: 'Max Pulse (ms)',
+            label: 'Max pulse (ms)',
             subtitle: 'Corrections are clamped to this so one bad frame '
                 'cannot lurch the mount.',
             child: _builtinNumberField(
@@ -673,7 +671,7 @@ class _BuiltinGuiderSettingsCardState
           ),
           const SizedBox(height: 12),
           _SettingRow(
-            label: 'Settle Sleep (ms)',
+            label: 'Settle sleep (ms)',
             subtitle: 'Wait between settle checks after a dither or slew.',
             child: _builtinNumberField(
               context,
@@ -690,9 +688,8 @@ class _BuiltinGuiderSettingsCardState
                   key: const ValueKey('builtin-guider-reset'),
                   onPressed: _initialized && !_saving ? _resetDefaults : null,
                   icon: const Icon(NightshadeIcons.refresh, size: 14),
-                  label: const Text('Reset',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12)),
+                  label:
+                      const Text('Reset', style: NightshadeTypography.caption),
                 ),
               ),
               const SizedBox(width: 8),
@@ -706,9 +703,8 @@ class _BuiltinGuiderSettingsCardState
                       ? _applyConfig
                       : null,
                   icon: const Icon(NightshadeIcons.check, size: 14),
-                  label: const Text('Apply',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12)),
+                  label:
+                      const Text('Apply', style: NightshadeTypography.caption),
                 ),
               ),
             ],
@@ -717,7 +713,7 @@ class _BuiltinGuiderSettingsCardState
       );
     }
 
-    return NightshadeCard(
+    return NightshadePanel(
       key: const ValueKey('builtin-guider-settings-card'),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -729,7 +725,7 @@ class _BuiltinGuiderSettingsCardState
                 Expanded(
                   child: Text(
                     'Built-in Guider',
-                    style: NightshadeTypography.h5
+                    style: NightshadeTypography.sectionTitle
                         .copyWith(color: colors.textPrimary),
                   ),
                 ),
@@ -743,9 +739,8 @@ class _BuiltinGuiderSettingsCardState
                   ),
                   child: Text(
                     isConnected ? 'Active' : 'Standby',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize9,
-                      fontWeight: FontWeight.w600,
+                    style: NightshadeTypography.eyebrow.copyWith(
+                      letterSpacing: 0,
                       color:
                           isConnected ? colors.success : colors.textSecondary,
                     ),
@@ -758,10 +753,8 @@ class _BuiltinGuiderSettingsCardState
               'Multi-star software guider that uses the imaging camera and mount '
               'pulse-guide. No second guide camera required. These values are '
               'sent to the guider together when you press Apply.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
             const SizedBox(height: 16),
             body,
@@ -771,19 +764,14 @@ class _BuiltinGuiderSettingsCardState
                 Text(
                   key: const ValueKey('builtin-guider-pending'),
                   'Not applied yet — press Apply to send these to the guider.',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontWeight: FontWeight.w600,
-                    color: colors.warning,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      fontWeight: FontWeight.w600, color: colors.warning),
                 ),
               Text(
                 key: const ValueKey('builtin-guider-last-applied'),
                 'Last applied: ${_describeConfig(_lastApplied)}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -819,7 +807,7 @@ Widget _builtinNumberField(
           : <TextInputFormatter>[
               FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
             ],
-      style: const TextStyle(fontSize: NightshadeTypography.fontSize13),
+      style: NightshadeTypography.bodySm,
       decoration: const InputDecoration(
         isDense: true,
         contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -863,19 +851,15 @@ class _SettingRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            color: colors.textSecondary,
-          ),
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 2),
           Text(
             subtitle!,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textMuted,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ],

@@ -40,7 +40,8 @@ class SharedTargetCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.accent),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.accent),
                 child: Icon(
                   LucideIcons.users,
                   size: NightshadeTokens.iconSm,

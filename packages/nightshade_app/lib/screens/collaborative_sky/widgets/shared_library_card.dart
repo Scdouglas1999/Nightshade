@@ -28,83 +28,83 @@ class SharedLibraryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.info),
-                child: Icon(
-                  LucideIcons.library,
-                  size: NightshadeTokens.iconSm,
-                  color: colors.info,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.info),
+                  child: Icon(
+                    LucideIcons.library,
+                    size: NightshadeTokens.iconSm,
+                    color: colors.info,
+                  ),
                 ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Shared calibration library',
-                      style: NightshadeTypography.labelStrong.copyWith(
-                        color: colors.textPrimary,
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Shared calibration library',
+                        style: NightshadeTypography.labelStrong.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      summary.isEmpty
-                          ? 'Never shoot the same dark twice — pull a '
-                              'sensor-matched master a member already shot.'
-                          : 'Sensor-matched masters, shared with provenance and '
-                              'consent so you trust what you pull.',
-                      style: NightshadeTypography.captionSm.copyWith(
-                        color: colors.textMuted,
-                        height: 1.4,
+                      const SizedBox(height: 2),
+                      Text(
+                        summary.isEmpty
+                            ? 'Never shoot the same dark twice — pull a '
+                                'sensor-matched master a member already shot.'
+                            : 'Sensor-matched masters, shared with provenance and '
+                                'consent so you trust what you pull.',
+                        style: NightshadeTypography.captionSm.copyWith(
+                          color: colors.textMuted,
+                          height: 1.4,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          ResponsiveStatStrip(
-            minCellWidth: 120,
-            stats: [
-              ResponsiveStat(
-                label: 'YOU SHARED',
-                value: '${summary.publishedCount}',
-                icon: LucideIcons.upload,
-              ),
-              ResponsiveStat(
-                label: 'YOU PULLED',
-                value: '${summary.pulledCount}',
-                icon: LucideIcons.download,
-                accent: summary.pulledCount > 0 ? colors.success : null,
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: NightshadeButton(
-              label: 'Open calibration library',
-              icon: LucideIcons.library,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: onOpen,
+              ],
             ),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            ResponsiveStatStrip(
+              minCellWidth: 120,
+              stats: [
+                ResponsiveStat(
+                  label: 'YOU SHARED',
+                  value: '${summary.publishedCount}',
+                  icon: LucideIcons.upload,
+                ),
+                ResponsiveStat(
+                  label: 'YOU PULLED',
+                  value: '${summary.pulledCount}',
+                  icon: LucideIcons.download,
+                  accent: summary.pulledCount > 0 ? colors.success : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeButton(
+                label: 'Open calibration library',
+                icon: LucideIcons.library,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: onOpen,
+              ),
+            ),
+          ],
+        ));
   }
 }

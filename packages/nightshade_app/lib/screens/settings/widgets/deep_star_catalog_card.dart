@@ -150,7 +150,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
     try {
       confirm = await ConfirmDialog.show(
         context: context,
-        title: 'Delete Deep-Star Tiles',
+        title: 'Delete deep-star tiles',
         message: 'Remove the downloaded deep-star tier? The bundled HYG stars '
             'are unaffected.',
         confirmLabel: 'Delete',
@@ -210,7 +210,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
               Expanded(
                 child: Text(
                   'Deep-Star Tier (Tycho-2 / Gaia)',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -229,9 +229,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
             '(mag ${kHygFaintFloorMag.toStringAsFixed(1)}) as view-culled '
             'tiles when zoomed in. No tileset is published yet: host one built '
             'with tools/catalog_prep and point the URL below at it.',
-            style: TextStyle(
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
           const SizedBox(height: 16),
@@ -255,9 +254,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
             if (_urlController.text.trim().isEmpty) ...[
@@ -266,9 +264,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                 'No official tileset is published yet — point this at a '
                 'tileset you host yourself (see tools/catalog_prep in the '
                 'Nightshade repository).',
-                style: TextStyle(
+                style: NightshadeTypography.captionSm.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize11,
                   height: 1.4,
                 ),
               ),
@@ -279,9 +276,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                 '${status!.manifest!.totalStars} stars across '
                 '${status.tilesPresent}/${status.manifest!.tiles.length} tiles'
                 '${status.installedAt != null ? " • installed ${_fmt(status.installedAt!)}" : ""}',
-                style: TextStyle(
+                style: NightshadeTypography.captionSm.copyWith(
                   color: colors.textSecondary.withValues(alpha: 0.8),
-                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
             ] else if (hasCatalogData) ...[
@@ -289,9 +285,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
               Text(
                 'A partial or unreadable download is present. Resume it or '
                 'delete it to reclaim the files.',
-                style: TextStyle(
+                style: NightshadeTypography.captionSm.copyWith(
                   color: colors.warning,
-                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
             ],
@@ -312,9 +307,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                 '${_progress!.verifying ? "Verifying" : "Downloading"} '
                 '${_progress!.tilesDone}/${_progress!.tilesTotal} • '
                 '${(_progress!.bytesDone / 1024).toStringAsFixed(0)} KiB',
-                style: TextStyle(
+                style: NightshadeTypography.captionSm.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
             ],
@@ -353,7 +347,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                   NightshadeButton(
                     label: 'Pause',
                     icon: NightshadeIcons.close,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _cancelRequested
                         ? null
                         : () => setState(() => _cancelRequested = true),
@@ -362,7 +356,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                   NightshadeButton(
                     label: 'Verify',
                     icon: NightshadeIcons.success,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     isLoading: _action == _DeepStarAction.verify,
                     onPressed:
                         (_busy || _deleteConfirmationOpen) ? null : _verify,
@@ -411,16 +405,15 @@ class _LoadError extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           error.toString(),
-          style: TextStyle(
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
         const SizedBox(height: 12),
         NightshadeButton(
           label: 'Retry',
           icon: NightshadeIcons.refresh,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           onPressed: onRetry,
         ),
       ],

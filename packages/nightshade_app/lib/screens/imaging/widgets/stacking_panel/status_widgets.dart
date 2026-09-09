@@ -27,9 +27,7 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.error),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
           ),
           if (onRetry != null) ...[
@@ -65,9 +63,8 @@ class _StatRow extends StatelessWidget {
       children: [
         Expanded(
           child: Text(label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary)),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary)),
         ),
         const SizedBox(width: 8),
         Text(
@@ -109,12 +106,10 @@ class _StatGroupHeader extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Text(
             label.toUpperCase(),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              letterSpacing: 0.6,
-              fontWeight: FontWeight.w600,
-              color: colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+                color: colors.textMuted),
           ),
         ),
         const SizedBox(height: 8),
@@ -176,10 +171,8 @@ class _RejectionWarning extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   detail,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
               ],
             ),
@@ -243,9 +236,8 @@ class _AlignmentQualityBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Alignment Quality',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary)),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary)),
             Text(qualityLabel,
                 style: NightshadeTypography.labelStrongSm
                     .copyWith(color: qualityColor)),

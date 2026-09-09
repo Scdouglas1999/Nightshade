@@ -44,14 +44,16 @@ const int kDarkroomDraftNoteCollapsedChars = 100;
 class _DarkroomCollapsibleAlert extends StatefulWidget {
   const _DarkroomCollapsibleAlert({
     required this.message,
-    required this.severity,
+    required this.tone,
     required this.disclosureObject,
-    this.title,
+    required this.title,
   });
 
-  final String? title;
+  /// NightshadeBanner puts the title and the message on ONE line, so the title
+  /// is required: a banner with no title starts mid-sentence.
+  final String title;
   final String message;
-  final NightshadeAlertSeverity severity;
+  final BannerTone tone;
 
   /// What the expander opens, named as an object: "the draft's omissions".
   final String disclosureObject;
@@ -125,11 +127,10 @@ class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
     final collapsed = _collapsed(widget.message);
     final showing =
         (collapsed == null || _expanded) ? widget.message : collapsed;
-    return NightshadeAlert(
-      severity: widget.severity,
+    return NightshadeBanner(
+      tone: widget.tone,
       title: widget.title,
       message: showing,
-      compact: true,
       action: collapsed == null
           ? null
           : _DarkroomNamedControl(
@@ -286,7 +287,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         // indented.
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceMd),
-          child: SectionHeader(title: 'Recipe'),
+          child: SectionTitle(icon: NightshadeIcons.sliders, title: 'Recipe'),
         ),
         Expanded(
           child: NotificationListener<ScrollMetricsNotification>(
@@ -390,17 +391,16 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
     }
     return [
       if (notesError != null) ...[
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.warning,
+        NightshadeBanner(
+          tone: BannerTone.warning,
           title: 'The draft account could not be read',
           message: notesError,
-          compact: true,
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
       ],
       if (notes.isNotEmpty) ...[
         _DarkroomCollapsibleAlert(
-          severity: NightshadeAlertSeverity.info,
+          tone: BannerTone.info,
           title: _draftNotesTitle(notes),
           disclosureObject: "the draft's omissions",
           message: [
@@ -410,11 +410,10 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         const SizedBox(height: NightshadeTokens.spaceLg),
       ],
       if (importNote != null) ...[
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
+        NightshadeBanner(
+          tone: BannerTone.info,
           title: 'Imported from a .nsrecipe sidecar',
           message: importNote,
-          compact: true,
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
       ],
@@ -564,7 +563,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
       if (warnings.isNotEmpty) ...[
         const SizedBox(height: NightshadeTokens.spaceSm),
         _DarkroomCollapsibleAlert(
-          severity: NightshadeAlertSeverity.warning,
+          tone: BannerTone.warning,
           title: warnings.length == 1
               ? 'The integration recorded a calibration warning'
               : 'The integration recorded ${warnings.length} calibration '
@@ -589,7 +588,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
               child: NightshadeButton(
                 label: 'Undo',
                 icon: NightshadeIcons.undo,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: state.canUndo ? widget.onUndo : null,
               ),
@@ -599,7 +598,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
               child: NightshadeButton(
                 label: 'Redo',
                 icon: NightshadeIcons.repeat,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: state.canRedo ? widget.onRedo : null,
               ),
@@ -610,7 +609,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         NightshadeButton(
           label: 'Reset to linear',
           icon: NightshadeIcons.frame,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: state.steps.isEmpty || state.isLinear
               ? null
@@ -664,7 +663,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         // nothing.
         children.add(
           _DarkroomCollapsibleAlert(
-            severity: NightshadeAlertSeverity.error,
+            tone: BannerTone.error,
             title: 'The render did not finish',
             disclosureObject: 'why the render did not finish',
             message: error,
@@ -672,12 +671,12 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         );
       } else if (cancelled != null) {
         children.add(
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.info,
+          NightshadeBanner(
+            title: 'The render was stopped',
+            tone: BannerTone.info,
             message:
                 'You stopped the render during $cancelled. The picture above '
                 'is the one before it.',
-            compact: true,
           ),
         );
       } else {
@@ -706,11 +705,10 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         children
           ..add(const SizedBox(height: NightshadeTokens.spaceSm))
           ..add(
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.info,
+            NightshadeBanner(
+              tone: BannerTone.info,
               title: 'Color calibration has no catalogue stars',
               message: photometryNote,
-              compact: true,
             ),
           );
       }
@@ -720,7 +718,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
           NightshadeButton(
             label: 'Render again',
             icon: NightshadeIcons.refresh,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => widget.onRerender(),
           ),
@@ -744,10 +742,10 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
       children
         ..add(const SizedBox(height: NightshadeTokens.spaceSm))
         ..add(
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.error,
+          NightshadeBanner(
+            title: 'The recipe was not saved',
+            tone: BannerTone.error,
             message: saveError,
-            compact: true,
           ),
         );
     }

@@ -50,29 +50,19 @@ class OpticalConfigPanel extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'OPTICAL CONFIG',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textMuted,
-                        letterSpacing: 0.5,
-                      ),
+                      style: NightshadeTypography.eyebrow
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 14,
-                      tooltip: 'Hide optical config panel',
-                      icon: Icon(NightshadeIcons.close,
-                          size: 14, color: colors.textMuted),
-                      onPressed: () {
-                        ref
-                            .read(framingProvider.notifier)
-                            .setOpticalConfigPanelVisible(false);
-                      },
-                    ),
+                  NightshadeIconButton(
+                    icon: NightshadeIcons.close,
+                    tooltip: 'Hide optical config panel',
+                    size: IconButtonSize.sm,
+                    onPressed: () {
+                      ref
+                          .read(framingProvider.notifier)
+                          .setOpticalConfigPanelVisible(false);
+                    },
                   ),
                 ],
               ),
@@ -115,24 +105,23 @@ class OpticalConfigPanel extends ConsumerWidget {
           activeProfile == null
               ? 'No equipment profile'
               : 'No optical configuration',
-          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.bodyStrong
+              .copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Text(
           activeProfile == null
               ? 'Create and activate an equipment profile to see your field of view.'
               : 'Set up your telescope and camera to see accurate field of view.',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
         NightshadeButton(
           label: 'Configure in Equipment',
           icon: NightshadeIcons.settings2,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: () => context.go('/equipment'),
         ),
@@ -155,14 +144,12 @@ class OpticalConfigPanel extends ConsumerWidget {
           Row(
             children: [
               const Text('\u{1F52D}',
-                  style: TextStyle(
-                      fontSize:
-                          NightshadeTypography.fontSize14)), // Telescope emoji
+                  style: NightshadeTypography.body), // Telescope emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   config.telescopeName!,
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -175,10 +162,8 @@ class OpticalConfigPanel extends ConsumerWidget {
         // Optical specs
         Text(
           _formatOpticalSpecs(config),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
 
         const SizedBox(height: 12),
@@ -188,14 +173,12 @@ class OpticalConfigPanel extends ConsumerWidget {
           Row(
             children: [
               const Text('\u{1F4F7}',
-                  style: TextStyle(
-                      fontSize:
-                          NightshadeTypography.fontSize14)), // Camera emoji
+                  style: NightshadeTypography.body), // Camera emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   config.cameraName!,
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -209,10 +192,8 @@ class OpticalConfigPanel extends ConsumerWidget {
         if (config.sensorWidth != null && config.sensorHeight != null)
           Text(
             _formatSensorSpecs(config),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
 
         const SizedBox(height: 16),
@@ -222,13 +203,13 @@ class OpticalConfigPanel extends ConsumerWidget {
         // FOV and Scale
         _buildMetricRow(
           'FOV',
-          config.fovString ?? '---',
+          config.fovString ?? kReadoutUnknown,
           colors,
         ),
         const SizedBox(height: 8),
         _buildMetricRow(
           'Scale',
-          config.scaleString ?? '---',
+          config.scaleString ?? kReadoutUnknown,
           colors,
         ),
 
@@ -269,19 +250,12 @@ class OpticalConfigPanel extends ConsumerWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-            fontFamily: 'monospace',
-          ),
+          style: NightshadeTypography.readoutSm
+              .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
       ],
     );
@@ -307,7 +281,7 @@ class _ProfileSwitcher extends ConsumerWidget {
         return PopupMenuButton<int>(
           tooltip: 'Switch equipment profile',
           offset: const Offset(0, 40),
-          color: colors.surfaceAlt,
+          color: colors.well,
           shape: RoundedRectangleBorder(
             borderRadius: NightshadeTokens.borderRadiusInline8,
             side: BorderSide(color: colors.border),
@@ -324,10 +298,8 @@ class _ProfileSwitcher extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     currentProfile?.name ?? 'Select Profile',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -351,8 +323,7 @@ class _ProfileSwitcher extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       profile.name,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                         color: isSelected
                             ? colors.textPrimary
                             : colors.textSecondary,
@@ -374,11 +345,8 @@ class _ProfileSwitcher extends ConsumerWidget {
                       ),
                       child: Text(
                         'Active',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize9,
-                          color: colors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: NightshadeTypography.caption.copyWith(
+                            color: colors.primary, fontWeight: FontWeight.w500),
                       ),
                     ),
                 ],
@@ -416,10 +384,8 @@ class _ProfileSwitcher extends ConsumerWidget {
             const SizedBox(width: 8),
             Text(
               'Loading...',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ),
@@ -437,10 +403,7 @@ class _ProfileSwitcher extends ConsumerWidget {
             const SizedBox(width: 8),
             Text(
               'Error loading profiles',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.error,
-              ),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
           ],
         ),

@@ -1,18 +1,45 @@
 part of '../settings_widgets.dart';
 
+/// How far the selected swatch's ring reaches past the circle, and how much of
+/// that is the gap in the page's own ground (mockups/settings.html `.sel`).
+const double _swatchRingExtent = 4;
+const double _swatchRingGap = 2;
+
 class SettingsColorPicker extends StatefulWidget {
-  /// The offered accents as `(hex, name)`. The name is not decoration: it is
-  /// the swatch's accessible label and its tooltip, so a control whose only
-  /// other description is its own pixels can be found and read.
-  static const List<(String, String)> accentColors = [
-    ('#5B9EC4', 'Cyan-blue'),
-    ('#10B981', 'Emerald'),
-    ('#F59E0B', 'Amber'),
-    ('#EF4444', 'Red'),
-    ('#2878A8', 'Deep sky'),
-    ('#EC4899', 'Pink'),
-    ('#06B6D4', 'Cyan'),
+  /// The seven hues, in the order [AppearanceAccents] lists them. The name is
+  /// not decoration: it is the swatch's accessible label and its tooltip, so a
+  /// control whose only other description is its own pixels can be found and
+  /// read.
+  static const List<String> accentNames = [
+    'Blue',
+    'Green',
+    'Amber',
+    'Red',
+    'Violet',
+    'Pink',
+    'Teal',
   ];
+
+  /// The swatches offered for [mode], as `(hex, name)`.
+  ///
+  /// A dark-safe accent is not light-safe (03 §1.4): `#6EB3EC` is 8.1:1 as link
+  /// text on the dark canvas and 2.4:1 on white, so each theme gets its own
+  /// seven, the same hues taken to where that theme's ink works.
+  /// [AppearanceAccents] lists them in the [accentNames] order.
+  static List<(String, String)> swatchesFor(AppThemeMode mode) {
+    final palette = AppearanceAccents.forTheme(mode);
+    return <(String, String)>[
+      for (var i = 0; i < palette.length; i++)
+        (
+          '#${palette[i].toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}',
+          accentNames[i],
+        ),
+    ];
+  }
+
+  /// The dark theme's swatches — the default when no list is supplied.
+  static List<(String, String)> get accentColors =>
+      swatchesFor(AppThemeMode.dark);
 
   final String selectedColor;
 
@@ -21,12 +48,20 @@ class SettingsColorPicker extends StatefulWidget {
 
   final bool isMobile;
 
+  /// The swatches to offer, as `(hex, name)`. Defaults to the dark set; the
+  /// Appearance page passes the set for the theme actually in force.
+  final List<(String, String)>? swatches;
+
   const SettingsColorPicker({
     super.key,
     required this.selectedColor,
     required this.onColorSelected,
     this.isMobile = false,
+    this.swatches,
   });
+
+  /// Diameter of one swatch (06 §Settings: "Accent swatches 22 px").
+  static const double swatchSize = 22;
 
   @override
   State<SettingsColorPicker> createState() => _SettingsColorPickerState();
@@ -89,23 +124,24 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    final circleSize = widget.isMobile ? 28.0 : 24.0;
-
-    final spacing =
-        widget.isMobile ? NightshadeTokens.spaceSm : NightshadeTokens.radiusSm;
-
     // Always wrap. A fixed `Row` of seven swatches needs ~210 px and cannot
     // shrink, so on a narrowed settings detail pane it pushed the last
     // swatches off-screen (unpickable) and overflowed by >100 px. `Wrap`
     // still renders as one line whenever the row has room.
     return Wrap(
-      spacing: spacing,
-      runSpacing: spacing,
+      spacing: NightshadeTokens.spaceSm,
+      runSpacing: NightshadeTokens.spaceSm,
       alignment: WrapAlignment.end,
-      children: SettingsColorPicker.accentColors.map((colorData) {
+      children: (widget.swatches ?? SettingsColorPicker.accentColors)
+          .map((colorData) {
         final (hex, name) = colorData;
 
-        return _buildColorCircle(colors, hex, name, circleSize);
+        return _buildColorCircle(
+          colors,
+          hex,
+          name,
+          SettingsColorPicker.swatchSize,
+        );
       }).toList(),
     );
   }
@@ -144,15 +180,29 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
             onTap: () => _selectColor(hex),
             customBorder: const CircleBorder(),
             child: Container(
+              // The selected swatch is ringed, not outlined: a 2 px ring held
+              // off the colour by a 2 px gap in the page's own ground, so the
+              // mark reads on a swatch of any hue without eating into it.
+              // Painted last-on-top, so the gap ring covers the inner half of
+              // the outer one.
+              margin: const EdgeInsets.all(_swatchRingExtent),
               width: size,
               height: size,
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? colors.textPrimary : colors.border,
-                  width: isSelected ? 2 : 1,
-                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: colors.textPrimary,
+                          spreadRadius: _swatchRingExtent,
+                        ),
+                        BoxShadow(
+                          color: colors.background,
+                          spreadRadius: _swatchRingGap,
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ),
@@ -324,7 +374,7 @@ class _SettingsPathInputState extends State<SettingsPathInput> {
               vertical: verticalPadding,
             ),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               border: Border.all(color: colors.border),
             ),
@@ -408,7 +458,7 @@ class _SettingsPathInputState extends State<SettingsPathInput> {
                 ? NightshadeTokens.spaceSm
                 : NightshadeTokens.radiusSm),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               border: Border.all(color: colors.border),
             ),

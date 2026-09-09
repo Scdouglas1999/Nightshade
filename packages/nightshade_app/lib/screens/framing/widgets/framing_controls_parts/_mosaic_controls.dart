@@ -27,9 +27,8 @@ class FramingMosaicSpinner extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textSecondary),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         Container(
@@ -49,7 +48,7 @@ class FramingMosaicSpinner extends StatelessWidget {
                 child: Text(
                   '$value',
                   textAlign: TextAlign.center,
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -133,7 +132,7 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
             color: widget.isSelected
                 ? widget.colors.primary.withValues(alpha: 0.15)
                 : _isHovered
-                    ? widget.colors.surfaceAlt
+                    ? widget.colors.well
                     : widget.colors.background,
             borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(
@@ -162,8 +161,7 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
                   widget.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
+                  style: NightshadeTypography.caption.copyWith(
                     fontWeight:
                         widget.isSelected ? FontWeight.w600 : FontWeight.normal,
                     color: widget.isSelected
@@ -281,8 +279,7 @@ class _CornerOption extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize8,
+                style: NightshadeTypography.caption.copyWith(
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   color: isSelected ? colors.primary : colors.textMuted,
                 ),

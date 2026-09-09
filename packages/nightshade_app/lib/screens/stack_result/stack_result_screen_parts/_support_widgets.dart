@@ -2,7 +2,7 @@
 part of '../stack_result_screen.dart';
 
 /// Export/share actions surfaced through the phone overflow menu (the four
-/// inline header buttons do not fit a phone-width [ScreenHeader] Row).
+/// inline header buttons do not fit a phone-width [PageHeader] Row).
 enum _StackResultAction { png, jpeg, shareCard, astroBin, darkroom }
 
 /// Icon + label row for a [_StackResultAction] popup-menu entry.
@@ -49,42 +49,6 @@ class _ActionMenuRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// A label-left, value-right stat row using monospace tabular value type.
-class _StatRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _StatRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: NightshadeTypography.bodySm.copyWith(
-                color: colors.textSecondary,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: NightshadeTypography.mono.copyWith(
-              color: colors.textPrimary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

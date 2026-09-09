@@ -44,6 +44,8 @@ Future<
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        // The profile list is the Profiles tab now (06 §Equipment).
+        equipmentTabIndexProvider.overrideWith((ref) => 1),
         backendProvider.overrideWith((ref) {
           backendNotifier = _SwappableBackendNotifier(ref, backend);
           return backendNotifier;

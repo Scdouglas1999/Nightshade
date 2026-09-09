@@ -142,7 +142,10 @@ void main() {
       // Location-derived facts do not.
       expect(find.text('10:53'), findsNothing);
       expect(find.text('23:24'), findsNothing);
-      expect(find.text('--:--'), findsNWidgets(2));
+      // 06 copy rules: an unknown value is an em dash. `--:--` was the old
+      // placeholder and is now forbidden everywhere in the app.
+      expect(find.text('--:--'), findsNothing);
+      expect(find.text(kReadoutUnknown), findsNWidgets(2));
     });
 
     testWidgets('with a real site, shows moonrise and moonset', (tester) async {

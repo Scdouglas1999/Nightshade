@@ -12,8 +12,12 @@ class _CullToolbar extends StatelessWidget {
   final CullRecommendationOffer offer;
 
   /// Live accepted-sub count, quoted in the stale explanation so the user can
-  /// see *why* the analysis no longer applies.
+  /// see *why* the analysis no longer applies, and read out beside the toolbar
+  /// as the count of subs the integration will fold.
   final int acceptedCount;
+
+  /// Subs this night captured but the cull is holding back.
+  final int rejectedCount;
   final VoidCallback onToggleBlink;
   final VoidCallback onToggleSelect;
   final ValueChanged<double> onHfrChanged;
@@ -29,6 +33,7 @@ class _CullToolbar extends StatelessWidget {
     required this.hfrThreshold,
     required this.offer,
     required this.acceptedCount,
+    required this.rejectedCount,
     required this.onToggleBlink,
     required this.onToggleSelect,
     required this.onHfrChanged,
@@ -49,17 +54,36 @@ class _CullToolbar extends StatelessWidget {
       runSpacing: NightshadeTokens.spaceSm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        // The two numbers the whole screen is about. They used to be a subtitle
+        // sentence under the page title ("41 accepted · 6 rejected"), which is
+        // a measurement written as prose in the one place 04-shell §4 has no
+        // slot for. They belong here, beside the controls that change them.
+        ReadoutRow(
+          gap: NightshadeTokens.spaceLg,
+          children: [
+            Readout(
+              value: '$acceptedCount',
+              label: 'Accepted',
+              size: ReadoutSize.sm,
+            ),
+            Readout(
+              value: '$rejectedCount',
+              label: 'Rejected',
+              size: ReadoutSize.sm,
+            ),
+          ],
+        ),
         NightshadeButton(
           label: blink ? 'Stop blink' : 'Blink mode',
           icon: NightshadeIcons.play,
-          variant: blink ? ButtonVariant.primary : ButtonVariant.outline,
+          variant: blink ? ButtonVariant.primary : ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: onToggleBlink,
         ),
         NightshadeButton(
           label: selectMode ? 'Done selecting' : 'Select / lasso',
           icon: NightshadeIcons.crosshair,
-          variant: selectMode ? ButtonVariant.primary : ButtonVariant.outline,
+          variant: selectMode ? ButtonVariant.primary : ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: onToggleSelect,
         ),
@@ -159,7 +183,7 @@ class _CullToolbar extends StatelessWidget {
           NightshadeButton(
             label: 'Reject HFR above',
             icon: NightshadeIcons.error,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: onBulkCull,
           ),

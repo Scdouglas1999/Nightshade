@@ -74,7 +74,7 @@ class _DarkroomAddStep extends StatelessWidget {
           key: const ValueKey('darkroom_add_step'),
           label: label,
           icon: NightshadeIcons.add,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           isLoading: busy,
           onPressed: blocked == null && !busy ? open : null,
@@ -127,7 +127,7 @@ class _DarkroomAddStepDialog extends StatelessWidget {
       actions: [
         NightshadeButton(
           label: 'Close',
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -206,7 +206,7 @@ class _DarkroomAddStepDialog extends StatelessWidget {
           NightshadeButton(
             label: title,
             icon: NightshadeIcons.add,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: refusal == null ? choose : null,
           ),

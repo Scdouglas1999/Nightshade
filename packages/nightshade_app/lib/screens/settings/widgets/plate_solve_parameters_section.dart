@@ -42,7 +42,7 @@ class _PlateSolveParametersSectionState
 
     return settingsAsync.when(
       loading: () => const SettingsSection(
-        title: 'Solve Parameters',
+        title: 'Solve parameters',
         children: [
           SettingRow(
             icon: LucideIcons.loader,
@@ -54,7 +54,7 @@ class _PlateSolveParametersSectionState
         ],
       ),
       error: (error, _) => SettingsSection(
-        title: 'Solve Parameters',
+        title: 'Solve parameters',
         children: [
           SettingRow(
             icon: LucideIcons.alertCircle,
@@ -68,7 +68,7 @@ class _PlateSolveParametersSectionState
       data: (settings) {
         final authority = ref.watch(backendProvider);
         return SettingsSection(
-          title: 'Solve Parameters',
+          title: 'Solve parameters',
           children: [
             SettingRow(
               icon: LucideIcons.timer,

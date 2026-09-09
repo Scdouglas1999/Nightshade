@@ -2,11 +2,10 @@
 //
 // Pumps the dashboard at the three reference phone sizes in BOTH orientations
 // and asserts:
-//   * the compact (phone) layout's own reflow never overflows,
-//   * the primary command bar + run-control strip are reachable WITHOUT
-//     scrolling (they are pinned above the scroll view),
-//   * the screen renders the cockpit grid (not standby) when a session is
-//     active.
+//   * the Tonight page's own reflow never overflows,
+//   * the page header stays pinned above the scroll view at every size,
+//   * the screen renders the panel grid (not the first-light checklist) when a
+//     session is active.
 //
 // Overflow scope: tiles compose content from package:nightshade_ui and from
 // the sequencer run-dashboard widgets, which can have their own pre-existing
@@ -20,9 +19,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_screen.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/cockpit_run_controls.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/dashboard_tile.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
@@ -136,41 +135,44 @@ void main() {
             '(${size.width.toInt()}x${size.height.toInt()}).',
       );
 
-      // The dashboard command bar is gone (04-shell §5): its facts moved to
-      // the instrument bar and the Tonight hero. What still has to be true is
-      // that the pinned strip below stays reachable without scrolling.
-
-      // The run-control strip is pinned (above the scroll view). With a
-      // completed (terminal) execution state it self-hides, but the widget is
-      // always present in the tree above the scroll body — assert the type is
-      // constructed so the pinned strip stays wired.
-      expect(find.byType(CockpitRunControls), findsWidgets,
-          reason: 'Pinned run controls must be present at $name.');
+      // The dashboard command bar and the pinned run-control strip are both
+      // gone (04-shell §5, 06 §Tonight): the run state lives in the instrument
+      // bar and the run's controls live in the hero. What must still be true at
+      // every phone size is that the page header sits ABOVE the scroll view,
+      // so the screen's identity and its Edit layout action never scroll away.
+      expect(find.byType(PageHeader), findsOneWidget,
+          reason: 'The page header must be present at $name.');
+      final header = tester.getTopLeft(find.byType(PageHeader));
+      final scroller = tester.getTopLeft(find.byType(SingleChildScrollView));
+      expect(header.dy, lessThan(scroller.dy),
+          reason: 'The page header must sit above the scrolling body at $name, '
+              'not inside it.');
     });
   }
 
-  testWidgets(
-      'dashboard reflows the flow sections into two columns in phone landscape',
+  testWidgets('the grid collapses to one column at phone widths',
       (tester) async {
-    // In a wide phone-landscape (844x390 > the 560 two-column threshold) the
-    // curated flow sections split into two columns: the captureSettings tile
-    // (column A) and the sequenceStatus tile (column B) end up at materially
-    // different horizontal offsets — proof of the side-by-side split. In
-    // portrait they would share the same left offset (single column).
+    // Below the grid's single-column threshold every panel spans all twelve
+    // columns, so every tile shares one left edge. Four columns of a twelfth
+    // each is 180 px at 900 — narrower than a readout row — so the collapse is
+    // the point, not a fallback.
     final guard = _OverflowGuard()..install();
     addTearDown(guard.restore);
 
     await pumpAppScreen(
       tester,
       const DashboardScreen(),
-      size: const Size(844, 390),
+      // A genuinely narrow page: below the shell's own breakpoint, which is
+      // where the grid collapses. A wide phone LANDSCAPE (844) is not narrow —
+      // it keeps two panels abreast, which is the point of the breakpoint.
+      size: const Size(390, 844),
       settle: false,
       extraOverrides: [
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(_reflowTiles),
         ),
-        // Running forces the cockpit grid; terminal states with nothing
-        // loaded/connected show the standby briefing instead.
+        // Running puts the panel grid on screen; with nothing loaded or
+        // connected the first-light checklist would own the page instead.
         sequenceExecutionStateProvider.overrideWith(
           (ref) => SequenceExecutionState.running,
         ),
@@ -179,22 +181,20 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(guard.appOverflows, isEmpty,
-        reason: 'Two-column landscape reflow must not overflow.');
+        reason: 'The collapsed grid must not overflow.');
 
-    // Two distinct column origins among the rendered tiles prove the flow
-    // sections split side-by-side. In a single column every tile would share
-    // the same left edge.
     final tileElements = find.byType(DashboardTile).evaluate().toList();
     expect(tileElements.length, greaterThanOrEqualTo(2),
-        reason: 'Need at least two tiles to demonstrate two columns.');
+        reason: 'Need at least two tiles for the column check to mean '
+            'anything.');
     final leftOffsets = <double>{};
     for (final element in tileElements) {
       leftOffsets.add(
         tester.getTopLeft(find.byWidget(element.widget)).dx.roundToDouble(),
       );
     }
-    expect(leftOffsets.length, greaterThanOrEqualTo(2),
-        reason: 'In landscape the flow sections occupy two distinct columns, '
-            'so tiles sit at more than one horizontal offset.');
+    expect(leftOffsets.length, 1,
+        reason: 'At a phone width every panel is full width, so every tile '
+            'shares one left edge.');
   });
 }

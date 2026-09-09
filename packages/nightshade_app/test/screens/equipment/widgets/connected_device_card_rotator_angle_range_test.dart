@@ -24,6 +24,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'device_action_finder.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -110,14 +111,14 @@ Future<HarnessHandle> _pumpCard(
 /// button, draining the resulting frames so the tree settles without tripping
 /// a periodic-animation pumpAndSettle timeout.
 Future<void> _rotateTo(WidgetTester tester, String value) async {
-  await tester.tap(find.text('Rotate to...'));
+  await tapDeviceAction(tester, 'Rotate to…');
   for (var i = 0; i < 3; i++) {
     await tester.pump(const Duration(milliseconds: 20));
   }
   await tester.enterText(find.byType(TextField), value);
   await tester.pump();
   // The dialog action button is labeled 'Rotate' (distinct from the card's
-  // 'Rotate to...' action).
+  // 'Rotate to…' action).
   await tester.tap(find.text('Rotate'));
   for (var i = 0; i < 3; i++) {
     await tester.pump(const Duration(milliseconds: 20));
@@ -127,7 +128,7 @@ Future<void> _rotateTo(WidgetTester tester, String value) async {
 /// Opens the rotate dialog without dispatching, returning so the caller can
 /// assert on the rendered hint text.
 Future<void> _openDialog(WidgetTester tester) async {
-  await tester.tap(find.text('Rotate to...'));
+  await tapDeviceAction(tester, 'Rotate to…');
   for (var i = 0; i < 3; i++) {
     await tester.pump(const Duration(milliseconds: 20));
   }

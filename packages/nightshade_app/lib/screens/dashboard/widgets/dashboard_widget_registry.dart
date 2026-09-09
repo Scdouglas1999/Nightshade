@@ -38,6 +38,11 @@ import '../../sequencer/widgets/run_dashboard/forensics_panel.dart';
 import '../../sequencer/widgets/secondary_rig_card.dart';
 import 'cockpit_recent_frames.dart';
 import 'cockpit_now_imaging.dart';
+import 'tonight/tonight_equipment_panel.dart';
+import 'tonight/tonight_guiding_panel.dart';
+import 'tonight/tonight_preview_panel.dart';
+import 'tonight/tonight_progress_panel.dart';
+import 'tonight/tonight_safety_panel.dart';
 import 'cockpit_frames.dart';
 import 'cockpit_session_vitals.dart';
 import 'cockpit_sky_context.dart';
@@ -112,6 +117,55 @@ class DashboardWidgetDefinition {
 }
 
 const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
+  // The Observatory Tonight grid (06 §Tonight). Self-chromed: each one is a
+  // NightshadePanel, so the tile frame must not draw a second container round
+  // it.
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.tonightPreview,
+    title: 'Live preview',
+    subtitle: 'The newest sub with its quality readouts and a thumbnail strip',
+    icon: LucideIcons.image,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildTonightPreview,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.tonightEquipment,
+    title: 'Equipment',
+    subtitle: 'One row per device with its live readouts',
+    icon: LucideIcons.plug,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildTonightEquipment,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.tonightGuiding,
+    title: 'Guiding',
+    subtitle: 'RA/Dec trace with RMS and guide-star SNR',
+    icon: LucideIcons.crosshair,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildTonightGuiding,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.tonightProgress,
+    title: 'Progress',
+    subtitle: 'Run percentage, per-filter integration and what is left',
+    icon: LucideIcons.activity,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildTonightProgress,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.tonightSafety,
+    title: 'Safety & events',
+    subtitle: 'Conditions against your limits, and the latest run events',
+    icon: LucideIcons.shieldCheck,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildTonightSafety,
+  ),
+
   // Merged cockpit tiles (density pass). self-chromed like the rest.
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitNowImaging,
@@ -191,7 +245,10 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitGuiding,
-    title: 'Guiding',
+    // Disambiguated from Tonight's own Guiding panel: the widget picker refuses
+    // two tiles with one name, and a user choosing between them has to be able
+    // to tell which is which.
+    title: 'Guiding (run panel)',
     subtitle: 'RMS error and guiding graph',
     icon: LucideIcons.crosshair,
     defaultZone: DashboardZone.secondary,
@@ -464,6 +521,46 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
 
 // Cockpit panel builders. These panels read their own Riverpod providers, so
 // the colors/pulseController arguments are intentionally unused.
+Widget _buildTonightPreview(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const TonightPreviewPanel();
+}
+
+Widget _buildTonightEquipment(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const TonightEquipmentPanel();
+}
+
+Widget _buildTonightGuiding(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const TonightGuidingPanel();
+}
+
+Widget _buildTonightProgress(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const TonightProgressPanel();
+}
+
+Widget _buildTonightSafety(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const TonightSafetyPanel();
+}
+
 Widget _buildCockpitNowImaging(
   BuildContext context,
   NightshadeColors colors,

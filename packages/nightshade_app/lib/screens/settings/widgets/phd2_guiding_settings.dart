@@ -272,11 +272,11 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
         final authority = ref.watch(backendProvider);
 
         return SettingsPage(
-          title: 'PHD2 Guiding',
+          title: 'PHD2 guiding',
           description: 'Configure PHD2 guiding software connection',
           children: [
             SettingsSection(
-              title: 'PHD2 Connection',
+              title: 'PHD2 connection',
               children: [
                 SettingRow(
                   icon: LucideIcons.server,
@@ -350,7 +350,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                         ),
                       NightshadeButton(
                         label: 'Test connection',
-                        variant: ButtonVariant.outline,
+                        variant: ButtonVariant.secondary,
                         size: ButtonSize.small,
                         isLoading: _testing,
                         onPressed:
@@ -370,8 +370,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                   child: Text(
                     'PHD2 will be automatically detected on common installation paths if not specified. '
                     'The connection settings are used when connecting to PHD2 for guiding operations.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
+                    style: NightshadeTypography.bodySm.copyWith(
                       color: NightshadeColors.of(context).textSecondary,
                     ),
                   ),

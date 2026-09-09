@@ -115,418 +115,406 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
         ? exposureSettings.binning
         : binningOptions.first;
 
-    final content = Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Connection status
-          if (!isConnected)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: NightshadeDecorations.emphasisSurface(
-                widget.colors.warning,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              ),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.alertCircle,
-                      size: 16, color: widget.colors.warning),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'No camera connected',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: widget.colors.warning),
-                    ),
-                  ),
-                ],
-              ),
+    // The SidePanel already pads its content by 16 (05 §15).
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Connection status
+        if (!isConnected)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: NightshadeDecorations.emphasisSurface(
+              widget.colors.warning,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
-
-          // Cooling Section - show if camera supports cooling or while loading capabilities
-          if (showCoolingSection)
-            PanelSection(
-              title: 'Cooling',
-              colors: widget.colors,
-              child: Column(
-                children: [
-                  // Current temperature display
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Current',
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: widget.colors.textSecondary)),
-                      Row(
-                        children: [
-                          Text(
-                            isConnected && cameraState.temperature != null
-                                ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
-                                : '---',
-                            style: NightshadeTypography.h4
-                                .copyWith(color: widget.colors.textPrimary),
-                          ),
-                          if (isConnected && coolingStatus.isCooling)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: Icon(
-                                coolingStatus.isAtTarget
-                                    ? LucideIcons.checkCircle2
-                                    : NightshadeIcons.arrowDown,
-                                size: 14,
-                                color: coolingStatus.isAtTarget
-                                    ? widget.colors.success
-                                    : widget.colors.primary,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Power',
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: widget.colors.textSecondary)),
-                      Text(
-                        isConnected && cameraState.coolerPower != null
-                            ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
-                            : '---',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          fontWeight: FontWeight.w500,
-                          color: widget.colors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (isConnected && coolingStatus.isCooling)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Target',
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  color: widget.colors.textSecondary)),
-                          Text(
-                            '${coolingStatus.targetTemp.toStringAsFixed(1)}°C',
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: widget.colors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-
-                  // Target temperature slider
-                  SliderRowInteractive(
-                    label: 'Target Temperature',
-                    value: targetTemp.clamp(coolerMinTempC, coolerMaxTempC),
-                    min: coolerMinTempC,
-                    max: coolerMaxTempC,
-                    suffix: '°C',
-                    colors: widget.colors,
-                    onChanged: isConnected
-                        ? (value) {
-                            // Update provider so value persists across navigation
-                            ref
-                                .read(cameraStateProvider.notifier)
-                                .setTargetTemp(value);
-                            // Also update settings provider for consistency
-                            ref.read(coolingSettingsProvider.notifier).state =
-                                coolingSettings.copyWith(targetTemp: value);
-                          }
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SmallButton(
-                          label: _isCooling ? 'Setting...' : 'Cool Down',
-                          icon: NightshadeIcons.frost,
-                          colors: widget.colors,
-                          isEnabled: isConnected &&
-                              !_isCooling &&
-                              !cameraState.isWarming,
-                          onTap: () async {
-                            if (_isCooling) return;
-                            final authority = ref.read(backendProvider);
-                            final service = ref.read(deviceServiceProvider);
-                            setState(() => _isCooling = true);
-                            try {
-                              await service.setCameraCooling(
-                                enabled: true,
-                                targetTemp: targetTemp,
-                              );
-
-                              if (_isCurrentAuthority(authority)) {
-                                // Update settings state
-                                ref
-                                    .read(coolingSettingsProvider.notifier)
-                                    .state = coolingSettings.copyWith(
-                                  enabled: true,
-                                  targetTemp: targetTemp,
-                                );
-                                // Update camera state
-                                ref
-                                    .read(cameraStateProvider.notifier)
-                                    .setCooling(true);
-                              }
-                            } catch (e) {
-                              if (context.mounted &&
-                                  _isCurrentAuthority(authority)) {
-                                context.showErrorSnackBar(
-                                    'Failed to set cooling: $e');
-                              }
-                            } finally {
-                              if (_isCurrentAuthority(authority)) {
-                                setState(() => _isCooling = false);
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SmallButton(
-                          label:
-                              cameraState.isWarming ? 'Cancel Warm' : 'Warm Up',
-                          icon: LucideIcons.flame,
-                          isOutline: true,
-                          colors: widget.colors,
-                          isEnabled: isConnected && !_isCooling,
-                          onTap: () async {
-                            final service = ref.read(deviceServiceProvider);
-                            if (cameraState.isWarming) {
-                              service.cancelWarmCamera();
-                              return;
-                            }
-                            if (_isCooling) return;
-                            final authority = ref.read(backendProvider);
-                            setState(() => _isCooling = true);
-                            try {
-                              // Warm-up is a gradual set-point ramp. Turning
-                              // the cooler off immediately here contradicts
-                              // the label and can cause condensation or
-                              // thermal shock.
-                              await service.warmCamera();
-                            } catch (e) {
-                              if (context.mounted &&
-                                  _isCurrentAuthority(authority)) {
-                                context.showErrorSnackBar(
-                                  'Failed to warm up: $e',
-                                );
-                              }
-                            } finally {
-                              if (_isCurrentAuthority(authority)) {
-                                setState(() => _isCooling = false);
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          // Show "not supported" message when camera is connected and capabilities confirm no cooling support
-          if (isConnected &&
-              !capabilitiesLoading &&
-              !capabilitiesAsync.hasError &&
-              capabilities != null &&
-              !capabilities.canSetCcdTemperature)
-            PanelSection(
-              title: 'Cooling',
-              colors: widget.colors,
-              child: Text(
-                'Cooling not supported by this camera',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: widget.colors.textSecondary,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
-          const SizedBox(height: 20),
-
-          // Sensor Settings
-          PanelSection(
-            title: 'Sensor',
-            colors: widget.colors,
-            child: Column(
+            child: Row(
               children: [
-                DropdownRow(
-                  label: 'Binning',
-                  value: currentBinning,
-                  items: binningOptions,
-                  colors: widget.colors,
-                  onChanged: isConnected
-                      ? (value) {
-                          if (value != null) {
-                            final parts = value.split('x');
-                            ref
-                                .read(manualExposureSettingsUpdaterProvider)
-                                .update(
-                                  exposureSettings.copyWith(
-                                    binningX: int.parse(parts[0]),
-                                    binningY: int.parse(parts[1]),
-                                  ),
-                                );
-                          }
-                        }
-                      : null,
-                ),
-                // Read Mode is driver-reported. Hide the row entirely when the
-                // camera exposes no readout modes (matches the hide-when-
-                // unsupported pattern used for unsupported device features);
-                // there is intentionally no synthetic binary fallback.
-                if ((capabilities?.readoutModes ?? const []).isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Builder(
-                    builder: (context) {
-                      final readoutModes = capabilities!.readoutModes;
-                      final selectedIndex = exposureSettings
-                          .resolveReadoutModeIndex(readoutModes.length);
-                      final selectedMode = selectedIndex >= 0 &&
-                              selectedIndex < readoutModes.length
-                          ? readoutModes[selectedIndex]
-                          : null;
-                      return DropdownRow(
-                        label: 'Read Mode',
-                        helpId: FieldHelpId.cameraReadoutMode,
-                        value: selectedMode,
-                        items: readoutModes,
-                        colors: widget.colors,
-                        onChanged: isConnected && !_isChangingReadoutMode
-                            ? (value) async {
-                                if (value == null) return;
-                                final idx = readoutModes.indexOf(value);
-                                if (idx < 0) return;
-                                final deviceId = cameraState.deviceId;
-                                if (deviceId == null) return;
-                                final authority = ref.read(backendProvider);
-                                final deviceBackend =
-                                    ref.read(deviceBackendProvider);
-                                final exposureUpdater = ref.read(
-                                  manualExposureSettingsUpdaterProvider,
-                                );
-                                setState(() => _isChangingReadoutMode = true);
-                                try {
-                                  await deviceBackend.cameraSetReadoutMode(
-                                    deviceId,
-                                    idx,
-                                  );
-                                  if (_isCurrentAuthority(authority)) {
-                                    final latestSettings =
-                                        ref.read(exposureSettingsProvider);
-                                    exposureUpdater.update(
-                                      latestSettings.copyWith(
-                                        readoutModeIndex: idx,
-                                        fastReadout:
-                                            idx == readoutModes.length - 1,
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (context.mounted &&
-                                      _isCurrentAuthority(authority)) {
-                                    context.showErrorSnackBar(
-                                      'Failed to set read mode: $e',
-                                    );
-                                  }
-                                } finally {
-                                  if (_isCurrentAuthority(authority)) {
-                                    setState(
-                                      () => _isChangingReadoutMode = false,
-                                    );
-                                  }
-                                }
-                              }
-                            : null,
-                      );
-                    },
+                Icon(LucideIcons.alertCircle,
+                    size: 16, color: widget.colors.warning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'No camera connected',
+                    style: NightshadeTypography.caption
+                        .copyWith(color: widget.colors.warning),
                   ),
-                ],
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
 
-          // Gain/Offset - only show if camera supports these features
-          if (canSetGain || canSetOffset)
-            PanelSection(
-              title: 'Gain / Offset',
-              colors: widget.colors,
-              child: Column(
-                children: [
-                  // Only show gain control if camera supports it
-                  if (canSetGain)
-                    InputRowEditable(
-                      label:
-                          'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
-                      helpId: FieldHelpId.cameraGain,
-                      value: exposureSettings.gain.toString(),
-                      colors: widget.colors,
-                      onChanged: (value) {
-                        final parsed = int.tryParse(value);
-                        if (parsed != null && parsed >= 0) {
-                          // Clamp to valid range if capabilities available
-                          final clamped = capabilities?.gainMin != null
-                              ? parsed.clamp(
-                                  capabilities!.gainMin!, capabilities.gainMax!)
-                              : parsed;
-                          ref
-                              .read(manualExposureSettingsUpdaterProvider)
-                              .update(
-                                exposureSettings.copyWith(gain: clamped),
-                              );
-                        }
-                      },
+        // Cooling Section - show if camera supports cooling or while loading capabilities
+        if (showCoolingSection)
+          PanelSection(
+            title: 'Cooling',
+            colors: widget.colors,
+            child: Column(
+              children: [
+                // Current temperature display
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Current',
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
+                    Row(
+                      children: [
+                        Text(
+                          isConnected && cameraState.temperature != null
+                              ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
+                              : '\u2014',
+                          style: NightshadeTypography.readoutSm.copyWith(
+                            color: isConnected
+                                ? widget.colors.textPrimary
+                                : widget.colors.textMuted,
+                          ),
+                        ),
+                        if (isConnected && coolingStatus.isCooling)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Icon(
+                              coolingStatus.isAtTarget
+                                  ? LucideIcons.checkCircle2
+                                  : NightshadeIcons.arrowDown,
+                              size: 14,
+                              color: coolingStatus.isAtTarget
+                                  ? widget.colors.success
+                                  : widget.colors.primary,
+                            ),
+                          ),
+                      ],
                     ),
-                  if (canSetGain && canSetOffset) const SizedBox(height: 12),
-                  // Only show offset control if camera supports it
-                  if (canSetOffset)
-                    InputRowEditable(
-                      label:
-                          'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
-                      helpId: FieldHelpId.cameraOffset,
-                      value: exposureSettings.offset.toString(),
-                      colors: widget.colors,
-                      onChanged: (value) {
-                        final parsed = int.tryParse(value);
-                        if (parsed != null && parsed >= 0) {
-                          // Clamp to valid range if capabilities available
-                          final clamped = capabilities?.offsetMin != null
-                              ? parsed.clamp(capabilities!.offsetMin!,
-                                  capabilities.offsetMax!)
-                              : parsed;
-                          ref
-                              .read(manualExposureSettingsUpdaterProvider)
-                              .update(
-                                exposureSettings.copyWith(offset: clamped),
-                              );
-                        }
-                      },
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Power',
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
+                    Text(
+                      isConnected && cameraState.coolerPower != null
+                          ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
+                          : '\u2014',
+                      style: NightshadeTypography.readoutSm.copyWith(
+                        color: isConnected
+                            ? widget.colors.textPrimary
+                            : widget.colors.textMuted,
+                      ),
                     ),
-                ],
-              ),
+                  ],
+                ),
+                if (isConnected && coolingStatus.isCooling)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Target',
+                            style: NightshadeTypography.caption
+                                .copyWith(color: widget.colors.textSecondary)),
+                        Text(
+                          '${coolingStatus.targetTemp.toStringAsFixed(1)}°C',
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+
+                // Target temperature slider
+                SliderRowInteractive(
+                  label: 'Target Temperature',
+                  value: targetTemp.clamp(coolerMinTempC, coolerMaxTempC),
+                  min: coolerMinTempC,
+                  max: coolerMaxTempC,
+                  suffix: '°C',
+                  colors: widget.colors,
+                  onChanged: isConnected
+                      ? (value) {
+                          // Update provider so value persists across navigation
+                          ref
+                              .read(cameraStateProvider.notifier)
+                              .setTargetTemp(value);
+                          // Also update settings provider for consistency
+                          ref.read(coolingSettingsProvider.notifier).state =
+                              coolingSettings.copyWith(targetTemp: value);
+                        }
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SmallButton(
+                        label: _isCooling ? 'Setting...' : 'Cool Down',
+                        icon: NightshadeIcons.frost,
+                        colors: widget.colors,
+                        isEnabled: isConnected &&
+                            !_isCooling &&
+                            !cameraState.isWarming,
+                        onTap: () async {
+                          if (_isCooling) return;
+                          final authority = ref.read(backendProvider);
+                          final service = ref.read(deviceServiceProvider);
+                          setState(() => _isCooling = true);
+                          try {
+                            await service.setCameraCooling(
+                              enabled: true,
+                              targetTemp: targetTemp,
+                            );
+
+                            if (_isCurrentAuthority(authority)) {
+                              // Update settings state
+                              ref.read(coolingSettingsProvider.notifier).state =
+                                  coolingSettings.copyWith(
+                                enabled: true,
+                                targetTemp: targetTemp,
+                              );
+                              // Update camera state
+                              ref
+                                  .read(cameraStateProvider.notifier)
+                                  .setCooling(true);
+                            }
+                          } catch (e) {
+                            if (context.mounted &&
+                                _isCurrentAuthority(authority)) {
+                              context.showErrorSnackBar(
+                                  'Failed to set cooling: $e');
+                            }
+                          } finally {
+                            if (_isCurrentAuthority(authority)) {
+                              setState(() => _isCooling = false);
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SmallButton(
+                        label:
+                            cameraState.isWarming ? 'Cancel Warm' : 'Warm Up',
+                        icon: LucideIcons.flame,
+                        isOutline: true,
+                        colors: widget.colors,
+                        isEnabled: isConnected && !_isCooling,
+                        onTap: () async {
+                          final service = ref.read(deviceServiceProvider);
+                          if (cameraState.isWarming) {
+                            service.cancelWarmCamera();
+                            return;
+                          }
+                          if (_isCooling) return;
+                          final authority = ref.read(backendProvider);
+                          setState(() => _isCooling = true);
+                          try {
+                            // Warm-up is a gradual set-point ramp. Turning
+                            // the cooler off immediately here contradicts
+                            // the label and can cause condensation or
+                            // thermal shock.
+                            await service.warmCamera();
+                          } catch (e) {
+                            if (context.mounted &&
+                                _isCurrentAuthority(authority)) {
+                              context.showErrorSnackBar(
+                                'Failed to warm up: $e',
+                              );
+                            }
+                          } finally {
+                            if (_isCurrentAuthority(authority)) {
+                              setState(() => _isCooling = false);
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-        ],
-      ),
+          ),
+        // Show "not supported" message when camera is connected and capabilities confirm no cooling support
+        if (isConnected &&
+            !capabilitiesLoading &&
+            !capabilitiesAsync.hasError &&
+            capabilities != null &&
+            !capabilities.canSetCcdTemperature)
+          PanelSection(
+            title: 'Cooling',
+            colors: widget.colors,
+            child: Text(
+              'Cooling not supported by this camera',
+              style: NightshadeTypography.caption.copyWith(
+                  color: widget.colors.textSecondary,
+                  fontStyle: FontStyle.italic),
+            ),
+          ),
+        const SizedBox(height: 20),
+
+        // Sensor Settings
+        PanelSection(
+          title: 'Sensor',
+          colors: widget.colors,
+          child: Column(
+            children: [
+              DropdownRow(
+                label: 'Binning',
+                value: currentBinning,
+                items: binningOptions,
+                colors: widget.colors,
+                onChanged: isConnected
+                    ? (value) {
+                        if (value != null) {
+                          final parts = value.split('x');
+                          ref
+                              .read(manualExposureSettingsUpdaterProvider)
+                              .update(
+                                exposureSettings.copyWith(
+                                  binningX: int.parse(parts[0]),
+                                  binningY: int.parse(parts[1]),
+                                ),
+                              );
+                        }
+                      }
+                    : null,
+              ),
+              // Read Mode is driver-reported. Hide the row entirely when the
+              // camera exposes no readout modes (matches the hide-when-
+              // unsupported pattern used for unsupported device features);
+              // there is intentionally no synthetic binary fallback.
+              if ((capabilities?.readoutModes ?? const []).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Builder(
+                  builder: (context) {
+                    final readoutModes = capabilities!.readoutModes;
+                    final selectedIndex = exposureSettings
+                        .resolveReadoutModeIndex(readoutModes.length);
+                    final selectedMode = selectedIndex >= 0 &&
+                            selectedIndex < readoutModes.length
+                        ? readoutModes[selectedIndex]
+                        : null;
+                    return DropdownRow(
+                      label: 'Read Mode',
+                      helpId: FieldHelpId.cameraReadoutMode,
+                      value: selectedMode,
+                      items: readoutModes,
+                      colors: widget.colors,
+                      onChanged: isConnected && !_isChangingReadoutMode
+                          ? (value) async {
+                              if (value == null) return;
+                              final idx = readoutModes.indexOf(value);
+                              if (idx < 0) return;
+                              final deviceId = cameraState.deviceId;
+                              if (deviceId == null) return;
+                              final authority = ref.read(backendProvider);
+                              final deviceBackend =
+                                  ref.read(deviceBackendProvider);
+                              final exposureUpdater = ref.read(
+                                manualExposureSettingsUpdaterProvider,
+                              );
+                              setState(() => _isChangingReadoutMode = true);
+                              try {
+                                await deviceBackend.cameraSetReadoutMode(
+                                  deviceId,
+                                  idx,
+                                );
+                                if (_isCurrentAuthority(authority)) {
+                                  final latestSettings =
+                                      ref.read(exposureSettingsProvider);
+                                  exposureUpdater.update(
+                                    latestSettings.copyWith(
+                                      readoutModeIndex: idx,
+                                      fastReadout:
+                                          idx == readoutModes.length - 1,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted &&
+                                    _isCurrentAuthority(authority)) {
+                                  context.showErrorSnackBar(
+                                    'Failed to set read mode: $e',
+                                  );
+                                }
+                              } finally {
+                                if (_isCurrentAuthority(authority)) {
+                                  setState(
+                                    () => _isChangingReadoutMode = false,
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Gain/Offset - only show if camera supports these features
+        if (canSetGain || canSetOffset)
+          PanelSection(
+            title: 'Gain / Offset',
+            colors: widget.colors,
+            child: Column(
+              children: [
+                // Only show gain control if camera supports it
+                if (canSetGain)
+                  InputRowEditable(
+                    label:
+                        'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
+                    helpId: FieldHelpId.cameraGain,
+                    value: exposureSettings.gain.toString(),
+                    colors: widget.colors,
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value);
+                      if (parsed != null && parsed >= 0) {
+                        // Clamp to valid range if capabilities available
+                        final clamped = capabilities?.gainMin != null
+                            ? parsed.clamp(
+                                capabilities!.gainMin!, capabilities.gainMax!)
+                            : parsed;
+                        ref.read(manualExposureSettingsUpdaterProvider).update(
+                              exposureSettings.copyWith(gain: clamped),
+                            );
+                      }
+                    },
+                  ),
+                if (canSetGain && canSetOffset) const SizedBox(height: 12),
+                // Only show offset control if camera supports it
+                if (canSetOffset)
+                  InputRowEditable(
+                    label:
+                        'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
+                    helpId: FieldHelpId.cameraOffset,
+                    value: exposureSettings.offset.toString(),
+                    colors: widget.colors,
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value);
+                      if (parsed != null && parsed >= 0) {
+                        // Clamp to valid range if capabilities available
+                        final clamped = capabilities?.offsetMin != null
+                            ? parsed.clamp(capabilities!.offsetMin!,
+                                capabilities.offsetMax!)
+                            : parsed;
+                        ref.read(manualExposureSettingsUpdaterProvider).update(
+                              exposureSettings.copyWith(offset: clamped),
+                            );
+                      }
+                    },
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
     if (!widget.scrollable) return content;
     return SingleChildScrollView(child: content);

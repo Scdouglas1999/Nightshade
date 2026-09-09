@@ -239,9 +239,8 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                   ),
                   child: Text(
                     'No Camera',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.warning),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.warning),
                   ),
                 ),
             ],
@@ -597,9 +596,8 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
       children: [
         Text(
           '${widget.label}:',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: widget.colors.textMuted),
+          style: NightshadeTypography.caption
+              .copyWith(color: widget.colors.textMuted),
         ),
         const SizedBox(width: 4),
         SizedBox(
@@ -608,9 +606,8 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
           child: TextField(
             controller: _controller,
             focusNode: _focusNode,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: widget.colors.textPrimary),
+            style: NightshadeTypography.caption
+                .copyWith(color: widget.colors.textPrimary),
             textAlign: TextAlign.center,
             decoration: InputDecoration(
               isDense: true,
@@ -641,9 +638,8 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
         if (widget.suffix != null) ...[
           const SizedBox(width: 2),
           Text(widget.suffix!,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: widget.colors.textMuted)),
+              style: NightshadeTypography.caption
+                  .copyWith(color: widget.colors.textMuted)),
         ],
       ],
     );
@@ -676,9 +672,7 @@ class _CompactDropdown extends StatelessWidget {
       children: [
         Text(
           '$label:',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
         const SizedBox(width: 4),
         Opacity(
@@ -706,11 +700,8 @@ class _CompactDropdown extends StatelessWidget {
                 child: AccessibleDropdown<String>(
                   value: value,
                   isDense: true,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: highlight ? colors.primary : colors.textPrimary,
-                    fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      color: highlight ? colors.primary : colors.textPrimary),
                   dropdownColor: colors.surface,
                   icon: Icon(
                     LucideIcons.chevronDown,

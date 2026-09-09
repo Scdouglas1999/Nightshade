@@ -288,7 +288,6 @@ class _OnboardingCameraDefaultsStepState
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
     // Local, not derived from the stored set-point — see [_coolingOn].
     final coolingEnabled = _coolingOn;
@@ -298,17 +297,15 @@ class _OnboardingCameraDefaultsStepState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Set your capture defaults',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
+          const SectionTitle(
+            icon: NightshadeIcons.sliders,
+            title: 'Set your capture defaults',
           ),
-          const SizedBox(height: NightshadeTokens.spaceXs + 2),
           Text(
-            'These seed every new sequence. Pick your camera to load the recommended set-points, then adjust to taste — you can change them any time later.',
-            style: theme.textTheme.bodyMedium?.copyWith(
+            'These seed every new sequence. Pick your camera to load the '
+            'recommended set-points, then adjust to taste — you can change '
+            'them any time later.',
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -323,7 +320,7 @@ class _OnboardingCameraDefaultsStepState
               key: cameraDefaultsUseMatchedPresetKey,
               icon: NightshadeIcons.camera,
               label: 'Use ${_matchedPreset!.displayName} settings',
-              variant: ButtonVariant.primary,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () => _applyPreset(_matchedPreset!),
             ),
@@ -334,7 +331,7 @@ class _OnboardingCameraDefaultsStepState
               NightshadeButton(
                 icon: NightshadeIcons.camera,
                 label: 'Choose from camera library',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: _pickFromLibrary,
               ),
@@ -346,9 +343,8 @@ class _OnboardingCameraDefaultsStepState
                 Flexible(
                   child: Text(
                     'Defaults loaded from preset',
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: NightshadeTypography.bodyStrong.copyWith(
                       color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -361,14 +357,17 @@ class _OnboardingCameraDefaultsStepState
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(NightshadeIcons.info,
-                    size: 14, color: colors.textSecondary),
+                Icon(
+                  NightshadeIcons.info,
+                  size: NightshadeTokens.iconXs,
+                  color: colors.textMuted,
+                ),
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
                     _pixelSizeReplacedNote!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textMuted,
                     ),
                   ),
                 ),
@@ -437,8 +436,9 @@ class _OnboardingCameraDefaultsStepState
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
-          NightshadeCard(
-            variant: CardVariant.subtle,
+          Container(
+            decoration: NightshadeDecorations.well(colors),
+            padding: NightshadeTokens.paddingMd,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -528,8 +528,9 @@ class _NumberField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FieldHelpLabel(label: label, help: help),
-        const SizedBox(height: NightshadeTokens.spaceXs + 2),
+        const SizedBox(height: NightshadeTokens.spaceXs),
         NightshadeTextField(
+          mono: true,
           controller: controller,
           hint: hint,
           suffix: suffix,

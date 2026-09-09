@@ -389,7 +389,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     final backend = _backend;
 
     return SettingsPage(
-      title: 'Appliance Updates',
+      title: 'Appliance updates',
       description: 'Check for, stage, and apply updates to the connected rig',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
@@ -435,24 +435,22 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
 
   Widget _buildVersionCard(NightshadeColors colors) {
     final v = _version;
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Current Build',
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12)),
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+              )),
           const SizedBox(height: 6),
           Text(
             v == null
                 ? (_loading ? 'Loading…' : '—')
                 : '${v.currentVersion} (build ${v.buildNumber})',
-            style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize18,
-                fontWeight: FontWeight.w700),
+            style: NightshadeTypography.pageTitle.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
           if (v != null) ...[
             const SizedBox(height: 4),
@@ -460,19 +458,19 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
                 v.channel == null
                     ? 'Platform: ${v.platform}'
                     : 'Channel: ${v.channel} · ${v.platform}',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12)),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                )),
             if (v.updateServerUrl != null && v.updateServerUrl!.isNotEmpty)
               Text('Update server: ${v.updateServerUrl}',
-                  style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize12))
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
+                  ))
             else
               Text('No update server configured (set NIGHTSHADE_UPDATE_SERVER)',
-                  style: TextStyle(
-                      color: colors.warning,
-                      fontSize: NightshadeTypography.fontSize12)),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.warning,
+                  )),
           ],
         ],
       ),
@@ -482,36 +480,33 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
   Widget _buildStatusCard(NightshadeColors colors) {
     final s = _status;
     final pct = s?.progressPct;
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Update Status',
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12)),
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+              )),
           const SizedBox(height: 6),
           Text(_statusLabel(s?.state),
-              style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600)),
+              style: NightshadeTypography.sectionTitle.copyWith(
+                color: colors.textPrimary,
+              )),
           if (s?.stagedVersion != null) ...[
             const SizedBox(height: 4),
             Text('Staged: ${s!.stagedVersion}',
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13)),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                )),
           ],
           if (s?.availableVersion != null) ...[
             const SizedBox(height: 4),
             Text(
               'Available: ${s!.availableVersion}'
               '${s.availableBuildNumber == null ? '' : ' (build ${s.availableBuildNumber})'}',
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.success,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
           ],
@@ -530,25 +525,24 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           if (s?.message != null && s!.message!.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(s.message!,
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12)),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                )),
           ],
           if (s?.lastError != null && s!.lastError!.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text('Last error: ${s.lastError}',
-                style: TextStyle(
-                    color: colors.error,
-                    fontSize: NightshadeTypography.fontSize12)),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.error,
+                )),
           ],
           if (s?.requiresManualUpgrade ?? false) ...[
             const SizedBox(height: 6),
             Text(
               'This release requires a manual upgrade and cannot be staged '
               'from Nightshade.',
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.warning,
-                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ] else if (s != null && !s.canAuthenticateUpdates) ...[
@@ -556,9 +550,8 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
             Text(
               'This host can check for releases but cannot authenticate '
               'update packages. Install a build with a trusted update key.',
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.warning,
-                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ],
@@ -568,9 +561,8 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
               'This host reports an update state this app does not recognize. '
               'Actions are disabled until the state returns to a supported '
               'value or the client is updated.',
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.warning,
-                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ],
@@ -639,14 +631,14 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           onPressed: canDownload ? () => _run('Download', _doDownload) : null,
           label: 'Download',
           icon: LucideIcons.download,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
         ),
         NightshadeButton(
           onPressed: canAct && hasStaged ? _confirmApply : null,
           label: 'Apply Staged',
           icon: LucideIcons.checkCircle,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
         ),
         if (hasStaged)
@@ -769,8 +761,7 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      padding: const EdgeInsets.all(16),
+    return NightshadePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -778,9 +769,9 @@ class _InfoCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13)),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                )),
           ),
         ],
       ),

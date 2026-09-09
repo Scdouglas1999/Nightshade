@@ -175,7 +175,8 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
                   autofocus: true,
                   decoration: InputDecoration(
                     labelText: 'Target Temperature (C)',
-                    labelStyle: TextStyle(color: colors.textMuted),
+                    labelStyle: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(color: colors.border),
                     ),
@@ -183,15 +184,15 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
                       borderSide: BorderSide(color: colors.primary),
                     ),
                   ),
-                  style: TextStyle(color: colors.textPrimary),
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textPrimary),
                 ),
                 if (errorText != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     errorText!,
-                    style: TextStyle(
-                        color: colors.error,
-                        fontSize: NightshadeTypography.fontSize13),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.error),
                   ),
                 ],
               ],
@@ -312,10 +313,8 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
             'This slews the mount across the meridian and re-points to the '
             'current position. Guiding pauses and resumes automatically. '
             'Proceed?',
-            style: TextStyle(
-              color: NightshadeColors.of(ctx).textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
+            style: NightshadeTypography.bodySm
+                .copyWith(color: NightshadeColors.of(ctx).textSecondary),
           ),
         ),
       );

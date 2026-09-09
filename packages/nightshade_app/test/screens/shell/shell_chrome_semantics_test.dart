@@ -334,8 +334,9 @@ void main() {
     }
 
     // The rail's own control and the title-bar action row, in the order a
-    // reader meets them.
-    expect(labels, _publishes('Collapse navigation'));
+    // reader meets them. A fresh profile starts with the rail collapsed
+    // (Observatory shell default), so the control it publishes is "Expand".
+    expect(labels, _publishes('Expand navigation'));
     expect(labels, _publishes(l10n.text('settingsTitle')));
     expect(labels, _publishes('Minimize'));
     expect(labels, _publishes('Maximize'));

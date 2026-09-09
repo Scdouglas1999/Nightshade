@@ -190,18 +190,15 @@ class _SortBar extends StatelessWidget {
         children: [
           Text(
             '$totalCount target${totalCount == 1 ? '' : 's'}',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textMuted,
-              letterSpacing: 0.4,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
           const Spacer(),
           Container(
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
               border: Border.all(color: colors.border),
             ),
@@ -209,9 +206,8 @@ class _SortBar extends StatelessWidget {
               child: AccessibleDropdown<ProgressSort>(
                 value: sort,
                 isDense: true,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textPrimary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textPrimary),
                 dropdownColor: colors.surface,
                 iconSize: 14,
                 items: const [
@@ -264,165 +260,152 @@ class _ProgressRow extends StatelessWidget {
     final framesLabel =
         '${progress.totalCapturedFrames} / ${progress.totalGoalFrames}';
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusLg,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          onTap: onToggleExpand,
-          child: Padding(
-            padding: NightshadeTokens.cardPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            progress.targetName,
-                            style: NightshadeTypography.h5.copyWith(
-                              color: colors.textPrimary,
+    return NightshadePanel(
+        child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        onTap: onToggleExpand,
+        child: Padding(
+          padding: NightshadeTokens.cardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          progress.targetName,
+                          style: NightshadeTypography.bodyStrong.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        if (!progress.hasGoals)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'No integration goals set',
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textMuted),
+                            ),
+                          )
+                        else if (!progress.hasCaptures)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'No frames captured yet',
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textMuted),
                             ),
                           ),
-                          if (!progress.hasGoals)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                'No integration goals set',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize11,
-                                  color: colors.textMuted,
-                                ),
-                              ),
-                            )
-                          else if (!progress.hasCaptures)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                'No frames captured yet',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize11,
-                                  color: colors.textMuted,
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    flex: 6,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final metrics = Row(
+                          children: [
+                            Flexible(
+                              flex: 4,
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: 100),
+                                child: _ProgressBar(
+                                  percent: progress.percentComplete,
+                                  colors: colors,
+                                  label: '${pct.toStringAsFixed(0)}%',
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    Expanded(
-                      flex: 6,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final metrics = Row(
-                            children: [
-                              Flexible(
-                                flex: 4,
-                                child: ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(minWidth: 100),
-                                  child: _ProgressBar(
-                                    percent: progress.percentComplete,
-                                    colors: colors,
-                                    label: '${pct.toStringAsFixed(0)}%',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: NightshadeTokens.spaceMd),
-                              Flexible(
-                                flex: 3,
-                                child: Text(
-                                  integrationLabel,
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize12,
+                            const SizedBox(width: NightshadeTokens.spaceMd),
+                            Flexible(
+                              flex: 3,
+                              child: Text(
+                                integrationLabel,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                                style: NightshadeTypography.caption.copyWith(
                                     color: colors.textSecondary,
                                     fontFeatures: const [
                                       FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
+                                    ]),
                               ),
-                              const SizedBox(width: NightshadeTokens.spaceMd),
-                              Flexible(
-                                flex: 2,
-                                child: Text(
-                                  etaLabel,
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize12,
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceMd),
+                            Flexible(
+                              flex: 2,
+                              child: Text(
+                                etaLabel,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                                style: NightshadeTypography.caption.copyWith(
                                     color: colors.textSecondary,
                                     fontFeatures: const [
                                       FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
+                                    ]),
                               ),
-                              const SizedBox(width: NightshadeTokens.spaceMd),
-                              Flexible(
-                                flex: 3,
-                                child: Text(
-                                  lastImagedLabel,
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize12,
-                                    color: colors.textMuted,
-                                  ),
-                                ),
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceMd),
+                            Flexible(
+                              flex: 3,
+                              child: Text(
+                                lastImagedLabel,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                                style: NightshadeTypography.caption
+                                    .copyWith(color: colors.textMuted),
                               ),
-                            ],
+                            ),
+                          ],
+                        );
+                        if (constraints.maxWidth < 420) {
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minWidth: constraints.maxWidth,
+                              ),
+                              child: metrics,
+                            ),
                           );
-                          if (constraints.maxWidth < 420) {
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minWidth: constraints.maxWidth,
-                                ),
-                                child: metrics,
-                              ),
-                            );
-                          }
-                          return metrics;
-                        },
-                      ),
+                        }
+                        return metrics;
+                      },
                     ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      isExpanded
-                          ? LucideIcons.chevronUp
-                          : LucideIcons.chevronDown,
-                      size: 14,
-                      color: colors.textMuted,
-                    ),
-                  ],
-                ),
-                if (isExpanded) ...[
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-                  Divider(color: colors.border, height: 1),
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-                  _PerFilterTable(
-                    rows: progress.perFilter,
-                    colors: colors,
-                    totalFramesLabel: framesLabel,
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    isExpanded
+                        ? LucideIcons.chevronUp
+                        : LucideIcons.chevronDown,
+                    size: 14,
+                    color: colors.textMuted,
                   ),
                 ],
+              ),
+              if (isExpanded) ...[
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                Divider(color: colors.border, height: 1),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                _PerFilterTable(
+                  rows: progress.perFilter,
+                  colors: colors,
+                  totalFramesLabel: framesLabel,
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),
-    );
+    ));
   }
 
   String _formatEta(int? nights) {
@@ -481,7 +464,7 @@ class _ProgressBar extends StatelessWidget {
         Container(
           height: 16,
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),
@@ -500,12 +483,10 @@ class _ProgressBar extends StatelessWidget {
         ),
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w700,
-            color: colors.textPrimary,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+          style: NightshadeTypography.caption.copyWith(
+              color: colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -533,11 +514,8 @@ class _PerFilterTable extends StatelessWidget {
           // goals are edited in Schedule.
           'No integration goals are defined for this target. Add filter '
           'goals in the Schedule tab to start tracking progress.',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textSecondary,
-            height: 1.4,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
       );
     }
@@ -548,21 +526,15 @@ class _PerFilterTable extends StatelessWidget {
           children: [
             Text(
               'Per filter',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w700,
-                color: colors.textMuted,
-                letterSpacing: 0.5,
-              ),
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textMuted),
             ),
             const Spacer(),
             Text(
               'Total frames $totalFramesLabel',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ],
         ),
@@ -593,7 +565,7 @@ class _FilterProgressRow extends StatelessWidget {
           child: Text(
             filter.filter,
             overflow: TextOverflow.ellipsis,
-            style: NightshadeTypography.h6.copyWith(
+            style: NightshadeTypography.eyebrow.copyWith(
               color: colors.textPrimary,
             ),
           ),
@@ -614,11 +586,9 @@ class _FilterProgressRow extends StatelessWidget {
             '${filter.capturedFrames} / ${filter.goalFrames} frames',
             textAlign: TextAlign.right,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()]),
           ),
         ),
       ],
@@ -647,7 +617,7 @@ class _ProgressEmptyState extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'No imaging history yet',
-              style: NightshadeTypography.h4.copyWith(
+              style: NightshadeTypography.sectionTitle.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -657,11 +627,8 @@ class _ProgressEmptyState extends StatelessWidget {
               'target with integration totals and an ETA at your current '
               'pace.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textSecondary,
-                height: 1.4,
-              ),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -697,7 +664,7 @@ class _ProgressErrorState extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'Failed to load progress',
-              style: NightshadeTypography.h4.copyWith(
+              style: NightshadeTypography.sectionTitle.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -705,10 +672,8 @@ class _ProgressErrorState extends StatelessWidget {
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
             NightshadeButton(

@@ -171,10 +171,8 @@ class _CompactEquipmentIcon extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize8,
-              color: isConnected ? colors.textSecondary : colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: isConnected ? colors.textSecondary : colors.textMuted),
           ),
         ],
       ),

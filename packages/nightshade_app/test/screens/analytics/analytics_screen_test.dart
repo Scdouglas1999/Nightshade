@@ -133,7 +133,9 @@ void main() {
         'Session',
         'History',
         'Projects',
-        'Equipment Stats',
+        // 06 names this tab 'Equipment'; the copy rules put it in
+        // sentence case.
+        'Equipment',
         'Science',
         'Diagnostics',
       ],
@@ -261,10 +263,10 @@ void main() {
       ),
     );
     expect(
-      tester.widget<IconButton>(reviewButton).tooltip,
+      tester.widget<NightshadeIconButton>(reviewButton).tooltip,
       startsWith('Session Review works on the imaging host'),
     );
-    expect(tester.widget<IconButton>(reviewButton).onPressed, isNull);
+    expect(tester.widget<NightshadeIconButton>(reviewButton).onPressed, isNull);
     handle.dispose();
 
     await tester.ensureVisible(reviewButton);
@@ -334,9 +336,9 @@ void main() {
     }
 
     // The dialog is open (its export actions are there)…
-    expect(find.byTooltip('Export to CSV'), findsOneWidget);
+    expect(findIconButtonByTooltip('Export to CSV'), findsOneWidget);
     // …and the unimplemented-on-desktop Share action is not.
-    expect(find.byTooltip('Share'), findsNothing);
+    expect(findIconButtonByTooltip('Share'), findsNothing);
 
     await settleProviderTeardown(tester);
   }, skip: Platform.isAndroid || Platform.isIOS);
@@ -420,3 +422,13 @@ int _selectedAdaptiveTabIndex(WidgetTester tester) {
   final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
   return bar.selectedIndex;
 }
+
+/// Finds a [NightshadeIconButton] by the tooltip it publishes.
+///
+/// `find.byTooltip` cannot: NightshadeIconButton draws its own overlay tooltip
+/// rather than wrapping a Material [Tooltip]. The string is still the button's
+/// Semantics label, so this is the same contract read from the widget.
+Finder findIconButtonByTooltip(String tooltip) => find.byWidgetPredicate(
+      (widget) => widget is NightshadeIconButton && widget.tooltip == tooltip,
+      description: 'NightshadeIconButton(tooltip: "$tooltip")',
+    );

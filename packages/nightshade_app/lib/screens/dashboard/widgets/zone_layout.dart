@@ -130,18 +130,14 @@ class _EmptyZonePlaceholder extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             '$zoneName Zone',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w500,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.button
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 4),
           Text(
             'Enable widgets to add them here',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),

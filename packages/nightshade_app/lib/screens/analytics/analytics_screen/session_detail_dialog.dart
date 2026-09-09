@@ -101,6 +101,9 @@ class _SessionGrading {
   }
 }
 
+/// Gap between two of the detail dialog's [Readout]s.
+const double _dialogStatGap = 24;
+
 class _SessionDetailDialog extends ConsumerStatefulWidget {
   final ImagingSession session;
 
@@ -188,9 +191,9 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.surface,
                 border: Border(bottom: BorderSide(color: colors.border)),
               ),
               child: LayoutBuilder(
@@ -221,7 +224,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                                   l10n.text('analyticsUnnamedSession'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: NightshadeTypography.h4.copyWith(
+                              style: NightshadeTypography.sectionTitle.copyWith(
                                 color: colors.textPrimary,
                               ),
                             ),
@@ -231,9 +234,9 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                                   .format(session.startTime),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  color: colors.textSecondary),
+                              style: NightshadeTypography.bodySm.copyWith(
+                                color: colors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -268,11 +271,15 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
             // carries it rather than under it.
             if (refusal != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: NightshadeAlert(
+                padding: const EdgeInsets.fromLTRB(
+                  NightshadeTokens.spaceLg,
+                  NightshadeTokens.spaceLg,
+                  NightshadeTokens.spaceLg,
+                  0,
+                ),
+                child: NightshadeBanner(
                   key: const ValueKey('session_detail_refusal'),
-                  severity: NightshadeAlertSeverity.info,
-                  message: refusal,
+                  title: refusal,
                   onDismiss: () => setState(() => _refusal = null),
                 ),
               ),
@@ -280,7 +287,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
             // Content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -290,17 +297,18 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                       colors,
                       imagesAsyncValue,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: NightshadeTokens.spaceLg),
 
                     // Images
                     imagesAsyncValue.when(
                       data: (images) =>
                           _buildImagesSection(context, colors, images),
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (err, stack) => Text(
-                        'Error loading images: $err',
-                        style: TextStyle(color: colors.error),
+                      loading: () => const _AnalyticsLoading(
+                        height: kAnalyticsThumbnailRailHeight,
+                      ),
+                      error: (err, stack) => _AnalyticsError(
+                        title: 'Frames did not load',
+                        message: err.toString(),
                       ),
                     ),
                   ],
@@ -522,11 +530,11 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     String? unavailableReason,
   }) {
     if (unavailableReason == null) {
-      return IconButton(
+      return NightshadeIconButton(
         key: key,
-        icon: Icon(icon, size: 18, semanticLabel: label),
-        onPressed: onPressed,
+        icon: icon,
         tooltip: tooltip,
+        onPressed: onPressed,
       );
     }
     return Semantics(
@@ -535,11 +543,11 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
       enabled: false,
       label: unavailableControlName(label, unavailableReason),
       excludeSemantics: true,
-      child: IconButton(
+      child: NightshadeIconButton(
         key: key,
-        icon: Icon(icon, size: 18),
-        onPressed: onPressed,
+        icon: icon,
         tooltip: tooltip,
+        onPressed: onPressed,
       ),
     );
   }
@@ -572,62 +580,50 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.text('analyticsStatistics'),
-          style: NightshadeTypography.h5.copyWith(
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
+        SectionTitle(title: l10n.text('analyticsStatistics')),
         Wrap(
-          spacing: 16,
-          runSpacing: 8,
+          spacing: _dialogStatGap,
+          runSpacing: NightshadeTokens.spaceMd,
           children: [
             _buildStat(
               l10n.text('analyticsTotalExposures'),
               session.totalExposures.toString(),
-              colors,
             ),
             _buildStat(
               l10n.text('analyticsCameraReturned'),
               session.successfulExposures.toString(),
-              colors,
             ),
             _buildStat(
               l10n.text('analyticsFailed'),
               session.failedExposures.toString(),
-              colors,
             ),
             _buildStat(
               l10n.text('analyticsAcceptedLights'),
-              grading == null ? '—' : grading.accepted.toString(),
-              colors,
+              grading?.accepted.toString(),
             ),
             _buildStat(
               l10n.text('analyticsRejectedLights'),
-              grading == null ? '—' : grading.rejected.toString(),
-              colors,
+              grading?.rejected.toString(),
             ),
             _buildStat(
               l10n.text('analyticsIntegration'),
-              '${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)}h',
-              colors,
+              (session.totalIntegrationSecs / 3600).toStringAsFixed(2),
+              unit: 'h',
             ),
-            if (session.avgHfr != null)
-              _buildStat(
-                l10n.text('analyticsAvgHfr'),
-                session.avgHfr!.toStringAsFixed(2),
-                colors,
-              ),
-            if (session.avgGuidingRms != null)
-              _buildStat(
-                l10n.text('analyticsAvgRms'),
-                session.avgGuidingRms!.toStringAsFixed(2),
-                colors,
-              ),
+            _buildStat(
+              l10n.text('analyticsAvgHfr'),
+              session.avgHfr?.toStringAsFixed(2),
+              unit: 'px',
+            ),
+            _buildStat(
+              l10n.text('analyticsAvgRms'),
+              session.avgGuidingRms?.toStringAsFixed(2),
+              // ASCII, not U+2033: the bundled fonts have no prime glyph.
+              unit: '"',
+            ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         // These counters come from the session's own light-frame tallies, while
         // the image list below holds every frame written to disk. Unlabelled,
         // "Total Exposures 12" over "Images (16)" reads as one count the app
@@ -636,8 +632,7 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
           grading == null
               ? l10n.text('analyticsGradingUnread')
               : l10n.text('analyticsExposureCountsLightOnly'),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
+          style: NightshadeTypography.caption.copyWith(
             color: colors.textMuted,
           ),
         ),
@@ -645,24 +640,11 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     );
   }
 
-  Widget _buildStat(String label, String value, NightshadeColors colors) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary),
-        ),
-        Text(
-          value,
-          style: NightshadeTypography.h5.copyWith(
-            color: colors.textPrimary,
-          ),
-        ),
-      ],
-    );
+  /// One of the night's numbers. A [Readout], so the value leads and the label
+  /// sits under it in 11 px muted caps — the pair used to be the other way up,
+  /// with the label above a `h5` value.
+  Widget _buildStat(String label, String? value, {String? unit}) {
+    return Readout(label: label, value: value, unit: unit);
   }
 
   Widget _buildImagesSection(
@@ -676,19 +658,15 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.l10n.text(
+        SectionTitle(
+          title: context.l10n.text(
             'analyticsImages',
             params: {'count': images.length.toString()},
-          ),
-          style: NightshadeTypography.h5.copyWith(
-            color: colors.textPrimary,
           ),
         ),
         // Says what the list is made of, so it can be compared with the
         // light-only exposure counters above it.
         if (images.isNotEmpty) ...[
-          const SizedBox(height: 2),
           Text(
             context.l10n.text(
               'analyticsFrameMix',
@@ -697,13 +675,12 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
                 'calibration': (images.length - lightCount).toString(),
               },
             ),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textMuted,
             ),
           ),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         ImageThumbnailStrip(images: images),
       ],
     );

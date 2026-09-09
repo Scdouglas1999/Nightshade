@@ -160,79 +160,78 @@ class _ProjectSummaryHeader extends StatelessWidget {
         NightshadeTokens.spaceLg,
         NightshadeTokens.spaceSm,
       ),
-      child: NightshadeCard(
-        padding: NightshadeTokens.cardPadding,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        '$totalTargets target${totalTargets == 1 ? '' : 's'}',
-                        style: NightshadeTypography.labelSm.copyWith(
-                          color: colors.textMuted,
-                        ),
-                      ),
-                      if (totalTargets > 0) ...[
-                        const SizedBox(width: NightshadeTokens.spaceSm),
+      child: NightshadePanel(
+          padding: NightshadeTokens.cardPadding,
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
                         Text(
-                          '· $completeTargets complete',
+                          '$totalTargets target${totalTargets == 1 ? '' : 's'}',
                           style: NightshadeTypography.labelSm.copyWith(
-                            color: completeTargets == totalTargets &&
-                                    totalTargets > 0
-                                ? colors.success
-                                : colors.textMuted,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                        if (totalTargets > 0) ...[
+                          const SizedBox(width: NightshadeTokens.spaceSm),
+                          Text(
+                            '· $completeTargets complete',
+                            style: NightshadeTypography.labelSm.copyWith(
+                              color: completeTargets == totalTargets &&
+                                      totalTargets > 0
+                                  ? colors.success
+                                  : colors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceSm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: NightshadeProgressBar(
+                            value: pctFraction,
+                            style: NightshadeProgressStyle.thick,
+                            state: pctFraction >= 1.0
+                                ? NightshadeProgressState.success
+                                : NightshadeProgressState.normal,
+                          ),
+                        ),
+                        const SizedBox(width: NightshadeTokens.spaceMd),
+                        Text(
+                          '${pct.toStringAsFixed(0)}%',
+                          style: NightshadeTypography.telemetryMd.copyWith(
+                            color: colors.textPrimary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: NightshadeTokens.spaceSm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: NightshadeProgressBar(
-                          value: pctFraction,
-                          style: NightshadeProgressStyle.thick,
-                          state: pctFraction >= 1.0
-                              ? NightshadeProgressState.success
-                              : NightshadeProgressState.normal,
-                        ),
-                      ),
-                      const SizedBox(width: NightshadeTokens.spaceMd),
-                      Text(
-                        '${pct.toStringAsFixed(0)}%',
-                        style: NightshadeTypography.telemetryMd.copyWith(
-                          color: colors.textPrimary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: NightshadeTokens.spaceXs),
-                  Text(
-                    '$accruedLabel / $goalLabel integration',
-                    style: NightshadeTypography.monoSm.copyWith(
-                      color: colors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: NightshadeTokens.spaceXs),
+                    Text(
+                      '$accruedLabel / $goalLabel integration',
+                      style: NightshadeTypography.monoSm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceMd),
-            NightshadeButton(
-              label: 'Add Target',
-              icon: LucideIcons.plus,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: onAddTarget,
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              NightshadeButton(
+                label: 'Add Target',
+                icon: LucideIcons.plus,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: onAddTarget,
+              ),
+            ],
+          )),
     );
   }
 }
@@ -261,104 +260,103 @@ class _TargetProgressCard extends StatelessWidget {
     final goalLabel = _formatHours(target.goalSeconds);
     final hasGoals = target.goalSeconds > 0.0;
 
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      target.targetName,
-                      style: NightshadeTypography.h5.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (!hasGoals)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          top: NightshadeTokens.spaceXs,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        target.targetName,
+                        style: NightshadeTypography.bodyStrong.copyWith(
+                          color: colors.textPrimary,
                         ),
-                        child: Text(
-                          'No integration goals set',
-                          style: NightshadeTypography.captionSm.copyWith(
-                            color: colors.textMuted,
+                      ),
+                      if (!hasGoals)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            top: NightshadeTokens.spaceXs,
+                          ),
+                          child: Text(
+                            'No integration goals set',
+                            style: NightshadeTypography.captionSm.copyWith(
+                              color: colors.textMuted,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              if (target.isComplete) ...[
-                const StatusPill(
-                  icon: LucideIcons.checkCircle2,
-                  label: '',
-                  value: 'Complete',
-                  status: StatusPillStatus.success,
+                if (target.isComplete) ...[
+                  const StatusPill(
+                    icon: LucideIcons.checkCircle2,
+                    label: '',
+                    value: 'Complete',
+                    status: StatusPillStatus.success,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                ],
+                AccessibleIconButton(
+                  icon: LucideIcons.sliders,
+                  label: 'Edit goals',
+                  tooltip: 'Edit goals',
+                  size: NightshadeTokens.iconMd,
+                  onPressed: onEditGoals,
                 ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
+                AccessibleIconButton(
+                  icon: LucideIcons.x,
+                  label: 'Remove from project',
+                  tooltip: 'Remove from project',
+                  color: colors.textMuted,
+                  size: NightshadeTokens.iconMd,
+                  onPressed: onRemove,
+                ),
               ],
-              AccessibleIconButton(
-                icon: LucideIcons.sliders,
-                label: 'Edit goals',
-                tooltip: 'Edit goals',
-                size: NightshadeTokens.iconMd,
-                onPressed: onEditGoals,
-              ),
-              AccessibleIconButton(
-                icon: LucideIcons.x,
-                label: 'Remove from project',
-                tooltip: 'Remove from project',
-                color: colors.textMuted,
-                size: NightshadeTokens.iconMd,
-                onPressed: onRemove,
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Row(
-            children: [
-              Expanded(
-                child: NightshadeProgressBar(
-                  value: pctFraction,
-                  state: target.isComplete
-                      ? NightshadeProgressState.success
-                      : NightshadeProgressState.normal,
-                ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Text(
-                '${pct.toStringAsFixed(0)}%',
-                style: NightshadeTypography.withTabular(
-                  NightshadeTypography.monoSm,
-                ).copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Text(
-                '$accruedLabel / $goalLabel',
-                style: NightshadeTypography.monoSm.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          if (target.filters.isNotEmpty) ...[
+            ),
             const SizedBox(height: NightshadeTokens.spaceMd),
-            Divider(color: colors.border, height: 1),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            _FilterBreakdown(colors: colors, filters: target.filters),
+            Row(
+              children: [
+                Expanded(
+                  child: NightshadeProgressBar(
+                    value: pctFraction,
+                    state: target.isComplete
+                        ? NightshadeProgressState.success
+                        : NightshadeProgressState.normal,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Text(
+                  '${pct.toStringAsFixed(0)}%',
+                  style: NightshadeTypography.withTabular(
+                    NightshadeTypography.monoSm,
+                  ).copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Text(
+                  '$accruedLabel / $goalLabel',
+                  style: NightshadeTypography.monoSm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            if (target.filters.isNotEmpty) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              Divider(color: colors.border, height: 1),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              _FilterBreakdown(colors: colors, filters: target.filters),
+            ],
           ],
-        ],
-      ),
-    );
+        ));
   }
 }
 
@@ -399,10 +397,7 @@ class _FilterChip extends StatelessWidget {
         horizontal: NightshadeTokens.spaceSm,
         vertical: NightshadeTokens.spaceXs,
       ),
-      decoration: NightshadeDecorations.tintedBadge(
-        tint,
-        borderRadius: NightshadeTokens.borderRadiusSm,
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: tint),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

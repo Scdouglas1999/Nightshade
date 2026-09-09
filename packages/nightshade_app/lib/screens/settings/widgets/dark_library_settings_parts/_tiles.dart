@@ -16,27 +16,22 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Expanded(
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.all(12),
+      child: NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(
           children: [
             Icon(icon, size: 20, color: colors.primary),
             const SizedBox(height: 6),
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize20,
-                fontWeight: FontWeight.w700,
+              style: NightshadeTypography.pageTitle.copyWith(
                 color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textSecondary,
               ),
               textAlign: TextAlign.center,
@@ -73,7 +68,7 @@ class _ActionButton extends StatelessWidget {
         onPressed: onPressed,
         icon: icon,
         label: label,
-        variant: isDanger ? ButtonVariant.destructive : ButtonVariant.outline,
+        variant: isDanger ? ButtonVariant.destructive : ButtonVariant.secondary,
         isLoading: isLoading,
       ),
     );
@@ -97,9 +92,7 @@ class _DarkGroupTile extends StatelessWidget {
     final isD = group.frameType == 'dark';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
+      child: NightshadePanel(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
@@ -122,28 +115,27 @@ class _DarkGroupTile extends StatelessWidget {
                   Text(
                     'Gain ${group.gain} | Offset ${group.offset} | '
                     '${group.binX}x${group.binY}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            IconButton(
-              icon: Icon(LucideIcons.layers, size: 16, color: colors.primary),
+            NightshadeIconButton(
+              icon: LucideIcons.layers,
               tooltip: 'Create master dark',
               onPressed: onCreateMaster,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              size: IconButtonSize.sm,
+              color: colors.primary,
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(LucideIcons.trash2, size: 16, color: colors.error),
+            NightshadeIconButton(
+              icon: LucideIcons.trash2,
               tooltip: 'Delete group',
               onPressed: onDeleteGroup,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              size: IconButtonSize.sm,
+              color: colors.error,
             ),
           ],
         ),
@@ -183,10 +175,7 @@ class _DarkEntryTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isMaster
-            ? NightshadeDecorations.tintedBadge(
-                colors.primary,
-                borderRadius: BorderRadius.zero,
-              ).color
+            ? NightshadeDecorations.chip(colors, tone: colors.primary).color
             : Colors.transparent,
         border: Border(
           bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
@@ -214,8 +203,7 @@ class _DarkEntryTile extends StatelessWidget {
               children: [
                 Text(
                   isMaster ? 'MASTER: $fileName' : fileName,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     fontWeight: isMaster ? FontWeight.w600 : FontWeight.w400,
                     color: colors.textPrimary,
                   ),
@@ -227,9 +215,9 @@ class _DarkEntryTile extends StatelessWidget {
                   '${entry.binX}x${entry.binY}'
                   '${entry.temperature != null ? ' | ${entry.temperature!.toStringAsFixed(1)}\u00b0C' : ''}'
                   '${isMaster ? ' | ${entry.masterFrameCount} frames' : ''}',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: colors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -241,25 +229,21 @@ class _DarkEntryTile extends StatelessWidget {
                     height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : IconButton(
-                    icon: Icon(
-                      LucideIcons.download,
-                      size: 14,
-                      color: colors.textSecondary,
-                    ),
-                    onPressed: onDownload,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                : NightshadeIconButton(
+                    icon: LucideIcons.download,
                     tooltip: 'Download to this device',
+                    onPressed: onDownload,
+                    size: IconButtonSize.sm,
+                    color: colors.textSecondary,
                   ),
             const SizedBox(width: 10),
           ],
-          IconButton(
-            icon: Icon(LucideIcons.trash2, size: 14, color: colors.error),
-            onPressed: onDelete,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+          NightshadeIconButton(
+            icon: LucideIcons.trash2,
             tooltip: 'Delete entry',
+            onPressed: onDelete,
+            size: IconButtonSize.sm,
+            color: colors.error,
           ),
         ],
       ),

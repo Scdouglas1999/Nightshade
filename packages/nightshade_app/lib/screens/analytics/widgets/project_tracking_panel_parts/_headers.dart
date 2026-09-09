@@ -103,8 +103,7 @@ class _CleanupHeaderRow extends ConsumerWidget {
           icon: Icon(LucideIcons.trash2, size: 14, color: colors.error),
           label: Text(
             'Remove untracked targets ($count)',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12, color: colors.error),
+            style: NightshadeTypography.caption.copyWith(color: colors.error),
           ),
         ),
       ),
@@ -145,57 +144,55 @@ class _SummaryStatsHeader extends ConsumerWidget {
       return sum;
     });
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: _SummaryStat(
-                icon: LucideIcons.star,
-                label: 'Targets',
-                value: '$totalTargets',
-                colors: colors,
-              ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SummaryStat(
+              icon: LucideIcons.star,
+              label: 'Targets',
+              value: '$totalTargets',
+              colors: colors,
             ),
-            _divider(),
-            Expanded(
-              child: _SummaryStat(
-                icon: LucideIcons.target,
-                label: 'Tracked',
-                value: '$trackedTargets',
-                colors: colors,
-              ),
+          ),
+          _divider(),
+          Expanded(
+            child: _SummaryStat(
+              icon: LucideIcons.target,
+              label: 'Tracked',
+              value: '$trackedTargets',
+              colors: colors,
             ),
-            _divider(),
-            Expanded(
-              child: _SummaryStat(
-                icon: LucideIcons.checkCircle,
-                label: 'Completed',
-                value: '$completedTargets',
-                colors: colors,
-              ),
+          ),
+          _divider(),
+          Expanded(
+            child: _SummaryStat(
+              icon: LucideIcons.checkCircle,
+              label: 'Completed',
+              value: '$completedTargets',
+              colors: colors,
             ),
-            _divider(),
-            Expanded(
-              child: _SummaryStat(
-                icon: LucideIcons.timer,
-                label: 'Total Integration',
-                value: '${totalIntegrationHours.toStringAsFixed(1)}h',
-                colors: colors,
-              ),
+          ),
+          _divider(),
+          Expanded(
+            child: _SummaryStat(
+              icon: LucideIcons.timer,
+              label: 'Total Integration',
+              value: '${totalIntegrationHours.toStringAsFixed(1)}h',
+              colors: colors,
             ),
-            _divider(),
-            Expanded(
-              child: _SummaryStat(
-                icon: LucideIcons.calendar,
-                label: 'Active (30d)',
-                value: '$activeTargets',
-                colors: colors,
-              ),
+          ),
+          _divider(),
+          Expanded(
+            child: _SummaryStat(
+              icon: LucideIcons.calendar,
+              label: 'Active (30d)',
+              value: '$activeTargets',
+              colors: colors,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -232,18 +229,13 @@ class _SummaryStat extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.w700,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.readoutMd
+              .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
           textAlign: TextAlign.center,
         ),
       ],
@@ -272,9 +264,8 @@ class _SortBar extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           'Sort by:',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(width: 8),
         _sortChip('Completion', ProjectSortMode.completion),
@@ -299,11 +290,7 @@ class _SortBar extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: isSelected
-                ? NightshadeDecorations.selectedSurface(
-                    colors.primary,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  )
+                ? NightshadeDecorations.panelSelected(colors)
                 : BoxDecoration(
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -311,11 +298,9 @@ class _SortBar extends StatelessWidget {
                   ),
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected ? colors.primary : colors.textSecondary,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: isSelected ? colors.primary : colors.textSecondary,
+                  fontWeight: FontWeight.w600),
             ),
           ),
         ));

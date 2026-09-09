@@ -68,7 +68,7 @@ class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
         final authority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
         return SettingsPage(
-          title: 'Pre-flight Checks',
+          title: 'Pre-flight checks',
           description:
               'How strict should Nightshade be about issues raised before a sequence starts?',
           isMobile: widget.isMobile,
@@ -279,10 +279,7 @@ class _LivePreviewCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      decoration: NightshadeDecorations.tintedBadge(
-        colors.info,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: colors.info),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -294,8 +291,7 @@ class _LivePreviewCard extends StatelessWidget {
               children: [
                 Text(
                   'What this will do at sequence start',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -306,8 +302,7 @@ class _LivePreviewCard extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       '• $line',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                      style: NightshadeTypography.caption.copyWith(
                         color: colors.textSecondary,
                         height: 1.35,
                       ),

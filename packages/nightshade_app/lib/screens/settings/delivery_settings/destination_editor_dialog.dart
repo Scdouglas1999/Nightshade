@@ -317,14 +317,14 @@ class _DestinationEditorDialogState
           NightshadeButton(
             label: 'Browse',
             icon: LucideIcons.folderOpen,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: _saving ? null : _browse,
           ),
           NightshadeButton(
             label: 'Test write access',
             icon: LucideIcons.filePlus,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _probing,
             onPressed: _saving || _probing ? null : _runProbe,

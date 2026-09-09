@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class _MockImagesDao extends Mock implements ImagesDao {}
 
@@ -185,7 +186,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(Dialog),
-        matching: find.byType(IconButton),
+        matching: find.byType(NightshadeIconButton),
       ),
       findsNWidgets(7),
       reason: 'six actions plus the close button',
@@ -207,12 +208,15 @@ void main() {
       find.byKey(const ValueKey('session_detail_actions_menu')),
       findsOneWidget,
     );
+    // One NightshadeIconButton (close). The overflow menu beside it is a
+    // PopupMenuButton, which used to be counted here only because Material
+    // renders one THROUGH an IconButton; the sheet's icon button does not.
     expect(
       find.descendant(
         of: find.byType(Dialog),
-        matching: find.byType(IconButton),
+        matching: find.byType(NightshadeIconButton),
       ),
-      findsNWidgets(2),
+      findsOneWidget,
     );
 
     // What the tree says: exactly the same two, and NOT the six that used to be
@@ -276,14 +280,14 @@ void main() {
     // said cannot run — two claims about one night on one screen.
     expect(
       tester
-          .widget<IconButton>(
+          .widget<NightshadeIconButton>(
               find.byKey(const ValueKey('session_detail_darkroom')))
           .onPressed,
       isNull,
     );
     expect(
       tester
-          .widget<IconButton>(
+          .widget<NightshadeIconButton>(
               find.byKey(const ValueKey('session_detail_darkroom')))
           .tooltip,
       reason,
@@ -293,7 +297,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byKey(const ValueKey('session_detail_refusal')),
-        matching: find.byTooltip('Dismiss'),
+        matching: findIconButtonByTooltip('Dismiss'),
       ),
     );
     await tester.pump();
@@ -318,10 +322,20 @@ void main() {
     // last one has stopped describing anything on screen. Session Report is
     // the one action that neither dismisses this dialog nor writes a file —
     // it opens a second dialog over it whose own data is an AsyncValue.
-    await tester.tap(find.byTooltip('Session Report'));
+    await tester.tap(findIconButtonByTooltip('Session Report'));
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(find.byKey(const ValueKey('session_detail_refusal')), findsNothing);
   });
 }
+
+/// Finds a [NightshadeIconButton] by the tooltip it publishes.
+///
+/// `find.byTooltip` cannot: NightshadeIconButton draws its own overlay tooltip
+/// rather than wrapping a Material [Tooltip]. The string is still the button's
+/// Semantics label, so this is the same contract read from the widget.
+Finder findIconButtonByTooltip(String tooltip) => find.byWidgetPredicate(
+      (widget) => widget is NightshadeIconButton && widget.tooltip == tooltip,
+      description: 'NightshadeIconButton(tooltip: "$tooltip")',
+    );

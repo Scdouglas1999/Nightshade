@@ -271,7 +271,8 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
           ),
           title: Text(
             'Delete project?',
-            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.bodyStrong
+                .copyWith(color: colors.textPrimary),
           ),
           content: Text(
             'Deleting "${project.name}" removes the project and detaches its '
@@ -415,7 +416,8 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
           ),
           title: Text(
             'Remove from project?',
-            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.bodyStrong
+                .copyWith(color: colors.textPrimary),
           ),
           content: Text(
             'Removing "$targetName" detaches it from this project. Your '

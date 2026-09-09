@@ -25,9 +25,7 @@ class ObservingListsSettings extends ConsumerWidget {
             children: [
               Text(
                 'Observing Lists',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize18,
-                  fontWeight: FontWeight.bold,
+                style: NightshadeTypography.pageTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -41,9 +39,9 @@ class ObservingListsSettings extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'Manage your curated target collections for observing sessions.',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textSecondary),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -71,7 +69,9 @@ class ObservingListsSettings extends ConsumerWidget {
                 padding: const EdgeInsets.all(32),
                 child: Text(
                   'Could not load observing lists.',
-                  style: TextStyle(color: colors.error),
+                  style: NightshadeTypography.body.copyWith(
+                    color: colors.error,
+                  ),
                 ),
               ),
             ),
@@ -83,9 +83,7 @@ class ObservingListsSettings extends ConsumerWidget {
 
   Widget _buildEmptyState(
       BuildContext context, WidgetRef ref, NightshadeColors colors) {
-    return NightshadeCard(
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusInline8,
+    return NightshadePanel(
       padding: const EdgeInsets.all(32),
       child: Center(
         child: Column(
@@ -94,17 +92,17 @@ class ObservingListsSettings extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No observing lists yet',
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.sectionTitle
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Create observing lists to organize your targets.\n'
               'You can add objects from the planetarium view.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: colors.textMuted),
+              style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textMuted,
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -144,10 +142,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.all(16),
+      child: NightshadePanel(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -161,9 +156,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
                     children: [
                       Text(
                         list.name,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize15,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.sectionTitle.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),
@@ -173,8 +166,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             list.description!,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
+                            style: NightshadeTypography.caption.copyWith(
                               color: colors.textMuted,
                             ),
                           ),
@@ -184,8 +176,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
                 ),
                 Text(
                   '$itemCount object${itemCount == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
@@ -536,11 +527,7 @@ class _ActionChip extends StatelessWidget {
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
-              : NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
+              : NightshadeDecorations.chip(colors, tone: colors.primary),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

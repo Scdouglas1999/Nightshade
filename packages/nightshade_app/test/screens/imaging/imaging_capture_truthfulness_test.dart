@@ -14,7 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/imaging/widgets/live_preview_area.dart';
-import 'package:nightshade_app/screens/imaging/widgets/overlay_widgets.dart';
+import 'package:nightshade_app/screens/imaging/widgets/imaging_hud.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/imaging_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -110,20 +110,20 @@ void main() {
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expectVisible(tester, find.byType(HistogramWidget), 'histogram');
-    expectVisible(tester, find.byType(ImageStatsOverlay), 'image stats');
+    expectVisible(tester, find.byType(HistogramHud), 'histogram');
+    expectVisible(tester, find.byType(FrameStatsHud), 'frame stats');
 
     // Well past any plausible idle-hide delay: the readouts do not self-hide.
     await tester.pump(const Duration(seconds: 6));
-    expectVisible(tester, find.byType(HistogramWidget), 'histogram');
-    expectVisible(tester, find.byType(ImageStatsOverlay), 'image stats');
+    expectVisible(tester, find.byType(HistogramHud), 'histogram');
+    expectVisible(tester, find.byType(FrameStatsHud), 'frame stats');
 
     // Turning the readouts off is now an explicit, user-owned decision.
     handle.container.read(previewReadoutsVisibleProvider.notifier).state =
         false;
     await tester.pump();
-    expect(find.byType(HistogramWidget), findsNothing);
-    expect(find.byType(ImageStatsOverlay), findsNothing);
+    expect(find.byType(HistogramHud), findsNothing);
+    expect(find.byType(FrameStatsHud), findsNothing);
   });
 
   testWidgets('an in-flight exposure suppresses the empty-state prompt',
@@ -140,9 +140,9 @@ void main() {
     }
 
     // No image yet: the empty state is the right thing to show.
-    expect(find.text('No Image'), findsOneWidget);
+    expect(find.text('No frames yet'), findsOneWidget);
     expect(
-      find.text('Take a snapshot or start a capture loop'),
+      find.text('Take a snapshot or start a loop and the frame appears here.'),
       findsOneWidget,
     );
 
@@ -152,12 +152,12 @@ void main() {
     await tester.pump();
 
     expect(
-      find.text('No Image'),
+      find.text('No frames yet'),
       findsNothing,
       reason: 'the progress overlay owns the canvas while exposing',
     );
     expect(
-      find.text('Take a snapshot or start a capture loop'),
+      find.text('Take a snapshot or start a loop and the frame appears here.'),
       findsNothing,
       reason: 'must not prompt for a capture that is already running',
     );
@@ -166,7 +166,7 @@ void main() {
     handle.container.read(exposureProgressProvider.notifier).state =
         const ExposureProgress(elapsed: 0, remaining: 0, percent: 0);
     await tester.pump();
-    expect(find.text('No Image'), findsOneWidget);
+    expect(find.text('No frames yet'), findsOneWidget);
   });
 
   group('the capture bar survives every compact layout', () {

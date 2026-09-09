@@ -187,7 +187,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
           action: NightshadeButton(
             label: 'Try again',
             icon: NightshadeIcons.refresh,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: () => ref.invalidate(mosaicArtifactsBaseDirProvider),
           ),
         ),
@@ -210,7 +210,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _BackBar(colors: colors),
+            const _MosaicProjectHeaderBar(),
             Expanded(child: child),
           ],
         ),
@@ -267,11 +267,11 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
     MosaicProjectController controller,
   ) {
     if (state.isLoading && state.project == null) {
-      return Column(
+      return const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _BackBar(colors: colors),
-          const Expanded(
+          _MosaicProjectHeaderBar(),
+          Expanded(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -291,7 +291,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _BackBar(colors: colors),
+          const _MosaicProjectHeaderBar(),
           Expanded(
             child: EmptyState(
               icon: NightshadeIcons.grid,
@@ -300,7 +300,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
               action: NightshadeButton(
                 label: 'Try again',
                 icon: NightshadeIcons.refresh,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: controller.load,
               ),
             ),
@@ -312,7 +312,6 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _BackBar(colors: colors),
         MosaicProjectHeader(project: project, state: state),
         if (state.error != null)
           _ErrorBanner(message: state.error!, onDismiss: controller.clearError),
@@ -325,10 +324,9 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                 MosaicProjectActions(state: state, controller: controller),
                 if (controller.canCollaborate) ...[
                   const SizedBox(height: NightshadeTokens.spaceLg),
-                  const SectionHeader(
+                  const SectionTitle(
+                    icon: NightshadeIcons.share,
                     title: 'Collaborative mosaic',
-                    subtitle:
-                        'Split the panels across your club and fuse centrally',
                   ),
                   const SizedBox(height: NightshadeTokens.spaceSm),
                   MosaicCollaborativeSection(
@@ -337,9 +335,9 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                   ),
                 ],
                 const SizedBox(height: NightshadeTokens.spaceLg),
-                const SectionHeader(
+                const SectionTitle(
+                  icon: NightshadeIcons.grid,
                   title: 'Panels',
-                  subtitle: 'Per-panel capture, integration, and master',
                 ),
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 MosaicPanelGrid(
@@ -374,9 +372,9 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
                 ),
                 if (state.isComplete) ...[
                   const SizedBox(height: NightshadeTokens.spaceXl),
-                  const SectionHeader(
+                  const SectionTitle(
+                    icon: NightshadeIcons.layers,
                     title: 'Stitched master',
-                    subtitle: 'The composited mosaic across all panels',
                   ),
                   const SizedBox(height: NightshadeTokens.spaceSm),
                   MosaicStitchedMasterView(master: state.stitchedMaster!),
@@ -397,69 +395,6 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
 /// collaborative detail view, or a deep link that builds the list beneath it),
 /// and before this existed a failed/slow load rendered a bare spinner with no
 /// app chrome at all: the operator had no way back and had to restart the app.
-class _BackBar extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _BackBar({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    // Truthful by construction. This screen is pushed from four places —
-    // the projects list, Framing, the sequencer mosaic wizard and the
-    // Collaborative Sky mosaic detail — and the control POPS, so it can only
-    // promise "Mosaic projects" in the one case where it really goes there:
-    // an empty stack, where _leave falls back to context.go('/mosaic').
-    final label = Navigator.of(context).canPop() ? 'Back' : 'Mosaic projects';
-    // ONE tap target covering the whole affordance, label included. An
-    // IconButton beside a bare Text leaves the WORD outside the control, so
-    // only the 24 px chevron responds and the a11y tree publishes a role-less
-    // panel where the neighbouring route publishes a button.
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceSm,
-        vertical: NightshadeTokens.spaceXs,
-      ),
-      alignment: Alignment.centerLeft,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Tooltip(
-          message: label,
-          child: TextButton.icon(
-            onPressed: () => _leave(context),
-            icon: const Icon(
-              NightshadeIcons.chevronLeft,
-              size: NightshadeTokens.iconMd,
-            ),
-            label: Text(label),
-            style: TextButton.styleFrom(
-              foregroundColor: colors.textSecondary,
-              textStyle: NightshadeTypography.bodySm,
-              // Keep the framework's 48 px minimum so the row is a real touch
-              // target on the tablet layout.
-              minimumSize: const Size(0, kMinInteractiveDimension),
-              padding: const EdgeInsets.symmetric(
-                horizontal: NightshadeTokens.spaceSm,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Pop when this screen sits on a stack (the normal case). A deep link that
-  /// left nothing beneath it falls back to the projects list, so the button is
-  /// never inert.
-  void _leave(BuildContext context) {
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-      return;
-    }
-    context.go('/mosaic');
-  }
-}
-
 /// The project header: name, target region (RA/Dec), NxM grid, and lifecycle
 /// status pill.
 class MosaicProjectHeader extends StatelessWidget {
@@ -474,41 +409,65 @@ class MosaicProjectHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final center = _centerLabel(state.panels);
     final integrated = state.countWithStatus(MosaicPanelStatus.integrated);
-    return ScreenHeader(
-      icon: NightshadeIcons.grid,
-      title: project.name.isEmpty ? 'Mosaic project' : project.name,
-      subtitle: [
-        formatMosaicGrid(cols: project.cols, rows: project.rows),
-        _panelCountLabel(project, state.panels),
-        if (center != null) center,
-        '$integrated integrated',
-      ].join('  ·  '),
-      trailing: StatusPill(
-        icon: _statusIcon(project.status),
-        label: 'Status',
-        value: mosaicProjectStatusLabel(project.status),
-        status: _pillStatus(project.status, colors),
-      ),
+    final planned = state.panels.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PageHeader(
+          icon: NightshadeIcons.grid,
+          title: 'Mosaic',
+          context: project.name.isEmpty ? null : project.name,
+          actions: [
+            NightshadeChip(
+              label: mosaicProjectStatusLabel(project.status),
+              icon: _statusIcon(project.status),
+              tone: _statusTone(project.status),
+              dot: true,
+            ),
+            const _MosaicProjectBackAction(),
+          ],
+        ),
+        // The grid, the panel counts and the centre were a subtitle sentence
+        // joined by middots. Every one of them is a measurement, so every one
+        // is a Readout (05 §3); the centre keeps prose because it is a
+        // coordinate pair, not a figure.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            NightshadeTokens.space2xl,
+            NightshadeTokens.spaceLg,
+            NightshadeTokens.space2xl,
+            0,
+          ),
+          child: ReadoutRow(
+            children: [
+              Readout(
+                value: formatMosaicGrid(cols: project.cols, rows: project.rows),
+                label: 'Grid',
+                size: ReadoutSize.sm,
+              ),
+              Readout(
+                // Both numbers, because they can differ: `totalPanels` is
+                // rows × cols, and a project created with cells disabled in the
+                // wizard persists a sparse panel set.
+                value: planned == project.totalPanels
+                    ? '$planned'
+                    : '$planned / ${project.totalPanels}',
+                label: 'Panels',
+                size: ReadoutSize.sm,
+              ),
+              Readout(
+                value: '$integrated',
+                label: 'Integrated',
+                size: ReadoutSize.sm,
+              ),
+              Readout(value: center, label: 'Centre', size: ReadoutSize.sm),
+            ],
+          ),
+        ),
+      ],
     );
-  }
-
-  /// The panel-count claim, counted from the panels that actually EXIST.
-  ///
-  /// `project.totalPanels` is `rows * cols`, but a project created with cells
-  /// disabled in the wizard persists a sparse panel set, so the two can differ.
-  /// When they do, say both: the grid is still NxM, but only some of its cells
-  /// are planned.
-  static String _panelCountLabel(
-    MosaicProject project,
-    List<MosaicProjectPanel> panels,
-  ) {
-    final actual = panels.length;
-    final grid = project.totalPanels;
-    if (actual == grid) return '$grid panels';
-    return '$actual of $grid panels';
   }
 
   /// The mosaic's centre as a compact "RA · Dec" string, derived from the panel
@@ -547,20 +506,74 @@ class MosaicProjectHeader extends StatelessWidget {
     }
   }
 
-  static StatusPillStatus _pillStatus(
-    MosaicProjectStatus status,
-    NightshadeColors colors,
-  ) {
+  /// StatusPill is deprecated outside the instrument bar (05 §10b), so the
+  /// lifecycle reads as a toned chip instead.
+  static ChipTone _statusTone(MosaicProjectStatus status) {
     switch (status) {
       case MosaicProjectStatus.planning:
-        return StatusPillStatus.inactive;
+        return ChipTone.neutral;
       case MosaicProjectStatus.capturing:
       case MosaicProjectStatus.integrating:
       case MosaicProjectStatus.stitching:
-        return StatusPillStatus.active;
+        return ChipTone.primary;
       case MosaicProjectStatus.complete:
-        return StatusPillStatus.success;
+        return ChipTone.success;
     }
+  }
+}
+
+/// The page header the arms with no project loaded show: the screen still says
+/// which screen it is while it is loading, missing or refused.
+class _MosaicProjectHeaderBar extends StatelessWidget {
+  const _MosaicProjectHeaderBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return const PageHeader(
+      icon: NightshadeIcons.grid,
+      title: 'Mosaic',
+      actions: [_MosaicProjectBackAction()],
+    );
+  }
+}
+
+/// The way out, in the page header.
+///
+/// This was a full-width bar ABOVE the header on all four arms of this screen —
+/// a second header row where 04-shell §4 gives one. The affordance stays, and
+/// so does the sentence it was careful about: the control POPS, so it can only
+/// promise "Mosaic projects" when the stack is empty and [_leave] really does
+/// go there.
+class _MosaicProjectBackAction extends StatelessWidget {
+  const _MosaicProjectBackAction();
+
+  @override
+  Widget build(BuildContext context) {
+    // Truthful by construction, exactly as the row it replaces was. This
+    // screen is pushed from four places — the projects list, Framing, the
+    // sequencer mosaic wizard and the Collaborative Sky mosaic detail — and the
+    // control POPS, so it can only promise the projects list in the one case
+    // where [_leave] really goes there: an empty stack.
+    final canPop = Navigator.of(context).canPop();
+    return NightshadeIconButton(
+      icon: NightshadeIcons.arrowLeft,
+      tooltip: canPop
+          ? 'Back to where this mosaic was opened from'
+          : 'Back to mosaic projects',
+      onPressed: () => _leave(context),
+    );
+  }
+
+  /// Pop when this screen sits on a stack (the normal case). A deep link that
+  /// left nothing beneath it falls back to the projects list, so the control is
+  /// never inert.
+  static void _leave(BuildContext context) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    context.go('/mosaic');
   }
 }
 
@@ -580,7 +593,7 @@ class MosaicProjectActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final canStitch = state.canStitch;
-    return NightshadeCard(
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -607,7 +620,7 @@ class MosaicProjectActions extends StatelessWidget {
               NightshadeButton(
                 label: 'Stitch mosaic',
                 icon: NightshadeIcons.grid,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: state.isStitching,
                 onPressed: (!canStitch || state.isBusy)
                     ? null
@@ -682,7 +695,7 @@ class MosaicCollaborativeSection extends StatelessWidget {
     final collabStatus = state.collabStatus;
     final isOwner = role == 'owner';
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -719,7 +732,7 @@ class MosaicCollaborativeSection extends StatelessWidget {
                 NightshadeButton(
                   label: _bulkClaimLabel(isOwner, controller.bulkClaimCount),
                   icon: NightshadeIcons.download,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.isClaiming,
                   onPressed: (state.isBusy || controller.bulkClaimCount == 0)
                       ? null
@@ -728,7 +741,7 @@ class MosaicCollaborativeSection extends StatelessWidget {
                 NightshadeButton(
                   label: 'Upload all integrated',
                   icon: NightshadeIcons.upload,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.isUploading,
                   onPressed:
                       (state.isBusy || state.integratedNotUploaded.isEmpty)
@@ -923,7 +936,7 @@ class MosaicStitchedMasterView extends StatelessWidget {
     final preview = master.previewPngPath;
     return SizedBox(
       height: 520,
-      child: NightshadeCard(
+      child: NightshadePanel(
         padding: EdgeInsets.zero,
         child: ClipRRect(
           borderRadius: NightshadeTokens.borderRadiusMd,

@@ -419,9 +419,8 @@ class _LinkText extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.accent,
-                fontSize: NightshadeTypography.fontSize12,
                 decoration: TextDecoration.underline,
               ),
             ),

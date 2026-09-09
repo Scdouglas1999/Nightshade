@@ -2,12 +2,21 @@ part of '../connected_device_card.dart';
 
 // Helper widgets
 
+/// One measurement on a device panel: a mono value, an optional unit attached
+/// to it, and a quiet label. A null [value] renders the em dash through
+/// [Readout] — the card never invents a placeholder string.
 class _DeviceMetric {
-  final String value;
+  final String? value;
   final String label;
+  final String? unit;
   final Color? valueColor;
 
-  _DeviceMetric({required this.value, required this.label, this.valueColor});
+  _DeviceMetric({
+    required this.value,
+    required this.label,
+    this.unit,
+    this.valueColor,
+  });
 }
 
 class _ActionButton extends StatelessWidget {
@@ -30,7 +39,7 @@ class _ActionButton extends StatelessWidget {
       child: NightshadeButton(
         onPressed: onTap,
         label: label,
-        variant: ButtonVariant.outline,
+        variant: ButtonVariant.secondary,
         size: ButtonSize.small,
       ),
     );
@@ -52,6 +61,9 @@ class _FilterDropdown extends StatelessWidget {
     required this.colors,
   });
 
+  /// Width of the filter picker inside a device panel's action row.
+  static const double width = 132.0;
+
   @override
   Widget build(BuildContext context) {
     if (filterNames.isEmpty) {
@@ -62,88 +74,25 @@ class _FilterDropdown extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: AccessibleDropdown<int>(
-          value: currentPosition != null &&
-                  currentPosition! >= 0 &&
-                  currentPosition! < filterNames.length
-              ? currentPosition
-              : null,
-          isDense: true,
-          dropdownColor: colors.surface,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary),
-          icon:
-              Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
-          items: filterNames.asMap().entries.map((entry) {
-            return DropdownMenuItem<int>(
-              value: entry.key,
-              child: Text(
-                entry.value,
-                style: TextStyle(color: colors.textPrimary),
-              ),
-            );
-          }).toList(),
-          onChanged: enabled
-              ? (value) {
-                  if (value != null) {
-                    onFilterSelected(value);
-                  }
-                }
-              : null,
-        ),
-      ),
-    );
-  }
-}
+    final value = currentPosition != null &&
+            currentPosition! >= 0 &&
+            currentPosition! < filterNames.length
+        ? filterNames[currentPosition!]
+        : null;
 
-class _TelemetryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final NightshadeColors colors;
-
-  const _TelemetryRow({
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textSecondary,
-                fontFamily: 'monospace',
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+    return SizedBox(
+      width: width,
+      child: NightshadeDropdown(
+        value: value,
+        items: filterNames,
+        dense: true,
+        onChanged: enabled
+            ? (selected) {
+                if (selected == null) return;
+                final index = filterNames.indexOf(selected);
+                if (index >= 0) onFilterSelected(index);
+              }
+            : null,
       ),
     );
   }

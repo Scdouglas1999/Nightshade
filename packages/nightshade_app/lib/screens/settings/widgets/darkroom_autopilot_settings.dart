@@ -76,7 +76,7 @@ Widget openSectionButton({
   return NightshadeButton(
     label: label,
     icon: LucideIcons.arrowRight,
-    variant: ButtonVariant.outline,
+    variant: ButtonVariant.secondary,
     size: ButtonSize.small,
     onPressed: () => openSettingsSection(context, sectionKey),
   );
@@ -273,7 +273,7 @@ class _AutoIntegrateDependencyRow extends ConsumerWidget {
           'produces, so with "Auto-integrate at end of run" off nothing is '
           'drafted, delivered or reported — the switch above governs what '
           'happens next, not whether the night is integrated at all. It is '
-          'currently $state. Settings › Image Grading › Post-session '
+          'currently $state. Settings › Image grading › Post-session '
           'integration.',
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -291,7 +291,7 @@ class _AutoIntegrateDependencyRow extends ConsumerWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           openSectionButton(
             context: context,
-            label: 'Image Grading',
+            label: 'Image grading',
             sectionKey: 'image-grading',
           ),
         ],

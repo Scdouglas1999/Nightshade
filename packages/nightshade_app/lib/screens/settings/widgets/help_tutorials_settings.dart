@@ -24,7 +24,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
 
     return SettingsPage(
       key: SettingsTutorialKeys.help,
-      title: 'Help & Tutorials',
+      title: 'Help & tutorials',
       description: 'Guided tours and learning resources',
       isMobile: isMobile,
       hideHeader: isMobile,
@@ -41,7 +41,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         // mirrored into settings_search_index.g.dart, regenerated with
         // `dart run tools/production/settings_search_index_gen.dart`.
         SettingsSection(
-          title: 'Guided Flows',
+          title: 'Guided flows',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -52,7 +52,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'connect, polar align, focus, frame, guide, sequence.',
               trailing: _AsyncActionButton(
                 label: 'Start',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 failureMessage:
@@ -79,7 +79,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'camera is connected first.',
               trailing: NightshadeButton(
                 label: 'Start',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 // The first-light flow is camera-driven and self-contained:
@@ -98,7 +98,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'for gear, pick devices, and rebuild a profile from scratch.',
               trailing: _AsyncActionButton(
                 label: 'Start',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 failureMessage:
@@ -127,7 +127,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'live in the app.',
               trailing: _AsyncActionButton(
                 label: 'Start',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 failureMessage:
@@ -152,7 +152,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'Package logs, settings, profile metadata, and system details for support.',
               trailing: NightshadeButton(
                 label: 'Start',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 onPressed: () => context.push('/diagnostics/dump'),
@@ -162,7 +162,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
           ],
         ),
         SettingsSection(
-          title: 'Tutorial Tours',
+          title: 'Tutorial tours',
           isMobile: isMobile,
           children: [
             // The "Quick Start Tour" (TutorialCategory.firstLight step tour)
@@ -269,7 +269,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
           ],
         ),
         SettingsSection(
-          title: 'Reset Progress',
+          title: 'Reset progress',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -324,27 +324,23 @@ class HelpTutorialsSettings extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.error,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.error),
                 child: Icon(LucideIcons.alertTriangle,
                     color: colors.error, size: 20),
               ),
               const SizedBox(width: 12),
               Text(
                 'Reset Tutorial Progress?',
-                style:
-                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.sectionTitle
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
           content: Text(
             'This will clear all tutorial progress and you will see the welcome tour again. This action cannot be undone.',
-            style: TextStyle(
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
           actions: [
@@ -498,13 +494,9 @@ class _TutorialRowState extends State<_TutorialRow> {
               width: 36,
               height: 36,
               decoration: widget.isCompleted
-                  ? NightshadeDecorations.tintedBadge(
-                      colors.success,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    )
+                  ? NightshadeDecorations.chip(colors, tone: colors.success)
                   : BoxDecoration(
-                      color: colors.surfaceAlt,
+                      color: colors.well,
                       borderRadius:
                           BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
@@ -551,8 +543,7 @@ class _TutorialRowState extends State<_TutorialRow> {
                       const SizedBox(width: 4),
                       Text(
                         _statusText,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
+                        style: NightshadeTypography.captionSm.copyWith(
                           color: widget.isCompleted
                               ? colors.success
                               : widget.hasProgress
@@ -572,7 +563,7 @@ class _TutorialRowState extends State<_TutorialRow> {
               // A page of equal-weight replay rows has no primary among them:
               // the completion state is already published by the icon, the
               // status line and the verb itself.
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               isLoading: _isRunning,
               onPressed: _isRunning ? null : _runAction,

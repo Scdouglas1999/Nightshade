@@ -64,7 +64,7 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
               Expanded(
                 child: Text(
                   'Minor Planets & Comets (MPC)',
-                  style: NightshadeTypography.h4
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -82,9 +82,8 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
             '(CometEls). Refreshed bodies appear in the planetarium overlay '
             'and search. Satellite TLEs (CelesTrak) refresh on their own '
             '24-hour cache when the satellite layer is on.',
-            style: TextStyle(
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
           const SizedBox(height: 16),
@@ -106,9 +105,8 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
                           '${status.asteroidCount} bright asteroids, '
                           '${status.cometCount} comets'
                       : 'Using bundled elements — never refreshed',
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 ),
               ),
@@ -118,9 +116,8 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
             const SizedBox(height: 8),
             Text(
               'Last refresh failed: ${status.error}',
-              style: TextStyle(
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.error,
-                fontSize: NightshadeTypography.fontSize11,
               ),
             ),
           ],
@@ -183,18 +180,16 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
           children: [
             Text(
               'Auto-refresh:',
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
             const SizedBox(width: 12),
             AccessibleDropdown<ElementRefreshSchedule>(
               value: config.schedule,
               dropdownColor: colors.surface,
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
               items: ElementRefreshSchedule.values
                   .map((s) => DropdownMenuItem(
@@ -225,9 +220,8 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
           const SizedBox(height: 6),
           Text(
             'Could not save schedule: $_saveError',
-            style: TextStyle(
+            style: NightshadeTypography.captionSm.copyWith(
               color: colors.error,
-              fontSize: NightshadeTypography.fontSize11,
             ),
           ),
         ],
@@ -249,9 +243,8 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
         const SizedBox(width: 12),
         Text(
           'Loading refresh configuration…',
-          style: TextStyle(
+          style: NightshadeTypography.bodySm.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize13,
           ),
         ),
       ],
@@ -269,9 +262,8 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
             Expanded(
               child: Text(
                 'Auto-refresh configuration unavailable',
-                style: TextStyle(
+                style: NightshadeTypography.buttonSm.copyWith(
                   color: colors.error,
-                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -281,16 +273,15 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
         const SizedBox(height: 6),
         Text(
           '${error ?? 'Unknown error'}',
-          style: TextStyle(
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
         const SizedBox(height: 10),
         NightshadeButton(
           label: 'Retry',
           icon: NightshadeIcons.refresh,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: _retryConfig,
         ),

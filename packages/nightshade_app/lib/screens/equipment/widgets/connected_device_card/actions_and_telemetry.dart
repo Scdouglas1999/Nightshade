@@ -3,62 +3,85 @@ part of '../connected_device_card.dart';
 extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   Widget _buildActionsRow(NightshadeColors colors) {
     final settingsAction = _resolveSettingsAction();
+    final actions =
+        _buildDeviceActions(colors).where((w) => w is! SizedBox).toList();
 
-    final trailingButtons = Row(
-      mainAxisSize: MainAxisSize.min,
+    // A ROW, never a Wrap, and the buttons are NOT flexible: a wrapped action
+    // row left a lone icon stranded on a second line, and flexible buttons
+    // split the slack with the Spacer and ellipsised "Cool to -10.0 °C" to
+    // "Cool t…". The row measures instead: buttons keep their natural width
+    // and stop being inline the moment the next one would not fit, with
+    // everything else behind one `more-vertical` menu.
+    //
+    // The width comes from [DeviceTileWidth], not a LayoutBuilder — see the
+    // note there.
+    final trailing = <Widget>[
+      if (settingsAction != null)
+        NightshadeIconButton(
+          icon: LucideIcons.settings2,
+          tooltip: 'Settings',
+          size: IconButtonSize.sm,
+          onPressed: _anyCommandInFlight ? null : settingsAction,
+        ),
+    ];
+
+    var budget = DeviceTileWidth.of(context) -
+        NightshadeTokens.spaceLg * 2 -
+        NightshadeTokens.iconButtonSizeSm -
+        trailing.length *
+            (NightshadeTokens.iconButtonSizeSm + _deviceActionGap);
+
+    final inline = <Widget>[];
+    for (final action in actions) {
+      if (inline.length >= _maxInlineActions) break;
+      final needed =
+          _actionWidth(action) + (inline.isEmpty ? 0 : _deviceActionGap);
+      if (needed > budget) break;
+      budget -= needed;
+      inline.add(action);
+    }
+    final overflowed = actions.sublist(inline.length);
+
+    return Row(
       children: [
-        // Settings button — only shown for device types that have real
-        // settings reachable from this card (or when an external onSettings
-        // callback has been injected by the parent). Device types with nothing
-        // to configure get no gear icon rather than an inert one.
-        if (settingsAction != null)
-          IconButton(
-            onPressed: _anyCommandInFlight ? null : settingsAction,
-            icon: const Icon(LucideIcons.settings2, size: 16),
-            tooltip: 'Settings',
-            style: IconButton.styleFrom(
-              foregroundColor: colors.textMuted,
-            ),
-          ),
-
-        // Disconnect button
-        IconButton(
-          onPressed: _anyCommandInFlight
+        for (var i = 0; i < inline.length; i++) ...[
+          if (i > 0) const SizedBox(width: _deviceActionGap),
+          inline[i],
+        ],
+        const Spacer(),
+        for (final control in trailing) ...[
+          control,
+          const SizedBox(width: _deviceActionGap),
+        ],
+        _DeviceOverflowMenu(
+          extraActions: overflowed,
+          isExpanded: _isExpanded,
+          onToggleDetails: _toggleExpanded,
+          onDisconnect: _anyCommandInFlight
               ? null
               : widget.onDisconnect ?? () => _handleDisconnect(),
-          icon: const Icon(LucideIcons.unplug, size: 16),
-          tooltip: 'Disconnect',
-          style: IconButton.styleFrom(
-            foregroundColor: colors.textMuted,
-          ),
         ),
       ],
     );
+  }
 
-    // Wrap so the quick-action chips and the trailing settings/disconnect
-    // controls flow to a second line on a narrow phone card (or a narrow
-    // landscape sheet panel) instead of overflowing the row. The trailing
-    // buttons are pushed to the line's end via [Spacer] only when there is
-    // room on the same line.
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        // Device-specific quick actions, grouped so they wrap as a unit.
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: _buildDeviceActions(colors)
-              // Drop the inter-button SizedBox spacers; [Wrap] handles spacing.
-              .where((w) => w is! SizedBox)
-              .toList(),
-        ),
-        trailingButtons,
-      ],
-    );
+  /// Width [action] needs at its natural size. Measured from the real label,
+  /// not guessed: a device action's label carries live values ("Cool to
+  /// -10.0 °C") whose width changes with the reading.
+  double _actionWidth(Widget action) {
+    if (action is _FilterDropdown) return _FilterDropdown.width;
+    if (action is! _ActionButton) return _unmeasurableActionWidth;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: action.label,
+        style: NightshadeTypography.buttonSm,
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width + _actionButtonPadding;
   }
 
   /// Returns the settings action for the current device type, or `null` if
@@ -147,7 +170,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           ),
           const SizedBox(width: 8),
           _ActionButton(
-            label: state.isWarming ? 'Cancel Warm' : 'Warm Up',
+            label: state.isWarming ? 'Cancel warm-up' : 'Warm up',
             onTap: _deviceCommandInFlight
                 ? null
                 : state.isWarming
@@ -250,7 +273,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         );
         return [
           _ActionButton(
-            label: 'Move to...',
+            label: 'Move to…',
             onTap: state.isAbsolute && !state.isMoving && !autofocusRunning
                 ? () => _showMoveDialog(context)
                 : null,
@@ -280,7 +303,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         final state = ref.watch(guiderStateProvider);
         return [
           _ActionButton(
-            label: state.isGuiding ? 'Stop' : 'Start Guiding',
+            label: state.isGuiding ? 'Stop' : 'Start guiding',
             onTap: state.connectionState == DeviceConnectionState.connected &&
                     state.deviceId != null &&
                     state.deviceId!.isNotEmpty &&
@@ -309,7 +332,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         );
         return [
           _ActionButton(
-            label: 'Rotate to...',
+            label: 'Rotate to…',
             onTap: state.connectionState == DeviceConnectionState.connected &&
                     !state.isMoving &&
                     canMoveAbsolute
@@ -353,8 +376,8 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         return [
           _ActionButton(
             label: state.shutterStatus == ShutterStatus.open
-                ? 'Close Shutter'
-                : 'Open Shutter',
+                ? 'Close shutter'
+                : 'Open shutter',
             onTap: connected &&
                     canSetShutter &&
                     !shutterMoving &&
@@ -377,7 +400,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           ),
           const SizedBox(width: 8),
           _ActionButton(
-            label: 'Slew...',
+            label: 'Slew…',
             onTap: connected &&
                     canSetAzimuth &&
                     !state.isSlewing &&
@@ -453,10 +476,10 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           if (snapshot.coverPresent)
             _ActionButton(
               label: switch (coverStatus) {
-                CoverStatus.open => 'Close Cover',
-                CoverStatus.closed => 'Open Cover',
+                CoverStatus.open => 'Close cover',
+                CoverStatus.closed => 'Open cover',
                 CoverStatus.moving => 'Cover Moving',
-                _ => 'Cover Unavailable',
+                _ => 'Cover unavailable',
               },
               onTap: connected &&
                       coverCanMove &&
@@ -469,7 +492,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             const SizedBox(width: 8),
           if (snapshot.calibratorPresent)
             _ActionButton(
-              label: calibratorOn ? 'Light Off' : 'Light On',
+              label: calibratorOn ? 'Light off' : 'Light on',
               onTap: connected &&
                       calibratorCanToggle &&
                       (calibratorOn || snapshot.maxBrightness > 0) &&
@@ -488,301 +511,187 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
   Widget _buildExpandedContent(NightshadeColors colors) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
       child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.background,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Additional Info',
-              style: NightshadeTypography.labelStrongSm
-                  .copyWith(color: colors.textMuted),
-            ),
-            const SizedBox(height: 8),
-            ..._buildExpandedTelemetry(colors),
-          ],
-        ),
+        padding: NightshadeTokens.paddingMd,
+        decoration: NightshadeDecorations.well(colors),
+        child: KeyValueList(rows: _buildExpandedTelemetry(colors)),
       ),
     );
   }
 
-  List<Widget> _buildExpandedTelemetry(NightshadeColors colors) {
+  List<(String, String)> _buildExpandedTelemetry(NightshadeColors colors) {
     switch (widget.type) {
       case ConnectedDeviceType.camera:
         final state = ref.watch(cameraStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-              label: 'Gain',
-              value: state.gain?.toString() ?? '---',
-              colors: colors),
-          _TelemetryRow(
-              label: 'Offset',
-              value: state.offset?.toString() ?? '---',
-              colors: colors),
-          _TelemetryRow(
-              label: 'Binning', value: state.binning ?? '---', colors: colors),
-          _TelemetryRow(
-              label: 'Cooling',
-              value: state.isCooling ? 'Active' : 'Off',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Target Temp',
-            value: formatCelsius(state.targetTemp),
-            colors: colors,
-          ),
+          ('Device id', state.deviceId ?? 'Unknown'),
+          ('Gain', state.gain?.toString() ?? kReadoutUnknown),
+          ('Offset', state.offset?.toString() ?? kReadoutUnknown),
+          ('Binning', state.binning ?? kReadoutUnknown),
+          ('Cooling', state.isCooling ? 'Active' : 'Off'),
+          ('Target temp', formatCelsius(state.targetTemp)),
         ];
 
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'RA',
-            value: state.ra?.toStringAsFixed(4) ?? '---',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Dec',
-            value: state.dec?.toStringAsFixed(4) ?? '---',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Altitude',
-            value: state.altitude != null
+          ('Device id', state.deviceId ?? 'Unknown'),
+          ('RA', state.ra?.toStringAsFixed(4) ?? kReadoutUnknown),
+          ('Dec', state.dec?.toStringAsFixed(4) ?? kReadoutUnknown),
+          (
+            'Altitude',
+            state.altitude != null
                 ? state.altitude!.toStringAsFixed(2)
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Azimuth',
-            value: state.azimuth != null
+          (
+            'Azimuth',
+            state.azimuth != null
                 ? state.azimuth!.toStringAsFixed(2)
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Side of Pier',
-            value: state.sideOfPier ?? 'Unknown',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Tracking Rate',
-            value: state.trackingRate.name.toUpperCase(),
-            colors: colors,
-          ),
+          ('Side of pier', state.sideOfPier ?? 'Unknown'),
+          ('Tracking rate', state.trackingRate.name.toUpperCase()),
         ];
 
       case ConnectedDeviceType.focuser:
         final state = ref.watch(focuserStateProvider);
         final reportedMax = state.maxPosition;
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Max Position',
-            value: reportedMax != null && reportedMax > 0
+          ('Device id', state.deviceId ?? 'Unknown'),
+          (
+            'Max position',
+            reportedMax != null && reportedMax > 0
                 ? reportedMax.toString()
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
         ];
 
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Filters',
-            value: state.filterNames.join(', '),
-            colors: colors,
-          ),
+          ('Device id', state.deviceId ?? 'Unknown'),
+          ('Filters', state.filterNames.join(', ')),
         ];
 
       case ConnectedDeviceType.guider:
         final state = ref.watch(guiderStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'RA RMS',
-            value: state.rmsRa != null
+          ('Device id', state.deviceId ?? 'Unknown'),
+          (
+            'RA RMS',
+            state.rmsRa != null
                 ? '${state.rmsRa!.toStringAsFixed(3)}"'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Dec RMS',
-            value: state.rmsDec != null
+          (
+            'Dec RMS',
+            state.rmsDec != null
                 ? '${state.rmsDec!.toStringAsFixed(3)}"'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Calibrating',
-            value: state.isCalibrating ? 'Yes' : 'No',
-            colors: colors,
-          ),
+          ('Calibrating', state.isCalibrating ? 'Yes' : 'No'),
         ];
 
       case ConnectedDeviceType.rotator:
         final state = ref.watch(rotatorStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Mechanical Position',
-            value: state.mechanicalPosition != null
+          ('Device id', state.deviceId ?? 'Unknown'),
+          (
+            'Mechanical Position',
+            state.mechanicalPosition != null
                 ? state.mechanicalPosition!.toStringAsFixed(2)
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Reversed',
-            value: state.isReversed ? 'Yes' : 'No',
-            colors: colors,
-          ),
+          ('Reversed', state.isReversed ? 'Yes' : 'No'),
         ];
 
       case ConnectedDeviceType.dome:
         final state = ref.watch(domeStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Azimuth',
-            value: state.azimuth != null
+          ('Device id', state.deviceId ?? 'Unknown'),
+          (
+            'Azimuth',
+            state.azimuth != null
                 ? '${state.azimuth!.toStringAsFixed(2)}\u00B0'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Shutter',
-            value: _shutterStatusLabel(state.shutterStatus),
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Parked',
-            value: state.isParked ? 'Yes' : 'No',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'At Home',
-            value: state.isAtHome ? 'Yes' : 'No',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Slaved',
-            value: state.isSlaved ? 'Yes' : 'No',
-            colors: colors,
-          ),
+          ('Shutter', _shutterStatusLabel(state.shutterStatus)),
+          ('Parked', state.isParked ? 'Yes' : 'No'),
+          ('At Home', state.isAtHome ? 'Yes' : 'No'),
+          ('Slaved', state.isSlaved ? 'Yes' : 'No'),
         ];
 
       case ConnectedDeviceType.weather:
         final state = ref.watch(weatherStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Temperature',
-            value: state.temperature != null
+          ('Device id', state.deviceId ?? 'Unknown'),
+          (
+            'Temperature',
+            state.temperature != null
                 ? '${state.temperature!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Humidity',
-            value: state.humidity != null
+          (
+            'Humidity',
+            state.humidity != null
                 ? '${state.humidity!.toStringAsFixed(1)}%'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Dew Point',
-            value: state.dewPoint != null
+          (
+            'Dew Point',
+            state.dewPoint != null
                 ? '${state.dewPoint!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Pressure',
-            value: state.pressure != null
+          (
+            'Pressure',
+            state.pressure != null
                 ? '${state.pressure!.toStringAsFixed(1)} hPa'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Wind Speed',
-            value: state.windSpeed != null
+          (
+            'Wind Speed',
+            state.windSpeed != null
                 ? '${state.windSpeed!.toStringAsFixed(1)} km/h'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Wind Direction',
-            value: state.windDirection != null
+          (
+            'Wind Direction',
+            state.windDirection != null
                 ? '${state.windDirection!.toStringAsFixed(0)}\u00B0'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Cloud Cover',
-            value: state.cloudCover != null
+          (
+            'Cloud Cover',
+            state.cloudCover != null
                 ? '${state.cloudCover!.toStringAsFixed(0)}%'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Sky Quality',
-            value: state.skyQuality != null
+          (
+            'Sky Quality',
+            state.skyQuality != null
                 ? '${state.skyQuality!.toStringAsFixed(2)} mag/arcsec\u00B2'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Sky Temp',
-            value: state.skyTemperature != null
+          (
+            'Sky Temp',
+            state.skyTemperature != null
                 ? '${state.skyTemperature!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Rain Rate',
-            value: state.rainRate != null
+          (
+            'Rain Rate',
+            state.rainRate != null
                 ? '${state.rainRate!.toStringAsFixed(1)} mm/h'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
           if (state.lastUpdated != null)
-            _TelemetryRow(
-              label: 'Last Updated',
-              value: '${_formatAge(_tickNow().difference(state.lastUpdated!))} '
-                  'ago',
-              colors: colors,
+            (
+              'Last Updated',
+              '${_formatAge(_tickNow().difference(state.lastUpdated!))} '
+                  'ago'
             ),
         ];
 
@@ -793,28 +702,18 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             lastChecked == null ? null : _tickNow().difference(lastChecked);
         final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Is Safe',
-            // Never answer Yes/No from a reading we can no longer vouch for.
-            value: lastChecked == null
+          ('Device id', state.deviceId ?? 'Unknown'),
+          (
+            'Is Safe',
+            lastChecked == null
                 ? 'Unknown — not read yet'
                 : isStale
                     ? 'Unknown — reading is stale'
                     : state.isSafe
                         ? 'Yes'
-                        : 'No',
-            colors: colors,
+                        : 'No'
           ),
-          if (age != null)
-            _TelemetryRow(
-              label: 'Last Checked',
-              value: '${_formatAge(age)} ago',
-              colors: colors,
-            ),
+          if (age != null) ('Last Checked', '${_formatAge(age)} ago'),
         ];
 
       case ConnectedDeviceType.coverCalibrator:
@@ -825,51 +724,130 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         final snapshot = capabilities.valueOrNull;
         if (snapshot == null) {
           return [
-            _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors,
-            ),
-            _TelemetryRow(
-              label: 'Capabilities',
-              value: capabilities.hasError ? 'Unavailable' : 'Loading...',
-              colors: colors,
+            ('Device id', state.deviceId ?? 'Unknown'),
+            (
+              'Capabilities',
+              capabilities.hasError ? 'Unavailable' : 'Loading...'
             ),
           ];
         }
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
+          ('Device id', state.deviceId ?? 'Unknown'),
           if (snapshot.coverPresent)
-            _TelemetryRow(
-              label: 'Cover Status',
-              value: _coverStatusLabel(
+            (
+              'Cover Status',
+              _coverStatusLabel(
                 snapshot.coverStatus ?? CoverStatus.unknown,
-              ),
-              colors: colors,
+              )
             ),
           if (snapshot.calibratorPresent) ...[
-            _TelemetryRow(
-              label: 'Calibrator',
-              value: _calibratorStatusLabel(snapshot.calibratorStatus),
-              colors: colors,
-            ),
-            _TelemetryRow(
-              label: 'Brightness',
-              value: '${snapshot.brightness ?? 0} / '
-                  '${snapshot.maxBrightness}',
-              colors: colors,
+            ('Calibrator', _calibratorStatusLabel(snapshot.calibratorStatus)),
+            (
+              'Brightness',
+              '${snapshot.brightness ?? 0} / '
+                  '${snapshot.maxBrightness}'
             ),
           ],
           if (!snapshot.coverPresent && !snapshot.calibratorPresent)
-            _TelemetryRow(
-              label: 'Capabilities',
-              value: 'No cover or calibrator reported',
-              colors: colors,
-            ),
+            ('Capabilities', 'No cover or calibrator reported'),
         ];
     }
+  }
+}
+
+/// Gap between a device panel's action controls (mockup: 6).
+const double _deviceActionGap = 6.0;
+
+/// How many device actions stay inline before the rest go behind the menu.
+const int _maxInlineActions = 2;
+
+/// A small button's horizontal padding plus its border, added to the measured
+/// label width (05 §6: small = 28 high, 10 padding a side).
+const double _actionButtonPadding = 22.0;
+
+/// Width assumed for an action this row cannot measure, so an unmeasurable
+/// control is never assumed free.
+const double _unmeasurableActionWidth = 120.0;
+
+/// The `⋮` at the end of a device panel's action row: the actions that did not
+/// fit inline, the details toggle, and Disconnect.
+class _DeviceOverflowMenu extends StatefulWidget {
+  /// Device actions pushed out of the inline row. Only `_ActionButton`s carry
+  /// a label, so anything else is skipped rather than shown as a blank item.
+  final List<Widget> extraActions;
+  final bool isExpanded;
+  final VoidCallback onToggleDetails;
+  final VoidCallback? onDisconnect;
+
+  const _DeviceOverflowMenu({
+    required this.extraActions,
+    required this.isExpanded,
+    required this.onToggleDetails,
+    required this.onDisconnect,
+  });
+
+  @override
+  State<_DeviceOverflowMenu> createState() => _DeviceOverflowMenuState();
+}
+
+class _DeviceOverflowMenuState extends State<_DeviceOverflowMenu> {
+  final GlobalKey _anchorKey = GlobalKey();
+
+  Future<void> _open() async {
+    final anchor = _anchorKey.currentContext;
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (anchor == null || overlay is! RenderBox) return;
+    final box = anchor.findRenderObject();
+    if (box is! RenderBox) return;
+    final topLeft =
+        box.localToGlobal(Offset(0, box.size.height), ancestor: overlay);
+    final bottomRight =
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
+
+    final extras = <_ActionButton>[
+      for (final action in widget.extraActions)
+        if (action is _ActionButton) action,
+    ];
+
+    final chosen = await showMenu<VoidCallback>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        topLeft.dx,
+        topLeft.dy,
+        overlay.size.width - bottomRight.dx,
+        overlay.size.height - bottomRight.dy,
+      ),
+      items: <PopupMenuEntry<VoidCallback>>[
+        for (final action in extras)
+          PopupMenuItem<VoidCallback>(
+            value: action.onTap,
+            enabled: action.onTap != null,
+            child: Text(action.label),
+          ),
+        if (extras.isNotEmpty) const PopupMenuDivider(),
+        PopupMenuItem<VoidCallback>(
+          value: widget.onToggleDetails,
+          child: Text(widget.isExpanded ? 'Hide details' : 'Show details'),
+        ),
+        PopupMenuItem<VoidCallback>(
+          value: widget.onDisconnect,
+          enabled: widget.onDisconnect != null,
+          child: const Text('Disconnect'),
+        ),
+      ],
+    );
+    if (!mounted || chosen == null) return;
+    chosen();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeIconButton(
+      key: _anchorKey,
+      icon: LucideIcons.moreVertical,
+      tooltip: 'More actions',
+      size: IconButtonSize.sm,
+      onPressed: _open,
+    );
   }
 }

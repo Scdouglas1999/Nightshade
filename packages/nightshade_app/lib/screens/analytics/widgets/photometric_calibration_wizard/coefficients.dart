@@ -19,8 +19,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
         children: [
           Text(
             _statusMessage.isEmpty ? 'Fit computation failed.' : _statusMessage,
-            style: TextStyle(
-                color: colors.error, fontSize: NightshadeTypography.fontSize13),
+            style: NightshadeTypography.bodySm.copyWith(color: colors.error),
           ),
           const SizedBox(height: 12),
           NightshadeButton(
@@ -42,11 +41,8 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
         children: [
           Text(
             'Transformation Coefficients',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w500,
-            ),
+            style:
+                NightshadeTypography.button.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 12),
           _buildCoefficientRow(
@@ -86,17 +82,12 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12)),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary)),
           Text(
             value,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'monospace',
-            ),
+            style: NightshadeTypography.readoutSm.copyWith(
+                color: colors.textPrimary, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -124,10 +115,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: NightshadeDecorations.statusChip(
-        qualityColor,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: qualityColor),
       child: Row(
         children: [
           Container(
@@ -155,7 +143,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
     if (coeff.fitData.isEmpty) {
       return Center(
         child: Text('No fit data available',
-            style: TextStyle(color: colors.textMuted)),
+            style: NightshadeTypography.body.copyWith(color: colors.textMuted)),
       );
     }
 
@@ -197,33 +185,29 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             axisNameWidget: Text('Catalog Magnitude',
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize10)),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary)),
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 24,
               getTitlesWidget: (value, meta) => Text(
                 value.toStringAsFixed(1),
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textSecondary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ),
           ),
           leftTitles: AxisTitles(
             axisNameWidget: Text('Residual (mag)',
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize10)),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary)),
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
               getTitlesWidget: (value, meta) => Text(
                 value.toStringAsFixed(2),
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textSecondary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ),
           ),

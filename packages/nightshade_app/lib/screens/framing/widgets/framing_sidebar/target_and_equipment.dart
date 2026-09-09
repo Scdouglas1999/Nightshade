@@ -56,21 +56,20 @@ class FramingTargetSearch extends ConsumerWidget {
         children: [
           Text(
             'Target',
-            style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.eyebrow
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           TextField(
             key: FramingTutorialKeys.targetSearch,
             controller: searchController,
             focusNode: searchFocusNode,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textPrimary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search by name (M42, NGC7000, Orion)',
-              hintStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted),
+              hintStyle: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
               prefixIcon: Icon(NightshadeIcons.search,
                   size: 14, color: colors.textMuted),
               suffixIcon: searchState.isSearching
@@ -80,9 +79,10 @@ class FramingTargetSearch extends ConsumerWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(NightshadeIcons.close,
-                              size: 14, color: colors.textMuted),
+                      ? NightshadeIconButton(
+                          icon: NightshadeIcons.close,
+                          tooltip: 'Clear search',
+                          size: IconButtonSize.sm,
                           onPressed: () {
                             searchController.clear();
                             ref.read(targetSearchProvider.notifier).clear();
@@ -90,7 +90,7 @@ class FramingTargetSearch extends ConsumerWidget {
                         )
                       : null,
               filled: true,
-              fillColor: colors.surfaceAlt,
+              fillColor: colors.well,
               border: OutlineInputBorder(
                 borderRadius: NightshadeTokens.borderRadiusInline8,
                 borderSide: BorderSide(color: colors.border),
@@ -148,7 +148,7 @@ class FramingTargetSearch extends ConsumerWidget {
               margin: const EdgeInsets.only(top: 4),
               constraints: const BoxConstraints(maxHeight: 200),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(color: colors.border),
               ),
@@ -183,10 +183,8 @@ class FramingTargetSearch extends ConsumerWidget {
                                     target.catalogId != target.name)
                                   Text(
                                     target.catalogId!,
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize10,
-                                      color: colors.textMuted,
-                                    ),
+                                    style: NightshadeTypography.caption
+                                        .copyWith(color: colors.textMuted),
                                   ),
                               ],
                             ),
@@ -194,10 +192,8 @@ class FramingTargetSearch extends ConsumerWidget {
                           if (target.magnitude != null)
                             Text(
                               'mag ${target.magnitude!.toStringAsFixed(1)}',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize10,
-                                color: colors.textSecondary,
-                              ),
+                              style: NightshadeTypography.caption
+                                  .copyWith(color: colors.textSecondary),
                             ),
                         ],
                       ),
@@ -214,20 +210,17 @@ class FramingTargetSearch extends ConsumerWidget {
               Expanded(
                 child: TextField(
                   controller: raController,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textPrimary),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'RA',
-                    labelStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    labelStyle: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                     hintText: '05h 35m 17s',
-                    hintStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    hintStyle: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                     filled: true,
-                    fillColor: colors.surfaceAlt,
+                    fillColor: colors.well,
                     border: OutlineInputBorder(
                       borderRadius: NightshadeTokens.borderRadiusMd,
                       borderSide: BorderSide(color: colors.border),
@@ -241,20 +234,17 @@ class FramingTargetSearch extends ConsumerWidget {
               Expanded(
                 child: TextField(
                   controller: decController,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textPrimary),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Dec',
-                    labelStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    labelStyle: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                     hintText: '-05° 23\' 28"',
-                    hintStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    hintStyle: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                     filled: true,
-                    fillColor: colors.surfaceAlt,
+                    fillColor: colors.well,
                     border: OutlineInputBorder(
                       borderRadius: NightshadeTokens.borderRadiusMd,
                       borderSide: BorderSide(color: colors.border),
@@ -302,8 +292,8 @@ class FramingEquipmentSection extends StatelessWidget {
           children: [
             Text(
               'Equipment',
-              style:
-                  NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textPrimary),
             ),
             // Flexible so a long profile name ellipsizes instead of pushing
             // the status badge off a narrow phone-landscape controls panel.
@@ -326,9 +316,8 @@ class FramingEquipmentSection extends StatelessWidget {
                             result.profileName ?? 'Ready',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize10,
-                                color: colors.success),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: colors.success),
                           ),
                         ),
                       ],
@@ -345,9 +334,8 @@ class FramingEquipmentSection extends StatelessWidget {
                           'Not Configured',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize10,
-                              color: colors.warning),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.warning),
                         ),
                       ),
                     ],
@@ -364,9 +352,8 @@ class FramingEquipmentSection extends StatelessWidget {
                         'Loading…',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.textMuted),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
                       ),
                     ),
                   ],
@@ -382,9 +369,8 @@ class FramingEquipmentSection extends StatelessWidget {
                         'Error',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.error),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.error),
                       ),
                     ),
                   ],
@@ -462,10 +448,8 @@ class FramingEquipmentSection extends StatelessWidget {
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: NightshadeDecorations.emphasisSurface(
-                          colors.warning,
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                        ),
+                        decoration: NightshadeDecorations.chip(colors,
+                            tone: colors.warning),
                         child: Row(
                           children: [
                             Icon(NightshadeIcons.info,
@@ -474,9 +458,8 @@ class FramingEquipmentSection extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 result.message!,
-                                style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize10,
-                                    color: colors.warning),
+                                style: NightshadeTypography.caption
+                                    .copyWith(color: colors.warning),
                               ),
                             ),
                           ],

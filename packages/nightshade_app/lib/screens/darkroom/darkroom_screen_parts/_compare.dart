@@ -235,7 +235,7 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
           NightshadeButton(
             label: _blinking ? 'Pause blink' : 'Resume blink',
             icon: _blinking ? NightshadeIcons.pause : NightshadeIcons.play,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () {
               if (_blinking) {
@@ -360,7 +360,7 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          color: colors.surfaceAlt,
+          color: colors.surface,
           padding: const EdgeInsets.symmetric(
             horizontal: NightshadeTokens.spaceMd,
             vertical: NightshadeTokens.spaceXs,
@@ -560,7 +560,7 @@ class _DarkroomHoldToCompareState extends State<_DarkroomHoldToCompare> {
                 vertical: NightshadeTokens.spaceXs,
               ),
               decoration: BoxDecoration(
-                color: held ? colors.surfaceAlt : colors.surface,
+                color: held ? colors.surfaceHover : colors.surface,
                 borderRadius: NightshadeTokens.borderRadiusSm,
                 border: Border.all(
                   color: active ? colors.primary : colors.border,

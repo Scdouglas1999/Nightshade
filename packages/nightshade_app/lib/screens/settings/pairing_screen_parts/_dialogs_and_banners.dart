@@ -164,8 +164,7 @@ class _PairedConfirmation extends StatelessWidget {
           Expanded(
             child: Text(
               '${device.deviceName} paired',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textPrimary,
                 height: 1.4,
               ),
@@ -210,8 +209,7 @@ class _PairingErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               context.l10n.text(message),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textPrimary,
                 height: 1.4,
               ),

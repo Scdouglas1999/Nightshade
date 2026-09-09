@@ -218,17 +218,14 @@ class _LogViewerState extends ConsumerState<LogViewer>
           if (!isMobile) ...[
             Text(
               'Logs',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize24,
-                fontWeight: FontWeight.w700,
+              style: NightshadeTypography.pageTitle.copyWith(
                 color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               'View application logs with filtering and export',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
               ),
             ),
@@ -245,25 +242,21 @@ class _LogViewerState extends ConsumerState<LogViewer>
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               '${_filteredLogs.length} of ${_allLogs.length} entries',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
               ),
             ),
           ),
           // Log entries list
           Expanded(
-            child: NightshadeCard(
-              variant: CardVariant.subtle,
-              borderRadius: isMobile ? 10 : 12,
+            child: NightshadePanel(
               child: _filteredLogs.isEmpty
                   ? Center(
                       child: Text(
                         _allLogs.isEmpty
                             ? 'No log entries yet'
                             : 'No entries match current filters',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
+                        style: NightshadeTypography.bodySm.copyWith(
                           color: colors.textMuted,
                         ),
                       ),
@@ -325,14 +318,14 @@ class _LogViewerState extends ConsumerState<LogViewer>
           height: 32,
           child: TextField(
             controller: _searchController,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textPrimary),
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textPrimary,
+            ),
             decoration: InputDecoration(
               hintText: 'Search logs...',
-              hintStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted),
+              hintStyle: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
               prefixIcon:
                   Icon(LucideIcons.search, size: 14, color: colors.textMuted),
               prefixIconConstraints:
@@ -350,7 +343,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
                 borderSide: BorderSide(color: colors.primary),
               ),
               filled: true,
-              fillColor: colors.surfaceAlt,
+              fillColor: colors.well,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               isDense: true,
@@ -371,7 +364,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
@@ -381,30 +374,30 @@ class _LogViewerState extends ConsumerState<LogViewer>
           isDense: true,
           hint: Text(
             'All sources',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted),
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textMuted,
+            ),
           ),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           dropdownColor: colors.surface,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textPrimary),
+          style: NightshadeTypography.caption.copyWith(
+            color: colors.textPrimary,
+          ),
           items: [
             DropdownMenuItem<String?>(
               value: null,
               child: Text('All sources',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textPrimary)),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textPrimary,
+                  )),
             ),
             ...sortedSources.map((s) => DropdownMenuItem<String?>(
                   value: s,
                   child: Text(s,
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textPrimary)),
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textPrimary,
+                      )),
                 )),
           ],
           onChanged: (value) => setState(() {
@@ -433,14 +426,14 @@ class _LogViewerState extends ConsumerState<LogViewer>
         NightshadeButton(
           label: 'Copy All',
           icon: LucideIcons.copy,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: _filteredLogs.isEmpty ? null : _copyAllToClipboard,
         ),
         NightshadeButton(
           label: _isExporting ? 'Exporting...' : 'Export',
           icon: LucideIcons.download,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           isLoading: _isExporting,
           onPressed: _isActionBusy ? null : _exportLogs,
@@ -451,7 +444,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           NightshadeButton(
             label: _isDownloadingFile ? 'Downloading...' : 'Download file',
             icon: LucideIcons.fileDown,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _isDownloadingFile,
             onPressed: _isActionBusy ? null : _downloadLogFile,
@@ -473,7 +466,6 @@ class _LogViewerState extends ConsumerState<LogViewer>
     final levelColor = _levelColor(entry.level);
     final levelLabel = _levelLabel(entry.level);
     final timeStr = _formatTimestamp(entry.timestamp);
-    final fontSize = isMobile ? 11.0 : 12.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
@@ -483,9 +475,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           // Timestamp
           Text(
             timeStr,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontFamily: 'monospace',
+            style: NightshadeTypography.readoutXs.copyWith(
               color: colors.textMuted,
             ),
           ),
@@ -493,17 +483,11 @@ class _LogViewerState extends ConsumerState<LogViewer>
           // Level badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: NightshadeDecorations.statusChip(
-              levelColor,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
-              bordered: false,
-            ),
+            decoration: NightshadeDecorations.chip(colors, tone: levelColor),
             child: Text(
               levelLabel,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
+              style: NightshadeTypography.monoCaption.copyWith(
                 fontWeight: FontWeight.w700,
-                fontFamily: 'monospace',
                 color: levelColor,
               ),
             ),
@@ -513,9 +497,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           if (entry.source != null) ...[
             Text(
               '[${entry.source}]',
-              style: TextStyle(
-                fontSize: fontSize,
-                fontFamily: 'monospace',
+              style: NightshadeTypography.readoutXs.copyWith(
                 color: colors.primary.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w600,
               ),
@@ -526,9 +508,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           Expanded(
             child: Text(
               entry.message,
-              style: TextStyle(
-                fontSize: fontSize,
-                fontFamily: 'monospace',
+              style: NightshadeTypography.readoutXs.copyWith(
                 color: entry.level.index >= LogLevel.error.index
                     ? levelColor
                     : colors.textPrimary,

@@ -1,251 +1,84 @@
-// Empty-state card shown when filters strip every candidate; ranks which filters caused the most exclusions and offers a one-tap reset.
+// The Tonight tab's one empty state: the catalog is missing, or the filters
+// left nothing. Never both, never a stack of cards.
 part of '../planner_screen.dart';
 
-// Empty state (filters applied) — explains which filter excluded the most
-
-class _FilteredEmptyState extends ConsumerWidget {
+/// The single [EmptyState] the candidate list falls back to.
+///
+/// Two causes, one surface. When the scorer had NOTHING to score the cause is
+/// almost always a missing object catalog, and the fix is to install it; when
+/// it scored candidates and the filters excluded them all, the fix is to reset
+/// the filters. The old card stacked a heading, a filter-impact breakdown, a
+/// two-item "next steps" list and a button; 06 §Plan removes all of it.
+class _PlannerFilteredEmptyState extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _FilteredEmptyState({required this.colors});
+  const _PlannerFilteredEmptyState({required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final breakdown = ref.watch(plannerFilterExclusionProvider);
-    final ranked = breakdown.excludedByFilter.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final catalogInstalled =
+        ref.watch(catalogStateProvider).dsoCatalogStatus.isInstalled;
 
-    return SizedBox(
-      width: double.infinity,
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        borderRadius: NightshadeTokens.radiusLg,
-        padding: const EdgeInsets.all(NightshadeTokens.space2xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.filterX,
-                    size: NightshadeTokens.iconLg, color: colors.warning),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                Expanded(
-                  child: Text(
-                    breakdown.total == 0
-                        ? 'No targets available'
-                        : 'No targets match these filters',
-                    style: NightshadeTypography.h4.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            if (breakdown.total == 0) ...[
-              // Why: when the suggestion pool is fully empty, the dominant
-              // real-world cause is "the OpenNGC catalog hasn't been
-              // downloaded yet" — not "your filters/altitude/twilight are
-              // wrong." Detect that case and surface the actual fix.
-              Builder(builder: (ctx) {
-                final catalogState = ref.watch(catalogStateProvider);
-                final catalogReady = catalogState.dsoCatalogStatus.isInstalled;
-                if (!catalogReady) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'The OpenNGC catalog is not installed. Without it, the planner can only score targets you have already saved to your library.',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: colors.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceMd),
-                      NightshadeButton(
-                        label: 'Open catalog settings',
-                        onPressed: () => context.go('/settings/plate-solving'),
-                        icon: LucideIcons.download,
-                        size: ButtonSize.small,
-                      ),
-                    ],
-                  );
-                }
-                return Text(
-                  'The scoring engine returned zero candidates for tonight. Verify your location, twilight window, and your minimum altitude/score in suggestion config.',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    color: colors.textSecondary,
-                    height: 1.4,
-                  ),
-                );
-              }),
-            ] else ...[
-              Text(
-                '${breakdown.total} candidate${breakdown.total == 1 ? '' : 's'} were scored, '
-                '${breakdown.passed} passed the filters.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: colors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              if (ranked.isNotEmpty) ...[
-                Text(
-                  'Filters with the largest impact:',
-                  style: NightshadeTypography.h6.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceXs),
-                for (final entry in ranked.take(4))
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Icon(LucideIcons.minusCircle,
-                            size: 12, color: colors.warning),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            entry.key,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '−${entry.value}',
-                          style: NightshadeTypography.h6.copyWith(
-                            color: colors.warning,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ],
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            // The scorer having nothing to offer is exactly when the two
-            // sky-work surfaces are most useful: the planetarium answers "what
-            // IS up right now", framing answers "does anything I own fit it".
-            _NextStepsBlock(colors: colors),
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: NightshadeButton(
-                label: 'Reset filters',
-                icon: LucideIcons.rotateCcw,
-                variant: ButtonVariant.primary,
-                size: ButtonSize.small,
-                onPressed: () {
-                  ref.read(suggestionFilterProvider.notifier).state =
-                      const SuggestionFilterState();
-                  ref.read(_plannerVisibleCountProvider.notifier).state =
-                      _kPlannerPageSize;
-                },
-              ),
-            ),
-          ],
+    if (breakdown.total == 0 && !catalogInstalled) {
+      return plannerCentredEmptyState(
+        EmptyState(
+          icon: LucideIcons.download,
+          title: l10n.text('plannerNoCatalogTitle'),
+          body: l10n.text('plannerNoCatalogBody'),
+          action: NightshadeButton(
+            label: l10n.text('plannerNoCatalogAction'),
+            variant: ButtonVariant.secondary,
+            size: ButtonSize.small,
+            onPressed: () => context.go('/settings/plate-solving'),
+          ),
+        ),
+      );
+    }
+
+    return plannerCentredEmptyState(
+      EmptyState(
+        icon: LucideIcons.filterX,
+        title: l10n.text('plannerNoMatchesTitle'),
+        body: l10n.text(
+          'plannerNoMatchesBody',
+          params: {
+            'total': '${breakdown.total}',
+            'passed': '${breakdown.passed}',
+          },
+        ),
+        action: NightshadeButton(
+          label: l10n.text('plannerNoMatchesAction'),
+          icon: LucideIcons.rotateCcw,
+          variant: ButtonVariant.secondary,
+          size: ButtonSize.small,
+          onPressed: () {
+            ref.read(suggestionFilterProvider.notifier).state =
+                const SuggestionFilterState();
+            ref.read(_plannerVisibleCountProvider.notifier).state =
+                _kPlannerPageSize;
+          },
         ),
       ),
     );
   }
 }
 
-/// "Next steps" pair shown under the empty planner: open the planetarium to see
-/// what is genuinely up, or framing to check the field fits.
+/// Centres an [EmptyState] when the viewport has room and scrolls it when it
+/// does not.
 ///
-/// Renders the `plannerTry*` / `plannerOpen*` strings, which have been
-/// translated since the planner shipped but had no call site.
-class _NextStepsBlock extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _NextStepsBlock({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.text('plannerTryThis'),
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceSm),
-        _NextStep(
-          colors: colors,
-          icon: LucideIcons.globe,
-          body: l10n.text('plannerTryPlanetarium'),
-          action: l10n.text('plannerOpenPlanetarium'),
-          onPressed: () => context.go('/planetarium'),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceSm),
-        _NextStep(
-          colors: colors,
-          icon: LucideIcons.crop,
-          body: l10n.text('plannerTryFraming'),
-          action: l10n.text('plannerOpenFraming'),
-          onPressed: () => context.goNamed('framing'),
-        ),
-      ],
-    );
-  }
-}
-
-class _NextStep extends StatelessWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String body;
-  final String action;
-  final VoidCallback onPressed;
-
-  const _NextStep({
-    required this.colors,
-    required this.icon,
-    required this.body,
-    required this.action,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(icon, size: 14, color: colors.primary),
-        ),
-        const SizedBox(width: NightshadeTokens.spaceSm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                body,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceXs),
-              NightshadeButton(
-                label: action,
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
-                onPressed: onPressed,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+/// A phone in landscape with the software keyboard up leaves this tab under
+/// 150 px, which is shorter than an icon + title + sentence + button. Centred
+/// alone, that overflows and the button becomes unreachable — the state whose
+/// whole job is to offer the ONE fix.
+Widget plannerCentredEmptyState(Widget child) {
+  return LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: Center(child: child),
+      ),
+    ),
+  );
 }

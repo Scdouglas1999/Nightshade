@@ -48,12 +48,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Equipment Profiles'), findsOneWidget);
+    expect(find.text('Equipment profiles'), findsOneWidget);
     await tester.tap(find.text('Next'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Equipment Profiles'), findsOneWidget);
+    expect(find.text('Equipment profiles'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
     expect(
       find.text('Could not save tutorial progress. Please try again.'),

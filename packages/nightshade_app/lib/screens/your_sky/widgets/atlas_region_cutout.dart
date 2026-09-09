@@ -100,7 +100,7 @@ class _CutoutState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: colors.surfaceAlt,
+      color: colors.well,
       alignment: Alignment.center,
       child: child,
     );

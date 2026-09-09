@@ -129,14 +129,19 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Total Exposures'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
-    expect(find.text('Accepted Integration'), findsOneWidget);
-    expect(find.text('45s'), findsOneWidget);
-    expect(find.text('-5.0 °C'), findsOneWidget);
-    expect(find.text('2.00'), findsOneWidget);
-    expect(find.text('0.80"'), findsOneWidget);
-    expect(find.text('5'), findsOneWidget);
+    // Every figure on this tab is a Readout since the Observatory pass, so
+    // the assertions read the widget rather than a rendered string: the unit
+    // is a span attached to the value, not part of it.
+    expect(_readout(tester, 'Total exposures').value, '3');
+    expect(_readout(tester, 'Accepted integration').value, '45s');
+    final temperature = _readout(tester, 'Avg temperature');
+    expect(temperature.value, '-5.0');
+    expect(temperature.unit, '°C');
+    expect(_readout(tester, 'Avg HFR achieved').value, '2.00');
+    final rms = _readout(tester, 'Avg RMS');
+    expect(rms.value, '0.80');
+    expect(rms.unit, '"');
+    expect(_readout(tester, 'Autofocus runs').value, '5');
   });
 
   testWidgets('session failures do not masquerade as zero autofocus runs',
@@ -149,9 +154,23 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Session-based equipment totals are unavailable.'),
-        findsOneWidget);
-    expect(find.text('Unavailable'), findsOneWidget);
+    // One banner for one problem (05 §11) instead of the card with its own
+    // icon column that used to sit here.
+    expect(find.byType(NightshadeBanner), findsOneWidget);
+    expect(
+        find.textContaining('Session totals are unavailable'), findsOneWidget);
+    // The count is not claimed as zero: a null readout is the em dash, which
+    // is the only way this screen says "not known".
+    expect(_readout(tester, 'Autofocus runs').value, isNull);
     expect(find.text('Retry'), findsOneWidget);
   });
+}
+
+/// The [Readout] carrying [label], matched case-insensitively because a
+/// readout renders its label uppercase.
+Readout _readout(WidgetTester tester, String label) {
+  final wanted = label.toLowerCase();
+  return tester
+      .widgetList<Readout>(find.byType(Readout))
+      .firstWhere((r) => r.label.toLowerCase() == wanted);
 }

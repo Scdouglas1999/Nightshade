@@ -1,11 +1,12 @@
-// The Plan Tonight hero card's "Estimated integration" line.
+// The Plan Tonight detail column's "Estimated integration" row.
 //
-// The card carries the same number twice: a chip that reads it to a tenth of
-// an hour and a line under it that spells it out in hours and minutes. The
-// spelling-out floored the hours and ROUNDED the minutes independently, so a
-// night just under four hours printed "Estimated integration: 3h 60m" beside
+// The old hero card carried the same number twice: a chip that read it to a
+// tenth of an hour and a line under it that spelled it out in hours and
+// minutes. The spelling-out floored the hours and ROUNDED the minutes
+// independently, so a night just under four hours printed "3h 60m" beside
 // "~4.0h integration" — a clock face nobody owns, contradicting the chip an
-// inch above it.
+// inch above it. The Observatory detail column states the number ONCE, in the
+// key/value block; the carry still has to be right, which is what this checks.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,14 +117,14 @@ void main() {
   testWidgets('59.5 minutes carries into the hour', (tester) async {
     await pumpPlanner(tester, 3 + 59.5 / 60);
 
-    expect(find.text('Estimated integration: 4h'), findsOneWidget);
-    expect(find.text('Estimated integration: 3h 60m'), findsNothing);
+    expect(find.text('4h'), findsOneWidget);
+    expect(find.text('3h 60m'), findsNothing);
   });
 
   testWidgets('59.4 minutes stays in the hour it is in', (tester) async {
     await pumpPlanner(tester, 3 + 59.4 / 60);
 
-    expect(find.text('Estimated integration: 3h 59m'), findsOneWidget);
+    expect(find.text('3h 59m'), findsOneWidget);
   });
 
   testWidgets('a whole-hour estimate under an hour still reads in minutes',
@@ -132,6 +133,6 @@ void main() {
 
     // The carry has to take the hour with it: 59.6 minutes is "1h", not
     // "0h 60m" and not "60m".
-    expect(find.text('Estimated integration: 1h'), findsOneWidget);
+    expect(find.text('1h'), findsOneWidget);
   });
 }

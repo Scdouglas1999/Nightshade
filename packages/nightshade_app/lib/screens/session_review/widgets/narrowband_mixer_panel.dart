@@ -199,7 +199,7 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
     final colors = NightshadeColors.of(context);
 
     if (widget.channels.isEmpty) {
-      return const NightshadeCard(
+      return const NightshadePanel(
         child: EmptyState(
           icon: NightshadeIcons.palette,
           title: 'No narrowband masters',
@@ -209,7 +209,7 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
       );
     }
 
-    return NightshadeCard(
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -252,7 +252,8 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
         const SizedBox(width: NightshadeTokens.spaceSm),
         Text(
           'Narrowband palette',
-          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.sectionTitle
+              .copyWith(color: colors.textPrimary),
         ),
         const Spacer(),
         Text(
@@ -372,7 +373,7 @@ class _PresetChip extends StatelessWidget {
         : selected
             ? colors.onPrimary
             : colors.textSecondary;
-    final bg = selected ? accent : colors.surfaceAlt;
+    final bg = selected ? accent : colors.well;
     return Opacity(
       opacity: enabled ? 1 : NightshadeTokens.opacityMuted,
       child: Semantics(

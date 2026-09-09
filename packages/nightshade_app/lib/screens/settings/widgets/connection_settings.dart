@@ -73,12 +73,12 @@ class ConnectionSettings extends ConsumerWidget {
       hideHeader: isMobile,
       children: [
         SettingsSection(
-          title: 'Server Status',
+          title: 'Server status',
           isMobile: isMobile,
           children: [
             SettingRow(
               icon: LucideIcons.server,
-              title: 'Connection Status',
+              title: 'Connection status',
               subtitle: serverAddress,
               trailing: Container(
                 padding:
@@ -90,12 +90,8 @@ class ConnectionSettings extends ConsumerWidget {
                 ),
                 child: Text(
                   connectionStatus,
-                  style: TextStyle(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize10
-                        : NightshadeTypography.fontSize11,
+                  style: NightshadeTypography.eyebrow.copyWith(
                     color: statusColor,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -104,16 +100,12 @@ class ConnectionSettings extends ConsumerWidget {
             if (isNetwork)
               SettingRow(
                 icon: LucideIcons.globe,
-                title: 'Server Address',
+                title: 'Server address',
                 subtitle: 'Current host and port for this Nightshade server',
                 trailing: SelectableText(
                   serverAddress,
-                  style: TextStyle(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize11
-                        : NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.readoutXs.copyWith(
                     color: colors.textPrimary,
-                    fontFamily: 'monospace',
                   ),
                 ),
                 isMobile: isMobile,
@@ -144,7 +136,7 @@ class ConnectionSettings extends ConsumerWidget {
             if (isDisconnected && canWorkLocally)
               SettingRow(
                 icon: LucideIcons.hardDrive,
-                title: 'Work Locally',
+                title: 'Work locally',
                 subtitle:
                     'Drive the equipment attached to this computer instead of '
                     'a remote server',
@@ -164,13 +156,13 @@ class ConnectionSettings extends ConsumerWidget {
               if (!Platform.isWindows)
                 SettingRow(
                   icon: LucideIcons.server,
-                  title: 'INDI Server Address',
+                  title: 'INDI server address',
                   subtitle:
                       '${settings.indiServerHost}:${settings.indiServerPort}'
                       ' • host and port used for INDI discovery',
                   trailing: NightshadeButton(
                     label: 'Configure',
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed: () => showDialog<Map<String, dynamic>>(
                       context: context,
@@ -196,13 +188,13 @@ class ConnectionSettings extends ConsumerWidget {
               // deployment is an ASCOM Remote host elsewhere on the LAN.
               SettingRow(
                 icon: LucideIcons.server,
-                title: 'Alpaca Server Address',
+                title: 'Alpaca server address',
                 subtitle:
                     '${settings.alpacaServerHost}:${settings.alpacaServerPort}'
                     ' • host and port used for Alpaca discovery',
                 trailing: NightshadeButton(
                   label: 'Configure',
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: () => showDialog<Map<String, dynamic>>(
                     context: context,
@@ -227,12 +219,12 @@ class ConnectionSettings extends ConsumerWidget {
           ),
         if (isConnected)
           SettingsSection(
-            title: 'Remote Features',
+            title: 'Remote features',
             isMobile: isMobile,
             children: [
               SettingRow(
                 icon: LucideIcons.refreshCw,
-                title: 'Refresh Host Settings',
+                title: 'Refresh host settings',
                 subtitle:
                     'Reload this screen from the connected Nightshade host',
                 trailing: _HostSettingsRefreshButton(
@@ -249,8 +241,8 @@ class ConnectionSettings extends ConsumerWidget {
           // the imaging host — so relabel to make clear whose driver support
           // this describes and avoid implying it is the rig's capabilities.
           title: isConnected
-              ? 'This Device Capabilities'
-              : 'Platform Capabilities',
+              ? 'This device capabilities'
+              : 'Platform capabilities',
           isMobile: isMobile,
           children: [
             _PlatformCapabilityMatrixView(
@@ -288,7 +280,7 @@ class ConnectionSettings extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Text(
                     disconnectError!,
-                    style: TextStyle(
+                    style: NightshadeTypography.body.copyWith(
                       color: Theme.of(ctx).colorScheme.error,
                     ),
                   ),
@@ -412,23 +404,28 @@ class _HostSettingsRefreshButtonState
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return IconButton(
-      tooltip: 'Refresh host settings',
-      onPressed: _refreshing ? null : _refresh,
-      icon: _refreshing
-          ? SizedBox(
-              width: widget.isMobile ? 20 : 18,
-              height: widget.isMobile ? 20 : 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.primary,
-              ),
-            )
-          : Icon(
-              LucideIcons.downloadCloud,
+    // The spinner keeps the button's footprint while the fetch is in flight,
+    // so the row does not reflow under the pointer.
+    if (_refreshing) {
+      return SizedBox.square(
+        dimension: NightshadeTokens.iconButtonSize,
+        child: Tooltip(
+          message: 'Refreshing the host settings…',
+          child: Padding(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
               color: colors.primary,
-              size: widget.isMobile ? 20 : 18,
             ),
+          ),
+        ),
+      );
+    }
+    return NightshadeIconButton(
+      icon: LucideIcons.downloadCloud,
+      tooltip: 'Refresh host settings',
+      onPressed: _refresh,
+      color: colors.primary,
     );
   }
 }
@@ -618,8 +615,7 @@ class _ConnectToServerDialogState
                 Expanded(
                   child: Text(
                     _statusMessage!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: colors.error,
                     ),
                   ),
@@ -679,10 +675,7 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
                   isRemote
                       ? 'This device: $platformLabel (not the imaging host)'
                       : 'Current platform: $platformLabel',
-                  style: TextStyle(
-                    fontSize: isMobile
-                        ? NightshadeTypography.fontSize12
-                        : NightshadeTypography.fontSize13,
+                  style: NightshadeTypography.buttonSm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -695,10 +688,7 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
             Text(
               'Driver support shown is for this device. The imaging host may '
               'support different drivers.',
-              style: TextStyle(
-                fontSize: isMobile
-                    ? NightshadeTypography.fontSize11
-                    : NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
               ),
             ),
@@ -752,7 +742,7 @@ class _PlatformCapabilityRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.all(isMobile ? 10 : 12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt.withValues(alpha: 0.55),
+        color: colors.well.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
@@ -847,8 +837,7 @@ class _DriverLabel extends StatelessWidget {
       children: [
         Text(
           driver.label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
+          style: NightshadeTypography.caption.copyWith(
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -856,15 +845,10 @@ class _DriverLabel extends StatelessWidget {
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: NightshadeDecorations.statusChip(
-            statusColor,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          ),
+          decoration: NightshadeDecorations.chip(colors, tone: statusColor),
           child: Text(
             statusLabel,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.eyebrow.copyWith(
               color: statusColor,
             ),
           ),
@@ -896,10 +880,7 @@ class _DriverDetails extends StatelessWidget {
       children: [
         Text(
           driver.notes,
-          style: TextStyle(
-            fontSize: isMobile
-                ? NightshadeTypography.fontSize11
-                : NightshadeTypography.fontSize12,
+          style: NightshadeTypography.caption.copyWith(
             color: colors.textSecondary,
           ),
         ),
@@ -907,10 +888,7 @@ class _DriverDetails extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             unsupportedReason,
-            style: TextStyle(
-              fontSize: isMobile
-                  ? NightshadeTypography.fontSize11
-                  : NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.warning,
             ),
           ),
@@ -918,10 +896,7 @@ class _DriverDetails extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           driver.deviceCoverage,
-          style: TextStyle(
-            fontSize: isMobile
-                ? NightshadeTypography.fontSize10
-                : NightshadeTypography.fontSize11,
+          style: NightshadeTypography.captionSm.copyWith(
             color: colors.textMuted,
           ),
         ),

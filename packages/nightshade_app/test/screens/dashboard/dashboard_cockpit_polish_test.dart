@@ -1,18 +1,18 @@
-// Widget tests for the dashboard cockpit polish pass (2026-06-01):
-//   1. Pinned safety banners are present in the dashboard tree, and the
+// Widget tests for Tonight's hero and its pinned banners (06 §Tonight):
+//   1. The two run-level safety banners are present in the tree, and the
 //      critical-events → notifications bridge is watched.
-//   2. The inline run-control strip shows ONLY while a sequence is active
-//      (running / paused / stopping / recovering) and hides otherwise; Stop
-//      is hold-to-confirm.
-//   3. The standby hero shows when idle-and-not-capturing-and-not-editing and
-//      the live cockpit shows when a run is active.
+//   2. A live run puts Pause + a hold-to-confirm Stop in the HERO — there is no
+//      separate run-control strip any more — and an idle page shows neither.
+//   3. The first-light checklist owns the page when nothing is set up; the
+//      panel grid replaces it as soon as a run is active or gear is connected.
+//   4. The hero's single primary never states something untrue: a terminal run
+//      with a sequence still loaded re-arms Start, and a connected rig with
+//      nothing loaded is offered the Sequencer, not "Connect equipment".
 //
 // Test-surface notes mirror dashboard_screen_test.dart: every test uses an
-// all-disabled (or selectively enabled) layout and keeps the surface < 900px
-// wide so the command bar's inner LayoutBuilder skips DashboardClockWidget —
-// otherwise nightshade_planetarium's observationTimeProvider leaks a periodic
-// timer past the test. Known RenderFlex overflows at the cramped surface are
-// swallowed; anything else still fails the test.
+// all-disabled (or selectively enabled) layout so no tile drags in a periodic
+// poll timer past the test binding. Known RenderFlex overflows at the cramped
+// surface are swallowed; anything else still fails the test.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,8 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_screen.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/cockpit_run_controls.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/cockpit_standby.dart';
+import 'package:nightshade_app/screens/dashboard/widgets/tonight/tonight_checklist_panel.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/critical_event_banner.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/recovery_banner.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -115,8 +114,8 @@ void main() {
   });
 
   testWidgets(
-      'run controls show while a sequence is running and Stop is '
-      'hold-to-confirm', (tester) async {
+      'a running sequence puts Pause and a hold-to-confirm Stop in the hero',
+      (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(
       tester,
@@ -131,20 +130,19 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(CockpitRunControls), findsOneWidget,
-        reason: 'The run-control strip must be pinned while a run is active.');
-    // The strip renders its three controls; the active state shows Pause
-    // (not Resume) and a hold-to-confirm Stop.
     expect(find.text('Pause'), findsOneWidget,
-        reason: 'A running sequence shows the Pause control.');
+        reason: 'A running sequence shows Pause, not Resume.');
     expect(find.text('Stop'), findsOneWidget);
-    expect(find.text('Skip'), findsOneWidget);
+    expect(find.text('Skip'), findsNothing,
+        reason: 'Skip left the hero with the strip: 06 §Tonight gives the hero '
+            'the ONE primary plus one secondary, and Skip lives with the rest '
+            'of the run controls in the Sequencer.');
     expect(find.byType(HoldToConfirmButton), findsWidgets,
-        reason: 'Stop must be wrapped in a HoldToConfirmButton so a stray '
+        reason: 'Stop must stay wrapped in a HoldToConfirmButton so a stray '
             'click cannot abort an overnight run.');
   });
 
-  testWidgets('run controls hide when the sequence is idle', (tester) async {
+  testWidgets('an idle page offers neither Pause nor Resume', (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(
       tester,
@@ -160,16 +158,13 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    // CockpitRunControls is still in the tree (it's pinned), but it renders
-    // a zero-size box when idle — so none of its labels are present.
     expect(find.text('Pause'), findsNothing);
     expect(find.text('Resume'), findsNothing);
     expect(find.text('Skip'), findsNothing);
   });
 
-  testWidgets(
-      'standby hero shows when idle and not capturing; the cockpit replaces '
-      'it when a run is active', (tester) async {
+  testWidgets('the checklist owns the page when nothing is set up',
+      (tester) async {
     _swallowKnownOverflows();
 
     // Idle + not capturing → standby hero, no tile grid.
@@ -186,16 +181,16 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(CockpitStandby), findsOneWidget,
-        reason: 'Idle-and-not-capturing must show the standby hero in place of '
-            'the tile grid.');
-    expect(find.text('No run active'), findsOneWidget);
-    expect(find.text('Image tonight'), findsOneWidget,
-        reason: 'Standby offers the one-tap Image tonight CTA.');
-    expect(find.text('Plan Tonight'), findsOneWidget,
-        reason: 'Standby keeps the Smart Night wizard as a clearly-secondary '
-            'Plan Tonight action, consistent with every other Smart Night '
-            'entrance.');
+    expect(find.byType(TonightChecklistPanel), findsOneWidget,
+        reason: 'Nothing connected and nothing loaded must show the '
+            'first-light checklist in place of the panel grid.');
+    expect(find.text('Nothing running'.toUpperCase()), findsOneWidget,
+        reason: 'The hero eyebrow names the state.');
+    expect(find.text('Connect equipment'), findsOneWidget,
+        reason: 'With nothing connected, the ONE primary is Connect '
+            'equipment.');
+    expect(find.text('Plan a target'), findsOneWidget,
+        reason: 'and the one secondary is Plan a target.');
   });
 
   testWidgets(
@@ -220,13 +215,13 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(CockpitStandby), findsNothing,
-        reason: 'A loaded sequence keeps the cockpit awake.');
-    expect(find.text('Start'), findsOneWidget,
-        reason: 'Terminal states must re-arm Start — without it the awake '
-            'cockpit has nothing clickable.');
-    expect(find.text('Failed'), findsOneWidget,
-        reason: 'The badge stays honest about how the last attempt ended.');
+    expect(find.byType(TonightChecklistPanel), findsNothing,
+        reason: 'A loaded sequence keeps the panel grid on screen.');
+    expect(find.text('Start sequence'), findsOneWidget,
+        reason: 'Terminal states must re-arm Start — without it the hero has '
+            'nothing clickable.');
+    expect(find.text('Open in Sequencer'), findsOneWidget,
+        reason: 'and the one secondary goes to the sequence itself.');
   });
 
   testWidgets(
@@ -255,16 +250,17 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(CockpitStandby), findsNothing,
-        reason: 'Connected equipment wakes the cockpit.');
-    expect(
-        find.text('Equipment connected — no sequence loaded.'), findsOneWidget);
-    expect(find.text('Image tonight'), findsOneWidget,
-        reason: 'The nudge row must offer the one-tap flow.');
-    expect(find.text('Sequencer'), findsOneWidget);
+    expect(find.byType(TonightChecklistPanel), findsNothing,
+        reason: 'Connected equipment puts the panel grid on screen.');
+    expect(find.text('Connect equipment'), findsNothing,
+        reason: 'Offering to connect equipment that is already connected is '
+            'the app stating something untrue.');
+    expect(find.text('Build a sequence'), findsOneWidget,
+        reason: 'A connected rig with nothing loaded needs a sequence, and '
+            'that is the honest primary for the state.');
   });
 
-  testWidgets('cockpit (not standby) renders while a sequence is running',
+  testWidgets('the panel grid, not the checklist, renders while a run is live',
       (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(
@@ -280,7 +276,8 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(CockpitStandby), findsNothing,
-        reason: 'A running sequence must show the live cockpit, not standby.');
+    expect(find.byType(TonightChecklistPanel), findsNothing,
+        reason: 'A running sequence must show the panel grid, not the '
+            'first-light checklist.');
   });
 }

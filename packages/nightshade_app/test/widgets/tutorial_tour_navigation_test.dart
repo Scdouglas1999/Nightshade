@@ -124,7 +124,7 @@ void main() {
       '/equipment',
       reason: 'the Equipment Setup tour describes the Equipment screen',
     );
-    expect(find.text('Equipment Profiles'), findsOneWidget);
+    expect(find.text('Equipment profiles'), findsOneWidget);
   });
 
   testWidgets('an un-anchored step does not swallow clicks on the app',

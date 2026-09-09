@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
+import '../utils/touch_target.dart';
 import 'nightshade_tooltip.dart';
 
 /// The three icon-button sizes.
@@ -122,7 +125,7 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
     // The BOX is a SizedBox and the FILL is the animated part. Animating the
     // width and height instead would make a size change tween — and a size is
     // not a state, it is what this button is.
-    final Widget button = SizedBox(
+    final Widget square = SizedBox(
       width: widget.extent,
       height: widget.extent,
       child: AnimatedContainer(
@@ -140,7 +143,29 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
       ),
     );
 
+    // 32 / 28 / 36 are desktop pointer sizes (03 §3.3). On a touch platform a
+    // finger needs 48, so the INTERACTIVE box grows to it while the painted
+    // square — the fill, the hover, the focus ring — stays the size the sheet
+    // specifies. `NightshadeButton` already does exactly this; this control
+    // was the one that did not, and it failed the Android tap-target
+    // guideline on every screen that adopted it.
+    final double box = math.max(
+      widget.extent,
+      NightshadeTouchTarget.minExtent(context),
+    );
+    final Widget button = box == widget.extent
+        ? square
+        : SizedBox(
+            width: box,
+            height: box,
+            child: Center(child: square),
+          );
+
     return Semantics(
+      // Own node: without `container` the name and flags merge into the
+      // neighbouring semantics node (a dialog title swallowed its close
+      // button's label), which un-names every icon button for a screen reader.
+      container: true,
       button: true,
       enabled: !disabled,
       label: widget.tooltip,

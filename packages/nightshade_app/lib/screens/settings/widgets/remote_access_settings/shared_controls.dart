@@ -33,7 +33,7 @@ class _RemoteAccessNoticeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
@@ -54,8 +54,7 @@ class _RemoteAccessNoticeCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   body,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -124,8 +123,7 @@ class _AccessActionCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             description,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -135,17 +133,14 @@ class _AccessActionCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: SelectableText(
               url,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.readoutSm.copyWith(
                 color: colors.primary,
-                fontFamily: 'monospace',
               ),
             ),
           ),
@@ -164,7 +159,7 @@ class _AccessActionCard extends StatelessWidget {
               NightshadeButton(
                 label: secondaryLabel,
                 icon: secondaryIcon,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: onSecondary,
               ),

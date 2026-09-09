@@ -216,7 +216,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
           const SizedBox(width: 12),
           Text(
             'INDI Server Configuration',
-            style: TextStyle(color: colors.textPrimary),
+            style:
+                NightshadeTypography.body.copyWith(color: colors.textPrimary),
           ),
         ],
       ),
@@ -243,10 +244,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                     child: Text(
                       'INDI (Instrument Neutral Distributed Interface) provides '
                       'cross-platform access to astronomical equipment on Linux and macOS.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ),
                 ],
@@ -258,7 +257,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
             TextField(
               key: const ValueKey('indi-host-field'),
               controller: _hostController,
-              style: TextStyle(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.body.copyWith(color: colors.textPrimary),
               onChanged: (_) {
                 _hostEdited = true;
                 setState(() {
@@ -268,10 +268,11 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               },
               decoration: InputDecoration(
                 labelText: 'INDI Server Host',
-                labelStyle: TextStyle(color: colors.textMuted),
+                labelStyle: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textMuted),
                 hintText: 'localhost or IP address',
-                hintStyle:
-                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textMuted.withValues(alpha: 0.5)),
                 errorText: _hostError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
@@ -287,7 +288,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
             TextField(
               key: const ValueKey('indi-port-field'),
               controller: _portController,
-              style: TextStyle(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.body.copyWith(color: colors.textPrimary),
               keyboardType: TextInputType.number,
               onChanged: (_) {
                 _portEdited = true;
@@ -298,10 +300,11 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               },
               decoration: InputDecoration(
                 labelText: 'Port',
-                labelStyle: TextStyle(color: colors.textMuted),
+                labelStyle: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textMuted),
                 hintText: '7624 (default)',
-                hintStyle:
-                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textMuted.withValues(alpha: 0.5)),
                 errorText: _portError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
@@ -320,7 +323,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                 onPressed: (_isTesting || _isSaving) ? null : _testConnection,
                 icon: NightshadeIcons.refresh,
                 label: _isTesting ? 'Testing...' : 'Test Connection',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: _isTesting,
               ),
             ),
@@ -350,10 +353,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                     Expanded(
                       child: Text(
                         _statusMessage!,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textSecondary,
-                        ),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
                     ),
                   ],

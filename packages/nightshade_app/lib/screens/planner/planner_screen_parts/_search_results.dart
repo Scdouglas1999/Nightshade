@@ -1,67 +1,91 @@
-// Installed-catalog and SIMBAD search-result sections that mount under the candidate list once the user has typed enough characters into the planner search bar.
+// Installed-catalog and SIMBAD search-result sections that mount under the
+// candidate list once the user has typed enough characters into the planner
+// search field. Both answer the same question the candidate list cannot: "the
+// thing I typed is not scored for tonight — where is it?"
 part of '../planner_screen.dart';
 
-/// Section that resolves a name fragment against SIMBAD and renders the
-/// matches as send-to-framing rows. Only mounts when the planner search bar
-/// has ≥3 characters typed.
+/// The two lookup sections, in one widget, so the candidate list appends ONE
+/// item rather than reasoning about query lengths itself.
+class _PlannerSearchResults extends ConsumerWidget {
+  final String query;
+
+  const _PlannerSearchResults({required this.query});
+
+  /// Characters needed before the installed catalog is searched.
+  static const int localQueryFloor = 2;
+
+  /// Characters needed before SIMBAD is asked. Higher, because it is a network
+  /// round trip to a shared service.
+  static const int remoteQueryFloor = 3;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trimmed = query.trim();
+    if (trimmed.length < localQueryFloor) return const SizedBox.shrink();
+    final candidates =
+        ref.watch(plannerFilteredSuggestionsProvider).valueOrNull ?? const [];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _InstalledCatalogResultsSection(query: trimmed),
+          if (trimmed.length >= remoteQueryFloor)
+            _SimbadResultsSection(
+              query: trimmed,
+              hasLocalMatches: candidates.isNotEmpty,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section that resolves a name fragment against the installed object catalog
+/// and renders the matches as send-to-framing rows.
 class _InstalledCatalogResultsSection extends ConsumerWidget {
   final String query;
-  final NightshadeColors colors;
 
-  const _InstalledCatalogResultsSection({
-    required this.query,
-    required this.colors,
-  });
+  const _InstalledCatalogResultsSection({required this.query});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(plannerInstalledCatalogSearchProvider(query));
 
     return async.when(
-      loading: () => Padding(
-        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.primary,
-              ),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Text(
-              'Searching installed catalogs for "$query"...',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
-            ),
-          ],
-        ),
-      ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
-        child: Text(
-          'Installed catalog lookup failed: $e',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12, color: colors.warning),
-        ),
+      loading: () =>
+          const _SearchProgressLine(label: 'Searching installed catalogs'),
+      error: (e, _) => _SearchProblemLine(
+        label: 'Installed catalog lookup failed',
+        detail: '$e',
       ),
       data: (matches) {
         if (matches.isEmpty) return const SizedBox.shrink();
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: NightshadeTokens.space2xl),
-            SectionHeader(
+            SectionTitle(
+              icon: LucideIcons.library,
               title: 'Installed catalog',
-              subtitle:
-                  '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" outside tonight\'s scored candidates',
+              trailing: NightshadeChip(label: '${matches.length}'),
             ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            for (final match in matches)
-              _CatalogResultRow(match: match, colors: colors),
+            NightshadePanel(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceMd,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < matches.length; i++)
+                    _CatalogResultRow(
+                      match: matches[i],
+                      showDivider: i < matches.length - 1,
+                    ),
+                ],
+              ),
+            ),
           ],
         );
       },
@@ -71,99 +95,21 @@ class _InstalledCatalogResultsSection extends ConsumerWidget {
 
 class _CatalogResultRow extends ConsumerWidget {
   final CatalogSearchResult match;
-  final NightshadeColors colors;
+  final bool showDivider;
 
-  const _CatalogResultRow({
-    required this.match,
-    required this.colors,
-  });
+  const _CatalogResultRow({required this.match, required this.showDivider});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final metaParts = <String>[
-      match.type,
-      if (match.magnitude != null) 'mag ${match.magnitude!.toStringAsFixed(1)}',
-      if (match.constellation != null && match.constellation!.isNotEmpty)
-        match.constellation!,
-      'RA ${CoordinateFormat.ra(match.ra / 15.0)}  Dec ${CoordinateFormat.dec(match.dec)}',
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceMd,
-          vertical: NightshadeTokens.spaceSm,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    match.name,
-                    style: NightshadeTypography.h5.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    metaParts.join(' · '),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Flexible(
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: NightshadeTokens.spaceSm,
-                runSpacing: NightshadeTokens.spaceXs,
-                children: [
-                  NightshadeButton(
-                    label: context.l10n.text('plannerOpenPlanetarium'),
-                    icon: LucideIcons.globe,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: () => showTargetInSky(
-                      context,
-                      ref,
-                      raHours: match.ra / 15.0,
-                      decDegrees: match.dec,
-                      name: match.name,
-                    ),
-                  ),
-                  NightshadeButton(
-                    label: 'Send to Framing',
-                    icon: LucideIcons.crosshair,
-                    size: ButtonSize.small,
-                    onPressed: () {
-                      ref.read(framingProvider.notifier).setTargetCoordinates(
-                            match.ra / 15.0,
-                            match.dec,
-                            name: match.name,
-                          );
-                      final uri = Uri(
-                        path: '/framing',
-                        queryParameters: {
-                          'ra': (match.ra / 15.0).toStringAsFixed(6),
-                          'dec': match.dec.toStringAsFixed(6),
-                          'name': match.name,
-                        },
-                      );
-                      context.go(uri.toString());
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    final raHours = match.ra / 15.0;
+    return ListRow(
+      title: match.name,
+      icon: LucideIcons.star,
+      showDivider: showDivider,
+      trailingWidget: _SearchResultActions(
+        raHours: raHours,
+        decDegrees: match.dec,
+        name: match.name,
       ),
     );
   }
@@ -171,12 +117,10 @@ class _CatalogResultRow extends ConsumerWidget {
 
 class _SimbadResultsSection extends ConsumerWidget {
   final String query;
-  final NightshadeColors colors;
   final bool hasLocalMatches;
 
   const _SimbadResultsSection({
     required this.query,
-    required this.colors,
     required this.hasLocalMatches,
   });
 
@@ -185,60 +129,43 @@ class _SimbadResultsSection extends ConsumerWidget {
     final async = ref.watch(plannerSimbadResultsProvider(query));
 
     return async.when(
-      loading: () => Padding(
-        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.accent,
-              ),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Text(
-              'Searching SIMBAD for "$query"…',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
-            ),
-          ],
-        ),
-      ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
-        child: Text(
-          'SIMBAD lookup failed: $e',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12, color: colors.warning),
-        ),
+      loading: () => const _SearchProgressLine(label: 'Searching SIMBAD'),
+      error: (e, _) => _SearchProblemLine(
+        label: 'SIMBAD lookup failed',
+        detail: '$e',
       ),
       data: (matches) {
         if (matches.isEmpty) {
           if (hasLocalMatches) return const SizedBox.shrink();
-          return Padding(
-            padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
-            child: Text(
-              'SIMBAD found no objects matching "$query".',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
-            ),
-          );
+          // A lookup that succeeded and returned nothing is an ANSWER, not a
+          // problem: one quiet line, not a banner (02 rule 4).
+          return _SearchQuietLine(text: 'SIMBAD has no object named "$query".');
         }
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: NightshadeTokens.space2xl),
-            SectionHeader(
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            SectionTitle(
+              icon: LucideIcons.globe2,
               title: 'From SIMBAD',
-              subtitle:
-                  '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" — not scored for tonight',
+              trailing: NightshadeChip(label: '${matches.length}'),
             ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            for (final m in matches) _SimbadResultRow(match: m, colors: colors),
+            NightshadePanel(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceMd,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < matches.length; i++)
+                    _SimbadResultRow(
+                      match: matches[i],
+                      showDivider: i < matches.length - 1,
+                    ),
+                ],
+              ),
+            ),
           ],
         );
       },
@@ -248,99 +175,162 @@ class _SimbadResultsSection extends ConsumerWidget {
 
 class _SimbadResultRow extends ConsumerWidget {
   final SimbadNameMatch match;
-  final NightshadeColors colors;
+  final bool showDivider;
 
-  const _SimbadResultRow({required this.match, required this.colors});
+  const _SimbadResultRow({required this.match, required this.showDivider});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final metaParts = <String>[];
-    if (match.objectType != null && match.objectType!.isNotEmpty) {
-      metaParts.add(match.objectType!);
-    }
-    if (match.magnitudeV != null) {
-      metaParts.add('mag ${match.magnitudeV!.toStringAsFixed(1)}');
-    }
-    metaParts.add(
-      'RA ${CoordinateFormat.ra(match.raHours)}  Dec ${CoordinateFormat.dec(match.decDegrees)}',
+    return ListRow(
+      title: match.mainId,
+      icon: LucideIcons.star,
+      showDivider: showDivider,
+      trailingWidget: _SearchResultActions(
+        raHours: match.raHours,
+        decDegrees: match.decDegrees,
+        name: match.mainId,
+      ),
     );
+  }
+}
 
+/// The two things you can do with a name the planner resolved but did not
+/// score: look at it, or frame it. Both are icon buttons — the row is not the
+/// page's action.
+class _SearchResultActions extends ConsumerWidget {
+  final double raHours;
+  final double decDegrees;
+  final String name;
+
+  const _SearchResultActions({
+    required this.raHours,
+    required this.decDegrees,
+    required this.name,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'RA ${CoordinateFormat.ra(raHours)}  '
+          'Dec ${CoordinateFormat.dec(decDegrees)}',
+          style: NightshadeTypography.monoCaption.copyWith(
+            color: NightshadeColors.of(context).textMuted,
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        NightshadeIconButton(
+          icon: LucideIcons.globe,
+          tooltip: context.l10n.text('plannerOpenPlanetarium'),
+          size: IconButtonSize.sm,
+          onPressed: () => showTargetInSky(
+            context,
+            ref,
+            raHours: raHours,
+            decDegrees: decDegrees,
+            name: name,
+          ),
+        ),
+        NightshadeIconButton(
+          icon: LucideIcons.crop,
+          tooltip: 'Send to framing',
+          size: IconButtonSize.sm,
+          onPressed: () {
+            ref.read(framingProvider.notifier).setTargetCoordinates(
+                  raHours,
+                  decDegrees,
+                  name: name,
+                );
+            final uri = Uri(
+              path: '/framing',
+              queryParameters: {
+                'ra': raHours.toStringAsFixed(6),
+                'dec': decDegrees.toStringAsFixed(6),
+                'name': name,
+              },
+            );
+            context.go(uri.toString());
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// One line saying a lookup is in flight.
+class _SearchProgressLine extends StatelessWidget {
+  final String label;
+
+  const _SearchProgressLine({required this.label});
+
+  /// The spinner's edge length.
+  static const double _spinner = 14;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceMd,
-          vertical: NightshadeTokens.spaceSm,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    match.mainId,
-                    style: NightshadeTypography.h5.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    metaParts.join(' · '),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
+      child: Row(
+        children: [
+          SizedBox(
+            width: _spinner,
+            height: _spinner,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: colors.primary,
             ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Flexible(
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: NightshadeTokens.spaceSm,
-                runSpacing: NightshadeTokens.spaceXs,
-                children: [
-                  NightshadeButton(
-                    label: context.l10n.text('plannerOpenPlanetarium'),
-                    icon: LucideIcons.globe,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: () => showTargetInSky(
-                      context,
-                      ref,
-                      raHours: match.raHours,
-                      decDegrees: match.decDegrees,
-                      name: match.mainId,
-                    ),
-                  ),
-                  NightshadeButton(
-                    label: 'Send to Framing',
-                    icon: LucideIcons.crosshair,
-                    size: ButtonSize.small,
-                    onPressed: () {
-                      ref.read(framingProvider.notifier).setTargetCoordinates(
-                            match.raHours,
-                            match.decDegrees,
-                            name: match.mainId,
-                          );
-                      final uri = Uri(
-                        path: '/framing',
-                        queryParameters: {
-                          'ra': match.raHours.toStringAsFixed(6),
-                          'dec': match.decDegrees.toStringAsFixed(6),
-                          'name': match.mainId,
-                        },
-                      );
-                      context.go(uri.toString());
-                    },
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Text(
+            label,
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One muted line stating a lookup's result. Not a banner: nothing is wrong.
+class _SearchQuietLine extends StatelessWidget {
+  final String text;
+
+  const _SearchQuietLine({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
+      child: Text(
+        text,
+        style: NightshadeTypography.bodySm.copyWith(
+          color: NightshadeColors.of(context).textMuted,
         ),
+      ),
+    );
+  }
+}
+
+/// One line saying a lookup did not produce anything usable.
+class _SearchProblemLine extends StatelessWidget {
+  final String label;
+  final String detail;
+
+  const _SearchProblemLine({required this.label, required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
+      child: NightshadeBanner(
+        title: label,
+        message: detail,
+        tone: BannerTone.warning,
       ),
     );
   }

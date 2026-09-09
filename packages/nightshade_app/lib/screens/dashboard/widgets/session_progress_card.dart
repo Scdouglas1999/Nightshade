@@ -40,10 +40,10 @@ class SessionProgressCard extends ConsumerWidget {
     final elapsedText = sessionState.startTime != null
         ? DurationFormat.of(DateTime.now().difference(sessionState.startTime!),
             style: DurationStyle.hoursMinutes)
-        : '---';
+        : kReadoutUnknown;
 
     // Calculate remaining time
-    String remainingText = '---';
+    String remainingText = kReadoutUnknown;
     if (isActive &&
         progressValue > 0 &&
         progressValue < 1.0 &&
@@ -81,9 +81,8 @@ class SessionProgressCard extends ConsumerWidget {
                 if (isActive)
                   Text(
                     currentExpText,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textSecondary),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 if (isActive) const SizedBox(width: 8),
                 DashboardStatusChip(
@@ -208,12 +207,9 @@ class _ExposureProgressRow extends StatelessWidget {
             progress.isDownloading
                 ? 'Downloading...'
                 : '$elapsedText s / $totalText s',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textPrimary,
+                fontFeatures: const [FontFeature.tabularFigures()]),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -271,9 +267,8 @@ class _CompactStat extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -303,20 +298,15 @@ class DashboardMiniStat extends StatelessWidget {
           children: [
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.sectionTitle.copyWith(
+                  color: colors.textPrimary,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ),

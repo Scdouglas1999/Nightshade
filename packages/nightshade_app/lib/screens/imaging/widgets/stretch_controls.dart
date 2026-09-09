@@ -127,11 +127,10 @@ class _CompactStretchControls extends StatelessWidget {
             expanded: false,
             compact: true,
             value: settings.enabled,
-            labelStyle: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color:
-                  settings.enabled ? colors.textPrimary : colors.textSecondary,
-            ),
+            labelStyle: NightshadeTypography.caption.copyWith(
+                color: settings.enabled
+                    ? colors.textPrimary
+                    : colors.textSecondary),
             onChanged: (value) {
               unawaited(
                 Future<bool>.sync(
@@ -515,10 +514,8 @@ class _MethodDropdown extends StatelessWidget {
             ),
             dropdownColor: colors.surface,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textPrimary),
             items: AutoStretchMethod.values.map((method) {
               return DropdownMenuItem<AutoStretchMethod>(
                 value: method,
@@ -527,10 +524,8 @@ class _MethodDropdown extends StatelessWidget {
                   children: [
                     Text(
                       _methodNames[method] ?? method.name,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -612,10 +607,8 @@ class _SettingRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         if (tooltip != null) ...[
           const SizedBox(width: 4),
@@ -679,10 +672,8 @@ class _SliderSetting extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
               if (tooltip != null) ...[
                 const SizedBox(width: 4),
@@ -706,11 +697,8 @@ class _SliderSetting extends StatelessWidget {
                 ),
                 child: Text(
                   formatValue(value),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontFamily: 'JetBrains Mono',
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.monoCaption.copyWith(
+                      fontFamily: 'JetBrains Mono', color: colors.textPrimary),
                 ),
               ),
             ],
@@ -783,12 +771,10 @@ class _TextButtonState extends State<_TextButton> {
             ),
             child: Text(
               widget.label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: _isHovered
-                    ? widget.colors.primary
-                    : widget.colors.textSecondary,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: _isHovered
+                      ? widget.colors.primary
+                      : widget.colors.textSecondary),
             ),
           ),
         ),

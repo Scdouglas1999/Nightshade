@@ -212,10 +212,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           ],
           if (state.lineageError != null) ...[
             const SizedBox(height: NightshadeTokens.spaceXs),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
+            NightshadeBanner(
+              title: 'The branch history is incomplete',
+              tone: BannerTone.warning,
               message: state.lineageError!,
-              compact: true,
             ),
           ],
           ..._siblings(colors),
@@ -223,18 +223,18 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           _actions(state),
           if (state.loadError != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
+            NightshadeBanner(
+              title: 'The branches could not be read',
+              tone: BannerTone.error,
               message: state.loadError!,
-              compact: true,
             ),
           ],
           if (state.actionError != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
+            NightshadeBanner(
+              title: 'That branch action did not take effect',
+              tone: BannerTone.error,
               message: state.actionError!,
-              compact: true,
             ),
           ],
           if (state.deleteRefusal != null) ...[
@@ -342,10 +342,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
     if (error != null) {
       return [
         const SizedBox(height: NightshadeTokens.spaceXs),
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
+        NightshadeBanner(
+          title: 'The night\'s other masters could not be listed',
+          tone: BannerTone.info,
           message: error,
-          compact: true,
         ),
       ];
     }
@@ -421,21 +421,21 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         NightshadeButton(
           label: 'Duplicate as variant',
           icon: NightshadeIcons.copy,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: state.busy ? null : _promptDuplicate,
         ),
         NightshadeButton(
           label: 'Rename',
           icon: NightshadeIcons.edit,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: state.busy ? null : _promptRename,
         ),
         NightshadeButton(
           label: 'Delete branch',
           icon: NightshadeIcons.delete,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: state.busy ? null : _promptDelete,
         ),
@@ -443,7 +443,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           NightshadeButton(
             label: 'Stop comparing',
             icon: NightshadeIcons.close,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => widget.onCompareWith(null),
           )
@@ -469,7 +469,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
                 child: NightshadeButton(
                   label: 'Compare',
                   icon: NightshadeIcons.layers,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: null,
                 ),
@@ -480,7 +480,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           NightshadeButton(
             label: 'Compare with…',
             icon: NightshadeIcons.layers,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => _promptCompare(compareTargets),
           ),
@@ -502,7 +502,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         NightshadeButton(
           label: 'Export…',
           icon: NightshadeIcons.download,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: widget.onExport,
         ),
@@ -512,7 +512,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         NightshadeButton(
           label: 'Import .nsrecipe',
           icon: NightshadeIcons.upload,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           isLoading: widget.importBusy,
           onPressed: widget.importBusy ? null : widget.onImportRecipe,
@@ -522,11 +522,10 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
   }
 
   Widget _refusal(DarkroomBranchDeleteRefusal refusal) {
-    return NightshadeAlert(
-      severity: NightshadeAlertSeverity.warning,
+    return NightshadeBanner(
+      tone: BannerTone.warning,
       title: 'That branch has branches of its own',
       message: refusal.explanation,
-      compact: true,
       action: Wrap(
         spacing: NightshadeTokens.spaceXs,
         runSpacing: NightshadeTokens.spaceXs,
@@ -542,7 +541,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           ),
           NightshadeButton(
             label: 'Keep them',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: _branches.dismissRefusal,
           ),
@@ -645,7 +644,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
         actions: [
           NightshadeButton(
             label: 'Keep it',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () => Navigator.of(dialogContext).pop(
               _DarkroomDeleteChoice.keep,
@@ -668,8 +667,8 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (hasChildren) ...[
-              NightshadeAlert(
-                severity: NightshadeAlertSeverity.warning,
+              NightshadeBanner(
+                tone: BannerTone.warning,
                 title: childLabels.length == 1
                     ? 'One branch diverges from this one'
                     : '${childLabels.length} branches diverge from this one',
@@ -687,7 +686,6 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
                     'lineage that never happened. So "$label" goes only with '
                     '${childLabels.length == 1 ? 'it' : 'them'}: '
                     '${childLabels.length + 1} recipes in all, or none.',
-                compact: true,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
             ],
@@ -796,7 +794,7 @@ class _DarkroomBranchBarState extends ConsumerState<_DarkroomBranchBar> {
           actions: [
             NightshadeButton(
               label: 'Cancel',
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () => Navigator.of(dialogContext).pop(),
             ),
@@ -1014,7 +1012,7 @@ class _DarkroomNameDialogState extends State<_DarkroomNameDialog> {
       actions: [
         NightshadeButton(
           label: 'Cancel',
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: () => Navigator.of(context).pop(),
         ),

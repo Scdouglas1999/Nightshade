@@ -132,9 +132,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                 child: Text(
                   '${isNetworkDownload ? 'Downloading' : 'Importing'}: '
                   '$_currentDownload',
-                  style: TextStyle(
+                  style: NightshadeTypography.bodyStrong.copyWith(
                     color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -163,9 +162,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           const SizedBox(height: 8),
           Text(
             _downloadStatus,
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ],
@@ -175,16 +173,14 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
 
   Widget _buildDownloadSection(BuildContext context) {
     final colors = context.nightshadeColors;
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.all(20),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Download Catalogs',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 16),
           // There is ONE dataset. The three-tier selector that stood here —
@@ -195,9 +191,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           // different depths. Say what arrives, once.
           Text(
             'One download installs both catalogs:',
-            style: TextStyle(
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
           const SizedBox(height: 8),
@@ -205,9 +200,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             'HYG Star Database - '
             '~${formatCatalogCount(kInstalledStarApproxCount)} stars, '
             'complete to mag ${kHygFaintFloorMag.toStringAsFixed(1)}',
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
           const SizedBox(height: 4),
@@ -215,17 +209,15 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             'OpenNGC - '
             '~${formatCatalogCount(kInstalledDsoApproxCount)} deep-sky objects '
             '(NGC / IC)',
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'About $kInstalledCatalogApproxSizeMB MB on disk.',
-            style: TextStyle(
+            style: NightshadeTypography.captionSm.copyWith(
               color: colors.textSecondary.withValues(alpha: 0.7),
-              fontSize: NightshadeTypography.fontSize11,
             ),
           ),
           const SizedBox(height: 24),
@@ -257,7 +249,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
       children: [
         Text(
           'Actions',
-          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.sectionTitle
+              .copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 16),
         widget.isMobile
@@ -267,7 +260,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   NightshadeButton(
                     label: 'Refresh Status',
                     icon: NightshadeIcons.refresh,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
                   ),
                   if (hasInstalledCatalogs) ...[
@@ -288,7 +281,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   NightshadeButton(
                     label: 'Refresh Status',
                     icon: NightshadeIcons.refresh,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
                   ),
                   const SizedBox(width: 12),
@@ -330,11 +323,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child:
                     Icon(NightshadeIcons.tag, color: colors.primary, size: 24),
               ),
@@ -350,7 +340,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                       children: [
                         Text(
                           'GLADE+ Galaxy Catalog',
-                          style: NightshadeTypography.h4
+                          style: NightshadeTypography.sectionTitle
                               .copyWith(color: colors.textPrimary),
                         ),
                         if (isInstalled)
@@ -378,9 +368,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                     const SizedBox(height: 4),
                     Text(
                       'Galaxy List for the Advanced Detector Era - up to 22.5M galaxies for deep image annotation',
-                      style: TextStyle(
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize13,
                       ),
                     ),
                   ],
@@ -399,9 +388,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                 child: Text(
                   'Labels faint galaxies on solved images. Optional — only needed '
                   'for deep-field annotation, not for capture or plate solving.',
-                  style: TextStyle(
+                  style: NightshadeTypography.caption.copyWith(
                     color: colors.textSecondary.withValues(alpha: 0.9),
-                    fontSize: NightshadeTypography.fontSize12,
                     height: 1.3,
                   ),
                 ),
@@ -411,10 +399,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           const SizedBox(height: 8),
           Text(
             'Source: glade.elte.hu via vizier.cds.unistra.fr',
-            style: TextStyle(
+            style: NightshadeTypography.monoCaption.copyWith(
               color: colors.textSecondary.withValues(alpha: 0.7),
-              fontSize: NightshadeTypography.fontSize11,
-              fontFamily: 'monospace',
             ),
           ),
           if (isInstalled && _annotationStatus != null) ...[
@@ -455,9 +441,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             // Tier selection for annotation catalog
             Text(
               'Select catalog tier:',
-              style: TextStyle(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
             const SizedBox(height: 12),
@@ -484,7 +469,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
               child: NightshadeButton(
                 label: 'Or Import from File (CSV)',
                 icon: NightshadeIcons.folderOpen,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: _isDownloading ? null : _importAnnotationCatalog,
               ),
             ),
@@ -548,7 +533,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                       Flexible(
                         child: Text(
                           package.displayName,
-                          style: NightshadeTypography.h5
+                          style: NightshadeTypography.bodyStrong
                               .copyWith(color: colors.textPrimary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -569,9 +554,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                           package == AnnotationPackage.complete
                               ? '~${(package.approximateSizeMB / 1000).toStringAsFixed(1)} GB'
                               : '~${package.approximateSizeMB} MB',
-                          style: TextStyle(
+                          style: NightshadeTypography.captionSm.copyWith(
                             color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize10,
                           ),
                         ),
                       ),
@@ -580,9 +564,8 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                   const SizedBox(height: 2),
                   Text(
                     package.description,
-                    style: TextStyle(
+                    style: NightshadeTypography.captionSm.copyWith(
                       color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],

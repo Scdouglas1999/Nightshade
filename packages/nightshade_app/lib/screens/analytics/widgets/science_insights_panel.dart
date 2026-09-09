@@ -59,47 +59,42 @@ class ScienceInsightsPanel extends ConsumerWidget {
       ),
     );
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.lightbulb, size: 14, color: colors.primary),
-                const SizedBox(width: 8),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.lightbulb, size: 14, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Insights',
+                style: NightshadeTypography.bodyStrong
+                    .copyWith(color: colors.textPrimary),
+              ),
+              const Spacer(),
+              if (insights.isNotEmpty)
                 Text(
-                  'Insights',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w700,
+                  '${insights.length}',
+                  style: NightshadeTypography.labelStrongSm.copyWith(
+                    color: colors.textMuted,
                   ),
                 ),
-                const Spacer(),
-                if (insights.isNotEmpty)
-                  Text(
-                    '${insights.length}',
-                    style: NightshadeTypography.labelStrongSm.copyWith(
-                      color: colors.textMuted,
-                    ),
-                  ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (insights.isEmpty)
+            Text(
+              'No actionable insights yet. Keep capturing frames.',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            )
+          else
+            ...insights.map(
+              (insight) => _InsightRow(insight: insight, colors: colors),
             ),
-            const SizedBox(height: 10),
-            if (insights.isEmpty)
-              Text(
-                'No actionable insights yet. Keep capturing frames.',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12),
-              )
-            else
-              ...insights.map(
-                (insight) => _InsightRow(insight: insight, colors: colors),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -133,23 +128,18 @@ class _InsightRow extends StatelessWidget {
               children: [
                 Text(
                   insight.headline,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      color: colors.textPrimary,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600),
                 ),
                 if (insight.body != null && insight.body!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       insight.body!,
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize11,
-                        height: 1.4,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary, height: 1.4),
                     ),
                   ),
               ],

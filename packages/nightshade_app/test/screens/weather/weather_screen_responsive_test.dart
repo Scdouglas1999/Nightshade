@@ -47,7 +47,7 @@ Future<void> _pumpAndCheck(WidgetTester tester, Size size) async {
     isNull,
     reason: 'WeatherScreen must not overflow at ${size.width}x${size.height}',
   );
-  expect(find.text('Weather Radar'), findsOneWidget,
+  expect(find.text('Weather'), findsOneWidget,
       reason: 'Weather header identity must be present at '
           '${size.width}x${size.height}');
 

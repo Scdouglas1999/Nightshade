@@ -271,7 +271,7 @@ void main() {
       ),
     );
 
-    expect(find.text('No Tailscale address detected'), findsOneWidget,
+    expect(find.textContaining('No Tailscale address detected'), findsOneWidget,
         reason: 'No-tailnet branch must show the info alert title');
     expect(find.widgetWithText(NightshadeButton, 'Re-check'), findsOneWidget,
         reason: 'No-tailnet branch must offer a Re-check action');

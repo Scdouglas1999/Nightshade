@@ -70,7 +70,7 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
         vertical: NightshadeTokens.spaceSm,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
@@ -205,7 +205,7 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           border: Border.all(
             color: error == null
@@ -244,10 +244,8 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                     const SizedBox(height: 4),
                     Text(
                       '$error',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize12,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ],
@@ -259,7 +257,7 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                 label: 'Retry',
                 icon: LucideIcons.refreshCw,
                 size: ButtonSize.small,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: () => ref.invalidate(allSessionsProvider),
               ),
             ],
@@ -322,8 +320,7 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            hasError ? colors.error.withValues(alpha: 0.08) : colors.surfaceAlt,
+        color: hasError ? colors.error.withValues(alpha: 0.08) : colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(
           color:
@@ -362,19 +359,15 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                   Text(
                     '${errors.first}'
                     '${extraErrorCount > 0 ? ' (+$extraErrorCount more)' : ''}',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ] else if (isLoading) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Waiting for the current session and frame products.',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ],
               ],
@@ -386,7 +379,7 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
               label: 'Retry',
               icon: LucideIcons.refreshCw,
               size: ButtonSize.small,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               onPressed: () => _retryScienceData(activeSessionId),
             ),
           ],

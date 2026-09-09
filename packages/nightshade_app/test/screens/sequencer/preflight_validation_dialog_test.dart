@@ -138,7 +138,7 @@ void main() {
         ),
       ],
     );
-    expect(find.text('Dark Library'), findsOneWidget);
+    expect(find.text('Dark library'), findsOneWidget);
     expect(find.text('Missing Dark Frames'), findsOneWidget);
     expect(find.textContaining('Capture missing darks'), findsOneWidget);
   });

@@ -410,7 +410,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
           padding: NightshadeTokens.screenPadding,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final panelWidth = clampPanelWidth(
+              final panelWidth = panelWidthFromFraction(
                 constraints.maxWidth,
                 fraction: 0.28,
                 min: 280,

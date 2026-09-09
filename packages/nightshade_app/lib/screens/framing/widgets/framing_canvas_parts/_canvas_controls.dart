@@ -427,7 +427,7 @@ class _ZoomButtonState extends State<_ZoomButton> {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: _isHovered ? widget.colors.surfaceAlt : Colors.transparent,
+            color: _isHovered ? widget.colors.well : Colors.transparent,
             borderRadius: NightshadeTokens.borderRadiusXs,
           ),
           child: Icon(

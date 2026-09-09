@@ -604,7 +604,7 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         final action = widget.profile != null ? 'updated' : 'created';
         context.showSuccessSnackBar(
             'Profile "${_nameController.text.trim()}" $action');
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted) _closeAfterSave();
       } catch (e, st) {
         ref.read(loggingServiceProvider).error(
           'ProfileEditorDialog remote save failed: $e',
@@ -785,7 +785,7 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       final action = widget.profile != null ? 'updated' : 'created';
       context.showSuccessSnackBar(
           'Profile "${_nameController.text.trim()}" $action');
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) _closeAfterSave();
     } catch (e, st) {
       ref.read(loggingServiceProvider).error(
         'ProfileEditorDialog save failed: $e',
@@ -797,5 +797,20 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         setState(() => _isSaving = false);
       }
     }
+  }
+}
+
+extension _ProfileEditorSaveClose on _ProfileEditorDialogState {
+  /// Dismisses the editor after a successful save.
+  ///
+  /// In [ProfileEditorMode.opticalTrainPage] the editor IS the Equipment
+  /// screen's tab body, so popping would take the whole `/equipment` route off
+  /// the stack. There the save simply lands and the page stays put.
+  void _closeAfterSave() {
+    if (widget.mode != ProfileEditorMode.full) {
+      setState(() => _isSaving = false);
+      return;
+    }
+    Navigator.of(context).pop(true);
   }
 }

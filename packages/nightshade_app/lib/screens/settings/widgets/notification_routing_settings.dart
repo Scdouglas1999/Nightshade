@@ -92,21 +92,22 @@ class NotificationRoutingSettings extends ConsumerWidget {
           children: [
             Text(
               'Could not load the notification routing matrix.',
-              style: TextStyle(color: colors.error),
+              style: NightshadeTypography.body.copyWith(
+                color: colors.error,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               userFacingError(e),
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
             const SizedBox(height: 12),
             NightshadeButton(
               label: 'Retry routing settings',
               icon: LucideIcons.refreshCw,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () =>
                   ref.invalidate(notificationRoutingMatrixProvider),
@@ -185,7 +186,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
       subtitle: '→ $summary',
       trailing: NightshadeButton(
         label: 'Edit',
-        variant: ButtonVariant.outline,
+        variant: ButtonVariant.secondary,
         size: ButtonSize.small,
         onPressed: () async {
           await showDialog<void>(

@@ -27,7 +27,7 @@ extension _PhotometricWizardHeaderAndSteps
                   ? colors.primary
                   : isDone
                       ? colors.primary.withValues(alpha: 0.7)
-                      : colors.surfaceAlt,
+                      : colors.well,
               border: Border.all(
                 color: isActive || isDone
                     ? colors.primary

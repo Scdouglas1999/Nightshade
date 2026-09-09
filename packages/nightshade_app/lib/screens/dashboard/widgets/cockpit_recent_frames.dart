@@ -73,42 +73,36 @@ class CockpitRecentFrames extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final total = ref.watch(recentSessionFramesProvider).length;
 
-    return NightshadeCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.galleryThumbnails,
-                  size: 14, color: colors.textMuted),
-              const SizedBox(width: 8),
+    return NightshadePanel(
+        child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(LucideIcons.galleryThumbnails,
+                size: 14, color: colors.textMuted),
+            const SizedBox(width: 8),
+            Text(
+              'Recent Frames',
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textSecondary),
+            ),
+            const Spacer(),
+            if (total > 0)
               Text(
-                'Recent Frames',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textSecondary,
-                  letterSpacing: 0.3,
+                total == 1 ? '1 frame' : '$total frames',
+                style: NightshadeTypography.withTabular(
+                  NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                 ),
               ),
-              const Spacer(),
-              if (total > 0)
-                Text(
-                  total == 1 ? '1 frame' : '$total frames',
-                  style: NightshadeTypography.withTabular(
-                    TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const RecentFramesStrip(),
-        ],
-      ),
-    );
+          ],
+        ),
+        const SizedBox(height: 10),
+        const RecentFramesStrip(),
+      ],
+    ));
   }
 }
 
@@ -119,23 +113,20 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.imageOff, size: 20, color: colors.textMuted),
-          const SizedBox(height: 6),
-          Text(
-            'No frames captured this session yet',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11_5,
-                color: colors.textMuted),
-          ),
-        ],
-      ),
-    );
+    return NightshadePanel(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.imageOff, size: 20, color: colors.textMuted),
+            const SizedBox(height: 6),
+            Text(
+              'No frames captured this session yet',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            ),
+          ],
+        ));
   }
 }
 
@@ -217,11 +208,7 @@ class _MoreBadge extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           '+$count',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w700,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       ),
     );
@@ -318,20 +305,16 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
               children: [
                 Text(
                   _filterLabel(),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     _exposureLabel(),
                     style: NightshadeTypography.withTabular(
-                      TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textMuted),
+                      NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -343,9 +326,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
             Text(
               _timeLabel(),
               style: NightshadeTypography.withTabular(
-                TextStyle(
-                    fontSize: NightshadeTypography.fontSize9,
-                    color: colors.textMuted),
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
               ),
             ),
           ],

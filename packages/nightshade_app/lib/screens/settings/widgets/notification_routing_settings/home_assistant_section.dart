@@ -115,7 +115,7 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
               title: 'Save Home Assistant config',
               trailing: NightshadeButton(
                 label: 'Save',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () async {
                   await _save(
@@ -168,7 +168,7 @@ class _RemoteHomeAssistantSection extends ConsumerWidget {
             subtitle: 'Reconnect to the imaging host and try again.',
             trailing: NightshadeButton(
               label: 'Retry',
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () =>
                   ref.invalidate(remoteHomeAssistantHostSettingsProvider),
@@ -511,7 +511,7 @@ class _RemoteHomeAssistantFormState
               title: _dirty ? 'Save host configuration' : 'Host is up to date',
               trailing: NightshadeButton(
                 label: 'Save',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 isLoading: _saving,
                 onPressed: _saving || !_dirty ? null : _save,

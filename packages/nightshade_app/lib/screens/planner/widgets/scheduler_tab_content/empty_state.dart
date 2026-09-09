@@ -112,20 +112,14 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
                   children: [
                     Text(
                       headline,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.bodyStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       body,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textSecondary,
-                        height: 1.4,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ),
@@ -156,7 +150,7 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
                   label: 'Schedule whole catalog',
                   icon: LucideIcons.globe,
                   size: ButtonSize.small,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   onPressed: () => unawaited(
                     ref
                         .read(activeProjectIdProvider.notifier)
@@ -179,41 +173,35 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
             const SizedBox(height: NightshadeTokens.spaceMd),
             SizedBox(
               width: double.infinity,
-              child: NightshadeCard(
-                padding: NightshadeTokens.paddingMd,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'How the scheduler picks targets',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
+              child: NightshadePanel(
+                  padding: NightshadeTokens.paddingMd,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'How the scheduler picks targets',
+                        style: NightshadeTypography.caption.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Every 60 seconds the engine scores every target in '
-                      'scope — the active project\'s members when a project '
-                      'is active, otherwise your whole catalog. The score is '
-                      'a weighted blend of how high the target sits above the '
-                      'horizon, how far it is from the meridian, its angular '
-                      'separation from the moon (weighted by moon '
-                      'illumination), and how much time tonight still works '
-                      'for it. Targets that still need integration in some '
-                      'filter score higher than fully-imaged ones. Switching '
-                      'between targets is gated by a hysteresis ratio so the '
-                      'scheduler does not flip-flop between two close scores.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                        height: 1.5,
+                      const SizedBox(height: 6),
+                      Text(
+                        'Every 60 seconds the engine scores every target in '
+                        'scope — the active project\'s members when a project '
+                        'is active, otherwise your whole catalog. The score is '
+                        'a weighted blend of how high the target sits above the '
+                        'horizon, how far it is from the meridian, its angular '
+                        'separation from the moon (weighted by moon '
+                        'illumination), and how much time tonight still works '
+                        'for it. Targets that still need integration in some '
+                        'filter score higher than fully-imaged ones. Switching '
+                        'between targets is gated by a hysteresis ratio so the '
+                        'scheduler does not flip-flop between two close scores.',
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                    ],
+                  )),
             ),
           ],
         ],

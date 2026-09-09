@@ -1,15 +1,16 @@
-// A device class that discovery found nothing for has to say the same amount
-// as one it did.
+// A scan that found nothing has to say as much as one that found something.
 //
-// Live finding: cover calibrators and switches — the two classes with no
-// simulator — collapsed to a bare italic "No switches found" line with a
-// refresh icon, while every other class got a titled section and an "N found"
-// count. Nothing on screen said which backends had been asked, whether any of
-// them had errored, or how to add a device that lives on another machine —
-// even though the app log recorded "Discovery complete for Switch: 0 devices,
-// 0 backend errors".
+// Live finding: the classes with no simulator collapsed to a bare italic
+// "No switches found" line with a refresh icon. Nothing on screen said which
+// backends had been asked, whether any of them had errored, or how to add a
+// device that lives on another machine — even though the app log recorded
+// "Discovery complete for Switch: 0 devices, 0 backend errors".
+//
+// 06 §Equipment replaced the per-class group boxes with ONE flat list and one
+// empty state, so the same guarantee is now asserted against that empty state.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/screens/equipment/widgets/discovery_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -40,11 +41,14 @@ UnifiedDiscoveryState _scannedNothing() {
   );
 }
 
-Future<void> _pumpExpandedPanel(WidgetTester tester) async {
+Future<void> _pumpExpandedPanel(
+  WidgetTester tester, {
+  Size size = const Size(1280, 1600),
+}) async {
   await pumpAppScreen(
     tester,
     const SingleChildScrollView(child: DiscoveryPanel()),
-    size: const Size(1280, 1600),
+    size: size,
     settle: false,
     extraOverrides: [
       unifiedDiscoveryProvider.overrideWith(
@@ -53,68 +57,60 @@ Future<void> _pumpExpandedPanel(WidgetTester tester) async {
     ],
   );
   await tester.pump();
-  await tester.tap(find.text('Expand'));
+  await tester.tap(_iconButton('Expand'));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
 }
 
+/// `NightshadeIconButton` carries its tooltip through `Semantics` and
+/// `NightshadeTooltip`, not a Material `Tooltip`, so `find.byTooltip` misses it.
+Finder _iconButton(String tooltip) => find.byWidgetPredicate(
+      (w) => w is NightshadeIconButton && w.tooltip == tooltip,
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('a class with no results keeps the section chrome and a count',
+  testWidgets('a scan that found nothing keeps the drawer chrome and a count',
       (tester) async {
     await _pumpExpandedPanel(tester);
 
-    expect(find.text('SWITCHES'), findsOneWidget);
-    expect(find.text('COVER / CALIBRATORS'), findsOneWidget);
-    // Every class reports a count, including the empty ones.
-    expect(find.text('0 found'), findsWidgets);
+    expect(find.text('DISCOVERED DEVICES'), findsOneWidget);
+    expect(find.textContaining('0 found'), findsOneWidget);
+    expect(find.text('No devices found'), findsOneWidget);
   });
 
-  testWidgets('an empty class names the backends it searched and which failed',
+  testWidgets('the empty state names the backends it searched and which failed',
       (tester) async {
     await _pumpExpandedPanel(tester);
 
     // Enum-declaration order (ascom, alpaca, indi, native, simulator) so the
     // list is stable between scans rather than following map insertion.
-    expect(find.text('Searched: INDI (failed), Native'), findsWidgets);
     expect(
-      find.textContaining('Settings → Connection'),
-      findsWidgets,
-      reason: 'a class with nothing found must offer a route to adding one',
+      find.textContaining('Searched: INDI (failed), Native'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Alpaca or INDI'),
+      findsOneWidget,
+      reason: 'a scan with nothing found must offer a route to adding one',
     );
   });
 
-  // The empty-class header is the widest this Row ever gets: icon + the
-  // longest class name + the count + the rescan button. Before the `Expanded`
-  // around the title it overflowed a 360dp phone by 24px — and every other
-  // test in this file runs at 1280, where it fitted either way.
-  testWidgets('the empty-class section fits a 360dp phone', (tester) async {
-    await pumpAppScreen(
-      tester,
-      const SingleChildScrollView(child: DiscoveryPanel()),
-      size: const Size(360, 1600),
-      settle: false,
-      extraOverrides: [
-        unifiedDiscoveryProvider.overrideWith(
-          (ref) => _StubDiscoveryNotifier(ref, _scannedNothing()),
-        ),
-      ],
-    );
-    await tester.pump();
-    // Below the phone breakpoint the header drops its "Expand" label, so the
-    // header itself is the expand affordance.
-    await tester.tap(find.text('DISCOVERY'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+  // The head row is the widest this Row ever gets: the radio icon, the
+  // eyebrow, the summary, two scans and the chevron. Measured at 312px it
+  // overflowed by 243px, so below 520 the summary drops and the two scans
+  // become icon buttons.
+  testWidgets('the discovery head row fits a 360dp phone', (tester) async {
+    await _pumpExpandedPanel(tester, size: const Size(360, 1600));
 
     expect(
       tester.takeException(),
       isNull,
-      reason: 'the empty-class header must not overflow at phone width',
+      reason: 'the discovery head row must not overflow at phone width',
     );
-    // And the chrome under test is actually on screen at this width.
-    expect(find.text('COVER / CALIBRATORS'), findsOneWidget);
-    expect(find.byTooltip('Scan for switches'), findsOneWidget);
+    expect(find.text('DISCOVERED DEVICES'), findsOneWidget);
+    expect(_iconButton('Scan all'), findsOneWidget);
+    expect(_iconButton('Rescan'), findsOneWidget);
   });
 }

@@ -202,7 +202,7 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
             textAlign: TextAlign.center,
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: colors.error),
+            style: NightshadeTypography.body.copyWith(color: colors.error),
           ),
         ),
       ),

@@ -64,7 +64,7 @@ class AtlasRegionCard extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         region.name,
-                        style: NightshadeTypography.h5
+                        style: NightshadeTypography.bodyStrong
                             .copyWith(color: colors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -179,7 +179,7 @@ class _PreviewPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: colors.surfaceAlt,
+      color: colors.well,
       alignment: Alignment.center,
       child: loading
           ? const NightshadeCircularProgress(
@@ -212,7 +212,7 @@ class _KindBadge extends StatelessWidget {
         horizontal: NightshadeTokens.spaceSm,
         vertical: 2,
       ),
-      decoration: NightshadeDecorations.tintedBadge(tint),
+      decoration: NightshadeDecorations.chip(colors, tone: tint),
       child: Text(
         _label(kind),
         style: NightshadeTypography.captionSm.copyWith(color: tint),
@@ -244,7 +244,7 @@ class _Pill extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),

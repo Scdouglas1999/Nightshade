@@ -6,12 +6,7 @@
 // a hard red "Alt: 0.0°" — a specific factual claim that the target is sitting
 // on the horizon — directly above the panel that admits the app has no location
 // ("Set location in Settings"). The Coordinates card immediately above already
-// shows an unknown value in the same situation, so the two cards contradicted
-// each other.
-//
-// The placeholder is `kReadoutUnknown` — one em dash (05 §3: "Unknown values
-// are shown as an em dash in muted colour and never as `---`"). It used to be
-// two hyphens.
+// shows "--" in the same situation, so the two cards contradicted each other.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,10 +84,12 @@ void main() {
       reason: 'rendered a concrete altitude with no observing site: $texts',
     );
     expect(texts, contains('Alt: '));
-    expect(
-        texts.where((t) => t == kReadoutUnknown).length, greaterThanOrEqualTo(2),
-        reason: 'expected Alt and Airmass to both read '
-            '"$kReadoutUnknown", got: $texts');
+    // The copy rules put ONE em dash behind an unknown value, everywhere
+    // (03 §2): '--' was two hyphens pretending to be one.
+    expect(texts.where((t) => t == kReadoutUnknown).length,
+        greaterThanOrEqualTo(2),
+        reason:
+            'expected Alt and Airmass to both read an em dash, got: $texts');
   });
 
   testWidgets('the unknown-altitude chip carries no severity colour',

@@ -105,7 +105,7 @@ class _AdaptiveExposureSettingsState
         final notifier = ref.read(appSettingsProvider.notifier);
         final enabled = settings.adaptiveExposureEnabled;
         return SettingsPage(
-          title: 'Adaptive Exposure',
+          title: 'Adaptive exposure',
           description:
               'Lengthens or shortens each frame automatically when the sky is '
               'brighter or darker than your reference, so signal-to-noise stays '
@@ -201,9 +201,8 @@ class _AdaptiveExposureSettingsState
                 ),
                 child: Text(
                   _globalBoundsError!,
-                  style: TextStyle(
+                  style: NightshadeTypography.captionSm.copyWith(
                     color: colors.error,
-                    fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
               ),
@@ -226,11 +225,8 @@ class _AdaptiveExposureSettingsState
               ),
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.info,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.info),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -243,9 +239,9 @@ class _AdaptiveExposureSettingsState
                         'exposure so the sky-limited signal-to-noise stays about '
                         'the same. Per-filter overrides are respected, and the '
                         'shortest/longest limits stop runaway exposures.',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.textSecondary),
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
@@ -320,10 +316,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
     if (filterNames.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        decoration: NightshadeDecorations.tintedBadge(
-          colors.warning,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        ),
+        decoration: NightshadeDecorations.chip(colors, tone: colors.warning),
         child: Row(
           children: [
             Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
@@ -333,9 +326,9 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
                 'No filter wheel connected and no filters on the active '
                 'profile — adaptive applies to every capture (mono camera '
                 'assumption).',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
             ),
           ],
@@ -359,9 +352,9 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
           'A filter left blank follows the settings above. Tick a filter to opt '
           'it into adaptive exposure, and set its own shortest/longest limits to '
           'override them.',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted),
+          style: NightshadeTypography.captionSm.copyWith(
+            color: colors.textMuted,
+          ),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         ...filterNames.map((filter) =>
@@ -370,9 +363,8 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             _boundsError!,
-            style: TextStyle(
+            style: NightshadeTypography.captionSm.copyWith(
               color: colors.error,
-              fontSize: NightshadeTypography.fontSize11,
             ),
           ),
         ],
@@ -397,10 +389,8 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
             width: 60,
             child: Text(
               filter,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.readoutXs.copyWith(
                 color: colors.textPrimary,
-                fontFamily: 'monospace',
               ),
             ),
           ),
@@ -538,14 +528,14 @@ class _OverrideFieldState extends State<_OverrideField> {
     return TextField(
       controller: _controller,
       focusNode: _focusNode,
-      style: TextStyle(
-          fontSize: NightshadeTypography.fontSize12,
-          color: NightshadeColors.of(context).textPrimary),
+      style: NightshadeTypography.caption.copyWith(
+        color: NightshadeColors.of(context).textPrimary,
+      ),
       decoration: InputDecoration(
         labelText: widget.label,
-        labelStyle: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            color: NightshadeColors.of(context).textMuted),
+        labelStyle: NightshadeTypography.captionSm.copyWith(
+          color: NightshadeColors.of(context).textMuted,
+        ),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       ),

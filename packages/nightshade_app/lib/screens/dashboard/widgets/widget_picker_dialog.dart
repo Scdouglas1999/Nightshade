@@ -45,18 +45,16 @@ class WidgetPickerDialog extends ConsumerWidget {
           Expanded(
             child: Text(
               'Dashboard Widgets',
-              style: TextStyle(
+              // 05 §13: a dialog title is `sectionTitle`, one size on every
+              // surface — the phone/desktop split was a second scale.
+              style: NightshadeTypography.sectionTitle.copyWith(
                 color: colors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: isPhone ? 16 : 20,
               ),
             ),
           ),
-          IconButton(
-            icon: Icon(NightshadeIcons.close,
-                color: colors.textSecondary, size: 20),
+          NightshadeIconButton(
+            icon: NightshadeIcons.close,
             tooltip: 'Close',
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -101,13 +99,15 @@ class WidgetPickerDialog extends ConsumerWidget {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(
                   definition.title,
-                  style: TextStyle(color: colors.textPrimary),
+                  style: NightshadeTypography.body.copyWith(
+                    color: colors.textPrimary,
+                  ),
                 ),
                 subtitle: Text(
                   definition.subtitle,
-                  style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                  ),
                 ),
               ),
             );
@@ -128,7 +128,9 @@ class WidgetPickerDialog extends ConsumerWidget {
         padding: const EdgeInsets.all(24),
         child: Text(
           'Failed to load widgets: $error',
-          style: TextStyle(color: colors.textSecondary),
+          style: NightshadeTypography.bodySm.copyWith(
+            color: colors.textSecondary,
+          ),
         ),
       ),
     );
@@ -166,19 +168,15 @@ class _SectionHeader extends StatelessWidget {
         children: [
           Text(
             group.label.toUpperCase(),
-            style: TextStyle(
+            style: NightshadeTypography.eyebrow.copyWith(
               color: colors.textSecondary,
-              fontWeight: FontWeight.w700,
-              fontSize: NightshadeTypography.fontSize11,
-              letterSpacing: 0.8,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             group.description,
-            style: TextStyle(
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ],

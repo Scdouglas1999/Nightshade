@@ -66,8 +66,9 @@ class AtlasTimescrub extends StatelessWidget {
                 horizontal: NightshadeTokens.spaceSm,
                 vertical: 2,
               ),
-              decoration: NightshadeDecorations.tintedBadge(
-                atLatest ? colors.success : colors.primary,
+              decoration: NightshadeDecorations.chip(
+                colors,
+                tone: atLatest ? colors.success : colors.primary,
               ),
               child: Text(
                 scrubLabel,

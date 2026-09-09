@@ -19,6 +19,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+import 'settings_finders.dart';
 
 class _StubAppSettingsNotifier extends AppSettingsNotifier {
   _StubAppSettingsNotifier(this._initial);
@@ -122,7 +123,7 @@ void main() {
         ],
       );
 
-      final entry = find.text('INDI Server Address');
+      final entry = find.text('INDI server address');
       expect(entry, findsOneWidget);
       // Subtitle reflects the configured address.
       expect(find.textContaining('10.0.0.9:7625'), findsOneWidget);
@@ -167,7 +168,7 @@ void main() {
 
     // Reveal it first: Discovery gained the Alpaca address row, so Remote
     // Features can start below the fold at the harness surface size.
-    final refresh = find.byTooltip('Refresh host settings');
+    final refresh = findByTooltip('Refresh host settings');
     await tester.ensureVisible(refresh);
     await tester.pump();
     await tester.tap(refresh);
@@ -176,11 +177,10 @@ void main() {
 
     expect(find.textContaining('host settings unavailable'), findsOneWidget);
     expect(find.text('Host settings refreshed'), findsNothing);
-    final button = tester.widget<IconButton>(
-      find.ancestor(
-        of: find.byTooltip('Refresh host settings'),
-        matching: find.byType(IconButton),
-      ),
+    // The control is a NightshadeIconButton now, not a Material IconButton
+    // wrapping one, so its own onPressed is what says the retry is live.
+    final button = tester.widget<NightshadeIconButton>(
+      findByTooltip('Refresh host settings'),
     );
     expect(button.onPressed, isNotNull);
     expect(tester.takeException(), isNull);

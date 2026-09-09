@@ -103,7 +103,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
             color: widget.isSelected
                 ? colors.surface
                 : _isHovered
-                    ? colors.surfaceAlt
+                    ? colors.well
                     : colors.background,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
@@ -166,8 +166,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
               // Profile name
               Text(
                 widget.profile.name,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
+                style: NightshadeTypography.buttonSm.copyWith(
                   fontWeight:
                       widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: widget.isSelected
@@ -184,9 +183,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
                 decoration: _getCountBadgeDecoration(colors),
                 child: Text(
                   _getDeviceCountText(),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontWeight: FontWeight.w500,
+                  style: NightshadeTypography.monoCaption.copyWith(
                     color: _getCountTextColor(colors),
                   ),
                 ),
@@ -239,7 +236,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
         );
       case ProfileConnectionState.disconnected:
         return BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         );
     }

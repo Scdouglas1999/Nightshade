@@ -57,10 +57,8 @@ class BackendSelectorChips extends StatelessWidget {
       children: [
         Text(
           'Driver:',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(width: 8),
         Wrap(
@@ -143,7 +141,7 @@ class _BackendChipState extends State<_BackendChip> {
         ? backendColor.withValues(alpha: 0.2)
         : _isHovered
             ? colors.surfaceHover
-            : colors.surfaceAlt;
+            : colors.well;
 
     final borderColor =
         widget.isSelected ? backendColor.withValues(alpha: 0.5) : colors.border;
@@ -201,8 +199,8 @@ class _BackendChipState extends State<_BackendChip> {
                   ],
                   Text(
                     widget.backend.shortLabel,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.eyebrow.copyWith(
+                      letterSpacing: 0,
                       fontWeight:
                           widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                       color: textColor,

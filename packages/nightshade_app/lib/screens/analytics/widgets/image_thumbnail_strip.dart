@@ -170,15 +170,14 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
       return Container(
         height: kAnalyticsThumbnailRailHeight,
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Center(
           child: Text(
             'No images captured in this session',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ),
       );
@@ -243,7 +242,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
           child: filteredImages.isEmpty
               ? Container(
                   decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
+                    color: colors.well,
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
@@ -251,9 +250,8 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
                   child: Center(
                     child: Text(
                       'No frames match "${_filterLabel(_qualityFilter)}"',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
                 )

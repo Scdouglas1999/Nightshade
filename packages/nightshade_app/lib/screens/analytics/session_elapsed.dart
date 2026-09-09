@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show DbCapturedImage, ImagingSession, allDbImagesProvider;
+// kReadoutUnknown: the one em dash the design system spells, so a screen
+// never invents its own way of saying "not known".
+import 'package:nightshade_ui/nightshade_ui.dart' show kReadoutUnknown;
 
 /// Where a session's elapsed figure comes from.
 ///
@@ -35,7 +38,7 @@ class SessionElapsed {
 
   /// The number, or an em-dash when there is nothing truthful to print.
   String get valueLabel =>
-      duration == null ? '—' : formatSessionDuration(duration!);
+      duration == null ? kReadoutUnknown : formatSessionDuration(duration!);
 
   /// Qualifier that says which of the four cases produced [valueLabel]. Shown
   /// beside the value so "20m" is never read as a closed session's total.

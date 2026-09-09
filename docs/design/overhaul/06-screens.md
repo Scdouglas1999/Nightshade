@@ -251,6 +251,8 @@ ghost "Skip" top-right. Fix F5.
 
 - Sentence case everywhere ("Frame type", not "Frame Type"), including tab labels and buttons.
 - Buttons are verbs: "Connect", "Download", "Build sequence". Never "OK" alone.
-- Numbers use figures and thin spaces for thousands in readouts ("25 000"), `°C`, `″`, `′`, `×`.
+- Numbers use figures. No thousands separator in readouts ("25000"): the bundled fonts have no
+  thin space (U+2009). Units: `°C`, `×` (both in the fonts), and ASCII `'` and `"` for arcminutes
+  and arcseconds (12' 30") — the fonts have NO prime glyphs (U+2032/U+2033 render as tofu).
 - Unknown = "—". Never `---`, `--:--`, `N/A`.
 - No exclamation marks, no "Welcome to…", no "Learn how to…" in chrome.

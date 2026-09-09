@@ -100,7 +100,7 @@ void main() {
     );
 
     expect(find.text('Guiding'), findsOneWidget);
-    expect(find.text('RMS 0.42″'), findsOneWidget);
+    expect(find.text('RMS 0.42\"'), findsOneWidget);
     // SNR rounds to nearest integer.
     expect(find.text('SNR 19'), findsOneWidget);
     // Honest: the value is arcseconds, never falsely labelled px.
@@ -143,7 +143,7 @@ void main() {
     );
 
     expect(find.text('Settling'), findsOneWidget);
-    expect(find.text('RMS 0.42″'), findsOneWidget);
+    expect(find.text('RMS 0.42\"'), findsOneWidget);
   });
 
   testWidgets('the dot turns warning-colored on lost lock', (tester) async {

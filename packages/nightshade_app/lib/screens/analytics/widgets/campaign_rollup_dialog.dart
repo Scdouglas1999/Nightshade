@@ -59,17 +59,14 @@ class CampaignRollupDialog extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Text(
                   'Could not build campaign rollup',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bodyStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '$err',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -98,7 +95,7 @@ class _Body extends StatelessWidget {
   }
 
   String _formatDate(DateTime? dt) {
-    if (dt == null) return '-';
+    if (dt == null) return kReadoutUnknown;
     return DateFormat('MMM d, yyyy').format(dt);
   }
 
@@ -139,27 +136,24 @@ class _Body extends StatelessWidget {
                   children: [
                     Text(
                       'Campaign Rollup',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize18,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.sectionTitle.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600),
                     ),
                     Text(
                       rollup.targetName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(LucideIcons.x, color: colors.textMuted),
+              NightshadeIconButton(
+                icon: LucideIcons.x,
                 tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),
@@ -210,21 +204,22 @@ class _Body extends StatelessWidget {
                     // integration tile and the per-filter table describe.
                     _SummaryTile(
                       label: 'Mean HFR (session avg)',
-                      value: rollup.meanSessionHfr?.toStringAsFixed(2) ?? '-',
+                      value: rollup.meanSessionHfr?.toStringAsFixed(2) ??
+                          kReadoutUnknown,
                       colors: colors,
                     ),
                     _SummaryTile(
                       label: 'Mean seeing (session avg)',
                       value: rollup.meanSessionSeeing != null
                           ? '${rollup.meanSessionSeeing!.toStringAsFixed(2)}"'
-                          : '-',
+                          : kReadoutUnknown,
                       colors: colors,
                     ),
                     _SummaryTile(
                       label: 'Effective imaging',
                       value: hasClosedSession
                           ? '${(rollup.meanEffectiveImagingFraction * 100).toStringAsFixed(1)}%'
-                          : '-',
+                          : kReadoutUnknown,
                       colors: colors,
                     ),
                   ],
@@ -260,9 +255,8 @@ class _Body extends StatelessWidget {
                             '${rollup.sessionCount == 1 ? 'session' : 'sessions'}'
                             ' was rejected or has not been graded.'
                         : 'No frames captured for this target yet.',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
                   )
                 else
                   for (final f in rollup.filters)
@@ -277,9 +271,8 @@ class _Body extends StatelessWidget {
                 if (rollup.sessions.isEmpty)
                   Text(
                     'No sessions recorded for this target.',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
                   )
                 else
                   for (final s in rollup.sessions)
@@ -306,7 +299,8 @@ class _Body extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
                   'Close',
-                  style: TextStyle(color: colors.textSecondary),
+                  style: NightshadeTypography.body
+                      .copyWith(color: colors.textSecondary),
                 ),
               ),
             ],
@@ -338,12 +332,10 @@ class _SectionTitle extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textPrimary,
+                letterSpacing: 0.3,
+                fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -369,7 +361,7 @@ class _SummaryTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
@@ -377,17 +369,13 @@ class _SummaryTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted)),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted)),
             const SizedBox(height: 4),
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize15,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.readoutSm.copyWith(
+                  color: colors.textPrimary, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -418,7 +406,7 @@ class _OverallProgress extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
@@ -429,18 +417,16 @@ class _OverallProgress extends StatelessWidget {
             children: [
               Text(
                 'Overall',
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
               const Spacer(),
               Text(
                 '${(pct * 100).toStringAsFixed(1)}%',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w700,
-                  color: isComplete ? colors.success : colors.textPrimary,
-                ),
+                style: NightshadeTypography.bodySm.copyWith(
+                    color: isComplete ? colors.success : colors.textPrimary,
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -464,9 +450,8 @@ class _OverallProgress extends StatelessWidget {
             // session took, so one card would read "Captured 0.0h" over
             // "0.17h captured".
             'Accepted ${(captured / 3600.0).toStringAsFixed(1)}h of ${(goal / 3600.0).toStringAsFixed(1)}h goal | Remaining: ${remainingHours.toStringAsFixed(1)}h',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -498,11 +483,8 @@ class _FilterRow extends StatelessWidget {
             children: [
               Text(
                 filter.filter,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textPrimary, fontWeight: FontWeight.w600),
               ),
               const SizedBox(width: 12),
               // CampaignFilterRollup.capturedFrames counts ACCEPTED light
@@ -515,9 +497,8 @@ class _FilterRow extends StatelessWidget {
                     '${filter.capturedFrames}/${filter.goalFrames} frames accepted',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textSecondary),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 )
               else
@@ -526,15 +507,14 @@ class _FilterRow extends StatelessWidget {
                     '${filter.capturedFrames} frames accepted (no goal)',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
               const Spacer(),
               Text(
                 '${(filter.capturedIntegrationSecs / 3600.0).toStringAsFixed(1)}h',
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -548,7 +528,7 @@ class _FilterRow extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: pct,
                 minHeight: 6,
-                backgroundColor: colors.surfaceAlt,
+                backgroundColor: colors.well,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   pct >= 1.0 ? colors.success : colors.primary,
                 ),
@@ -557,9 +537,8 @@ class _FilterRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${(pct * 100).toStringAsFixed(0)}% complete | ${filter.remainingFrames} frames remaining',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ],
@@ -603,9 +582,9 @@ class _SessionRow extends StatelessWidget {
     final durationSecs = session.wallClockDuration.inSeconds;
     final durationLabel = durationSecs > 0
         ? '${(durationSecs / 3600.0).toStringAsFixed(2)}h wall'
-        : '-';
+        : kReadoutUnknown;
     return Material(
-      color: Colors.transparent,
+      type: MaterialType.transparency,
       child: Semantics(
           button: true,
           enabled: true,
@@ -653,9 +632,8 @@ class _SessionRow extends StatelessWidget {
                           '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h captured',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize11,
-                              color: colors.textMuted),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -700,7 +678,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Row(
@@ -708,9 +686,8 @@ class _Chip extends StatelessWidget {
         children: [
           Text(
             '$label ',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
           Text(
             value,

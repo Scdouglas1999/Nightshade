@@ -1,13 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/help/field_help_label.dart';
-import '../../../widgets/pill_tab.dart';
 import '../../../widgets/touch_target_floor.dart';
 
 /// Builds an imaging-panel row label, optionally appending a [helpAffordance]
@@ -51,140 +47,6 @@ Widget _panelRowLabel(
       ),
     ],
   );
-}
-
-class PanelTabs extends ConsumerWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-  final NightshadeColors colors;
-
-  /// Compact density for phones — denser pills + tighter padding/gaps so the
-  /// 4x2 selector grid claims less of a short landscape viewport.
-  final bool compact;
-
-  const PanelTabs({
-    super.key,
-    required this.selectedIndex,
-    required this.onSelected,
-    required this.colors,
-    this.compact = false,
-  });
-
-  static const _tabs = [
-    (NightshadeIcons.camera, 'Capture'),
-    (NightshadeIcons.aperture, 'Camera'),
-    (NightshadeIcons.focuser, 'Focus'),
-    (NightshadeIcons.crosshair, 'Guiding'),
-    (NightshadeIcons.compass, 'Mount'),
-    (NightshadeIcons.rotator, 'Rotator'),
-    (NightshadeIcons.layers, 'Stack'),
-    (LucideIcons.sparkle, 'Annotations'),
-  ];
-
-  /// Index of the Annotations tab
-  static const int annotationsTabIndex = 7;
-
-  /// Number of columns in the tab grid.
-  static const int _columns = 4;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final annotation = ref.watch(currentAnnotationProvider);
-    final objectCount = annotation?.objects.length ?? 0;
-
-    final rowCount = (_tabs.length + _columns - 1) ~/ _columns;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        border: Border(
-          bottom: BorderSide(color: colors.border),
-        ),
-      ),
-      padding: compact
-          ? const EdgeInsets.all(4)
-          : const EdgeInsets.fromLTRB(6, 6, 6, 6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var row = 0; row < rowCount; row++) ...[
-            if (row > 0) SizedBox(height: compact ? 4 : 6),
-            _buildRow(row, objectCount),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRow(int row, int objectCount) {
-    final startIndex = row * _columns;
-    return Row(
-      children: List.generate(_columns, (col) {
-        final tabIndex = startIndex + col;
-
-        if (tabIndex >= _tabs.length) {
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(left: col == 0 ? 0 : 6),
-              child: const SizedBox.shrink(),
-            ),
-          );
-        }
-
-        final (icon, label) = _tabs[tabIndex];
-        final isSelected = tabIndex == selectedIndex;
-        final displayLabel = tabIndex == annotationsTabIndex && objectCount > 0
-            ? '$label ($objectCount)'
-            : label;
-
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(left: col == 0 ? 0 : (compact ? 4 : 6)),
-            child: _PanelTab(
-              icon: icon,
-              label: displayLabel,
-              isSelected: isSelected,
-              onTap: () => onSelected(tabIndex),
-              colors: colors,
-              dense: compact,
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-/// Thin wrapper around the shared [PillTab]. The imaging panel keeps its own
-/// type name for grid layout in [PanelTabs]; the pill styling itself is shared.
-class _PanelTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final NightshadeColors colors;
-  final bool dense;
-
-  const _PanelTab({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    required this.colors,
-    this.dense = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PillTab(
-      icon: icon,
-      label: label,
-      isSelected: isSelected,
-      onTap: onTap,
-      colors: colors,
-      dense: dense,
-    );
-  }
 }
 
 class BigActionButton extends StatefulWidget {
@@ -304,11 +166,13 @@ class _BigActionButtonState extends State<BigActionButton>
               Flexible(
                 child: Text(
                   widget.label,
-                  style: TextStyle(
-                    fontSize: widget.isMobile ? 11 : 12,
+                  style: NightshadeTypography.buttonSm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: primaryForeground.withValues(
-                        alpha: widget.isEnabled ? 1.0 : 0.5),
+                      alpha: widget.isEnabled
+                          ? 1.0
+                          : NightshadeTokens.opacityDisabled,
+                    ),
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
@@ -388,10 +252,8 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
       children: [
         Text(
           widget.label,
-          style: TextStyle(
-            fontSize: NightshadeTokens.fontSizePanelCaption,
-            color: widget.colors.textMuted,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: widget.colors.textMuted),
         ),
         SizedBox(height: widget.isMobile ? 3 : 4),
         GestureDetector(
@@ -438,9 +300,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                       ? TextField(
                           controller: _controller,
                           focusNode: _focusNode,
-                          style: TextStyle(
-                            fontSize: widget.isMobile ? 12 : 13,
-                            fontWeight: FontWeight.w500,
+                          style: NightshadeTypography.buttonSm.copyWith(
                             color: widget.colors.textPrimary,
                           ),
                           decoration: const InputDecoration(
@@ -461,10 +321,8 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                 if (widget.suffix != null)
                   Text(
                     widget.suffix!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: widget.colors.textMuted),
                   ),
               ],
             ),
@@ -501,11 +359,8 @@ class PanelSection extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: NightshadeTokens.fontSizePanelLabel,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(fontWeight: FontWeight.w600, color: colors.textPrimary),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         NightshadeCard(
@@ -547,10 +402,8 @@ class InputRow extends StatelessWidget {
           child: _panelRowLabel(
             context,
             label: label,
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             helpId: helpId,
           ),
         ),
@@ -568,10 +421,8 @@ class InputRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     value ?? '',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
                 if (trailing != null) ...[
@@ -648,10 +499,8 @@ class _InputRowEditableState extends State<InputRowEditable> {
           child: _panelRowLabel(
             context,
             label: widget.label,
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             helpId: widget.helpId,
           ),
         ),
@@ -666,20 +515,16 @@ class _InputRowEditableState extends State<InputRowEditable> {
             child: TextField(
               controller: _controller,
               focusNode: _focusNode,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: InputBorder.none,
                 isDense: true,
                 suffixText: widget.suffix,
-                suffixStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted,
-                ),
+                suffixStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
               onSubmitted: widget.onChanged,
               onChanged: widget.onChanged,
@@ -738,10 +583,8 @@ class DropdownRow extends StatelessWidget {
           child: _panelRowLabel(
             context,
             label: label,
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              color: isEnabled ? colors.textSecondary : colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: isEnabled ? colors.textSecondary : colors.textMuted),
             helpId: helpId,
             excludeLabelSemantics: true,
           ),
@@ -802,10 +645,8 @@ class SliderRowInteractive extends StatelessWidget {
           child: _panelRowLabel(
             context,
             label: label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: isEnabled ? colors.textSecondary : colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: isEnabled ? colors.textSecondary : colors.textMuted),
             helpId: helpId,
           ),
         ),
@@ -834,11 +675,8 @@ class SliderRowInteractive extends StatelessWidget {
           child: Text(
             '${value.toStringAsFixed(1)}$suffix',
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              color: isEnabled ? colors.textPrimary : colors.textMuted,
-            ),
+            style: NightshadeTypography.monoCaption.copyWith(
+                color: isEnabled ? colors.textPrimary : colors.textMuted),
           ),
         ),
       ],
@@ -941,6 +779,133 @@ class _SmallButtonState extends State<SmallButton> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A single-line numeric field for a [FormRow] in the imaging side panel.
+///
+/// It carries no drawn label — the [FormRow] to its left is the label — so the
+/// name reaches assistive tech through [semanticLabel] instead. Edits commit on
+/// submit and on blur, the same contract the rows it replaces had.
+class InlineNumberField extends StatefulWidget {
+  const InlineNumberField({
+    super.key,
+    required this.value,
+    required this.semanticLabel,
+    required this.onChanged,
+    this.suffix,
+  });
+
+  /// The value as it should read when not being edited.
+  final String value;
+
+  /// The field's accessible name, e.g. "Gain".
+  final String semanticLabel;
+
+  /// Trailing unit, 12 px muted.
+  final String? suffix;
+
+  /// Called with the committed text.
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<InlineNumberField> createState() => _InlineNumberFieldState();
+}
+
+class _InlineNumberFieldState extends State<InlineNumberField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus) _commit();
+    });
+  }
+
+  @override
+  void didUpdateWidget(InlineNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  void _commit() {
+    if (_controller.text == widget.value) return;
+    widget.onChanged(_controller.text);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: widget.semanticLabel,
+      child: NightshadeTextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        suffix: widget.suffix,
+        mono: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onSubmitted: (_) => _commit(),
+      ),
+    );
+  }
+}
+
+/// A field-shaped box stating a value the operator cannot type into — the
+/// capture format, the save folder, the file-name pattern.
+///
+/// It wears the same `field` decoration and 32 px height as an editable field,
+/// so a form row does not change shape depending on whether its value happens
+/// to be editable.
+class ReadOnlyField extends StatelessWidget {
+  const ReadOnlyField({
+    super.key,
+    required this.value,
+    this.mono = false,
+    this.muted = false,
+  });
+
+  /// What the field states.
+  final String value;
+
+  /// Values that are data (paths, patterns) are mono; prose is not.
+  final bool mono;
+
+  /// A prompt standing in for a value that has not been set yet.
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final base =
+        mono ? NightshadeTypography.inputMono : NightshadeTypography.bodySm;
+    return Container(
+      height: fieldHeight,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd - 2,
+      ),
+      alignment: Alignment.centerLeft,
+      decoration: NightshadeDecorations.field(colors),
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: base.copyWith(
+          color: muted ? colors.textMuted : colors.textPrimary,
         ),
       ),
     );

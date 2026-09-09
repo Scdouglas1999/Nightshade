@@ -33,7 +33,7 @@ class _ExportTypeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: borderColor,
@@ -57,10 +57,8 @@ class _ExportTypeCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                 ),
               ],
             ),
@@ -70,7 +68,7 @@ class _ExportTypeCard extends StatelessWidget {
             label: actionLabel,
             icon: actionIcon,
             size: ButtonSize.small,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: (isExporting || !enabled) ? null : onExport,
           ),
         ],
@@ -101,7 +99,7 @@ class _DateButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),
@@ -112,10 +110,8 @@ class _DateButton extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
               ],
             ),

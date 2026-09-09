@@ -182,22 +182,19 @@ class _ConstellationContributeSheetState
           // The reassurance banner is true ONLY for sums; showing it under a
           // SUBS selection would contradict the choice, so it is conditional.
           if (!subsSelected)
-            const NightshadeAlert(
-              severity: NightshadeAlertSeverity.info,
-              compact: true,
-              message: 'You only share additive co-add sums, so a contribution '
-                  'can be subtracted exactly hub-side — the shared depth returns '
-                  'to what it was before.',
-            )
+            const NightshadeBanner(
+                title: 'You only share additive co-add sums, so a contribution '
+                    'can be subtracted exactly hub-side — the shared depth returns '
+                    'to what it was before.',
+                tone: BannerTone.info)
           else
-            const NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
-              message:
-                  'Raw subframes reveal your exact pixels and pointing and '
-                  'cannot be subtracted as cleanly as sums — anyone with read '
-                  'access can download them. Removing one later is a file '
-                  'delete, not a clean subtraction.',
-            ),
+            const NightshadeBanner(
+                title:
+                    'Raw subframes reveal your exact pixels and pointing and '
+                    'cannot be subtracted as cleanly as sums — anyone with read '
+                    'access can download them. Removing one later is a file '
+                    'delete, not a clean subtraction.',
+                tone: BannerTone.warning),
           const SizedBox(height: NightshadeTokens.spaceMd),
           // Consent contract: choose the license this contribution is shared
           // under. The hub advertises the licenses it accepts; offer only those
@@ -214,18 +211,14 @@ class _ConstellationContributeSheetState
               ),
               const SizedBox(height: NightshadeTokens.spaceXs),
               if (hubInfo.isLoading)
-                const NightshadeAlert(
-                  severity: NightshadeAlertSeverity.info,
-                  compact: true,
-                  message: 'Checking the hub\'s supported sharing licenses…',
-                )
+                const NightshadeBanner(
+                    title: 'Checking the hub\'s supported sharing licenses…',
+                    tone: BannerTone.info)
               else if (hubInfo.hasError)
-                const NightshadeAlert(
-                  severity: NightshadeAlertSeverity.error,
-                  compact: true,
-                  message: 'Could not verify this hub\'s sharing licenses. '
-                      'Check the connection and try again.',
-                )
+                const NightshadeBanner(
+                    title: 'Could not verify this hub\'s sharing licenses. '
+                        'Check the connection and try again.',
+                    tone: BannerTone.error)
               else if (hasCompatibleLicense)
                 NightshadeDropdown(
                   isExpanded: true,
@@ -249,13 +242,11 @@ class _ConstellationContributeSheetState
                           }),
                 )
               else
-                const NightshadeAlert(
-                  severity: NightshadeAlertSeverity.error,
-                  compact: true,
-                  message: 'This hub does not advertise a compatible sharing '
-                      'license. Ask its administrator to enable CC BY, CC0, '
-                      'CC BY-SA, or CC BY-NC.',
-                ),
+                const NightshadeBanner(
+                    title: 'This hub does not advertise a compatible sharing '
+                        'license. Ask its administrator to enable CC BY, CC0, '
+                        'CC BY-SA, or CC BY-NC.',
+                    tone: BannerTone.error),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
@@ -298,10 +289,7 @@ class _ConstellationContributeSheetState
           ],
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              message: _error!,
-            ),
+            NightshadeBanner(title: _error!, tone: BannerTone.error),
           ],
         ],
       ),
@@ -435,9 +423,8 @@ class _PrivacyOption extends StatelessWidget {
                             horizontal: NightshadeTokens.spaceSm,
                             vertical: 2,
                           ),
-                          decoration: NightshadeDecorations.tintedBadge(
-                            colors.success,
-                          ),
+                          decoration: NightshadeDecorations.chip(colors,
+                              tone: colors.success),
                           child: Text(
                             'DEFAULT',
                             style: NightshadeTypography.captionSm.copyWith(

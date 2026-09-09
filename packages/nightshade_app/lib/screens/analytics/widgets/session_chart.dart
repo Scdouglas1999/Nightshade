@@ -85,10 +85,8 @@ class SessionChart extends StatelessWidget {
               'No ${measurementName ?? title.toLowerCase()} recorded for '
               'these frames',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
         ),
@@ -171,10 +169,8 @@ class SessionChart extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 6.0),
                     child: Text(
                       elapsedAxisLabel(value),
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize10,
-                      ),
+                      style: NightshadeTypography.monoCaption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ),
                 ),
@@ -186,10 +182,8 @@ class SessionChart extends StatelessWidget {
                   interval: axis.interval,
                   getTitlesWidget: (value, meta) => Text(
                     axis.label(value),
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize10,
-                    ),
+                    style: NightshadeTypography.monoCaption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
               ),
@@ -277,6 +271,10 @@ class SessionChart extends StatelessWidget {
   }
 }
 
+/// The narrowest a chart panel can be and still hold its title and its four
+/// summary readouts on one line.
+const double _chartHeaderInlineWidth = 420;
+
 /// Card, title and axis caption shared by the populated and empty states so the
 /// two never differ in height or padding.
 class _ChartShell extends StatelessWidget {
@@ -296,39 +294,60 @@ class _ChartShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: NightshadeTypography.h5
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                      Text(
-                        yAxisLabel,
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.textMuted),
-                      ),
-                    ],
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final titleBlock = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: NightshadeTypography.bodyStrong
+                        .copyWith(color: colors.textPrimary),
                   ),
-                ),
-                if (summary != null) summary!,
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
+                  Text(
+                    yAxisLabel,
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+              );
+              if (summary == null) return titleBlock;
+
+              // Side by side only when the panel can hold both. Below that the
+              // summary takes its own line rather than wrapping the title one
+              // character at a time.
+              if (constraints.maxWidth < _chartHeaderInlineWidth) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    titleBlock,
+                    const SizedBox(height: NightshadeTokens.spaceMd),
+                    summary!,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: titleBlock),
+                  summary!,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          // The well around the plot is painted by AdaptiveChartContainer,
+          // which every chart body here goes through (06: charts sit in
+          // wells).
+          child,
+        ],
       ),
     );
   }
@@ -353,33 +372,15 @@ class _ChartSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget stat(String label, String value) => Padding(
-          padding: const EdgeInsets.only(left: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: NightshadeTypography.caption
-                    .copyWith(color: colors.textMuted),
-              ),
-              Text(
-                value,
-                style: NightshadeTypography.labelSm
-                    .copyWith(color: colors.textPrimary),
-              ),
-            ],
-          ),
-        );
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Four measurements, so four Readouts (05 §3). They were a label above a
+    // `labelSm` value, which is a readout upside down.
+    return ReadoutRow(
+      gap: NightshadeTokens.spaceLg,
       children: [
-        stat('median', median),
-        stat('p90', p90),
-        stat('range', spread),
-        stat('n', '$count'),
+        Readout(label: 'Median', value: median, size: ReadoutSize.sm),
+        Readout(label: 'P90', value: p90, size: ReadoutSize.sm),
+        Readout(label: 'Range', value: spread, size: ReadoutSize.sm),
+        Readout(label: 'n', value: '$count', size: ReadoutSize.sm),
       ],
     );
   }

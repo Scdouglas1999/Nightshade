@@ -251,17 +251,21 @@ void main() {
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.byKey(onboardingNoticeKey), findsOneWidget);
-    // The band comes out of the step body, which is the Expanded child — so the
-    // footer keeps its position and the body yields instead of being covered.
+    // The band takes real space in the column between the body and the footer,
+    // so the two can never share a pixel. The wizard block is centred and sized
+    // to its content, so the footer moves DOWN to make room rather than being
+    // covered — measure it where it is now, and check below that dismissing
+    // puts it back exactly where it started.
     final noticeRect = tester.getRect(find.byKey(onboardingNoticeKey));
-    expect(noticeRect.bottom, lessThanOrEqualTo(footerBefore.top + 0.5));
+    final footerWithNotice = tester.getRect(find.text('Next'));
+    expect(noticeRect.bottom, lessThanOrEqualTo(footerWithNotice.top + 0.5));
     expect(noticeRect.top, greaterThan(bodyBefore.top));
 
     // Dismissing restores the original footer position exactly.
     await tester.tap(
       find.descendant(
         of: find.byKey(onboardingNoticeKey),
-        matching: find.byType(IconButton),
+        matching: find.byType(NightshadeIconButton),
       ),
     );
     await tester.pumpAndSettle();
@@ -350,7 +354,12 @@ void main() {
       of: find.byKey(onboardingNoticeKey),
       matching: find.byType(Text),
     );
-    final texts = band.evaluate().map((e) => (e.widget as Text).data).join(' ');
+    final texts = band
+        .evaluate()
+        .map((e) =>
+            (e.widget as Text).data ??
+            (e.widget as Text).textSpan!.toPlainText())
+        .join(' ');
     expect(texts, contains('Aperture'));
     expect(texts, isNot(contains('Focal length')));
   });
@@ -391,6 +400,9 @@ void main() {
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.byKey(onboardingNoticeKey), findsOneWidget);
+    // The footer disables itself for one input cooldown after a transition;
+    // Back is not on screen until it expires.
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();

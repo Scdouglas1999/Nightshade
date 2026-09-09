@@ -131,7 +131,7 @@ class _SettingsSwitchState extends State<SettingsSwitch> {
 /// Dropdown selector for settings rows.
 ///
 /// Compact trailing control for [SettingRow]. Styling mirrors
-/// [NightshadeDropdown] (surfaceAlt fill, border, chevron) with fixed widths
+/// [NightshadeDropdown] (well fill, ring, chevron) with fixed widths
 /// and optional [itemLabels] for value/label pairs.
 class SettingsDropdown extends StatefulWidget {
   final String value;

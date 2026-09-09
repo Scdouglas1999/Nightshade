@@ -287,7 +287,8 @@ void main() {
     );
 
     // The candidate list header reports the count after filtering.
-    expect(find.textContaining('10 targets after filters'), findsOneWidget);
+    // 06 §Plan restates the count as the list's eyebrow column header.
+    expect(find.textContaining('10 CANDIDATES'), findsOneWidget);
 
     // All ten candidates should be rendered (default page size is 25).
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
@@ -320,7 +321,7 @@ void main() {
     // The candidate list header reports the filtered count (the primary
     // recommendation card above the list is intentionally unaffected — it
     // always shows tonight's globally-best target).
-    expect(find.textContaining('1 target after filters'), findsOneWidget);
+    expect(find.textContaining('1 CANDIDATE'), findsOneWidget);
     // M51 (the only match) appears in the list.
     expect(find.text('M51 Whirlpool'), findsAtLeastNWidgets(1));
     // Other candidate-list names disappear from the rendered tree (the
@@ -389,15 +390,15 @@ void main() {
       onFramingNavigated: (url) => capturedUrl = url,
     );
 
-    // Find the first "Send to Framing" button and tap it. M31 was scrolled
-    // into view by default since the default page size is 25 and the list
-    // length is 10.
-    final sendButton = find.widgetWithText(NightshadeButton, 'Send to Framing');
-    expect(sendButton, findsWidgets);
-    // Tap the first one (NGC 7000, which is the highest-scoring candidate).
-    await tester.ensureVisible(sendButton.first);
+    // 06 §Plan moves framing onto the detail column, which describes the
+    // SELECTED candidate — NGC 7000, the highest-scoring one, by default. One
+    // button instead of one per row, acting on the target the column is
+    // describing.
+    final sendButton = find.widgetWithText(NightshadeButton, 'Frame it');
+    expect(sendButton, findsOneWidget);
+    await tester.ensureVisible(sendButton);
     await tester.pump();
-    await tester.tap(sendButton.first);
+    await tester.tap(sendButton);
     await tester.pumpAndSettle();
 
     expect(capturedUrl, isNotNull);

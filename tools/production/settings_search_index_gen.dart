@@ -330,11 +330,19 @@ List<String> _titles(String source, Map<String, String> english) {
   );
   // Headings a page renders as styled text rather than as a row title. The
   // Catalogs page heads each card with `Text('GLADE+ Galaxy Catalog', style:
-  // NightshadeTypography.h4)`, which no `title:` rule can see — so the visible
-  // name of an installable catalogue was unsearchable.
+  // NightshadeTypography.sectionTitle)`, which no `title:` rule can see — so
+  // the visible name of an installable catalogue was unsearchable.
+  //
+  // The Observatory scale renamed these: h1..h6 became pageTitle /
+  // sectionTitle / bodyStrong / eyebrow / display. Matching only the old names
+  // silently SHRANK this index as each screen migrated — the Catalogs page lost
+  // GLADE+, Download Catalogs and Minor Planets the moment its headings were
+  // renamed, and the search stopped finding text that was still on screen.
   addRowTitle(
     RegExp(
-      r"Text\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*style:\s*NightshadeTypography\.h[1-6]",
+      r"Text\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*(?:\w+:\s*[^,]*,\s*)*"
+      r"style:\s*NightshadeTypography\."
+      r"(?:h[1-6]|pageTitle|sectionTitle|bodyStrong|display|eyebrow)",
     ),
     headingsOnly: true,
   );

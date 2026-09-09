@@ -67,7 +67,7 @@ void main() {
     final container = await _pumpStep(tester, guiding, db);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Host').first,
+      find.byKey(guiderHostFieldKey),
       '192.168.1.50',
     );
     await tester.pumpAndSettle();

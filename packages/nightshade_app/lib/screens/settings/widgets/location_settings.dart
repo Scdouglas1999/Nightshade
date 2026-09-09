@@ -146,15 +146,20 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 // instead of printing `00h 00m 00s`.
                 if (!settings.hasObserverLocation)
                   const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: NightshadeAlert(
-                      severity: NightshadeAlertSeverity.warning,
+                    padding: EdgeInsets.fromLTRB(
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceLg,
+                      0,
+                    ),
+                    child: NightshadeBanner(
+                      tone: BannerTone.warning,
                       title: 'Observing site not set',
                       message:
                           'The 0° / 0° / 0 m below are placeholders, not your '
                           'location. Nightshade will not compute twilight, '
                           'altitude or a plan from them — enter your '
-                          'coordinates, or use Detect Location, to set a site.',
+                          'coordinates, or use Detect location, to set a site.',
                     ),
                   ),
                 SettingRow(
@@ -242,11 +247,12 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 if (isRemoteMode)
                   SettingRow(
                     icon: LucideIcons.refreshCw,
-                    title: 'Sync from Server',
+                    title: 'Sync from server',
                     subtitle: 'Fetch location from the connected imaging host',
-                    trailing: IconButton(
-                      icon: Icon(LucideIcons.downloadCloud,
-                          color: NightshadeColors.of(context).primary),
+                    trailing: NightshadeIconButton(
+                      icon: LucideIcons.downloadCloud,
+                      tooltip: 'Fetch the site from the imaging host',
+                      color: NightshadeColors.of(context).primary,
                       onPressed: () async {
                         try {
                           final actionAuthority = ref.read(backendProvider);
@@ -300,12 +306,13 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   icon: LucideIcons.locate,
                   // Not "GPS": on desktop there is no GPS receiver, and the
                   // service silently falls back to a third-party IP lookup.
-                  title: 'Detect Location',
+                  title: 'Detect location',
                   subtitle: 'Device GPS if this machine has it, otherwise a '
                       'city-level estimate from your IP address',
-                  trailing: IconButton(
-                    icon: Icon(LucideIcons.crosshair,
-                        color: NightshadeColors.of(context).primary),
+                  trailing: NightshadeIconButton(
+                    icon: LucideIcons.crosshair,
+                    tooltip: 'Detect this location',
+                    color: NightshadeColors.of(context).primary,
                     onPressed: () => _detectLocation(settings),
                   ),
                   isLast: true,
@@ -314,12 +321,12 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               ],
             ),
             SettingsSection(
-              title: 'Observing Environment',
+              title: 'Observing environment',
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
                   icon: LucideIcons.sun,
-                  title: 'Bortle Class',
+                  title: 'Bortle class',
                   subtitle: BortleScale.description(settings.bortleClass),
                   trailing: SettingsDropdown(
                     value: settings.bortleClass.toString(),
@@ -340,12 +347,12 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 ),
                 SettingRow(
                   icon: LucideIcons.eye,
-                  title: 'Limiting Magnitude',
+                  title: 'Limiting magnitude',
                   subtitle:
                       'Estimated naked-eye limit for Bortle ${settings.bortleClass}',
                   trailing: Text(
                     '${BortleScale.limitingMagnitude(settings.bortleClass).toStringAsFixed(1)}m',
-                    style: NightshadeTypography.h5.copyWith(
+                    style: NightshadeTypography.bodyStrong.copyWith(
                         color: NightshadeColors.of(context).textPrimary),
                   ),
                   isLast: true,
@@ -354,7 +361,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               ],
             ),
             SettingsSection(
-              title: 'Local Horizon Mask',
+              title: 'Local horizon mask',
               isMobile: widget.isMobile,
               children: [
                 Padding(
@@ -377,9 +384,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                         'eight 45° sectors are the whole mask, so the tallest '
                         'obstruction in a sector applies across all of it. '
                         'Import a .hor / CSV survey to keep full resolution.'}',
-                    style: TextStyle(
+                    style: NightshadeTypography.caption.copyWith(
                       color: NightshadeColors.of(context).textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                 ),
@@ -393,9 +399,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     child: Text(
                       'The local horizon mask can only be edited on the imaging '
                       'host.',
-                      style: TextStyle(
+                      style: NightshadeTypography.caption.copyWith(
                         color: NightshadeColors.of(context).textSecondary,
-                        fontSize: NightshadeTypography.fontSize12,
                       ),
                     ),
                   )
@@ -446,11 +451,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                               _isImportingHorizon
                                   ? 'Importing horizon...'
                                   : 'Import .hor / CSV',
-                              style: TextStyle(
-                                  color: _isImportingHorizon
-                                      ? NightshadeColors.of(context).textMuted
-                                      : NightshadeColors.of(context).primary,
-                                  fontSize: NightshadeTypography.fontSize12)),
+                              style: NightshadeTypography.caption.copyWith(
+                                color: _isImportingHorizon
+                                    ? NightshadeColors.of(context).textMuted
+                                    : NightshadeColors.of(context).primary,
+                              )),
                           onPressed:
                               _isImportingHorizon ? null : _importHorizonFile,
                         ),
@@ -459,9 +464,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                               size: 14,
                               color: NightshadeColors.of(context).primary),
                           label: Text('Reset All to 0\u00B0',
-                              style: TextStyle(
-                                  color: NightshadeColors.of(context).primary,
-                                  fontSize: NightshadeTypography.fontSize12)),
+                              style: NightshadeTypography.caption.copyWith(
+                                color: NightshadeColors.of(context).primary,
+                              )),
                           onPressed: () => _resetHorizon(horizonProfile),
                         ),
                       ],
@@ -728,9 +733,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               Text(
                 'Summarised on this page as the tallest obstruction in each '
                 'of the eight 45° sectors:',
-                style: TextStyle(
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
               const SizedBox(height: 6),
@@ -741,7 +745,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   for (final dir in horizonDirections)
                     Text(
                       '$dir ${imported.altitudeAt(dir).toStringAsFixed(0)}°',
-                      style: TextStyle(color: colors.textPrimary),
+                      style: NightshadeTypography.body.copyWith(
+                        color: colors.textPrimary,
+                      ),
                     ),
                 ],
               ),
@@ -750,9 +756,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 'This replaces the current mask. Editing any of the eight '
                 'values afterwards replaces the imported skyline with those '
                 'eight sector altitudes.',
-                style: TextStyle(
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
             ],

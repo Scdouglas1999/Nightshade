@@ -127,143 +127,98 @@ class CoImagingSessionCard extends StatelessWidget {
       attribution: attribution,
     );
 
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.accent),
-                child: Icon(
-                  LucideIcons.radio,
-                  size: NightshadeTokens.iconSm,
-                  color: colors.accent,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.accent),
+                  child: Icon(
+                    LucideIcons.radio,
+                    size: NightshadeTokens.iconSm,
+                    color: colors.accent,
+                  ),
                 ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      session.targetName.isEmpty
-                          ? 'Live session'
-                          : session.targetName,
-                      style: NightshadeTypography.labelStrong.copyWith(
-                        color: colors.textPrimary,
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        session.targetName.isEmpty
+                            ? 'Live session'
+                            : session.targetName,
+                        style: NightshadeTypography.labelStrong.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatCenter(session.centerRaDeg, session.centerDecDeg),
-                      style: NightshadeTypography.captionSm.copyWith(
-                        color: colors.textMuted,
+                      const SizedBox(height: 2),
+                      Text(
+                        formatCenter(session.centerRaDeg, session.centerDecDeg),
+                        style: NightshadeTypography.captionSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              StatusPill(
-                icon: active ? LucideIcons.radio : LucideIcons.checkCircle2,
-                label: '',
-                value: active ? 'Live' : 'Closed',
-                status: active
-                    ? StatusPillStatus.active
-                    : StatusPillStatus.inactive,
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          ResponsiveStatStrip(
-            minCellWidth: 104,
-            stats: [
-              ResponsiveStat(
-                label: 'COMBINED',
-                value: formatIntegration(combinedSeconds),
-                icon: LucideIcons.layers,
-                accent: colors.accent,
-              ),
-              ResponsiveStat(
-                label: 'FRAMES',
-                value: '$combinedFrames',
-                icon: LucideIcons.image,
-              ),
-              ResponsiveStat(
-                label: 'RIGS',
-                value: '$rigCount',
-                icon: LucideIcons.radioTower,
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Row(
-            children: [
-              Icon(
-                LucideIcons.users,
-                size: NightshadeTokens.iconXs,
-                color: colors.textMuted,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Expanded(
-                child: Text(
-                  contributors,
-                  style: NightshadeTypography.captionSm.copyWith(
-                    color: colors.textSecondary,
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Row(
-            children: [
-              Icon(
-                active ? LucideIcons.zap : LucideIcons.flag,
-                size: NightshadeTokens.iconXs,
-                color: active ? colors.success : colors.textMuted,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Expanded(
-                child: Text(
-                  formatSessionStatus(
-                    active: active,
-                    batonHolderDisplayName: session.batonHolderDisplayName,
-                  ),
-                  style: NightshadeTypography.captionSm.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                StatusPill(
+                  icon: active ? LucideIcons.radio : LucideIcons.checkCircle2,
+                  label: '',
+                  value: active ? 'Live' : 'Closed',
+                  status: active
+                      ? StatusPillStatus.active
+                      : StatusPillStatus.inactive,
                 ),
-              ),
-            ],
-          ),
-          if (liveNote != null) ...[
-            const SizedBox(height: NightshadeTokens.spaceXs),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            ResponsiveStatStrip(
+              minCellWidth: 104,
+              stats: [
+                ResponsiveStat(
+                  label: 'COMBINED',
+                  value: formatIntegration(combinedSeconds),
+                  icon: LucideIcons.layers,
+                  accent: colors.accent,
+                ),
+                ResponsiveStat(
+                  label: 'FRAMES',
+                  value: '$combinedFrames',
+                  icon: LucideIcons.image,
+                ),
+                ResponsiveStat(
+                  label: 'RIGS',
+                  value: '$rigCount',
+                  icon: LucideIcons.radioTower,
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
             Row(
               children: [
                 Icon(
-                  LucideIcons.radio,
+                  LucideIcons.users,
                   size: NightshadeTokens.iconXs,
-                  color: colors.accent,
+                  color: colors.textMuted,
                 ),
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
-                    liveNote,
+                    contributors,
                     style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.accent,
+                      color: colors.textSecondary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -271,26 +226,71 @@ class CoImagingSessionCard extends StatelessWidget {
                 ),
               ],
             ),
-          ],
-          if (active) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            _ActionRow(
-              joined: joined,
-              contributing: contributing,
-              onEnableSharing: onEnableSharing,
-              membershipErrorMessage: membershipErrorMessage,
-              onRetryMembership: onRetryMembership,
-              joining: joining,
-              leaving: leaving,
-              onJoin: onJoin,
-              onLeave: onLeave,
-              onEndSession: onEndSession,
-              endingSession: endingSession,
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Row(
+              children: [
+                Icon(
+                  active ? LucideIcons.zap : LucideIcons.flag,
+                  size: NightshadeTokens.iconXs,
+                  color: active ? colors.success : colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
+                    formatSessionStatus(
+                      active: active,
+                      batonHolderDisplayName: session.batonHolderDisplayName,
+                    ),
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
+            if (liveNote != null) ...[
+              const SizedBox(height: NightshadeTokens.spaceXs),
+              Row(
+                children: [
+                  Icon(
+                    LucideIcons.radio,
+                    size: NightshadeTokens.iconXs,
+                    color: colors.accent,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Expanded(
+                    child: Text(
+                      liveNote,
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.accent,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (active) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              _ActionRow(
+                joined: joined,
+                contributing: contributing,
+                onEnableSharing: onEnableSharing,
+                membershipErrorMessage: membershipErrorMessage,
+                onRetryMembership: onRetryMembership,
+                joining: joining,
+                leaving: leaving,
+                onJoin: onJoin,
+                onLeave: onLeave,
+                onEndSession: onEndSession,
+                endingSession: endingSession,
+              ),
+            ],
           ],
-        ],
-      ),
-    );
+        ));
   }
 }
 
@@ -357,19 +357,17 @@ class _ActionRow extends StatelessWidget {
     if (joined == null) {
       final errorMessage = membershipErrorMessage;
       if (errorMessage != null) {
-        return NightshadeAlert(
-          severity: NightshadeAlertSeverity.warning,
-          title: 'Could not verify membership',
-          message: errorMessage,
-          compact: true,
-          action: NightshadeButton(
-            label: 'Retry',
-            icon: NightshadeIcons.refresh,
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: onRetryMembership,
-          ),
-        );
+        return NightshadeBanner(
+            title: 'Could not verify membership',
+            message: errorMessage,
+            tone: BannerTone.warning,
+            action: NightshadeButton(
+              label: 'Retry',
+              icon: NightshadeIcons.refresh,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: onRetryMembership,
+            ));
       }
       return Row(
         children: [
@@ -422,7 +420,7 @@ class _ActionRow extends StatelessWidget {
             NightshadeButton(
               label: 'Turn on sharing',
               icon: LucideIcons.upload,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: onEnableSharing,
             ),
@@ -432,7 +430,7 @@ class _ActionRow extends StatelessWidget {
             NightshadeButton(
               label: leaving ? 'Leaving…' : 'Leave',
               icon: LucideIcons.logOut,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               isLoading: leaving,
               onPressed: onLeave,

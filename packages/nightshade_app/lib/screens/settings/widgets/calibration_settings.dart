@@ -141,7 +141,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Calibration frame status overview
         SettingsSection(
-          title: 'Calibration Frame Status',
+          title: 'Calibration frame status',
           isMobile: isMobile,
           children: [
             Padding(
@@ -186,7 +186,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Dark frame source
         SettingsSection(
-          title: 'Dark Frame',
+          title: 'Dark frame',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -220,9 +220,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                   children: [
                     if (calSettings.manualDarkPath != null &&
                         calSettings.manualDarkPath!.isNotEmpty)
-                      IconButton(
-                        icon:
-                            Icon(LucideIcons.x, size: 16, color: colors.error),
+                      NightshadeIconButton(
+                        icon: LucideIcons.x,
                         tooltip: 'Clear dark path',
                         onPressed: () => _clearPath(
                           context,
@@ -230,8 +229,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                               .read(calibrationSettingsProvider.notifier)
                               .setManualDarkPath(null),
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        size: IconButtonSize.sm,
+                        color: colors.error,
                       ),
                     const SizedBox(width: 8),
                     CalibrationFileBrowseButton(
@@ -249,7 +248,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Master flat
         SettingsSection(
-          title: 'Master Flat',
+          title: 'Master flat',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -264,8 +263,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                 children: [
                   if (calSettings.masterFlatPath != null &&
                       calSettings.masterFlatPath!.isNotEmpty)
-                    IconButton(
-                      icon: Icon(LucideIcons.x, size: 16, color: colors.error),
+                    NightshadeIconButton(
+                      icon: LucideIcons.x,
                       tooltip: 'Clear flat path',
                       onPressed: () => _clearPath(
                         context,
@@ -273,8 +272,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                             .read(calibrationSettingsProvider.notifier)
                             .setMasterFlatPath(null),
                       ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      size: IconButtonSize.sm,
+                      color: colors.error,
                     ),
                   const SizedBox(width: 8),
                   CalibrationFileBrowseButton(
@@ -297,7 +296,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Master bias
         SettingsSection(
-          title: 'Master Bias',
+          title: 'Master bias',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -312,8 +311,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                 children: [
                   if (calSettings.masterBiasPath != null &&
                       calSettings.masterBiasPath!.isNotEmpty)
-                    IconButton(
-                      icon: Icon(LucideIcons.x, size: 16, color: colors.error),
+                    NightshadeIconButton(
+                      icon: LucideIcons.x,
                       tooltip: 'Clear bias path',
                       onPressed: () => _clearPath(
                         context,
@@ -321,8 +320,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                             .read(calibrationSettingsProvider.notifier)
                             .setMasterBiasPath(null),
                       ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      size: IconButtonSize.sm,
+                      color: colors.error,
                     ),
                   const SizedBox(width: 8),
                   CalibrationFileBrowseButton(
@@ -442,7 +441,7 @@ class _CalibrationFileBrowseButtonState
       onPressed: _busy ? null : _selectFile,
       icon: _busy ? NightshadeIcons.loading : LucideIcons.folderOpen,
       label: _busy ? 'Selecting...' : 'Browse',
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
     );
   }
@@ -512,7 +511,7 @@ class _CalStatusCard extends StatelessWidget {
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius:
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
@@ -545,8 +544,7 @@ class _CalStatusCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               detail,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
               ),
               textAlign: TextAlign.center,
@@ -581,8 +579,7 @@ class _FileValidationRow extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Path is validated on the imaging host when calibrating',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -614,8 +611,7 @@ class _FileValidationRow extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 exists ? 'File found on disk' : 'File not found on disk',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: exists ? colors.success : colors.error,
                 ),
               ),

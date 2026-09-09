@@ -69,7 +69,7 @@ class _AdaptiveConditionsSettingsState
         );
 
         return SettingsPage(
-          title: 'Adaptive Conditions',
+          title: 'Adaptive conditions',
           description:
               'Defaults for sky-conditions target swapping in new scheduler nodes',
           isMobile: widget.isMobile,
@@ -218,8 +218,7 @@ class _AdaptiveConditionsSettingsState
               Text(
                 _weightError!,
                 key: const Key('adaptiveSwapWeightError'),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: NightshadeColors.of(context).error,
                 ),
               ),
@@ -335,11 +334,7 @@ class _WeightTotalCallout extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: NightshadeDecorations.iconChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        borderAlpha: 0.24,
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -359,8 +354,7 @@ class _WeightTotalCallout extends StatelessWidget {
                   : nearOne
                       ? 'Weights sum to ${total.toStringAsFixed(2)}. The composer will preserve the configured balance.'
                       : 'Weights sum to ${total.toStringAsFixed(2)}. The composer renormalizes available axes at runtime, but keeping the total near 1.00 makes the score easier to reason about.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
               ),
             ),

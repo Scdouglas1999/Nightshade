@@ -122,7 +122,7 @@ class GuidingActiveChip extends ConsumerWidget {
 
     final widgets = <Widget>[
       const SizedBox(width: NightshadeTokens.spaceSm),
-      Text('RMS ${stats.rmsTotal.toStringAsFixed(2)}″', style: monoStyle),
+      Text('RMS ${stats.rmsTotal.toStringAsFixed(2)}"', style: monoStyle),
     ];
 
     // SNR is optional context; PHD2 reports 0.0 as its "no sample yet"

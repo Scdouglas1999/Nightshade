@@ -165,8 +165,7 @@ class _VerdictHeader extends StatelessWidget {
     final score = report.score.clamp(0, 100);
     final scoreColor = graded ? _scoreColor(score, colors) : colors.textMuted;
 
-    return NightshadeCard(
-      variant: CardVariant.elevated,
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceXl),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -203,7 +202,7 @@ class _VerdictHeader extends StatelessWidget {
                           ? 'Your night, summarised.'
                           : 'Not graded — this night had nothing to analyse.')
                       : report.headline,
-                  style: NightshadeTypography.h3.copyWith(
+                  style: NightshadeTypography.sectionTitle.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
@@ -376,18 +375,23 @@ class _GradeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
+      height: NightshadeChip.height,
+      alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceXs,
+        horizontal: NightshadeChip.horizontalPadding,
       ),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      // The chip decoration, not a pill: 02 allows four radii (4 / 6 / 8 / 12)
+      // and `radiusFull` is not one of them. The tone supplies the fill at
+      // `opacityStatusFill` and the ink.
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
-        style: NightshadeTypography.labelStrongSm.copyWith(color: color),
+        style: NightshadeTypography.caption.copyWith(
+          color: color,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -404,7 +408,7 @@ class _FindingCard extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final style = _SeverityStyle.of(finding.severity, colors);
 
-    return NightshadeCard(
+    return NightshadePanel(
       padding: EdgeInsets.zero,
       child: IntrinsicHeight(
         child: Row(
@@ -427,7 +431,7 @@ class _FindingCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             finding.title.isEmpty ? style.label : finding.title,
-                            style: NightshadeTypography.h6.copyWith(
+                            style: NightshadeTypography.sectionTitle.copyWith(
                               color: colors.textPrimary,
                             ),
                           ),
@@ -482,18 +486,23 @@ class _SeverityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
+      height: NightshadeChip.height,
+      alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceSm,
-        vertical: NightshadeTokens.spaceXs,
+        horizontal: NightshadeChip.horizontalPadding,
       ),
-      decoration: NightshadeDecorations.tintedBadge(
-        style.color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      // The chip decoration, not a pill: 02 allows four radii (4 / 6 / 8 / 12)
+      // and `radiusFull` is not one of them. The tone supplies the fill at
+      // `opacityStatusFill` and the ink.
+      decoration: NightshadeDecorations.chip(colors, tone: style.color),
       child: Text(
         style.label,
-        style: NightshadeTypography.labelStrongSm.copyWith(color: style.color),
+        style: NightshadeTypography.caption.copyWith(
+          color: style.color,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -512,7 +521,7 @@ class _AdviceRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
@@ -738,8 +747,7 @@ class _NoFindings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
+    return NightshadePanel(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Row(
         children: [
@@ -767,8 +775,7 @@ class _AnalysisPending extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const NightshadeCard(
-      variant: CardVariant.subtle,
+    return const NightshadePanel(
       padding: EdgeInsets.all(NightshadeTokens.spaceLg),
       child: EmptyState.compact(
         icon: NightshadeIcons.brain,

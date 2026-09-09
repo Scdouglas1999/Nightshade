@@ -53,7 +53,7 @@ class AnnotationMiniChips extends ConsumerWidget {
                 ref.read(selectedAnnotationObjectProvider.notifier).state = obj;
                 // Switch to the annotations tab when a chip is tapped
                 ref.read(selectedImagingPanelProvider.notifier).state =
-                    PanelTabs.annotationsTabIndex;
+                    ImagingSidePanel.annotationsSectionIndex;
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -69,12 +69,10 @@ class AnnotationMiniChips extends ConsumerWidget {
                 ),
                 child: Text(
                   obj.commonName ?? obj.name,
-                  style: const TextStyle(
-                    // absolute: chip label over the live image canvas
-                    color: Colors.white,
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      fontWeight: FontWeight
+                          .w500, // absolute: chip label over the live image canvas
+                      color: Colors.white),
                 ),
               ),
             );

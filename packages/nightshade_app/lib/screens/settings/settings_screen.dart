@@ -84,10 +84,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// On mobile, false means show the grouped list; true shows the detail pane.
   bool _mobileShowingDetail = false;
 
-  /// Which group titles are currently expanded in the sidebar. Remembered for
-  /// the session. The group holding the initial/active section starts expanded.
-  final Set<String> _expandedGroups = {};
-
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
 
@@ -109,8 +105,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } else {
       _selectedKey = kFirstSectionKey;
     }
-    // Start with the group containing the active section expanded.
-    _expandedGroups.add(groupTitleForKey(_selectedKey));
     ShellBackDispatcher.register(_handleSystemBack);
     SettingsSectionRequest.serial.addListener(_onSectionRequested);
   }
@@ -133,7 +127,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // destination — not the grouped list the operator would otherwise land
       // back on.
       _mobileShowingDetail = true;
-      _expandedGroups.add(groupTitleForKey(resolvedKey));
     });
   }
 
@@ -202,12 +195,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // selected for the rest of the session.
     _highlightTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _highlightRow = null);
-    });
-  }
-
-  void _toggleGroup(String title) {
-    setState(() {
-      if (!_expandedGroups.remove(title)) _expandedGroups.add(title);
     });
   }
 
@@ -310,9 +297,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         searchController: _searchController,
         query: _query,
         results: _searchResults(groups),
-        expandedGroups: _expandedGroups,
         onQueryChanged: (value) => setState(() => _query = value),
-        onToggleGroup: _toggleGroup,
         onSectionTap: (key, rowTitle) =>
             _selectSection(key, isMobile: true, rowTitle: rowTitle),
         colors: colors,
@@ -323,34 +308,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final section = _selectedSection(groups);
     return Column(
       children: [
+        // The detail pane is one step deeper than the list, so its header
+        // leads with the way back rather than the screen's own name.
         Container(
+          height: ShellChromeMetrics.pageHeaderHeightNarrow,
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceMd,
+          ),
           decoration: BoxDecoration(
-            color: colors.surface,
+            color: colors.background,
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
           child: SafeArea(
             bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon:
-                        Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
-                    onPressed: () =>
-                        setState(() => _mobileShowingDetail = false),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
+            child: Row(
+              children: [
+                NightshadeIconButton(
+                  icon: LucideIcons.arrowLeft,
+                  tooltip: 'Back to all settings',
+                  onPressed: () => setState(() => _mobileShowingDetail = false),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
                     section.label,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize18,
-                      fontWeight: FontWeight.w600,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NightshadeTypography.pageTitle.copyWith(
                       color: colors.textPrimary,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -378,75 +367,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final results = _searchResults(groups);
     final searching = _query.trim().isNotEmpty;
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ResizablePanel(
-          initialWidth: 260,
-          minWidth: 200,
-          maxWidth: 420,
-          side: ResizeSide.right,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(right: BorderSide(color: colors.border)),
+        PageHeader(
+          icon: LucideIcons.settings,
+          title: context.l10n.text('settingsTitle'),
+          actions: [
+            NightshadeButton(
+              label: context.l10n.text('settingsBackup'),
+              icon: LucideIcons.download,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => _selectSection('backup', isMobile: false),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                  child: Text(
-                    context.l10n.text('settingsTitle'),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize20,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: _SearchField(
-                    controller: _searchController,
-                    colors: colors,
-                    onChanged: (value) => setState(() => _query = value),
-                    onClear: () => setState(() {
-                      _searchController.clear();
-                      _query = '';
-                    }),
-                  ),
-                ),
-                Expanded(
-                  child: searching
-                      ? _DesktopSearchResults(
-                          results: results,
-                          selectedKey: _selectedKey,
-                          colors: colors,
-                          onTap: (key, rowTitle) => _selectSection(
-                            key,
-                            isMobile: false,
-                            rowTitle: rowTitle,
-                          ),
-                        )
-                      : _DesktopGroupedList(
-                          groups: groups,
-                          selectedKey: _selectedKey,
-                          expandedGroups: _expandedGroups,
-                          colors: colors,
-                          onToggleGroup: _toggleGroup,
-                          onSelect: (key) =>
-                              _selectSection(key, isMobile: false),
-                        ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
         Expanded(
-          child: SettingsRowHighlight(
-            rowTitle: _highlightRow,
-            child: _selectedSection(groups).build(false),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DesktopNav(
+                groups: groups,
+                selectedKey: _selectedKey,
+                colors: colors,
+                searchController: _searchController,
+                searching: searching,
+                results: results,
+                onQueryChanged: (value) => setState(() => _query = value),
+                onClearQuery: () => setState(() {
+                  _searchController.clear();
+                  _query = '';
+                }),
+                onSelect: (key, rowTitle) => _selectSection(
+                  key,
+                  isMobile: false,
+                  rowTitle: rowTitle,
+                ),
+              ),
+              Expanded(
+                child: SettingsRowHighlight(
+                  rowTitle: _highlightRow,
+                  child: _selectedSection(groups).build(false),
+                ),
+              ),
+            ],
           ),
         ),
       ],

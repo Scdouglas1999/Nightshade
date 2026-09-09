@@ -44,7 +44,19 @@ class SubQualityBadge extends ConsumerWidget {
   /// Per-frame eccentricity from the science row, or `null` when unavailable.
   final double? eccentricity;
 
-  const SubQualityBadge({super.key, this.eccentricity});
+  /// Whether to draw the HFR / ECC / star chips.
+  ///
+  /// False on the imaging canvas, where the glass readout in the top-left
+  /// corner already carries those three numbers and a second copy under the
+  /// capture bar is the same measurement said twice. The verdict chip — the
+  /// part no other surface shows — is drawn either way.
+  final bool showMetrics;
+
+  const SubQualityBadge({
+    super.key,
+    this.eccentricity,
+    this.showMetrics = true,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -86,6 +98,7 @@ class SubQualityBadge extends ConsumerWidget {
     final liveRms = guidingRmsTotal > 0 ? guidingRmsTotal : null;
 
     final hasRules = rules != null && rules.hasActiveRules;
+    if (!showMetrics && !hasRules) return const SizedBox.shrink();
     final rejectReason = hasRules
         ? rules.gradeStats(
             stats,
@@ -113,14 +126,16 @@ class SubQualityBadge extends ConsumerWidget {
           runSpacing: NightshadeTokens.spaceXs,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _MetricChip(label: 'HFR', value: hfrText, colors: colors),
-            _MetricChip(label: 'ECC', value: eccText, colors: colors),
-            _MetricChip(
-              label: null,
-              value: starText,
-              trailingGlyph: '★',
-              colors: colors,
-            ),
+            if (showMetrics) ...[
+              _MetricChip(label: 'HFR', value: hfrText, colors: colors),
+              _MetricChip(label: 'ECC', value: eccText, colors: colors),
+              _MetricChip(
+                label: null,
+                value: starText,
+                trailingGlyph: '★',
+                colors: colors,
+              ),
+            ],
             if (hasRules) _VerdictChip(reason: rejectReason, colors: colors),
           ],
         ),

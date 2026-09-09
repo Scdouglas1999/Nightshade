@@ -3,8 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
-/// Default accent color hex — matches `NightshadeColors.dark.primary` (#5B9EC4).
-const kDefaultAccentColorHex = '#5B9EC4';
+/// Default accent color hex — matches `NightshadeColors.dark.primary` (#6EB3EC).
+const kDefaultAccentColorHex = '#6EB3EC';
 
 /// Defines how the safety system behaves when weather/safety devices fail or are unavailable
 enum SafetyFailMode {

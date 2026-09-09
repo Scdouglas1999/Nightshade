@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'device_action_finder.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../harness/harness.dart';
 
@@ -17,11 +17,6 @@ class _CoverNotifier extends CoverCalibratorStateNotifier {
     );
   }
 }
-
-NightshadeButton button(WidgetTester tester, String label) =>
-    tester.widget<NightshadeButton>(
-      find.widgetWithText(NightshadeButton, label),
-    );
 
 Future<HarnessHandle> pumpCover(
   WidgetTester tester, {
@@ -54,9 +49,9 @@ void main() {
       ),
     );
 
-    expect(button(tester, 'Open Cover').onPressed, isNotNull);
-    expect(find.text('Light On'), findsNothing);
-    expect(find.byTooltip('Settings'), findsNothing);
+    await expectDeviceAction(tester, 'Open cover', enabled: true);
+    expect(find.text('Light on'), findsNothing);
+    expect(nightshadeIconButton('Settings'), findsNothing);
   });
 
   testWidgets('unknown cover state is visible but cannot guess a direction',
@@ -71,7 +66,7 @@ void main() {
       ),
     );
 
-    expect(button(tester, 'Cover Unavailable').onPressed, isNull);
+    await expectDeviceAction(tester, 'Cover unavailable', enabled: false);
   });
 
   testWidgets('first light-on uses a safe midpoint and is single-flight',
@@ -93,9 +88,9 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Light On'));
+    await tester.tap(find.text('Light on'));
     await tester.pump();
-    await tester.tap(find.text('Light On'));
+    await tester.tap(find.text('Light on'));
     await tester.pump();
 
     verify(() => backend.calibratorOn('cover-1', 50)).called(1);

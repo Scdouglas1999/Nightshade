@@ -1,13 +1,6 @@
 // Undo for a deleted equipment profile.
 part of '../equipment_screen.dart';
 
-/// Bumped on every profile mutation so a delete's Undo cannot race a later
-/// edit: an Undo whose epoch no longer matches is refused with a reason.
-///
-/// Lives in the provider container, not in [_EquipmentScreenState], because the
-/// Undo offer outlives the screen (see [restoreDeletedProfile]).
-final profileMutationEpochProvider = StateProvider<int>((ref) => 0);
-
 /// Restore a profile the user just deleted, from the snackbar's Undo action.
 ///
 /// Deliberately a free function over a [ProviderContainer] and a captured
