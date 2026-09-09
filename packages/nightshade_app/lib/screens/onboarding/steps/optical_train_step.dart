@@ -441,7 +441,7 @@ class _OnboardingOpticalTrainStepState
                         imageScale?.toStringAsFixed(2),
                         [focalOk, reducerOk, pixelOk],
                       ),
-                      unit: '\u2033/px',
+                      unit: '"/px',
                       label: 'Image scale',
                     ),
                   ],

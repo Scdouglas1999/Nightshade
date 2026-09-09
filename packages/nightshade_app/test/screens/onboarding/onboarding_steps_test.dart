@@ -198,7 +198,7 @@ void main() {
       expect(find.text('—'), findsNWidgets(3));
 
       // Enter realistic values: 1000mm, 80mm, 3.76µm, 1.0x reducer
-      // -> image scale ≈ 0.78 ″/px, f/12.5
+      // -> image scale ≈ 0.78 "/px, f/12.5
       await tester.enterText(
           find.widgetWithText(TextField, '').first.evaluate().isEmpty
               ? find.byType(TextField).at(0)
@@ -217,7 +217,7 @@ void main() {
       expect(draft.imageScaleArcsecPerPixel, isNotNull);
 
       // The summary row should now show the computed image scale.
-      expect(find.textContaining('″/px'), findsOneWidget);
+      expect(find.textContaining('"/px'), findsOneWidget);
       expect(find.textContaining('f/12.5'), findsOneWidget);
     });
   });
@@ -650,7 +650,7 @@ void main() {
       // Renders the device names and the computed image scale.
       expect(find.text('ASI294MC Pro'), findsOneWidget);
       expect(find.text('EQ6-R'), findsOneWidget);
-      expect(find.textContaining('″/px'), findsOneWidget);
+      expect(find.textContaining('"/px'), findsOneWidget);
 
       // Profile name field is pre-filled. The TextField renders both
       // its current value ("My First Rig" from the controller) AND the

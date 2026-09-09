@@ -125,7 +125,7 @@ class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
               (
                 'Image scale',
                 imageScale != null
-                    ? '${imageScale.toStringAsFixed(2)} \u2033/px'
+                    ? '${imageScale.toStringAsFixed(2)} "/px'
                     : null,
               ),
             ],
