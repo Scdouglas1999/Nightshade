@@ -770,10 +770,11 @@ pub(crate) async fn execute_autofocus_once(
             let measurement = measurements.swap_remove(measurements.len() / 2);
 
             tracing::info!(
-                "Position {} HFR: {:.2}, Stars: {}",
+                "Position {} HFR: {:.2}, Stars: {} detected, {} beyond the HFR window",
                 position,
                 measurement.hfr,
-                measurement.star_count
+                measurement.star_count,
+                measurement.unmeasurable_star_count
             );
 
             if measurement.star_count < min_star_count {
@@ -1126,8 +1127,19 @@ pub(crate) async fn wait_for_autofocus_settle(
 
 /// Enhanced HFR measurement with star crops for UI display
 pub(crate) struct HfrMeasurementWithCrops {
-    hfr: f64,
-    star_count: u32,
+    pub(crate) hfr: f64,
+    /// Stars detected inside the configured crop, counted BEFORE the
+    /// brightest-N cap is applied. Reporting the post-cap length instead
+    /// makes every sweep point report the cap itself, which silently
+    /// disarms `min_star_count` (both default to 10, so `10 < 10` is never
+    /// true) and leaves the operator reading a constant where the sweep's
+    /// most diagnostic number should be.
+    pub(crate) star_count: u32,
+    /// Of the stars actually considered for the median, how many had an HFR
+    /// outside the validity window. These are dropped from the median, so a
+    /// heavily defocused point can report the HFR of the few tight stars
+    /// that survived rather than the defocus it really has.
+    pub(crate) unmeasurable_star_count: u32,
     /// Base64-encoded star crops (80x80 grayscale), up to 5 brightest stars
     star_crops: Vec<StarCropInfo>,
 }
@@ -1187,16 +1199,18 @@ pub(crate) fn calculate_hfr_with_crops(
             inside_outer && !inside_inner
         })
         .collect();
+    let star_count = eligible_stars.len() as u32;
     if use_brightest_n_stars > 0 {
         eligible_stars.truncate(use_brightest_n_stars as usize);
     }
 
-    let star_count = eligible_stars.len() as u32;
+    let considered = eligible_stars.len();
     let mut hfr_values: Vec<f64> = eligible_stars
         .iter()
         .map(|star| star.hfr)
         .filter(|hfr| hfr.is_finite() && *hfr > 0.0 && *hfr < 20.0)
         .collect();
+    let unmeasurable_star_count = considered.saturating_sub(hfr_values.len()) as u32;
     hfr_values.sort_by(f64::total_cmp);
 
     // 20.0 px is the "no valid focus" sentinel: an HFR this high is far
@@ -1227,6 +1241,7 @@ pub(crate) fn calculate_hfr_with_crops(
     HfrMeasurementWithCrops {
         hfr,
         star_count,
+        unmeasurable_star_count,
         star_crops,
     }
 }
