@@ -206,7 +206,8 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
     );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      // The SidePanel already pads its content by 16 (05 §15).
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

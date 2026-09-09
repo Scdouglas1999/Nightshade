@@ -137,7 +137,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
         ref.watch(appSettingsProvider).valueOrNull?.afCurveFitting;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      // The SidePanel already pads its content by 16 (05 §15).
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

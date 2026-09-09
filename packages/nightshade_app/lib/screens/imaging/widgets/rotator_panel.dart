@@ -211,7 +211,8 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     final maxAngle = hasValidRange ? rawMax : 360.0;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      // The SidePanel already pads its content by 16 (05 §15).
+      padding: EdgeInsets.zero,
       children: [
         // Current angle display
         _buildAngleDisplay(colors),

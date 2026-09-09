@@ -128,6 +128,24 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
     }
   }
 
+  /// Opens the catalog settings for the section's one setup banner, then
+  /// re-reads the install state so the banner clears itself.
+  void _openCatalogSettings() {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) => Dialog(
+        child: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 800,
+            designMaxHeight: 700,
+          ),
+          child: const CatalogSettingsScreen(),
+        ),
+      ),
+    ).then((_) => ref.invalidate(annotationCatalogInstalledProvider));
+  }
+
   void _onObjectSelected(CelestialObjectAnnotation object) {
     ref.read(selectedAnnotationObjectProvider.notifier).state = object;
   }
@@ -885,10 +903,23 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
 
         Divider(height: 1, color: widget.colors.border),
 
-        // Annotation status indicator
+        // The section's status block: the ONE catalog banner, the live
+        // annotation status and the re-annotate suggestion. All three used to
+        // float over the frame; they belong beside the list they describe.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: AnnotationStatusIndicator(colors: widget.colors),
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceSm,
+            vertical: NightshadeTokens.spaceXs,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              AnnotationCatalogBanner(onSetup: () => _openCatalogSettings()),
+              AnnotationStatusIndicator(colors: widget.colors),
+              ReAnnotateSuggestionBanner(colors: widget.colors),
+            ],
+          ),
         ),
 
         // Objects list

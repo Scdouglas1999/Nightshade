@@ -808,3 +808,130 @@ class _SmallButtonState extends State<SmallButton> {
     );
   }
 }
+
+/// A single-line numeric field for a [FormRow] in the imaging side panel.
+///
+/// It carries no drawn label — the [FormRow] to its left is the label — so the
+/// name reaches assistive tech through [semanticLabel] instead. Edits commit on
+/// submit and on blur, the same contract the rows it replaces had.
+class InlineNumberField extends StatefulWidget {
+  const InlineNumberField({
+    super.key,
+    required this.value,
+    required this.semanticLabel,
+    required this.onChanged,
+    this.suffix,
+  });
+
+  /// The value as it should read when not being edited.
+  final String value;
+
+  /// The field's accessible name, e.g. "Gain".
+  final String semanticLabel;
+
+  /// Trailing unit, 12 px muted.
+  final String? suffix;
+
+  /// Called with the committed text.
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<InlineNumberField> createState() => _InlineNumberFieldState();
+}
+
+class _InlineNumberFieldState extends State<InlineNumberField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus) _commit();
+    });
+  }
+
+  @override
+  void didUpdateWidget(InlineNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  void _commit() {
+    if (_controller.text == widget.value) return;
+    widget.onChanged(_controller.text);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: widget.semanticLabel,
+      child: NightshadeTextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        suffix: widget.suffix,
+        mono: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onSubmitted: (_) => _commit(),
+      ),
+    );
+  }
+}
+
+/// A field-shaped box stating a value the operator cannot type into — the
+/// capture format, the save folder, the file-name pattern.
+///
+/// It wears the same `field` decoration and 32 px height as an editable field,
+/// so a form row does not change shape depending on whether its value happens
+/// to be editable.
+class ReadOnlyField extends StatelessWidget {
+  const ReadOnlyField({
+    super.key,
+    required this.value,
+    this.mono = false,
+    this.muted = false,
+  });
+
+  /// What the field states.
+  final String value;
+
+  /// Values that are data (paths, patterns) are mono; prose is not.
+  final bool mono;
+
+  /// A prompt standing in for a value that has not been set yet.
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final base =
+        mono ? NightshadeTypography.inputMono : NightshadeTypography.bodySm;
+    return Container(
+      height: fieldHeight,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd - 2,
+      ),
+      alignment: Alignment.centerLeft,
+      decoration: NightshadeDecorations.field(colors),
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: base.copyWith(
+          color: muted ? colors.textMuted : colors.textPrimary,
+        ),
+      ),
+    );
+  }
+}

@@ -742,43 +742,11 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       child: AnnotationMiniChips(colors: colors),
                     ),
 
-                  // Annotation status indicator (top left, below the overlay bar + chips)
-                  if (currentImage != null)
-                    Positioned(
-                      top: 72,
-                      left: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Bounded like its sibling banner below: this
-                          // Positioned has no `right`, so without a max width
-                          // the status card is laid out unconstrained and a
-                          // long hint ("install ASTAP or set its path in
-                          // Settings to label objects") runs off the viewport
-                          // and is clipped mid-word by the Stack.
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                                maxAbsolute: 380,
-                              ),
-                            ),
-                            child: AnnotationStatusIndicator(colors: colors),
-                          ),
-                          const SizedBox(height: 6),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                                maxAbsolute: 380,
-                              ),
-                            ),
-                            child: ReAnnotateSuggestionBanner(colors: colors),
-                          ),
-                        ],
-                      ),
-                    ),
+                  // The annotation status card and the re-annotate
+                  // suggestion used to float over the top-left of the frame.
+                  // They live in the Annotations section of the side panel
+                  // now: a setup problem gets ONE banner in ONE place (02
+                  // rule 5), and the canvas belongs to the photons.
 
                   // Custom annotation drawing palette — docked bottom-centre
                   // just above the bottom histogram/stats strip, and shown
