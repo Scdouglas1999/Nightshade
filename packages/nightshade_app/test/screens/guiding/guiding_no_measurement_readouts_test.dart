@@ -96,8 +96,11 @@ void main() {
       findsNothing,
       reason: 'a fabricated 0.00 RMS reads as flawless guiding',
     );
-    // Header (3) + graph stats row (3) all show the em dash.
-    expect(find.text('—'), findsAtLeastNWidgets(6));
+    // The graph's own stats row (RA / Dec / Tot) plus the SNR and Star mass
+    // readouts. The duplicate RMS chips that used to sit in the screen's own
+    // status bar are gone (06 §Guiding: one status surface), so five, not
+    // eight.
+    expect(find.text('—'), findsAtLeastNWidgets(5));
   });
 
   testWidgets('star statistics show dashes rather than a red 0.0 SNR',
@@ -117,11 +120,11 @@ void main() {
       findsNothing,
       reason: 'an unmeasured SNR was painted error-red as 0.0',
     );
-    expect(find.text('Star Mass'), findsOneWidget);
-    // SNR + Star Mass join the six RMS readouts in showing the em dash.
-    expect(find.text('—'), findsAtLeastNWidgets(8));
+    expect(find.text('STAR MASS'), findsOneWidget);
+    // SNR + Star mass join the graph's three RMS readouts.
+    expect(find.text('—'), findsAtLeastNWidgets(5));
     // Frame count of zero is a real count, so it still renders as a number.
-    expect(find.text('Frame Count'), findsOneWidget);
+    expect(find.text('FRAMES'), findsOneWidget);
     expect(find.text('0'), findsOneWidget);
   });
 

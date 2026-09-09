@@ -115,8 +115,10 @@ void main() {
         reason: 'The Star/Controls/Settings tabs must stay reachable at $name.',
       );
 
-      // Not merely "did not throw": both regions keep a usable share. The
-      // graph sits above the tabs and neither is squeezed to nothing.
+      // Not merely "did not throw": both regions keep a usable share. Since
+      // the Observatory overhaul the tab strip lives in the PageHeader (04
+      // §4), so it sits ABOVE the graph rather than below it; what is pinned
+      // here is that neither is squeezed to nothing and they do not overlap.
       final graphBox = tester.getRect(find.byKey(GuidingTutorialKeys.graph));
       final tabsBox = tester.getRect(find.byType(AdaptiveTabBar));
       expect(
@@ -126,10 +128,10 @@ void main() {
             '$name (got ${graphBox.height}).',
       );
       expect(
-        tabsBox.top,
-        greaterThanOrEqualTo(graphBox.bottom),
-        reason: 'The tab strip must sit below the graph, not overlap it, at '
-            '$name.',
+        graphBox.top,
+        greaterThanOrEqualTo(tabsBox.bottom),
+        reason: 'The graph must sit below the header tab strip, not overlap '
+            'it, at $name.',
       );
     });
   }

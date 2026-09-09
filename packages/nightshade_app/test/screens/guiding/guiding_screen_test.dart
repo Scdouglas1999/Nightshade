@@ -146,7 +146,7 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.text('PHD2 Disconnected'), findsOneWidget,
+    expect(find.text('PHD2 disconnected'), findsOneWidget,
         reason:
             'Default guiderState is disconnected; the desktop status bar must '
             'advertise that to the user. A connected/disconnected mismatch '
@@ -212,11 +212,11 @@ void main() {
     ).thenAnswer((_) async {});
     await _drainAsyncFrames(tester);
 
-    expect(find.text('Built-in Guider Connected'), findsOneWidget);
-    expect(find.text('PHD2 Connected'), findsNothing);
+    expect(find.text('Built-in guider connected'), findsOneWidget);
+    expect(find.text('PHD2 connected'), findsNothing);
     expect(find.text('Calibration'), findsNothing);
-    expect(find.text('Brain Settings'), findsNothing);
-    expect(find.text('Guider Settings'), findsOneWidget);
+    expect(find.text('Brain settings'), findsNothing);
+    expect(find.text('Guider settings'), findsOneWidget);
 
     final pause = find.descendant(
       of: find.byType(GuideControlsPanel),
