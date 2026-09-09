@@ -27,7 +27,7 @@ enum _EmptyQueueCause {
   unknown,
 }
 
-class _NoTargetsEmptyState extends ConsumerStatefulWidget {
+class _NoTargetsEmptyState extends ConsumerWidget {
   /// True when the scheduler has not yet produced any decision (Start
   /// has not been pressed); false when a decision exists but the scored
   /// list is empty (no candidates in the database).
@@ -36,17 +36,7 @@ class _NoTargetsEmptyState extends ConsumerStatefulWidget {
   const _NoTargetsEmptyState({required this.awaitingFirstEval});
 
   @override
-  ConsumerState<_NoTargetsEmptyState> createState() =>
-      _NoTargetsEmptyStateState();
-}
-
-class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
-  bool _learnMoreExpanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
+  Widget build(BuildContext context, WidgetRef ref) {
     // The same three inputs the candidate loader reads, so the diagnosis names
     // the condition that actually produced the empty queue instead of guessing.
     final activeProjectId = ref.watch(activeProjectIdProvider);
@@ -62,150 +52,63 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
     );
     final projectName = activeProject?.project.name ?? 'the active project';
 
+    // One sentence per cause (05 §12) — the long explanation the old card
+    // carried behind a "Learn more" expander is exactly the screen-explaining
+    // prose 07 "What NOT to do" forbids; the help popover owns that now.
     final String headline;
     final String body;
     switch (cause) {
       case _EmptyQueueCause.awaitingFirstEval:
         headline = 'No decision yet';
-        body = 'The scheduler has not evaluated any targets yet. Press Start '
-            'in the Unattended Autopilot panel, or tap Re-evaluate to '
-            'compute an '
-            'initial decision against the current target catalog.';
+        body = 'Press Start in the autopilot panel, or re-evaluate, to score '
+            'your targets.';
       case _EmptyQueueCause.activeProjectEmpty:
         headline = 'Project "$projectName" has no targets';
-        body = 'The scheduler only considers targets that belong to the '
-            'active project, and $projectName is empty. Add targets to it, '
-            'or clear the active project to schedule from the whole catalog.';
+        body = 'The scheduler only considers targets in the active project, '
+            'and this one is empty.';
       case _EmptyQueueCause.catalogEmpty:
         headline = 'No targets in your catalog';
-        body = 'Add a target to your catalog, then set how many frames you '
-            'want in each filter.';
+        body = 'Add a target, then set how many frames you want in each '
+            'filter.';
       case _EmptyQueueCause.noIntegrationGoals:
         headline = 'No integration goals set';
-        body = activeProjectId == null
-            ? 'Your catalog has targets, but none of them says how much data '
-                'it still needs. Open a target and set how many frames you '
-                'want in each filter.'
-            : 'The targets in $projectName have no integration goals. Open a '
-                'target and set how many frames you want in each filter.';
+        body = 'Your targets do not say how much data they still need. Open '
+            'one and set its frame counts.';
       case _EmptyQueueCause.unknown:
         headline = 'No targets to schedule';
-        body = 'The last evaluation produced no candidate targets. '
-            'Re-evaluate, or open the target catalog to check that the '
+        body = 'The last evaluation produced no candidates. Check that the '
             'targets in scope still need data.';
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(LucideIcons.target,
-                  size: NightshadeTokens.iconMd, color: colors.textMuted),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      headline,
-                      style: NightshadeTypography.bodyStrong
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      body,
-                      style: NightshadeTypography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              NightshadeButton(
-                label: cause == _EmptyQueueCause.activeProjectEmpty
-                    ? 'Open project'
-                    : 'Open target catalog',
-                icon: LucideIcons.listOrdered,
-                size: ButtonSize.small,
-                // The add-target / integration-goals surface is the Projects
-                // tab, not the default (Recommendation) landing page that a
-                // bare `/planner` resolves to.
-                onPressed: () => context.go('/planner?tab=projects'),
-              ),
-              // Only offered for the one cause it actually resolves: dropping
-              // the project scope makes the whole catalog eligible again.
-              if (cause == _EmptyQueueCause.activeProjectEmpty)
-                NightshadeButton(
-                  key: const ValueKey('scheduler-clear-active-project'),
-                  label: 'Schedule whole catalog',
-                  icon: LucideIcons.globe,
-                  size: ButtonSize.small,
-                  variant: ButtonVariant.secondary,
-                  onPressed: () => unawaited(
-                    ref
-                        .read(activeProjectIdProvider.notifier)
-                        .setActiveProject(null),
-                  ),
-                ),
-              NightshadeButton(
-                label: _learnMoreExpanded ? 'Hide details' : 'Learn more',
-                icon: _learnMoreExpanded
-                    ? LucideIcons.chevronUp
-                    : LucideIcons.chevronDown,
-                size: ButtonSize.small,
-                variant: ButtonVariant.ghost,
-                onPressed: () =>
-                    setState(() => _learnMoreExpanded = !_learnMoreExpanded),
-              ),
-            ],
-          ),
-          if (_learnMoreExpanded) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            SizedBox(
-              width: double.infinity,
-              child: NightshadePanel(
-                  padding: NightshadeTokens.paddingMd,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'How the scheduler picks targets',
-                        style: NightshadeTypography.caption.copyWith(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Every 60 seconds the engine scores every target in '
-                        'scope — the active project\'s members when a project '
-                        'is active, otherwise your whole catalog. The score is '
-                        'a weighted blend of how high the target sits above the '
-                        'horizon, how far it is from the meridian, its angular '
-                        'separation from the moon (weighted by moon '
-                        'illumination), and how much time tonight still works '
-                        'for it. Targets that still need integration in some '
-                        'filter score higher than fully-imaged ones. Switching '
-                        'between targets is gated by a hysteresis ratio so the '
-                        'scheduler does not flip-flop between two close scores.',
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  )),
+    // ONE button (05 §12): for an empty active project the one-press fix is
+    // dropping the project scope; every other cause is resolved in Projects.
+    final Widget action = cause == _EmptyQueueCause.activeProjectEmpty
+        ? NightshadeButton(
+            key: const ValueKey('scheduler-clear-active-project'),
+            label: 'Schedule whole catalog',
+            icon: LucideIcons.globe,
+            size: ButtonSize.small,
+            variant: ButtonVariant.secondary,
+            onPressed: () => unawaited(
+              ref.read(activeProjectIdProvider.notifier).setActiveProject(null),
             ),
-          ],
-        ],
-      ),
+          )
+        : NightshadeButton(
+            label: 'Open target catalog',
+            icon: LucideIcons.listOrdered,
+            size: ButtonSize.small,
+            variant: ButtonVariant.secondary,
+            // The add-target / integration-goals surface is the Projects tab,
+            // not the default (Recommendation) landing page that a bare
+            // `/planner` resolves to.
+            onPressed: () => context.go('/planner?tab=projects'),
+          );
+
+    return EmptyState.compact(
+      icon: LucideIcons.target,
+      title: headline,
+      body: body,
+      action: action,
     );
   }
 
@@ -215,7 +118,7 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
     required int? catalogCount,
     required List<IntegrationGoal>? goals,
   }) {
-    if (widget.awaitingFirstEval) return _EmptyQueueCause.awaitingFirstEval;
+    if (awaitingFirstEval) return _EmptyQueueCause.awaitingFirstEval;
 
     // Project scope is checked first: it is the only cause that can hide a
     // fully-populated catalog.
