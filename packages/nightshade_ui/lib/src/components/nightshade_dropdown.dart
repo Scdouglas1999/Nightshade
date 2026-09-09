@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
+import 'nightshade_text_field.dart';
 
+/// A select on the Observatory scale: the same 32px [NightshadeDecorations.field]
+/// face as [NightshadeTextField], a 14px muted chevron, and an open list on the
+/// `popover` decoration.
 class NightshadeDropdown extends StatelessWidget {
   final String? value;
   final String? hint;
@@ -10,7 +16,14 @@ class NightshadeDropdown extends StatelessWidget {
   final List<String>? itemLabels;
   final ValueChanged<String?>? onChanged;
   final bool isExpanded;
+
+  /// No longer read: the closed control's height is fixed by the field face.
+  @Deprecated('The field height is fixed; use `dense`. Removed in wave 4.')
   final bool isDense;
+
+  /// 28px instead of 32 — matches [NightshadeTextField.dense] so a dense row
+  /// can mix the two without a step in the baseline.
+  final bool dense;
 
   const NightshadeDropdown({
     super.key,
@@ -20,18 +33,24 @@ class NightshadeDropdown extends StatelessWidget {
     this.itemLabels,
     this.onChanged,
     this.isExpanded = false,
+    // ignore: deprecated_member_use_from_same_package
     this.isDense = false,
+    this.dense = false,
   });
 
   /// The style the closed control paints its current value in.
   ///
   /// Public so a caller that has to SIZE this control can measure the label
   /// with the same style it will be painted in, instead of guessing.
-  static const TextStyle labelStyle = TextStyle(fontSize: 12);
+  static const TextStyle labelStyle = NightshadeTypography.input;
 
   /// Horizontal space this control spends on everything that is not the label:
-  /// 12 px padding each side, the 14 px chevron, and the 1 px border each side.
-  static const double chromeWidth = 12 + 12 + 14 + 2;
+  /// 10px padding each side, the 14px chevron, and the 1px ring each side.
+  static const double chromeWidth =
+      fieldHorizontalPadding * 2 + fieldIconSize + 2;
+
+  /// The control's height in logical pixels.
+  double get height => dense ? fieldHeightDense : fieldHeight;
 
   String _labelFor(int index) =>
       itemLabels != null && index < itemLabels!.length
@@ -69,30 +88,32 @@ class NightshadeDropdown extends StatelessWidget {
         button: true,
         enabled: isEnabled,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-            border: Border.all(color: colors.border.withValues(alpha: 0.85)),
+          height: height,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(
+            horizontal: fieldHorizontalPadding,
           ),
+          decoration: NightshadeDecorations.field(colors),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               hint: hint != null
                   ? Text(
                       hint!,
-                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                      style: labelStyle.copyWith(color: colors.textMuted),
                     )
                   : null,
               isExpanded: isExpanded,
-              isDense: isDense,
+              // Always dense: the control's height is set by the box above, so
+              // Material's 48px button floor would only overflow it.
+              isDense: true,
               icon: Icon(
                 LucideIcons.chevronDown,
-                size: 14,
-                color: colors.textSecondary,
+                size: fieldIconSize,
+                color: colors.textMuted,
               ),
-              dropdownColor: colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              dropdownColor: colors.surfaceElevated,
+              borderRadius: NightshadeTokens.borderRadiusXl,
               style: labelStyle.copyWith(color: colors.textPrimary),
               items: List.generate(items.length, (index) {
                 final item = items[index];
@@ -122,13 +143,12 @@ class NightshadeDropdown extends StatelessWidget {
               // layout (48px min height, start-aligned) so nothing moves, and
               // carries no semantics of its own: the role and the enabled state
               // are on the merged node above, and the value's words come from
-              // this Text.
+              // this Text. The min height is the FIELD height, not Material's
+              // 48px menu-item floor: the closed control is a 32px field.
               selectedItemBuilder: (context) => List.generate(
                 items.length,
                 (index) => ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minHeight: kMinInteractiveDimension,
-                  ),
+                  constraints: BoxConstraints(minHeight: height),
                   child: Align(
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(

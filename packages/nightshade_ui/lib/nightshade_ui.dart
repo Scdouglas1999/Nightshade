@@ -74,3 +74,6 @@ export 'src/widgets/phd2/calibration_panel.dart';
 export 'src/components/nightshade_panel.dart';
 export 'src/components/readout.dart';
 export 'src/components/nightshade_icon_button.dart';
+export 'src/components/segmented_control.dart';
+export 'src/components/form_row.dart';
+export 'src/components/nightshade_toolbar.dart';

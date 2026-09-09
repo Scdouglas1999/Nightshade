@@ -4,11 +4,73 @@ import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 import '../utils/touch_target.dart';
 
-enum ButtonVariant { primary, outline, ghost, destructive }
+/// The five button faces.
+///
+/// One [primary] per page and one per dialog; everything else in a side panel,
+/// a list or a row is [secondary] or [ghost].
+enum ButtonVariant {
+  /// Solid `primary` fill. The single most important action in view.
+  primary,
 
+  /// Transparent with a 1px `borderHighlight` outline. The default for
+  /// everything that is not the one primary action.
+  secondary,
+
+  /// No fill and no outline until hover. Toolbars, rows, dismissals.
+  ghost,
+
+  /// Hollow with an `error` outline and `error` ink.
+  ///
+  /// Hollow in EVERY theme, not just red night. Under red night `primary`
+  /// #EF3B3B and `error` #EF5252 are two shades of one hue — the palette is
+  /// monochrome by construction — so a filled destructive beside a filled
+  /// primary produced two adjacent, equally weighted red slabs with nothing
+  /// left to tell them apart. FILL WEIGHT is the channel that stays free, so
+  /// exactly one of the pair is filled and it is never this one.
+  destructive,
+
+  /// The Start-sequence face: a solid `startFill` (green) with `onStart` ink.
+  ///
+  /// Its own colour because starting a night is not the same act as the
+  /// primary action of a settings page, and the operator finds it by colour
+  /// from across a dark room.
+  start,
+
+  /// Old name for [secondary].
+  @Deprecated('Use ButtonVariant.secondary. Removed in wave 4.')
+  outline,
+}
+
+/// The three button heights: 28 / 32 / 40.
 enum ButtonSize { small, medium, large }
 
-/// Solid-fill button with subtle borders and pressed darkening.
+/// Button heights in logical pixels (03 §3.3). These live here rather than on
+/// `NightshadeTokens` because wave 0 owns that file and this wave owns the
+/// layout change.
+// TODO(observatory): fold into NightshadeTokens.buttonHeightSm/Height/HeightLg
+const double _buttonHeightSm = 28;
+const double _buttonHeightMd = 32;
+const double _buttonHeightLg = 40;
+
+/// Horizontal padding per size, in logical pixels (05 §6: 10 / 12 / 18).
+const double _buttonPadSm = 10;
+const double _buttonPadMd = NightshadeTokens.spaceMd;
+const double _buttonPadLg = 18;
+
+/// Icon size inside a button, in logical pixels (05 §6: 15, 16 in large).
+// TODO(observatory): promote to NightshadeTokens.iconGlyphButton
+const double _buttonIconSize = 15;
+
+/// Gap between a button's icon and its label.
+const double _buttonIconGap = 7;
+
+/// How far outside the button's own box the keyboard focus ring is drawn, and
+/// how thick that stroke is, in logical pixels. Kept outside the box so the
+/// ring never overlaps the label and never changes the control's metrics.
+const double _focusRingOffset = 2.0;
+const double _focusRingWidth = 2.0;
+
+/// Solid, outlined and ghost buttons on the Observatory scale.
 class NightshadeButton extends StatefulWidget {
   final String label;
   final IconData? icon;
@@ -38,20 +100,19 @@ class NightshadeButton extends StatefulWidget {
     this.semanticsHint,
   });
 
+  /// The button's height in logical pixels.
+  double get height => switch (size) {
+    ButtonSize.small => _buttonHeightSm,
+    ButtonSize.medium => _buttonHeightMd,
+    ButtonSize.large => _buttonHeightLg,
+  };
+
   @override
   State<NightshadeButton> createState() => _NightshadeButtonState();
 }
 
-/// How far outside the button's own box the keyboard focus ring is drawn, and
-/// how thick that stroke is, in logical pixels. Kept outside the box so the
-/// ring never overlaps the label and never changes the control's metrics.
-const double _focusRingOffset = 2.0;
-const double _focusRingWidth = 2.0;
-
-/// Stroke width of the red-night destructive ring, in logical pixels. Heavier
-/// than the 1px every other bordered variant uses, because here the border is
-/// carrying the meaning a fill colour carries in the other themes.
-const double _dangerOutlineWidth = 2.0;
+/// The resolved face of a button in one interaction state.
+typedef _ButtonFace = ({Color fill, Color ink, Color border});
 
 class _NightshadeButtonState extends State<NightshadeButton>
     with SingleTickerProviderStateMixin {
@@ -72,7 +133,7 @@ class _NightshadeButtonState extends State<NightshadeButton>
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
       CurvedAnimation(
         parent: _pressController,
-        curve: NightshadeTokens.curveSnappy,
+        curve: NightshadeTokens.curveStandard,
       ),
     );
   }
@@ -106,118 +167,95 @@ class _NightshadeButtonState extends State<NightshadeButton>
   /// Smallest interactive box this button may occupy, in logical pixels.
   ///
   /// The visual sizes are deliberately compact for dense desktop panels — 28px
-  /// tall for `small`, 40px for the DEFAULT `medium` — but both are under the
-  /// platform touch minimums (Android 48, iOS 44), which
-  /// `flutter_test`'s tap-target guidelines flag. On a tablet, which is a primary
-  /// way this app is driven, that is a genuinely hard-to-hit control.
+  /// tall for `small`, 32px for the DEFAULT `medium` — but both are under the
+  /// platform touch minimums (Android 48, iOS 44), which `flutter_test`'s
+  /// tap-target guidelines flag. On a tablet, which is a primary way this app
+  /// is driven, that is a genuinely hard-to-hit control.
   ///
   /// Applied only on touch platforms: growing desktop buttons to 48px would
-  /// re-flow every dense panel for no accessibility gain, since a mouse has none
-  /// of the imprecision the guideline exists to absorb.
+  /// re-flow every dense panel for no accessibility gain, since a mouse has
+  /// none of the imprecision the guideline exists to absorb.
   double get _minInteractiveExtent => NightshadeTouchTarget.minExtent(context);
 
-  EdgeInsets get _padding {
-    return switch (widget.size) {
-      ButtonSize.small => const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceSm + 2,
-        vertical: NightshadeTokens.spaceSm - 2,
-      ),
-      ButtonSize.medium => const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd + 2,
-        vertical: NightshadeTokens.spaceSm + 2,
-      ),
-      ButtonSize.large => const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg + 2,
-        vertical: NightshadeTokens.spaceMd + 2,
-      ),
-    };
-  }
+  double get _horizontalPadding => switch (widget.size) {
+    ButtonSize.small => _buttonPadSm,
+    ButtonSize.medium => _buttonPadMd,
+    ButtonSize.large => _buttonPadLg,
+  };
 
-  TextStyle get _textStyle {
-    return switch (widget.size) {
-      ButtonSize.small => NightshadeTypography.captionSm.copyWith(
-        fontWeight: FontWeight.w500,
-      ),
-      ButtonSize.medium => NightshadeTypography.buttonSm,
-      ButtonSize.large => NightshadeTypography.button,
-    };
-  }
+  TextStyle get _textStyle => switch (widget.size) {
+    ButtonSize.small => NightshadeTypography.buttonSm,
+    ButtonSize.medium => NightshadeTypography.button,
+    ButtonSize.large => NightshadeTypography.buttonLg,
+  };
 
-  double get _iconSize {
-    return switch (widget.size) {
-      ButtonSize.small => NightshadeTokens.iconXs - 2,
-      ButtonSize.medium => NightshadeTokens.iconXs,
-      ButtonSize.large => NightshadeTokens.iconSm,
-    };
-  }
+  double get _iconSize => switch (widget.size) {
+    ButtonSize.small => _buttonIconSize,
+    ButtonSize.medium => _buttonIconSize,
+    ButtonSize.large => NightshadeTokens.iconSm,
+  };
 
-  Color _lightenColor(Color color, double amount) {
+  /// Hover lightening for the [ButtonVariant.start] fill, which has no second
+  /// named colour the way `primary` has `accent`.
+  Color _lighten(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
     return hsl
         .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
         .toColor();
   }
 
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-        .toColor();
+  /// The button's fill, ink and border for the current interaction state.
+  ///
+  /// Disabled is NOT resolved here: it is 40% opacity over the resting face
+  /// (05 §6, "no colour change"), applied once in [build] so every variant
+  /// dims the same way and a disabled destructive still reads as destructive.
+  _ButtonFace _face(NightshadeColors colors) {
+    final hovered = _isHovered || _isPressed;
+    // `outline` is the deprecated spelling of `secondary`; fold it before the
+    // switch so there is exactly one implementation of that face.
+    final variant = widget.variant == ButtonVariant.outline
+        // ignore: deprecated_member_use_from_same_package
+        ? ButtonVariant.secondary
+        : widget.variant;
+
+    return switch (variant) {
+      ButtonVariant.primary => (
+        fill: hovered ? colors.accent : colors.primary,
+        ink: colors.onPrimary,
+        border: Colors.transparent,
+      ),
+      ButtonVariant.start => (
+        fill: hovered
+            ? _lighten(colors.startFill, NightshadeTokens.buttonHoverLighten)
+            : colors.startFill,
+        ink: colors.onStart,
+        border: Colors.transparent,
+      ),
+      ButtonVariant.secondary || ButtonVariant.outline => (
+        fill: hovered ? colors.surfaceHover : Colors.transparent,
+        ink: colors.textPrimary,
+        border: colors.borderHighlight,
+      ),
+      ButtonVariant.ghost => (
+        fill: hovered ? colors.surfaceHover : Colors.transparent,
+        ink: hovered ? colors.textPrimary : colors.textSecondary,
+        border: Colors.transparent,
+      ),
+      ButtonVariant.destructive => (
+        fill: hovered
+            ? colors.error.withValues(alpha: NightshadeTokens.opacityStatusFill)
+            : Colors.transparent,
+        ink: colors.error,
+        border: colors.error,
+      ),
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = context.nightshadeColors;
-    final colorScheme = theme.colorScheme;
     final isDisabled = widget.onPressed == null || widget.isLoading;
-
-    final Color foregroundColor;
-    final Color borderColor;
-    Color? flatColor;
-    // Stroke weight is a channel, not decoration: the red-night destructive
-    // face below is separated from the primary by having no fill and a heavy
-    // ring, so the ring has to be thick enough to read as deliberate.
-    var borderWidth = 1.0;
-
-    switch (widget.variant) {
-      case ButtonVariant.primary:
-        (flatColor, foregroundColor, borderColor) = _buildFilled(
-          colors.primary,
-          colors,
-          colorScheme.onPrimary,
-          isDisabled: isDisabled,
-        );
-      case ButtonVariant.destructive:
-        if (colors.isRedNight) {
-          (flatColor, foregroundColor, borderColor) = _buildDangerOutline(
-            colors,
-            isDisabled: isDisabled,
-          );
-          if (!isDisabled) borderWidth = _dangerOutlineWidth;
-        } else {
-          (flatColor, foregroundColor, borderColor) = _buildFilled(
-            colors.error,
-            colors,
-            colorScheme.onError,
-            isDisabled: isDisabled,
-          );
-        }
-      case ButtonVariant.outline:
-        flatColor = _isHovered && !isDisabled
-            ? colors.primary.withValues(alpha: 0.08)
-            : Colors.transparent;
-        foregroundColor = isDisabled ? colors.textMuted : colors.textPrimary;
-        borderColor = _isHovered && !isDisabled
-            ? colors.primary.withValues(alpha: 0.45)
-            : colors.border;
-      case ButtonVariant.ghost:
-        flatColor = _isHovered && !isDisabled
-            ? colors.surfaceHover
-            : Colors.transparent;
-        foregroundColor = isDisabled ? colors.textMuted : colors.textSecondary;
-        borderColor = Colors.transparent;
-    }
+    final face = _face(colors);
 
     return Semantics(
       button: true,
@@ -283,110 +321,12 @@ class _NightshadeButtonState extends State<NightshadeButton>
                   child: child,
                 );
               },
-              // The focus ring is a STROKE painted in an overflowing Positioned
-              // rather than a spread `BoxShadow` on the button itself. A spread
-              // shadow is a *filled* round-rect painted behind the box, so on the
-              // `ghost` and `outline` variants — whose fill is transparent until
-              // hover — it showed straight through the middle and turned the
-              // whole control into a solid primary slab with unreadable label
-              // text. Stroking it keeps the interior untouched for every variant.
-              //
-              // The Stack is unconditional (so the AnimatedContainer keeps its
-              // element slot, and with it the in-flight colour animation) and
-              // sizes itself to its only non-positioned child, so mounting the
-              // ring costs no layout: `Clip.none` lets it draw the 2px outside.
-              child: Stack(
-                clipBehavior: Clip.none,
-                // passthrough, NOT the default loose fit: a loose Stack strips
-                // the incoming minimum, so a button handed tight constraints —
-                // `Expanded(child: NightshadeButton(...))`, a stretched column —
-                // would silently shrink to its content the moment the ring was
-                // introduced. passthrough hands the AnimatedContainer exactly
-                // the constraints it saw before this Stack existed.
-                fit: StackFit.passthrough,
-                children: [
-                  AnimatedContainer(
-                    duration: NightshadeTokens.durationQuick,
-                    curve: NightshadeTokens.curveSnappy,
-                    // Floor the tappable box on touch platforms. `constraints`
-                    // rather than extra padding so the fill and border grow with
-                    // it and the whole visible control is the target, not a small
-                    // shape inside a larger invisible one.
-                    constraints: BoxConstraints(
-                      minWidth: _minInteractiveExtent,
-                      minHeight: _minInteractiveExtent,
-                    ),
-                    decoration: BoxDecoration(
-                      color: flatColor,
-                      borderRadius: NightshadeTokens.borderRadiusSm,
-                      border: Border.all(
-                        color: borderColor,
-                        width: borderWidth,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: _padding,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (widget.isLoading) ...[
-                            SizedBox(
-                              width: _iconSize,
-                              height: _iconSize,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                  foregroundColor,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: NightshadeTokens.spaceSm),
-                          ] else if (widget.icon != null) ...[
-                            Icon(
-                              widget.icon,
-                              size: _iconSize,
-                              color: foregroundColor,
-                            ),
-                            const SizedBox(width: NightshadeTokens.spaceSm - 2),
-                          ],
-                          Flexible(
-                            child: Text(
-                              widget.label,
-                              style: _textStyle.copyWith(
-                                color: foregroundColor,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_isFocused && !isDisabled)
-                    Positioned(
-                      left: -_focusRingOffset,
-                      top: -_focusRingOffset,
-                      right: -_focusRingOffset,
-                      bottom: -_focusRingOffset,
-                      // The ring sits over the button's own hit box, so it must
-                      // not eat the pointer events the button exists to receive.
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusSm + _focusRingOffset,
-                            ),
-                            border: Border.all(
-                              color: colors.primary,
-                              width: _focusRingWidth,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              // Disabled is one opacity over the resting face, so a disabled
+              // destructive is still recognisably the destructive one and a
+              // disabled primary is still the primary.
+              child: Opacity(
+                opacity: isDisabled ? NightshadeTokens.opacityDisabled : 1,
+                child: _box(colors, face),
               ),
             ),
           ),
@@ -395,73 +335,98 @@ class _NightshadeButtonState extends State<NightshadeButton>
     );
   }
 
-  /// The destructive face under red night: no fill, a heavy `error` ring, and
-  /// an `error` label — instead of the solid `error` fill every other theme
-  /// gives it.
-  ///
-  /// Red night is monochrome by construction; the Appearance page says so in
-  /// as many words ("Red night is monochrome red, so the accent has no effect
-  /// while it is selected"), and `primary` #DC2626 and `error` #EF5350 are
-  /// therefore two shades of one hue rather than two hues. Measured on the
-  /// release bundle, the delivery destination editor put Delete rgb(239,83,80)
-  /// beside Save rgb(220,38,38): two adjacent, equally-weighted solid-red
-  /// slabs, with the channel that normally carries "this one deletes" already
-  /// spent on the mode itself. Every other destructive-next-to-primary pair in
-  /// the app — the flat wizard's actions, the sequence card dialogs, the
-  /// pairing screen, ~65 call sites — collided the same way, which is why the
-  /// repair is here in the component and not at any one of them.
-  ///
-  /// FILL WEIGHT is the channel still free, so under red night exactly one of
-  /// the pair is filled: the primary. The destructive is the hollow one inside
-  /// the ring, and the icon and the word still say which it is.
-  ///
-  /// `error` stays the foreground rather than deferring to `textPrimary`: it
-  /// measures 4.81:1 at worst across the whole red-night surface ladder
-  /// (5.95 on `background` down to 4.81 on `surfaceOverlay`), so it clears the
-  /// 4.5:1 floor the palette holds its text to on every surface a button can
-  /// sit on, and it keeps the ring and its label the same colour.
-  (Color?, Color, Color) _buildDangerOutline(
-    NightshadeColors colors, {
-    required bool isDisabled,
-  }) {
-    if (isDisabled) {
-      return (colors.surfaceAlt, colors.textMuted, colors.border);
-    }
-    // Hover and press wash the interior instead of filling it: the fill stays
-    // recognisably absent at every interaction state, because that absence is
-    // what tells the two buttons apart.
-    if (_isPressed) {
-      return (
-        colors.error.withValues(alpha: 0.22),
-        colors.error,
-        _lightenColor(colors.error, 0.08),
-      );
-    }
-    if (_isHovered) {
-      return (
-        colors.error.withValues(alpha: 0.12),
-        colors.error,
-        _lightenColor(colors.error, 0.04),
-      );
-    }
-    return (Colors.transparent, colors.error, colors.error);
-  }
-
-  (Color?, Color, Color) _buildFilled(
-    Color base,
-    NightshadeColors colors,
-    Color onColor, {
-    required bool isDisabled,
-  }) {
-    if (isDisabled) {
-      return (colors.surfaceAlt, colors.textMuted, colors.border);
-    }
-    if (_isPressed) {
-      return (_darkenColor(base, 0.1), onColor, _darkenColor(base, 0.15));
-    }
-    if (_isHovered) {
-      return (_lightenColor(base, 0.04), onColor, _darkenColor(base, 0.08));
-    }
-    return (base, onColor, _darkenColor(base, 0.12));
+  Widget _box(NightshadeColors colors, _ButtonFace face) {
+    // The focus ring is a STROKE painted in an overflowing Positioned rather
+    // than a spread `BoxShadow` on the button itself. A spread shadow is a
+    // *filled* round-rect painted behind the box, so on the `ghost` and
+    // `secondary` variants — whose fill is transparent until hover — it showed
+    // straight through the middle and turned the whole control into a solid
+    // primary slab with unreadable label text. Stroking it keeps the interior
+    // untouched for every variant.
+    //
+    // The Stack is unconditional (so the AnimatedContainer keeps its element
+    // slot, and with it the in-flight colour animation) and sizes itself to its
+    // only non-positioned child, so mounting the ring costs no layout:
+    // `Clip.none` lets it draw the 2px outside.
+    return Stack(
+      clipBehavior: Clip.none,
+      // passthrough, NOT the default loose fit: a loose Stack strips the
+      // incoming minimum, so a button handed tight constraints —
+      // `Expanded(child: NightshadeButton(...))`, a stretched column — would
+      // silently shrink to its content. passthrough hands the container exactly
+      // the constraints it saw before this Stack existed.
+      fit: StackFit.passthrough,
+      children: <Widget>[
+        AnimatedContainer(
+          duration: NightshadeTokens.durationNormal,
+          curve: NightshadeTokens.curveStandard,
+          height: widget.height,
+          // Floor the tappable box on touch platforms. `constraints` rather
+          // than extra padding so the fill and border grow with it and the
+          // whole visible control is the target, not a small shape inside a
+          // larger invisible one.
+          constraints: BoxConstraints(
+            minWidth: _minInteractiveExtent,
+            minHeight: _minInteractiveExtent,
+          ),
+          padding: EdgeInsets.symmetric(horizontal: _horizontalPadding),
+          decoration: BoxDecoration(
+            color: face.fill,
+            borderRadius: NightshadeTokens.borderRadiusSm,
+            border: Border.all(color: face.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              if (widget.isLoading) ...<Widget>[
+                SizedBox(
+                  width: _iconSize,
+                  height: _iconSize,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(face.ink),
+                  ),
+                ),
+                const SizedBox(width: _buttonIconGap),
+              ] else if (widget.icon != null) ...<Widget>[
+                Icon(widget.icon, size: _iconSize, color: face.ink),
+                const SizedBox(width: _buttonIconGap),
+              ],
+              Flexible(
+                child: Text(
+                  widget.label,
+                  style: _textStyle.copyWith(color: face.ink),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_isFocused && widget.onPressed != null)
+          Positioned(
+            left: -_focusRingOffset,
+            top: -_focusRingOffset,
+            right: -_focusRingOffset,
+            bottom: -_focusRingOffset,
+            // The ring sits over the button's own hit box, so it must not eat
+            // the pointer events the button exists to receive.
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(
+                    NightshadeTokens.radiusSm + _focusRingOffset,
+                  ),
+                  border: Border.all(
+                    color: colors.primary,
+                    width: _focusRingWidth,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

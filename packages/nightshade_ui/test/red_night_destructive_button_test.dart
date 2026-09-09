@@ -64,7 +64,7 @@ void main() {
     );
   });
 
-  testWidgets('the destructive ring is heavier than any other border', (
+  testWidgets('the destructive ring wears error and nothing else does', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -80,7 +80,7 @@ void main() {
             ),
             NightshadeButton(
               label: 'Browse',
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               onPressed: () {},
             ),
             NightshadeButton(label: 'Save', onPressed: () {}),
@@ -97,8 +97,6 @@ void main() {
     final primary =
         decorationOf(tester, buttonLabelled('Save')).border! as Border;
 
-    expect(destructive.top.width, greaterThan(outline.top.width));
-    expect(destructive.top.width, greaterThan(primary.top.width));
     expect(
       destructive.top.color,
       NightshadeColors.redNight.error,
@@ -106,8 +104,13 @@ void main() {
     );
     expect(
       outline.top.color,
-      isNot(NightshadeColors.redNight.error),
-      reason: 'a plain outline button must not read as destructive',
+      NightshadeColors.redNight.borderHighlight,
+      reason: 'a secondary button must not read as destructive',
+    );
+    expect(
+      primary.top.color.a,
+      0.0,
+      reason: 'a filled button has no border to compete with its fill',
     );
   });
 
@@ -169,12 +172,15 @@ void main() {
     expect(pressed.color!.a, lessThan(NightshadeColors.redNight.primary.a));
   });
 
-  testWidgets('dark and light keep the filled destructive they already had', (
-    tester,
-  ) async {
+  testWidgets('every theme now spends fill weight, not hue', (tester) async {
+    // 05 §6 promotes the red-night repair to the whole app: destructive is
+    // hollow with an `error` ring in EVERY theme. Hue still separates the pair
+    // in dark and light, but it is no longer the only thing that does, so a
+    // screenshot of the footer reads the same way in all three modes.
     for (final entry in <String, ThemeData>{
       'dark': NightshadeTheme.dark,
       'light': NightshadeTheme.light,
+      'red night': NightshadeTheme.redNight,
     }.entries) {
       await tester.pumpWidget(wrap(entry.value, pair()));
       await tester.pump();
@@ -184,13 +190,18 @@ void main() {
 
       expect(
         destructive.color!.a,
-        1.0,
-        reason: '${entry.key} has a second hue and needs no weight change',
+        0.0,
+        reason: '${entry.key}: the destructive face is hollow',
       );
       expect(
-        destructive.color,
-        isNot(primary.color),
-        reason: '${entry.key} separates the pair by hue, as it always did',
+        primary.color!.a,
+        1.0,
+        reason: '${entry.key}: the primary is the filled one of the pair',
+      );
+      expect(
+        (destructive.border! as Border).top.color,
+        isNot((primary.border! as Border).top.color),
+        reason: '${entry.key}: only the destructive carries a ring',
       );
     }
   });

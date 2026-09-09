@@ -2,9 +2,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_icons.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import 'nightshade_chip.dart';
 
 /// One tab in an [AdaptiveTabBar].
 @immutable
@@ -23,21 +25,25 @@ class AdaptiveTab {
   /// Optional key forwarded to the rendered tab button (e.g. tutorial keys).
   final Key? buttonKey;
 
+  /// An optional count shown after the label in an 18px chip — "History 3".
+  final String? count;
+
   const AdaptiveTab({
     required this.label,
     this.icon,
     this.semanticLabel,
     this.buttonKey,
+    this.count,
   });
 }
 
-/// A horizontal tab control that never overflows.
+/// A horizontal tab control that never overflows — the ONE tab style.
 ///
-/// Tabs lay out left-to-right. When they do not fit the available width the bar
-/// becomes **horizontally scrollable** instead of throwing a `RenderFlex`
-/// overflow; the selected tab is kept on screen. The visual style matches
-/// [SubTabButton] so this is a near drop-in for the hand-rolled tab rows in
-/// analytics / planner / guiding.
+/// Tabs lay out left-to-right with a 24px gap and no fill, no border and no
+/// pill: the selected tab is marked by a 2px `primary` bar under it and by its
+/// ink stepping up to `textPrimary`. When they do not fit the available width
+/// the bar becomes **horizontally scrollable** instead of throwing a
+/// `RenderFlex` overflow; the selected tab is kept on screen.
 ///
 /// ```dart
 /// AdaptiveTabBar(
@@ -80,6 +86,17 @@ class AdaptiveTabBar extends StatefulWidget {
     this.trailing = const [],
     this.horizontalPadding = NightshadeTokens.spaceLg,
   });
+
+  /// Gap between tabs (05 §4: `space2xl`).
+  static const double tabGap = NightshadeTokens.space2xl;
+
+  /// Horizontal padding INSIDE a tab. The selected indicator spans the label
+  /// plus this much on each side, so a label-only tab's underline measures
+  /// `labelWidth + 2 * tabPadding`.
+  static const double tabPadding = 2;
+
+  /// Thickness of the selected indicator.
+  static const double indicatorThickness = 2;
 
   @override
   State<AdaptiveTabBar> createState() => _AdaptiveTabBarState();
@@ -224,8 +241,18 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
+                // The underline sits at the BOTTOM of the row that hosts the
+                // bar (the 56px page header), so the tabs stretch to it when
+                // the height is known. Where it is not — a bar dropped into a
+                // Column with no height of its own — stretching would throw,
+                // so the tabs fall back to their own intrinsic height and the
+                // underline sits directly under the label.
+                crossAxisAlignment: constraints.hasBoundedHeight
+                    ? CrossAxisAlignment.stretch
+                    : CrossAxisAlignment.center,
                 children: [
-                  for (var i = 0; i < widget.tabs.length; i++)
+                  for (var i = 0; i < widget.tabs.length; i++) ...[
+                    if (i > 0) const SizedBox(width: AdaptiveTabBar.tabGap),
                     _AdaptiveTabButton(
                       key: _tabKeys.length > i ? _tabKeys[i] : null,
                       buttonKey: widget.tabs[i].buttonKey,
@@ -234,6 +261,7 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
                       hideLabel: collapseLabels && widget.tabs[i].icon != null,
                       onTap: () => widget.onSelected(i),
                     ),
+                  ],
                   ...widget.trailing,
                 ],
               ),
@@ -387,55 +415,39 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
     final colors = context.nightshadeColors;
     final tab = widget.tab;
 
-    final backgroundColor = widget.isSelected
-        ? Color.alphaBlend(
-            colors.primary.withValues(alpha: 0.06),
-            colors.surfaceAlt,
-          )
-        : _isHovered
-        ? colors.surfaceHover
-        : Colors.transparent;
-
-    final borderColor = widget.isSelected
-        ? colors.primary.withValues(alpha: 0.45)
-        : _isHovered
-        ? colors.borderHighlight.withValues(alpha: 0.85)
-        : Colors.transparent;
-
-    final foreground = widget.isSelected
-        ? colors.primary
-        : _isHovered
-        ? colors.textPrimary
-        : colors.textSecondary;
+    // Ink is the only thing that changes between rest, hover and selection:
+    // no fill, no border, no pill. The bar underneath carries the selection.
+    final Color foreground;
+    if (widget.isSelected) {
+      foreground = colors.textPrimary;
+    } else if (_isHovered) {
+      foreground = colors.textSecondary;
+    } else {
+      foreground = colors.textMuted;
+    }
 
     final showLabel = !widget.hideLabel;
 
-    Widget content = ConstrainedBox(
-      // Generous min height keeps the touch target honest on phone.
-      constraints: const BoxConstraints(minHeight: 40),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceMd + 2,
-          vertical: NightshadeTokens.spaceSm - 2,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (tab.icon != null) Icon(tab.icon, size: 16, color: foreground),
-            if (tab.icon != null && showLabel)
-              const SizedBox(width: NightshadeTokens.spaceSm),
-            if (showLabel)
-              Text(
-                tab.label,
-                style: NightshadeTypography.labelSm.copyWith(
-                  fontWeight: widget.isSelected
-                      ? FontWeight.w600
-                      : FontWeight.w500,
-                  color: foreground,
-                ),
-              ),
+    Widget content = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AdaptiveTabBar.tabPadding,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (tab.icon != null)
+            Icon(tab.icon, size: _tabIconSize, color: foreground),
+          if (tab.icon != null && showLabel) const SizedBox(width: _tabIconGap),
+          if (showLabel)
+            Text(
+              tab.label,
+              style: NightshadeTypography.button.copyWith(color: foreground),
+            ),
+          if (tab.count != null) ...[
+            const SizedBox(width: _tabIconGap),
+            _TabCount(count: tab.count!, tone: foreground),
           ],
-        ),
+        ],
       ),
     );
 
@@ -461,29 +473,79 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: AnimatedContainer(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
           key: widget.buttonKey,
-          duration: NightshadeTokens.durationQuick,
-          curve: NightshadeTokens.curveSnappy,
-          margin: const EdgeInsets.only(top: 4, bottom: 4, right: 4),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: NightshadeTokens.borderRadiusMd,
-            border: Border.all(color: borderColor),
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: widget.onTap,
-              hoverColor: Colors.transparent,
-              highlightColor: colors.primary.withValues(alpha: 0.06),
-              splashColor: colors.primary.withValues(alpha: 0.06),
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              child: content,
-            ),
+          onTap: widget.onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Stack(
+            children: [
+              // Generous min height keeps the touch target honest on phone;
+              // the tab still stretches to the header when it is given one.
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: _tabMinHeight),
+                child: Center(widthFactor: 1, child: content),
+              ),
+              // The indicator spans the tab's whole box — the label plus its
+              // 2px padding on each side — with square corners, and sits at the
+              // bottom of whatever height the tab was given.
+              if (widget.isSelected)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      height: AdaptiveTabBar.indicatorThickness,
+                      color: colors.primary,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+/// The 18px count chip that may follow a tab label.
+class _TabCount extends StatelessWidget {
+  const _TabCount({required this.count, required this.tone});
+
+  final String count;
+  final Color tone;
+
+  /// The chip's height, in logical pixels (05 §4).
+  static const double height = 18;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    return Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: _tabCountPadding),
+      alignment: Alignment.center,
+      decoration: NightshadeDecorations.chip(colors),
+      child: Text(
+        count,
+        style: NightshadeChip.textStyle().copyWith(color: tone),
+      ),
+    );
+  }
+}
+
+/// Icon size inside a tab, in logical pixels (05 §4: leading icon 15).
+// TODO(observatory): promote to NightshadeTokens.iconGlyphTab
+const double _tabIconSize = 15;
+
+/// Gap between a tab's icon, its label and its count chip
+/// (`observatory.css` `.tab { gap: 7px }`).
+const double _tabIconGap = 7;
+
+/// Horizontal padding inside a tab's count chip.
+const double _tabCountPadding = 6;
+
+/// Minimum tab height, so a tab in a bar with no height of its own is still a
+/// reachable touch target.
+const double _tabMinHeight = 40;

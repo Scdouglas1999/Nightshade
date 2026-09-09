@@ -18,9 +18,7 @@ BoxDecoration _decorationOf(WidgetTester tester, Finder finder) {
 }
 
 void main() {
-  testWidgets('primary button uses solid fill with subtle border', (
-    tester,
-  ) async {
+  testWidgets('primary button is a solid fill and NO border', (tester) async {
     await tester.pumpWidget(
       _wrap(NightshadeButton(label: 'Save', onPressed: () {})),
     );
@@ -28,19 +26,113 @@ void main() {
 
     final deco = _decorationOf(tester, find.byType(NightshadeButton));
     expect(deco.gradient, isNull);
-    expect(deco.color, isNotNull);
+    expect(deco.color, NightshadeColors.dark.primary);
+    // 05 §6: a primary button has no border. The fill is the button; an outline
+    // around a filled control is a second boundary saying the same thing.
     final border = deco.border! as Border;
-    expect(border.top.color.a, greaterThan(0));
+    expect(border.top.color.a, 0.0);
   });
 
-  testWidgets('disabled primary button uses flat surface fill', (tester) async {
+  testWidgets('a disabled button dims, it does not change colour', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _wrap(const NightshadeButton(label: 'Save', onPressed: null)),
     );
     await tester.pump();
     final deco = _decorationOf(tester, find.byType(NightshadeButton));
     expect(deco.gradient, isNull);
-    expect(deco.color, isNotNull);
+    // Same fill as the live button; only the opacity above it changes, so a
+    // disabled destructive still reads as the destructive one.
+    expect(deco.color, NightshadeColors.dark.primary);
+    expect(
+      tester
+          .widget<Opacity>(
+            find.descendant(
+              of: find.byType(NightshadeButton),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .opacity,
+      NightshadeTokens.opacityDisabled,
+    );
+  });
+
+  testWidgets('the three sizes are 28 / 32 / 40 tall on a pointer platform', (
+    tester,
+  ) async {
+    double heightOf() => tester
+        .getSize(
+          find.descendant(
+            of: find.byType(NightshadeButton),
+            matching: find.byType(AnimatedContainer),
+          ),
+        )
+        .height;
+
+    for (final (size, height) in <(ButtonSize, double)>[
+      (ButtonSize.small, 28),
+      (ButtonSize.medium, 32),
+      (ButtonSize.large, 40),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          // The dense sizes are the DESKTOP sizes. On a touch platform the
+          // button still floors at the 48dp tap target, which is the whole
+          // point of NightshadeTouchTarget; asserting 28 without pinning the
+          // platform measures the floor, not the design.
+          theme: NightshadeTheme.dark.copyWith(platform: TargetPlatform.linux),
+          home: Scaffold(
+            body: Center(
+              child: NightshadeButton(
+                label: 'Go',
+                size: size,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(heightOf(), height, reason: '$size');
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NightshadeTheme.dark.copyWith(platform: TargetPlatform.android),
+        home: Scaffold(
+          body: Center(
+            child: NightshadeButton(
+              label: 'Go',
+              size: ButtonSize.small,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(heightOf(), NightshadeTokens.minTouchTarget);
+  });
+
+  testWidgets('the start variant wears its own fill and ink', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        NightshadeButton(
+          label: 'Start',
+          variant: ButtonVariant.start,
+          onPressed: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final deco = _decorationOf(tester, find.byType(NightshadeButton));
+    expect(deco.color, NightshadeColors.dark.startFill);
+    expect(
+      tester.widget<Text>(find.text('Start')).style!.color,
+      NightshadeColors.dark.onStart,
+    );
   });
 
   testWidgets('hover state changes synchronously without glow shadow', (
