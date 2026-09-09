@@ -1,5 +1,11 @@
 # Screen token-migration map (value-preserving)
 
+> **Archived 2026-09-09.** This map records the value-preserving pass that moved the
+> screens off raw literals in 7.0.0. It is history, not guidance: the Observatory overhaul
+> folded the value-named `radiusInline*` / `fontSizeNN` tokens onto the semantic scale and
+> deleted them. For the values in force, read
+> [`../03-tokens.md`](../03-tokens.md) — radii are 4 / 6 / 8 / 12 and nothing else.
+
 This is the canonical "literal value → named token" mapping for the per-directory
 migration of `packages/nightshade_app/lib/screens` onto the `nightshade_ui` design
 system. Every mapping below is **exact-valued**: replacing the literal with the

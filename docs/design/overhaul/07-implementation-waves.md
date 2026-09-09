@@ -238,3 +238,73 @@ element must be one of the sheet's components, laid out per 06.
 - Do not regenerate Windows goldens on Linux and commit them.
 - Do not touch `packages/nightshade_core`, `nightshade_bridge`, `native/`, or `server/`.
 - Do not start a second screen in the same branch as the first.
+
+## Status 2026-09-09
+
+All four waves ran on 2026-09-09 in parallel worktrees off `feature/observatory` (branched from
+`feature/v7-darkroom` at 74a3d2091), each gated with `tools/diff_audit.py` before merging. 167
+commits, 18 merges. Wave 3 ran one agent per screen; wave 4 split into a kit agent, a screens
+agent, a route-only-screens agent and this docs pass. Every merge is recorded in
+`reports/observatory/merge-log.md`, with the main loop's own drive of each merged build.
+
+### What shipped
+
+| Wave | Merged at | What landed |
+|---|---|---|
+| 0 — tokens | `3a0e1cde0` | New palette (`primary` #6EB3EC, `well`, `startFill`/`onStart`, band colours, `AppearanceAccents`), the type scale, radius values, motion, opacity, the decoration factories, `check_tokens.py` + `design_tokens_sync_test.dart`, and the 139 raw radius literals in `nightshade_app` migrated to tokens |
+| 1 — shell | `685f07b5d` | 44 px top bar with the global command field, the command palette, the 64 px rail grouped Observe / Prepare / Review with Darkroom promoted, single-line rail items, 32 px instrument bar, `PageHeader`, the five-slot bottom nav + More sheet, and `contextual_tour_prompt.dart` deleted with its 13 call sites |
+| 2 — components | `4a6ab9920` | The whole kit in 05: Panel/PanelHead, the Readout family, underline tabs, SegmentedControl, buttons and icon buttons at the new heights, fields + FormRow, Toolbar, Banner, EmptyState, Dialog, Glass, SidePanel, list rows, Candidate, Checklist, NightBand — each with a gallery section and a Linux golden |
+| 3 — screens | `07b0f32e3` weather, `1aff434fa` plan, `827de2f27` settings, `5c14c7667` darkroom, `6b6ff4cce` guiding, `40b0aa67b` analytics, `ec7eb29c8` onboarding, `1d0dbf43a` imaging, `0c7ea6ec1` tonight, `544c0a704` equipment, `b87b839ce` + `1b8fd84ae` sequencer | Eleven screens onto the kit: PageHeader everywhere, underline tabs, panels and wells, readouts with `—`, tooltipped icon buttons, one banner per problem, the Tonight hero + night band + checklist, the Imaging edge-to-edge canvas with the glass HUD |
+| 4 — cleanup | `1e8706f71` screens phase 1, `4979e7a80` kit phase 1, then phase 2 | Token promotion, the bespoke select popover, 48 dp touch floors, `ReadoutRow` intrinsic widths, the gallery pruned to the Observatory kit, the Framing and Schedule panels, the `radiusInline*` fold and the deprecated-member deletion, the route-only screens (polar alignment, flat wizard, pairing, mosaic, diagnostics), and this documentation pass |
+
+`01-audit.md` now carries a **Resolved** column: of its 34 findings, 31 are resolved, 3 partially
+(C2, E4, E5 — each names what is left), 0 open. The evidence set is
+`reports/observatory/final/<theme>-<screen>-<width>.png`.
+
+### Deviations the merge log accepted
+
+- **Wave 0.** Thirteen new text styles rather than the twelve the prose counted (the table is the
+  spec); `link` as a getter rather than `linkOverride`; the deprecated opacity tokens left
+  un-annotated, because annotating them emitted ~2 000 analyzer infos.
+- **Wave 0, the `Color(0x…)` box.** The stated goal ("≤ 40, from 120") was written from a wrong
+  count. The real count is 177 and none of them is a chrome colour standing in for a token; the
+  seven that match a pre-overhaul palette value are all data (filter maps, a diverging-ramp
+  endpoint, profile identity swatches, a fixed-palette annotation dialog). The box became "no
+  `Color(0x…)` in chrome", which was already true. The table in wave 0 above lists them.
+- **Wave 2.** `NightshadeCard` was not deleted (325 call sites; wave 3 migrated screens to
+  `NightshadePanel` instead); `SubTabButton` and `NightshadeAlert` were deprecated rather than
+  removed, and the removal moved to wave 4; the dropdown's open list kept 48 px rows until wave 4
+  replaced Material's menu with a bespoke 32 px popover.
+- **Wave 3, Darkroom.** `AdaptivePanelLayout` kept: A/B compare genuinely needs both panels.
+- **Wave 3, Settings.** The nav shows the real section count instead of the mockup's three groups,
+  and the red-night accent picker is hidden entirely — `AppearanceAccents.forTheme(redNight)`
+  returns an empty list, because any accent off the red axis breaks dark adaptation. The mockup
+  was corrected to match rather than the code.
+- **Wave 3, Guiding.** `NightshadeTouchTarget` (the wave-3 implementation) won over the main
+  loop's width-based one for the 48 dp floor.
+- **Copy.** Two rules were broadcast mid-campaign and are now in 03 §2 and 06: the bundled fonts
+  carry no `′`, `″` or thin space, so arcminutes and arcseconds are ASCII `'` and `"` and numbers
+  are never thousands-grouped; and the night band's now marker is a Lucide chevron, not `▲`
+  (U+25B2 is absent from both fonts and rendered as tofu in the first golden).
+
+### Owner follow-ups
+
+1. **Windows goldens.** Every golden in the repo except
+   `docs/design/goldens/gallery-observatory-{dark,light,rednight}.png` is Windows-captured. The
+   overhaul changed the layout under most of them, so they must be regenerated on the rig, not on
+   Linux. Two `nightshade_app` framing goldens were regenerated on Linux at the final gate because
+   CI runs ubuntu-latest — see `docs/testing/golden-tests.md`. Nothing else was.
+2. **Tree-wide `dart format`.** Red at the campaign's base: 1,670 files predate Dart 3.12's tall
+   style. That is its own owner-approved commit, not something a feature branch should carry, so
+   every wave formatted only the files it changed.
+3. **On-sky.** Nothing here was verified against real hardware. The whole campaign ran on the
+   Linux harness with simulated camera, mount and focuser.
+4. **Parked, with a reason.**
+   - The planetarium, the charts (`NightshadeChartColors`) and image rendering are outside the
+     overhaul's scope (README). The two planetarium overlays still print `--:--`.
+   - `widgets/equipment_status_indicator.dart` still returns `'---'` in seven places (01-audit E4).
+   - The session-notes sentiment picker is three colour emoji, which no theme can retint
+     (01-audit E5, `sequencer/widgets/notes_panel/sentiment_and_prompt.dart:16`).
+   - `first_light`, `science` and `transients` still use the deprecated `ScreenHeader` and its
+     subtitle sentence (01-audit C2). They are route-only screens with no rail destination.
+   - Mobile (`apps/mobile/lib/screens/`) inherits the shell and the kit but was never driven.

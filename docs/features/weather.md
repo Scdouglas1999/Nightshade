@@ -335,4 +335,4 @@ When weather becomes unsafe:
 
 - [Settings](settings.md) - Configure weather settings
 - [Sequencing](sequencing.md) - Add weather triggers
-- [Dashboard](../getting-started/first-image.md) - View weather summary
+- [Tonight](../getting-started/first-image.md) - View weather summary

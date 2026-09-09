@@ -251,8 +251,10 @@ ghost "Skip" top-right. Fix F5.
 
 - Sentence case everywhere ("Frame type", not "Frame Type"), including tab labels and buttons.
 - Buttons are verbs: "Connect", "Download", "Build sequence". Never "OK" alone.
-- Numbers use figures. No thousands separator in readouts ("25000"): the bundled fonts have no
-  thin space (U+2009). Units: `°C`, `×` (both in the fonts), and ASCII `'` and `"` for arcminutes
-  and arcseconds (12' 30") — the fonts have NO prime glyphs (U+2032/U+2033 render as tofu).
+- Numbers use figures. No thousands separator — not in readouts ("25000"), not in prose
+  ("13000 targets"): the bundled fonts have no thin space (U+2009), and one grouping style across
+  the app beats two. Units: `°C`, `×`, `²` (all three are in the fonts), and ASCII `'` and `"` for
+  arcminutes and arcseconds (12' 30") — the fonts have NO prime glyphs (U+2032/U+2033 render as
+  tofu), and no `▲` either (U+25B2); the night band's now marker is a Lucide chevron.
 - Unknown = "—". Never `---`, `--:--`, `N/A`.
 - No exclamation marks, no "Welcome to…", no "Learn how to…" in chrome.

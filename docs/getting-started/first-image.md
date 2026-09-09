@@ -38,7 +38,7 @@ The fastest way to capture your first image:
 
 ### Step 1: Navigate to Imaging Screen
 
-1. Click **Imaging** in the left sidebar (camera icon)
+1. Click **Imaging** in the rail (camera icon, under Observe)
 2. The Imaging screen will open with multiple tabs
 
 ### Step 2: Configure Camera Settings

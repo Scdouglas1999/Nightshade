@@ -16,7 +16,7 @@ Plan the target, connect the rig, frame and solve the field, run the sequence, g
 
 [**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [6.1.0 release notes](docs/release/v6.1.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
 
-<img src="docs/screenshots/planetarium.png" width="900" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
+<img src="assets/screenshots/planetarium.png" width="900" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
 
 </div>
 
@@ -66,7 +66,7 @@ Everything else in this README describes capability that exists in the source an
 
 <div align="center">
 
-<img src="docs/screenshots/dashboard.png" width="900" alt="Nightshade dashboard during a session: the active target with its altitude and time-to-set, the most recent captured frame with a thumbnail strip, and live camera, mount, focuser, filter wheel, rotator, guider and weather-safety readouts">
+<img src="assets/screenshots/desktop-dashboard.png" width="900" alt="Nightshade Tonight during a session: the night band across sunset, astro dark and dawn, the active target with its altitude and time-to-set, the most recent captured frame, and live camera, mount, focuser, filter wheel, rotator, guider and weather-safety readouts">
 
 <sub><b>One control room.</b> The active target, the frame that just landed, and every device on the rig — on one screen.</sub>
 
@@ -75,11 +75,11 @@ Everything else in this README describes capability that exists in the source an
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/screenshots/equipment.png" width="100%" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
+<img src="assets/screenshots/equipment.png" width="100%" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
 <p><b>Connect once.</b> Every device in the profile, with live telemetry and its own controls.</p>
 </td>
 <td width="50%" valign="top">
-<img src="docs/screenshots/imaging.png" width="100%" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
+<img src="assets/screenshots/imaging.png" width="100%" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
 <p><b>See the frame.</b> Star count, HFR and eccentricity measured from the frame as it arrives.</p>
 </td>
 </tr>
@@ -90,7 +90,7 @@ Everything else in this README describes capability that exists in the source an
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/screenshots/plan-tonight.png" width="100%" alt="Nightshade Plan Tonight showing a ranked target recommendation with its altitude forecast for the night">
+<img src="assets/screenshots/plan-tonight.png" width="100%" alt="Nightshade Plan showing a ranked target recommendation with its altitude forecast for the night">
 <p><b>1 · Decide.</b> Compare scheduler-ranked targets under the same altitude, horizon, darkness, and safety constraints the automation engine will enforce.</p>
 </td>
 <td width="50%" valign="top">
@@ -100,7 +100,7 @@ Everything else in this README describes capability that exists in the source an
 </tr>
 <tr>
 <td valign="top">
-<img src="docs/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer builder with a loaded sequence: the target card showing its altitude curve and rise, transit and set times, above the ordered instruction nodes that unpark, slew, select a filter and autofocus">
+<img src="assets/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer builder with a loaded sequence: the target card showing its altitude curve and rise, transit and set times, above the ordered instruction nodes that unpark, slew, select a filter and autofocus">
 <p><b>3 · Sequence.</b> Build the run from instruction nodes. The target card carries its own altitude curve and planned integration, and the nodes below it are what actually execute.</p>
 </td>
 <td valign="top">
@@ -110,7 +110,7 @@ Everything else in this README describes capability that exists in the source an
 </tr>
 <tr>
 <td valign="top">
-<img src="docs/screenshots/weather.png" width="100%" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions">
+<img src="assets/screenshots/weather.png" width="100%" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions">
 <p><b>5 · Protect.</b> Combine weather, safety monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</p>
 </td>
 <td valign="top">
@@ -120,7 +120,7 @@ Everything else in this README describes capability that exists in the source an
 </tr>
 <tr>
 <td colspan="2" valign="top">
-<img src="docs/screenshots/analytics-history.png" width="100%" alt="Nightshade session history listing past imaging sessions with duration, frame count, integration time and average HFR">
+<img src="assets/screenshots/analytics.png" width="100%" alt="Nightshade analytics listing past imaging sessions with duration, frame count, integration time and average HFR">
 <p><b>7 · Review.</b> Follow frame quality, integration totals, guiding history, and the run decisions behind them. Quality labels are advisory: Nightshade does not delete or auto-reject your frames.</p>
 </td>
 </tr>
@@ -128,7 +128,7 @@ Everything else in this README describes capability that exists in the source an
 
 ## Automation that explains itself
 
-- **One set of contracts.** Plan Tonight and Unattended Autopilot share the same target scoring, horizon, darkness, and safety contracts, so the preview and the live run cannot disagree about what is next.
+- **One set of contracts.** Plan and Unattended Autopilot share the same target scoring, horizon, darkness, and safety contracts, so the preview and the live run cannot disagree about what is next.
 - **Resilient sequences.** Retries, checkpoint resume, meridian flips, dithering, V-curve autofocus, and calibration are instruction nodes inside the run, not separate scripts around it.
 - **Fail-closed safety.** Unknown or stale safety state is not treated as clear: the default resolution for "no weather data" is *unsafe*, in both the Dart provider and the Rust executor. Unsafe weather, critical disk space, or an emergency stop can pause capture and drive the rig toward park, dome, and cover safety.
 - **Structured history.** Automation decisions and recovery actions are emitted as events and persisted, so a night can be replayed instead of guessed at.

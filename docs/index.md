@@ -207,58 +207,33 @@ instructions.
 
 ### Main Screen Layout
 
-Nightshade's interface is organized into main screens accessible from the sidebar:
+The left rail holds nine destinations in three groups. Settings lives in the top bar, next to the
+command field. Everything else — Planetarium, Framing, Flat wizard, Polar alignment, Live stacking,
+Mosaic, Session review, Catalogs — is reachable from any screen with the command palette
+(**Ctrl+K**), or from the button inside the screen that leads to it.
 
-**Dashboard**
-- Session overview
-- Equipment status
-- Live preview
-- Quick actions
-- Tonight's conditions
+**Observe**
 
-**Equipment**
-- Device connections
-- Equipment profiles
-- Protocol selection
-- Settings and configuration
+- **Tonight** — the night's headline and its one primary action, the night band (sunset → astro
+  dark → dawn), live readouts, and the "Ready for first light" checklist when something is missing.
+- **Imaging** — the frame edge to edge under one toolbar, with readouts and the capture bar
+  floating over it, and a side panel for capture, focus, mount, filters and annotations.
+- **Sequencer** — sequence builder, templates, node properties, preflight and run history.
+- **Guiding** — PHD2 status, calibration, the guide graph and star view.
 
-**Imaging**
-- Capture controls
-- Camera settings
-- Mount control
-- Focus tools
-- Guiding monitoring
+**Prepare**
 
-**Sequencer**
-- Sequence builder
-- Target library
-- Sequence templates
-- Execution monitoring
-- Checkpoint recovery
+- **Plan** — scheduler-ranked targets for tonight, projects, your sky, and the framing assistant.
+- **Equipment** — discovery, connections, equipment profiles, the optical train, and readiness.
+- **Weather** — conditions, cloud radar, and the safety monitors that can stop a run.
 
-**Planetarium**
-- Interactive sky map
-- Target selection
-- Framing preview
-- Equipment overlay
-- Mosaic planning
-- Survey image overlays
+**Review**
 
-**Framing**
-- Target framing assistant
-- Field of view planning
-- Mosaic planning
+- **Darkroom** — recipes, sessions and masters; non-destructive processing of what you captured.
+- **Analytics** — session statistics, image history, guiding performance, diagnostics.
 
-**Analytics**
-- Session statistics
-- Image history
-- Guiding performance
-- Equipment logs
-
-**Flat Wizard**
-- Automated flat frame capture
-- Multi-filter support
-- Optimal exposure finding
+The bottom bar is the instrument bar: run state, device pills and the clock, on every screen. Below
+768 px the rail becomes a five-slot bottom nav with a More sheet for the rest.
 
 ## Common Workflows
 

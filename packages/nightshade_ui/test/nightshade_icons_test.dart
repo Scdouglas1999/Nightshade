@@ -7,7 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// design-system migration; a silent re-point would shift every adopting call
 /// site at once, so the key device/status/action roles are locked here.
 ///
-/// Mapping table of record: docs/design/icon-migration-map.md.
+/// Mapping table of record: docs/design/overhaul/archive/icon-migration-map.md.
 void main() {
   group('NightshadeIcons device roles → Lucide glyphs', () {
     test('equipment roles are wired to their intended glyphs', () {

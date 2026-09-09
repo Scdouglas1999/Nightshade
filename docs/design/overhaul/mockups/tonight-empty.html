@@ -16,8 +16,9 @@
   .band { padding: 12px 16px 12px; margin-bottom: var(--shell-panelGap); }
   .band svg { width: 100%; height: 52px; display: block; }
   .band .legend { position: relative; height: 30px; font-size: 11px; color: var(--textMuted); font-family: var(--font-mono); margin-top: 6px; }
-  .band .legend span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-  .band .legend span.now { top: 15px; } .band .legend span:first-child { transform: none; } .band .legend span:last-child { transform: translateX(-100%); }
+  .band .legend .i { width: 1em; height: 1em; vertical-align: -0.12em; }
+  .band .legend > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .band .legend > span.now { top: 15px; } .band .legend > span:first-child { transform: none; } .band .legend > span:last-child { transform: translateX(-100%); }
   .check { display: flex; flex-direction: column; }
   .check .step { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--hairline); }
   .check .step:last-child { border-bottom: 0; }
@@ -60,7 +61,7 @@
           <line x1="80" y1="0" x2="80" y2="52" stroke="var(--textPrimary)" stroke-width="1.5"/>
           <circle cx="80" cy="6" r="3" fill="var(--textPrimary)"/>
         </svg>
-        <div class="legend"><span style="left:0">19:12 sunset</span><span style="left:6.7%" class="acc now">▲ now 18:41</span><span style="left:12.5%">20:54 astro dark</span><span style="left:87.5%">04:51 astro dawn</span><span style="left:100%">06:33 sunrise</span></div>
+        <div class="legend"><span style="left:0">19:12 sunset</span><span style="left:6.7%" class="acc now"><span class="i i-chevron-up" style="font-size:11px"></span>now 18:41</span><span style="left:12.5%">20:54 astro dark</span><span style="left:87.5%">04:51 astro dawn</span><span style="left:100%">06:33 sunrise</span></div>
       </div>
 
       <div class="grid12">

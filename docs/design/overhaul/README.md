@@ -2,10 +2,13 @@
 
 A complete, hand-off-ready redesign of the Nightshade desktop (and shared mobile) UI, written on
 2026-09-09 after driving the shipped 7.0.0 app screen by screen. Everything an implementing agent
-needs is in this folder. Nothing here has been implemented yet.
+needs is in this folder.
 
-**First step for any implementer:** this folder is untracked at the time of writing. Commit it to
-`main` before branching wave 0, or the spec will not exist on the branch.
+**Status:** all four waves shipped on 2026-09-09. What landed, the deviations that were accepted
+and what is still owed are in `07-implementation-waves.md` § "Status 2026-09-09"; `01-audit.md`
+carries a Resolved column against the final screenshot set in `reports/observatory/final/`. This
+folder is the design contract from here on — `docs/architecture/ui-theming.md` points at it, and
+`archive/` holds the two pre-overhaul migration maps.
 
 ## Read in this order
 
@@ -22,6 +25,7 @@ needs is in this folder. Nothing here has been implemented yet.
 | `tools/check_tokens.py` | Validates contrast (WCAG AA on every surface, red-axis rule) and emits `mockups/tokens.css` | run after any token change |
 | `mockups/*.html` + `mockups/render.sh` | The new design rendered as HTML with the app's real fonts and Lucide icons | anyone who wants to SEE the target |
 | `mockups/png/` | Rendered references at 1600 × 900 (and 700 × 900 narrow), dark / light / red night | wave 3 agents compare screenshots against these |
+| `archive/` | The two pre-overhaul migration maps (literal → token, Material → Lucide) | history; the values in force are in `03-tokens.md` |
 
 ## The design in one screen
 

@@ -1,6 +1,6 @@
 # Settings
 
-The Settings screen provides comprehensive configuration options for all aspects of Nightshade. Settings are organized into categories accessible from a left sidebar.
+The Settings screen provides comprehensive configuration options for all aspects of Nightshade. Open it from the gear button in the top bar, or with Ctrl+K. Its sections are listed in a left column.
 
 ## Settings Categories
 
@@ -80,7 +80,7 @@ Customize the visual appearance.
 | Setting | Options |
 |---------|---------|
 | **Font size** | Small, Medium, Large |
-| **Sidebar collapsed** | Start with sidebar minimized by default |
+| **Rail collapsed** | Start with the navigation rail icon-only (64 px) rather than expanded |
 
 ## Location Settings
 
