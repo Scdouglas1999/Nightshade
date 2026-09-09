@@ -208,17 +208,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('never rises above'), findsOneWidget);
-    expect(find.text('Cannot Start Sequence'), findsOneWidget);
-    expect(find.text('All checks passed'), findsNothing);
+    // The verdict is one `NightshadeBanner`, whose title lives in a
+    // `Text.rich` span rather than in a `Text.data`.
+    expect(find.text('Cannot start', findRichText: true), findsOneWidget);
+    expect(find.text('All checks passed', findRichText: true), findsNothing);
 
-    final startGesture = tester.widget<GestureDetector>(
-      find.ancestor(
-        of: find.text('Start Sequence'),
-        matching: find.byType(GestureDetector),
-      ),
-    );
-
-    expect(startGesture.onTap, isNull);
+    final start = find.widgetWithText(NightshadeButton, 'Start sequence');
+    expect(start, findsOneWidget);
+    expect(tester.widget<NightshadeButton>(start).onPressed, isNull);
     expect(started, isFalse);
   });
 

@@ -376,6 +376,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             label: state.canResume ? 'Resume' : 'Pause',
             color: colors.warning,
             colors: colors,
+            isOutline: true,
             onPressed: connected
                 ? (state.canResume
                     ? widget.onResumeGuiding
@@ -385,12 +386,16 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           ),
         ),
         const SizedBox(height: 10),
+        // Outline, not a fill: 05 §5 gives a view ONE primary, and Start owns
+        // it here. Loop exposures, Auto select and Deselect were all painted
+        // as fills, so the panel read as three primaries stacked.
         _buildControlButton(
           id: 'loop',
           icon: LucideIcons.refreshCw,
           label: 'Loop exposures',
           color: colors.info,
           colors: colors,
+          isOutline: true,
           onPressed: connected && state.canLoop ? widget.onLoop : null,
         ),
       ],
@@ -485,6 +490,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             label: 'Auto select',
             color: colors.primary,
             colors: colors,
+            isOutline: true,
             onPressedReporting: widget.isConnected ? widget.onFindStar : null,
           ),
           _buildControlButton(

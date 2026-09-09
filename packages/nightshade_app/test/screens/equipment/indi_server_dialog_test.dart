@@ -62,8 +62,15 @@ class _DialogHost extends StatelessWidget {
 Finder get _hostField => find.byKey(const ValueKey('indi-host-field'));
 Finder get _portField => find.byKey(const ValueKey('indi-port-field'));
 
-String _text(WidgetTester tester, Finder field) =>
-    tester.widget<TextField>(field).controller!.text;
+/// The value currently in [field]. The key sits on the design system's
+/// `NightshadeTextField`, so the controller is read from the [TextField] it
+/// builds underneath rather than from the keyed widget itself.
+String _text(WidgetTester tester, Finder field) => tester
+    .widget<TextField>(
+      find.descendant(of: field, matching: find.byType(TextField)),
+    )
+    .controller!
+    .text;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
