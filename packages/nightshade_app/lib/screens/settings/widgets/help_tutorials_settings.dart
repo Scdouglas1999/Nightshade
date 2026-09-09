@@ -41,7 +41,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         // mirrored into settings_search_index.g.dart, regenerated with
         // `dart run tools/production/settings_search_index_gen.dart`.
         SettingsSection(
-          title: 'Guided Flows',
+          title: 'Guided flows',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -162,7 +162,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
           ],
         ),
         SettingsSection(
-          title: 'Tutorial Tours',
+          title: 'Tutorial tours',
           isMobile: isMobile,
           children: [
             // The "Quick Start Tour" (TutorialCategory.firstLight step tour)
@@ -269,7 +269,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
           ],
         ),
         SettingsSection(
-          title: 'Reset Progress',
+          title: 'Reset progress',
           isMobile: isMobile,
           children: [
             SettingRow(

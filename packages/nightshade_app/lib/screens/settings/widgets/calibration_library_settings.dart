@@ -157,7 +157,7 @@ class _CalibrationLibrarySettingsState
           ],
         ),
         SettingsSection(
-          title: 'Matching Preview',
+          title: 'Matching preview',
           isMobile: widget.isMobile,
           children: [
             _MatchingPreview(

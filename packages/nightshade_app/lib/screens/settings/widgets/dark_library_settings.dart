@@ -147,7 +147,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // Library statistics
         SettingsSection(
-          title: 'Library Statistics',
+          title: 'Library statistics',
           isMobile: widget.isMobile,
           children: [
             statsAsync.when(
@@ -274,7 +274,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // Library actions
         SettingsSection(
-          title: 'Library Management',
+          title: 'Library management',
           isMobile: widget.isMobile,
           children: [
             Padding(
@@ -316,7 +316,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // Frame groups
         SettingsSection(
-          title: 'Frame Groups',
+          title: 'Frame groups',
           isMobile: widget.isMobile,
           children: [
             groupsAsync.when(
@@ -389,7 +389,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
 
         // All entries list
         SettingsSection(
-          title: 'All Entries',
+          title: 'All entries',
           isMobile: widget.isMobile,
           children: [
             entriesAsync.when(

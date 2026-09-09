@@ -111,7 +111,7 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
           hideHeader: widget.isMobile,
           children: [
             SettingsSection(
-              title: 'File Format',
+              title: 'File format',
               isMobile: widget.isMobile,
               children: [
                 SettingRow(

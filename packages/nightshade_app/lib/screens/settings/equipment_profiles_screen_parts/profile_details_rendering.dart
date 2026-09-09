@@ -205,7 +205,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Optical Configuration
           _Section(
-            title: 'Optical Configuration',
+            title: 'Optical configuration',
             icon: LucideIcons.aperture,
             isMobile: widget.isMobile,
             children: [
@@ -307,7 +307,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Camera Defaults
           _Section(
-            title: 'Camera Defaults',
+            title: 'Camera defaults',
             icon: LucideIcons.camera,
             isMobile: widget.isMobile,
             children: [
@@ -454,7 +454,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Filter Configuration
           _Section(
-            title: 'Filter Configuration',
+            title: 'Filter configuration',
             icon: LucideIcons.layers,
             isMobile: widget.isMobile,
             trailing: Row(
@@ -552,7 +552,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
           // Filter Focus Offsets section
           if (_hasFilters()) ...[
             _Section(
-              title: 'Filter Focus Offsets',
+              title: 'Filter focus offsets',
               icon: LucideIcons.gitBranch,
               isMobile: widget.isMobile,
               children: [
@@ -571,7 +571,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
 
           // Device Assignments
           _Section(
-            title: 'Device Assignments',
+            title: 'Device assignments',
             icon: LucideIcons.cpu,
             isMobile: widget.isMobile,
             trailing: widget.isEditing

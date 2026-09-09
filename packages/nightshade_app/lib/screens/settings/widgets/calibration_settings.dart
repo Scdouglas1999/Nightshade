@@ -141,7 +141,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Calibration frame status overview
         SettingsSection(
-          title: 'Calibration Frame Status',
+          title: 'Calibration frame status',
           isMobile: isMobile,
           children: [
             Padding(
@@ -186,7 +186,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Dark frame source
         SettingsSection(
-          title: 'Dark Frame',
+          title: 'Dark frame',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -248,7 +248,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Master flat
         SettingsSection(
-          title: 'Master Flat',
+          title: 'Master flat',
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -296,7 +296,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
         // Master bias
         SettingsSection(
-          title: 'Master Bias',
+          title: 'Master bias',
           isMobile: isMobile,
           children: [
             SettingRow(

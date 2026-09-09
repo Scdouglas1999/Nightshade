@@ -73,12 +73,12 @@ class ConnectionSettings extends ConsumerWidget {
       hideHeader: isMobile,
       children: [
         SettingsSection(
-          title: 'Server Status',
+          title: 'Server status',
           isMobile: isMobile,
           children: [
             SettingRow(
               icon: LucideIcons.server,
-              title: 'Connection Status',
+              title: 'Connection status',
               subtitle: serverAddress,
               trailing: Container(
                 padding:
@@ -100,7 +100,7 @@ class ConnectionSettings extends ConsumerWidget {
             if (isNetwork)
               SettingRow(
                 icon: LucideIcons.globe,
-                title: 'Server Address',
+                title: 'Server address',
                 subtitle: 'Current host and port for this Nightshade server',
                 trailing: SelectableText(
                   serverAddress,
@@ -136,7 +136,7 @@ class ConnectionSettings extends ConsumerWidget {
             if (isDisconnected && canWorkLocally)
               SettingRow(
                 icon: LucideIcons.hardDrive,
-                title: 'Work Locally',
+                title: 'Work locally',
                 subtitle:
                     'Drive the equipment attached to this computer instead of '
                     'a remote server',
@@ -156,7 +156,7 @@ class ConnectionSettings extends ConsumerWidget {
               if (!Platform.isWindows)
                 SettingRow(
                   icon: LucideIcons.server,
-                  title: 'INDI Server Address',
+                  title: 'INDI server address',
                   subtitle:
                       '${settings.indiServerHost}:${settings.indiServerPort}'
                       ' • host and port used for INDI discovery',
@@ -188,7 +188,7 @@ class ConnectionSettings extends ConsumerWidget {
               // deployment is an ASCOM Remote host elsewhere on the LAN.
               SettingRow(
                 icon: LucideIcons.server,
-                title: 'Alpaca Server Address',
+                title: 'Alpaca server address',
                 subtitle:
                     '${settings.alpacaServerHost}:${settings.alpacaServerPort}'
                     ' • host and port used for Alpaca discovery',
@@ -219,12 +219,12 @@ class ConnectionSettings extends ConsumerWidget {
           ),
         if (isConnected)
           SettingsSection(
-            title: 'Remote Features',
+            title: 'Remote features',
             isMobile: isMobile,
             children: [
               SettingRow(
                 icon: LucideIcons.refreshCw,
-                title: 'Refresh Host Settings',
+                title: 'Refresh host settings',
                 subtitle:
                     'Reload this screen from the connected Nightshade host',
                 trailing: _HostSettingsRefreshButton(

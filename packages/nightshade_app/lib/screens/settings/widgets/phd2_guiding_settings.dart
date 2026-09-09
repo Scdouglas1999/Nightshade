@@ -276,7 +276,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
           description: 'Configure PHD2 guiding software connection',
           children: [
             SettingsSection(
-              title: 'PHD2 Connection',
+              title: 'PHD2 connection',
               children: [
                 SettingRow(
                   icon: LucideIcons.server,

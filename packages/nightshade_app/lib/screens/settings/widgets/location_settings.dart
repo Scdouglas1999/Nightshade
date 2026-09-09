@@ -247,7 +247,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 if (isRemoteMode)
                   SettingRow(
                     icon: LucideIcons.refreshCw,
-                    title: 'Sync from Server',
+                    title: 'Sync from server',
                     subtitle: 'Fetch location from the connected imaging host',
                     trailing: NightshadeIconButton(
                       icon: LucideIcons.downloadCloud,
@@ -306,7 +306,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   icon: LucideIcons.locate,
                   // Not "GPS": on desktop there is no GPS receiver, and the
                   // service silently falls back to a third-party IP lookup.
-                  title: 'Detect Location',
+                  title: 'Detect location',
                   subtitle: 'Device GPS if this machine has it, otherwise a '
                       'city-level estimate from your IP address',
                   trailing: NightshadeIconButton(
@@ -321,12 +321,12 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               ],
             ),
             SettingsSection(
-              title: 'Observing Environment',
+              title: 'Observing environment',
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
                   icon: LucideIcons.sun,
-                  title: 'Bortle Class',
+                  title: 'Bortle class',
                   subtitle: BortleScale.description(settings.bortleClass),
                   trailing: SettingsDropdown(
                     value: settings.bortleClass.toString(),
@@ -347,7 +347,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 ),
                 SettingRow(
                   icon: LucideIcons.eye,
-                  title: 'Limiting Magnitude',
+                  title: 'Limiting magnitude',
                   subtitle:
                       'Estimated naked-eye limit for Bortle ${settings.bortleClass}',
                   trailing: Text(
@@ -361,7 +361,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               ],
             ),
             SettingsSection(
-              title: 'Local Horizon Mask',
+              title: 'Local horizon mask',
               isMobile: widget.isMobile,
               children: [
                 Padding(

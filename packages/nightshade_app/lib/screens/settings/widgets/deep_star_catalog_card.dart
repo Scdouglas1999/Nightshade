@@ -150,7 +150,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
     try {
       confirm = await ConfirmDialog.show(
         context: context,
-        title: 'Delete Deep-Star Tiles',
+        title: 'Delete deep-star tiles',
         message: 'Remove the downloaded deep-star tier? The bundled HYG stars '
             'are unaffected.',
         confirmLabel: 'Delete',

@@ -207,7 +207,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
       scrollable: !widget.embedded,
       children: [
         SettingsSection(
-          title: 'Sequence Auto-Save',
+          title: 'Sequence auto-save',
           isMobile: isMobile,
           children: [
             SettingRow(

@@ -390,7 +390,7 @@ class FilePathSettings extends ConsumerWidget {
             ),
             if (!isRemoteMode)
               SettingsSection(
-                title: 'Application Data',
+                title: 'Application data',
                 children: [
                   _AppDataFolderRow(isMobile: isMobile),
                   _BackupFolderRow(isMobile: isMobile),

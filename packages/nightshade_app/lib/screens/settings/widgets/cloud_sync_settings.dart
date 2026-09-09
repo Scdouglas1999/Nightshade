@@ -311,7 +311,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
       // bundle-based (replace, never merge) semantics explicit.
       final confirmed = await ConfirmDialog.show(
         context: context,
-        title: 'Restore Remote Backup?',
+        title: 'Restore remote backup?',
         message: 'This restores "${bundle.file}" from machine "$machine". '
             'Sync is bundle-based: restoring replaces local configuration '
             'with the contents of this backup — nothing is merged. '

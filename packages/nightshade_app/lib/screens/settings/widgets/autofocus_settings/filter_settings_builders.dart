@@ -14,7 +14,7 @@ extension _AutofocusFilterSettingsBuilders on _AutofocusSettingsState {
 
     if (!isConnected || filterNames.isEmpty) {
       return SettingsSection(
-        title: 'Autofocus Filter Settings',
+        title: 'Autofocus filter settings',
         isMobile: widget.isMobile,
         children: [
           SettingRow(
@@ -36,7 +36,7 @@ extension _AutofocusFilterSettingsBuilders on _AutofocusSettingsState {
     );
 
     return SettingsSection(
-      title: 'Autofocus Filter Settings',
+      title: 'Autofocus filter settings',
       isMobile: widget.isMobile,
       children: [
         if (widget.isMobile)

@@ -665,7 +665,7 @@ class _NoSolverQuickStart extends StatelessWidget {
           const SizedBox(height: 10),
           _QuickStartStep(
             stepNumber: 3,
-            title: 'Click Re-scan',
+            title: 'Click re-scan',
             body: 'Once ASTAP and the catalog are installed, click Re-scan '
                 'so Nightshade picks them up.',
             icon: LucideIcons.refreshCw,

@@ -457,7 +457,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
             ),
             if (isRemoteController)
               const SettingsSection(
-                title: 'Push to Mobile',
+                title: 'Push to mobile',
                 children: [
                   SettingRow(
                     icon: LucideIcons.server,
@@ -472,7 +472,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
               )
             else if (pushConfigAsync!.isLoading)
               const SettingsSection(
-                title: 'Push to Mobile',
+                title: 'Push to mobile',
                 children: [
                   SettingRow(
                     icon: LucideIcons.smartphone,
@@ -490,7 +490,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
               )
             else if (pushConfigAsync.hasError)
               SettingsSection(
-                title: 'Push to Mobile',
+                title: 'Push to mobile',
                 children: [
                   SettingRow(
                     icon: LucideIcons.alertTriangle,
@@ -509,7 +509,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
               ),
             if (pushConfigReady)
               SettingsSection(
-                title: 'Push to Mobile',
+                title: 'Push to mobile',
                 children: [
                   SettingRow(
                     icon: LucideIcons.smartphone,
@@ -710,7 +710,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                 children: [
                   SettingRow(
                     icon: LucideIcons.key,
-                    title: 'API Key',
+                    title: 'API key',
                     subtitle: 'Pushover application API key',
                     trailing: SettingsTextInput(
                       controller: _pushoverKeyController,
@@ -728,7 +728,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   ),
                   SettingRow(
                     icon: LucideIcons.user,
-                    title: 'User Key',
+                    title: 'User key',
                     subtitle: 'Pushover user/group key',
                     trailing: SettingsTextInput(
                       controller: _pushoverUserController,
