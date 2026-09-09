@@ -118,7 +118,12 @@ void main() {
 
     expect(
       tester
-          .widget<DropdownButton<String>>(find.byType(DropdownButton<String>))
+          .widget<DropdownButton<String>>(
+            find.descendant(
+              of: find.byKey(const ValueKey('gallery-dropdown')),
+              matching: find.byType(DropdownButton<String>),
+            ),
+          )
           .value,
       'Camera',
     );
@@ -128,7 +133,12 @@ void main() {
     await tester.pump();
     expect(
       tester
-          .widget<DropdownButton<String>>(find.byType(DropdownButton<String>))
+          .widget<DropdownButton<String>>(
+            find.descendant(
+              of: find.byKey(const ValueKey('gallery-dropdown')),
+              matching: find.byType(DropdownButton<String>),
+            ),
+          )
           .value,
       'Mount',
     );

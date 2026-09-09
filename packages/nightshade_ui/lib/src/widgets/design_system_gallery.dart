@@ -18,6 +18,25 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+// Observatory wave 2
+import '../components/adaptive_tab_bar.dart';
+import '../components/candidate_row.dart';
+import '../components/checklist.dart';
+import '../components/form_row.dart';
+import '../components/glass.dart';
+import '../components/list_rows.dart';
+import '../components/night_band.dart';
+import '../components/nightshade_banner.dart';
+import '../components/nightshade_chip.dart';
+import '../components/nightshade_icon_button.dart';
+import '../components/nightshade_panel.dart';
+import '../components/nightshade_toolbar.dart';
+import '../components/readout.dart';
+import '../components/section_title.dart';
+import '../components/segmented_control.dart';
+import '../dialogs/nightshade_dialog.dart';
+import '../layout/side_panel.dart';
+import 'empty_state.dart';
 
 /// Renderable design-system gallery for release visual QA and widget snapshots.
 class NightshadeDesignSystemGallery extends StatefulWidget {
@@ -594,6 +613,8 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
+                  // Observatory wave 2
+                  const _ObservatorySections(),
                 ],
               ),
             ),
@@ -795,6 +816,634 @@ class _GalleryCardSpecimen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Observatory wave 2
+// ---------------------------------------------------------------------------
+
+/// Every component added or changed by 05-components.md, in one block.
+///
+/// Appended rather than woven into the sections above so the pre-overhaul
+/// gallery keeps its evidence markers (the `design_system_gallery_missing`
+/// audit rule reads this file for them) while the new kit gets a golden of its
+/// own.
+class _ObservatorySections extends StatefulWidget {
+  const _ObservatorySections();
+
+  @override
+  State<_ObservatorySections> createState() => _ObservatorySectionsState();
+}
+
+class _ObservatorySectionsState extends State<_ObservatorySections> {
+  int _segment = 0;
+  int _underlineTab = 0;
+  int _stripSection = 1;
+  bool _chipSelected = true;
+
+  static final DateTime _sunset = DateTime(2026, 9, 9, 19, 12);
+  static final DateTime _astroDark = DateTime(2026, 9, 9, 20, 48);
+  static final DateTime _astroDawn = DateTime(2026, 9, 10, 4, 51);
+  static final DateTime _sunrise = DateTime(2026, 9, 10, 6, 24);
+  static final DateTime _now = DateTime(2026, 9, 9, 22, 41);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ShowcaseSection.plain(
+          title: 'Panels and wells',
+          child: Wrap(
+            spacing: NightshadeTokens.spaceMd,
+            runSpacing: NightshadeTokens.spaceMd,
+            children: [
+              SizedBox(
+                width: 260,
+                child: NightshadePanel(
+                  head: const PanelHead(
+                    label: 'Equipment',
+                    icon: LucideIcons.activity,
+                  ),
+                  child: Container(
+                    height: 48,
+                    alignment: Alignment.center,
+                    decoration: NightshadeDecorations.well(colors),
+                    child: Text(
+                      'well inside a panel (max depth)',
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 260,
+                child: NightshadePanel(
+                  selected: true,
+                  head: const PanelHead(label: 'Selected panel'),
+                  child: Text(
+                    'A primary ring at 50%, not a tinted fill.',
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const ShowcaseSection.plain(
+          title: 'Readouts',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NightshadePanel(
+                child: ReadoutRow(
+                  children: [
+                    Readout(
+                      value: '-10.0',
+                      unit: '°C',
+                      label: 'Sensor',
+                      size: ReadoutSize.lg,
+                    ),
+                    Readout(
+                      value: '2.49',
+                      unit: 'px',
+                      label: 'HFR',
+                      size: ReadoutSize.lg,
+                    ),
+                    Readout(value: '0.42', unit: '"', label: 'RMS'),
+                    Readout(value: '25 000', label: 'Position'),
+                    Readout(
+                      value: '13h 29m 54s',
+                      label: 'RA',
+                      size: ReadoutSize.sm,
+                    ),
+                    Readout(value: null, label: 'Guide star'),
+                  ],
+                ),
+              ),
+              SizedBox(height: NightshadeTokens.spaceMd),
+              NightshadePanel(
+                child: KeyValueList(
+                  rows: [
+                    ('Clouds', '4%'),
+                    ('Wind', '6 km/h'),
+                    ('Dew point margin', '5.3°'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Underline tabs',
+          child: SizedBox(
+            height: 40,
+            child: AdaptiveTabBar(
+              horizontalPadding: 0,
+              tabs: const [
+                AdaptiveTab(label: 'Builder'),
+                AdaptiveTab(label: 'Templates'),
+                AdaptiveTab(label: 'Saved'),
+                AdaptiveTab(label: 'History', count: '3'),
+              ],
+              selectedIndex: _underlineTab,
+              onSelected: (i) => setState(() => _underlineTab = i),
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Segmented control',
+          child: SegmentedControl(
+            segments: const ['Nodes', 'Snippets', 'Queue'],
+            selectedIndex: _segment,
+            onSelected: (i) => setState(() => _segment = i),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Buttons and icon buttons',
+          child: Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              NightshadeButton(
+                label: 'Primary',
+                icon: LucideIcons.play,
+                onPressed: () {},
+              ),
+              NightshadeButton(
+                label: 'Secondary',
+                variant: ButtonVariant.secondary,
+                onPressed: () {},
+              ),
+              NightshadeButton(
+                label: 'Ghost',
+                variant: ButtonVariant.ghost,
+                onPressed: () {},
+              ),
+              NightshadeButton(
+                label: 'Stop',
+                icon: LucideIcons.square,
+                variant: ButtonVariant.destructive,
+                onPressed: () {},
+              ),
+              NightshadeButton(
+                label: 'Start',
+                icon: LucideIcons.play,
+                variant: ButtonVariant.start,
+                onPressed: () {},
+              ),
+              const NightshadeButton(label: 'Disabled'),
+              NightshadeButton(
+                label: 'Small',
+                size: ButtonSize.small,
+                variant: ButtonVariant.secondary,
+                onPressed: () {},
+              ),
+              NightshadeButton(
+                label: 'Large',
+                size: ButtonSize.large,
+                variant: ButtonVariant.secondary,
+                onPressed: () {},
+              ),
+              NightshadeIconButton(
+                icon: LucideIcons.settings,
+                tooltip: 'Settings',
+                onPressed: () {},
+              ),
+              NightshadeIconButton(
+                icon: LucideIcons.layers,
+                tooltip: 'Layers',
+                selected: true,
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Toolbar',
+          child: NightshadeToolbar(
+            overflowIcon: LucideIcons.moreHorizontal,
+            onOverflowPressed: () {},
+            overflow: [
+              NightshadeIconButton(
+                icon: LucideIcons.share2,
+                tooltip: 'Share',
+                size: IconButtonSize.sm,
+                onPressed: () {},
+              ),
+              NightshadeIconButton(
+                icon: LucideIcons.download,
+                tooltip: 'Export',
+                size: IconButtonSize.sm,
+                onPressed: () {},
+              ),
+            ],
+            groups: [
+              [
+                NightshadeIconButton(
+                  icon: LucideIcons.undo2,
+                  tooltip: 'Undo',
+                  size: IconButtonSize.sm,
+                  onPressed: () {},
+                ),
+                NightshadeIconButton(
+                  icon: LucideIcons.redo2,
+                  tooltip: 'Redo',
+                  size: IconButtonSize.sm,
+                  onPressed: () {},
+                ),
+              ],
+              [
+                NightshadeButton(
+                  label: 'Timeline',
+                  icon: LucideIcons.clock,
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.ghost,
+                  onPressed: () {},
+                ),
+                NightshadeButton(
+                  label: 'Map',
+                  icon: LucideIcons.map,
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.ghost,
+                  onPressed: () {},
+                ),
+              ],
+            ],
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Fields and form rows',
+          // The gallery is rendered at 390px wide in one of its tests; the
+          // fixed-width specimens scroll rather than overflow.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: 360,
+              child: Column(
+                children: [
+                  const FormRow(
+                    label: 'Exposure',
+                    child: NightshadeTextField(
+                      initialValue: '120',
+                      suffix: 's',
+                      mono: true,
+                    ),
+                  ),
+                  const SizedBox(height: FormRow.rowGap),
+                  FormRow(
+                    label: 'Frame type',
+                    child: NightshadeDropdown(
+                      value: 'Light',
+                      items: const ['Light', 'Dark', 'Flat', 'Bias'],
+                      onChanged: (_) {},
+                    ),
+                  ),
+                  const SizedBox(height: FormRow.rowGap),
+                  const FormRow(
+                    label: 'Search',
+                    child: NightshadeTextField(
+                      hint: 'Search nodes…',
+                      prefixIcon: LucideIcons.search,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Chips and status dots',
+          child: Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const NightshadeChip(
+                label: 'Connected',
+                tone: ChipTone.success,
+                dot: true,
+              ),
+              const NightshadeChip(
+                label: 'Session only',
+                tone: ChipTone.warning,
+                dot: true,
+              ),
+              const NightshadeChip(
+                label: 'Disconnected',
+                tone: ChipTone.error,
+                dot: true,
+              ),
+              NightshadeChip(
+                label: 'Transit 01:08',
+                tone: ChipTone.primary,
+                selected: _chipSelected,
+                onTap: () => setState(() => _chipSelected = !_chipSelected),
+              ),
+              const NightshadeChip(label: '27 nodes'),
+              NightshadeFilterChip(
+                label: 'Type: any',
+                trailingIcon: LucideIcons.chevronDown,
+                onTap: () {},
+              ),
+              StatusDot(color: colors.success, live: true),
+            ],
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Banner',
+          child: Column(
+            children: [
+              NightshadeBanner(
+                title: 'Catalogs not installed.',
+                message:
+                    'Annotations and plate solving need HYG + OpenNGC (60 MB).',
+                action: NightshadeButton(
+                  label: 'Download',
+                  size: ButtonSize.small,
+                  onPressed: () {},
+                ),
+                onDismiss: () {},
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              const NightshadeBanner(
+                title: 'Ends after astro dawn.',
+                message: 'Reduce count to 32 to finish by 04:51.',
+                tone: BannerTone.warning,
+              ),
+            ],
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Empty state',
+          // A MINIMUM, not a fixed height: the sentence wraps to three lines at
+          // the 390px width the gallery is also tested at, and a fixed box
+          // would clip it there.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 170),
+            child: NightshadePanel(
+              child: EmptyState(
+                icon: LucideIcons.folderOpen,
+                title: 'Nothing captured yet',
+                body:
+                    'Start a capture or a sequence and this fills in as frames '
+                    'arrive.',
+                action: NightshadeButton(
+                  label: 'Go to Imaging',
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.secondary,
+                  onPressed: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Dialog',
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: NightshadeDialog.widthConfirm,
+              child: NightshadeDialogSurface(
+                framed: true,
+                title: 'Replace the current sequence?',
+                showCloseButton: false,
+                actions: [
+                  NightshadeButton(
+                    label: 'Cancel',
+                    variant: ButtonVariant.ghost,
+                    onPressed: () {},
+                  ),
+                  NightshadeButton(
+                    label: 'Save first',
+                    variant: ButtonVariant.secondary,
+                    onPressed: () {},
+                  ),
+                  NightshadeButton(label: 'Replace', onPressed: () {}),
+                ],
+                child: Text(
+                  'Loading “Mono LRGB M51” discards 3 unsaved changes '
+                  'to “Untitled sequence”.',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Glass',
+          child: SizedBox(
+            height: 120,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: NightshadeColors.dark.background,
+                borderRadius: NightshadeTokens.borderRadiusLg,
+              ),
+              child: Stack(
+                children: [
+                  const Positioned(
+                    left: NightshadeTokens.spaceMd,
+                    bottom: NightshadeTokens.spaceMd,
+                    child: Glass(
+                      child: ReadoutRow(
+                        gap: DeviceRow.readoutGap,
+                        children: [
+                          Readout(value: '2.49', unit: 'px', label: 'HFR'),
+                          Readout(value: '43', label: 'Stars'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: NightshadeTokens.spaceMd,
+                    top: NightshadeTokens.spaceMd,
+                    child: Glass(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          StatusDot(color: colors.success, live: true),
+                          const SizedBox(width: NightshadeTokens.spaceSm),
+                          Text(
+                            'Exposing 42 / 120 s',
+                            style: NightshadeTypography.caption.copyWith(
+                              color: NightshadeColors.dark.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Side panel',
+          child: SizedBox(
+            height: 280,
+            child: Row(
+              children: [
+                const Spacer(),
+                SidePanel(
+                  sections: const [
+                    SidePanelSection(
+                      icon: LucideIcons.sliders,
+                      tooltip: 'Capture',
+                    ),
+                    SidePanelSection(
+                      icon: LucideIcons.target,
+                      tooltip: 'Target',
+                    ),
+                    SidePanelSection(
+                      icon: LucideIcons.history,
+                      tooltip: 'History',
+                    ),
+                  ],
+                  selectedSection: _stripSection,
+                  onSectionSelected: (i) => setState(() => _stripSection = i),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SectionTitle(
+                        title: 'Target',
+                        icon: LucideIcons.target,
+                      ),
+                      ListRow(
+                        title: 'M51 Whirlpool',
+                        icon: LucideIcons.star,
+                        trailing: '22:41',
+                        onTap: () {},
+                      ),
+                      ListRow(
+                        title: 'NGC 7000',
+                        icon: LucideIcons.star,
+                        trailing: '23:04',
+                        onTap: () {},
+                      ),
+                      const SizedBox(height: SidePanel.sectionGap),
+                      const SectionTitle(
+                        title: 'Devices',
+                        icon: LucideIcons.aperture,
+                      ),
+                      DeviceRow(
+                        name: 'Simulated camera',
+                        leading: StatusDot(color: colors.success),
+                        readouts: const [
+                          Readout(
+                            value: '-10.0',
+                            unit: '°C',
+                            label: 'Temp',
+                            size: ReadoutSize.sm,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Candidate',
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: 560,
+              child: Candidate(
+                score: '94',
+                name: 'M51 Whirlpool Galaxy',
+                detail: 'Galaxy · 11.2′ · mag 8.4',
+                readouts: const [
+                  Readout(value: '61', unit: '°', label: 'Alt'),
+                  Readout(value: '01:08', label: 'Transit'),
+                ],
+                window: const CandidateWindow(start: 0.2, end: 0.8, now: 0.45),
+                action: NightshadeButton(
+                  label: 'Plan',
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.secondary,
+                  onPressed: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Checklist',
+          child: NightshadePanel(
+            child: Checklist(
+              steps: [
+                const ChecklistStep(
+                  title: 'Set your observing site',
+                  detail: 'Boston, 42.36 / -71.06',
+                  state: ChecklistStepState.done,
+                ),
+                ChecklistStep(
+                  title: 'Connect a camera and a mount',
+                  detail: 'Nothing is connected yet.',
+                  state: ChecklistStepState.next,
+                  action: NightshadeButton(
+                    label: 'Open Equipment',
+                    size: ButtonSize.small,
+                    variant: ButtonVariant.secondary,
+                    onPressed: () {},
+                  ),
+                ),
+                const ChecklistStep(
+                  title: 'Install the catalogs',
+                  detail: 'HYG + OpenNGC, 60 MB.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        ShowcaseSection.plain(
+          title: 'Night band',
+          child: NightBand(
+            sunset: _sunset,
+            astroDark: _astroDark,
+            astroDawn: _astroDawn,
+            sunrise: _sunrise,
+            now: _now,
+            targetAltitudeCurve: const [
+              0.1,
+              0.3,
+              0.55,
+              0.74,
+              0.86,
+              0.9,
+              0.82,
+              0.63,
+              0.4,
+              0.18,
+              0.05,
+            ],
+            imageableWindow: NightBandWindow(
+              start: _astroDark,
+              end: DateTime(2026, 9, 10, 3, 10),
+            ),
+            events: [
+              NightBandEvent(time: _sunset, label: '19:12 sunset'),
+              NightBandEvent(time: _astroDark, label: '20:48 astro dark'),
+              NightBandEvent(time: _astroDawn, label: '04:51 astro dawn'),
+              NightBandEvent(time: _sunrise, label: '06:24 sunrise'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
