@@ -9,7 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../shell_navigation.dart';
-import 'title_bar.dart' show ShellIconButton, commandPaletteShortcutLabel;
+import 'title_bar.dart' show commandPaletteShortcutLabel;
 
 /// Where "Open the manual" goes.
 ///
@@ -30,7 +30,7 @@ class ShellHelpButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Builder(
-      builder: (buttonContext) => ShellIconButton(
+      builder: (buttonContext) => NightshadeIconButton(
         icon: LucideIcons.helpCircle,
         tooltip: 'Help for this screen',
         onPressed: () => _open(buttonContext, ref),
@@ -127,7 +127,7 @@ class ShellHelpButton extends ConsumerWidget {
     return PopupMenuItem<_HelpAction>(
       value: value,
       enabled: enabled,
-      height: NightshadeTokens.buttonHeightSm + NightshadeTokens.spaceSm,
+      height: NightshadeTokens.buttonHeight,
       child: Row(
         children: [
           Icon(

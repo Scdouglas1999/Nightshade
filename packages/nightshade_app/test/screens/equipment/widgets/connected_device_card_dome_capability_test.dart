@@ -177,8 +177,9 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Open shutter'));
-    await tester.pump();
+    // Wherever the action lives: inline, or behind "More actions" when the
+    // touch-sized glyph buttons leave the row no room for it.
+    await tapDeviceAction(tester, 'Open shutter');
     backendNotifier.switchTo(hostB);
     oldHostCommand.completeError(StateError('host A went away'));
     await tester.pumpAndSettle();

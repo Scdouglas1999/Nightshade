@@ -43,10 +43,7 @@ class NavItem extends StatefulWidget {
 class _NavItemState extends State<NavItem> {
   bool _isHovered = false;
 
-  /// 03-tokens §6 puts the rail and page-title glyph at 18; the icon scale
-  /// runs 14 / 16 / 20 / 24 and has no step for it.
-  // TODO(observatory): promote to NightshadeTokens.iconRail at merge.
-  static const double _iconSize = 18.0;
+  static const double _iconSize = NightshadeTokens.iconRail;
 
   /// (40 - 18) / 2. Derived from the item and icon sizes so the glyph is
   /// optically centred in the collapsed rail; not a spacing token, and it

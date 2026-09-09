@@ -117,6 +117,7 @@
   --shell-panelPadding: 16px;
   --shell-panelGap: 16px;
   --shell-sidePanelWidth: 320px;
+  --shell-sidePanelStripWidth: 44px;
   --shell-narrowBreakpoint: 768px;
   --shell-narrowTopBarHeight: 48px;
   --shell-narrowBottomNavHeight: 64px;
@@ -124,6 +125,11 @@
   --shell-iconButtonSize: 32px;
   --shell-iconButtonSizeSm: 28px;
   --shell-iconButtonSizeStrip: 36px;
+  --shell-buttonHeight: 32px;
+  --shell-buttonHeightSm: 28px;
+  --shell-buttonHeightLg: 40px;
+  --shell-inputHeight: 32px;
+  --shell-inputHeightSm: 28px;
   --motion-hover: 120ms cubic-bezier(0.215, 0.61, 0.355, 1);
   --motion-state: 160ms cubic-bezier(0.215, 0.61, 0.355, 1);
   --motion-panel: 220ms cubic-bezier(0.215, 0.61, 0.355, 1);

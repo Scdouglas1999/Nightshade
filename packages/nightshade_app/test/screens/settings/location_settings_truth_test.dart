@@ -175,10 +175,10 @@ void main() {
       // Read the options off the rendered picker, not off the constant, so
       // re-populating the dropdown with labels the clock cannot parse fails
       // here rather than passing against a list nothing displays.
-      final picker = tester.widget<DropdownButton<String>>(
-        find.byType(DropdownButton<String>).last,
+      final picker = tester.widget<NightshadeDropdown>(
+        find.byType(NightshadeDropdown).last,
       );
-      final offered = [for (final item in picker.items!) item.value!];
+      final offered = picker.items;
       expect(offered, isNotEmpty);
 
       final inert = <String>[];
@@ -208,7 +208,7 @@ void main() {
       // The Timezone row owns the last dropdown on the page (Bortle owns the
       // first). Driving the real control is the point: it proves the value the
       // picker emits is one the clock can honour.
-      final picker = find.byType(DropdownButton<String>).last;
+      final picker = find.byType(NightshadeDropdown).last;
       await tester.ensureVisible(picker);
       await tester.pumpAndSettle();
       await tester.tap(picker);

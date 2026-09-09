@@ -6,12 +6,11 @@ import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 
 /// Field heights in logical pixels (03 §3.3: `inputHeight` 32, dense 28).
-// TODO(observatory): fold into NightshadeTokens.inputHeight/inputHeightSm
-const double fieldHeight = 32;
-const double fieldHeightDense = 28;
+const double fieldHeight = NightshadeTokens.inputHeight;
+const double fieldHeightDense = NightshadeTokens.inputHeightSm;
 
 /// Horizontal padding inside a field (`observatory.css` `.field`).
-const double fieldHorizontalPadding = 10;
+const double fieldHorizontalPadding = NightshadeTokens.inputPaddingHorizontal;
 
 /// Leading icon size inside a field, in logical pixels (05 §8: 14 muted).
 const double fieldIconSize = NightshadeTokens.iconXs;

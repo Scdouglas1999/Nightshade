@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/widgets/general_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
@@ -46,27 +47,19 @@ Future<HarnessHandle> _pump(
   return handle;
 }
 
-/// The a11y pass wraps each dropdown item's child in Semantics; unwrap to the
-/// Text the item actually renders.
-String? _itemLabel(DropdownMenuItem<String> item) {
-  Widget w = item.child;
-  while (w is Semantics && w.child != null) {
-    w = w.child!;
-  }
-  return w is Text ? w.data : null;
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('the Spanish option is marked partial', (tester) async {
     await _pump(tester, language: 'en');
-    final picker = tester.widget<DropdownButton<String>>(
-      find.byType(DropdownButton<String>).first,
+    final picker = tester.widget<NightshadeDropdown>(
+      find.byType(NightshadeDropdown).first,
     );
-    final labels = [for (final item in picker.items!) _itemLabel(item)];
+    final labels = <String>[
+      for (var i = 0; i < picker.items.length; i++) picker.labelFor(i),
+    ];
     expect(
-      labels.any((l) => l != null && l.contains('(beta)')),
+      labels.any((l) => l.contains('(beta)')),
       isTrue,
       reason: 'an unqualified "Español" reads as a finished translation',
     );
@@ -108,7 +101,7 @@ void main() {
   testWidgets('choosing a language still stores its code', (tester) async {
     final handle = await _pump(tester, language: 'en');
 
-    await tester.tap(find.byType(DropdownButton<String>).first);
+    await tester.tap(find.byType(NightshadeDropdown).first);
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('(beta)').last);
     await tester.pumpAndSettle();

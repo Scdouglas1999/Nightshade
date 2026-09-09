@@ -301,16 +301,24 @@ void main() {
       expect(find.text('0.42 px'), findsOneWidget);
     });
 
-    testWidgets('renders all export action buttons', (tester) async {
+    testWidgets('the export menu carries every export action', (tester) async {
+      // The header keeps one primary (Refine in Darkroom) and one export menu
+      // (05 §5); the four export actions live inside the menu.
       await _pumpScreen(tester, result: _cannedResult());
 
-      expect(
-          find.widgetWithText(NightshadeButton, 'Export PNG'), findsOneWidget);
-      expect(
-          find.widgetWithText(NightshadeButton, 'Export JPEG'), findsOneWidget);
-      expect(
-          find.widgetWithText(NightshadeButton, 'Share Card'), findsOneWidget);
-      expect(find.widgetWithText(NightshadeButton, 'AstroBin'), findsOneWidget);
+      final menu = find.byKey(const ValueKey('stack_result_export_menu'));
+      expect(menu, findsOneWidget);
+      await tester.tap(menu);
+      // Not pumpAndSettle: the viewer keeps an animation alive, so settle
+      // never returns. A few frames open the popup.
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(find.text('Export PNG'), findsOneWidget);
+      expect(find.text('Export JPEG'), findsOneWidget);
+      expect(find.text('Share card'), findsOneWidget);
+      expect(find.text('AstroBin'), findsOneWidget);
     });
 
     testWidgets('renders the stretch dropdown', (tester) async {

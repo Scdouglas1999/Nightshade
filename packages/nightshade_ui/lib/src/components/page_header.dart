@@ -207,7 +207,5 @@ class PageHeader extends StatelessWidget {
   /// The header's bottom hairline, in logical pixels.
   static const double _hairlineWidth = 1.0;
 
-  /// 03-tokens §6 puts the rail and page-title glyph at 18.
-  // TODO(observatory): promote to NightshadeTokens.iconRail at merge.
-  static const double _iconSize = 18.0;
+  static const double _iconSize = NightshadeTokens.iconRail;
 }

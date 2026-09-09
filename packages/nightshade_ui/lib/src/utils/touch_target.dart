@@ -69,6 +69,31 @@ abstract final class NightshadeTouchTarget {
     return deficit <= 0 ? 0.0 : deficit / 2;
   }
 
+  /// Wraps [child] so its INTERACTIVE box clears [minExtent] on a touch
+  /// platform, while what it PAINTS stays the size the sheet specifies.
+  ///
+  /// This is the shape `NightshadeIconButton` had to grow after the Android
+  /// tap-target audit measured a 32px chrome button, and the shape every other
+  /// small control in the kit needed for the same reason: a 22px chip, a 28px
+  /// filter chip, a 30px segment and a 32px field are all POINTER sizes. The
+  /// box grows around them; the fill, the hover and the ring do not.
+  ///
+  /// Returns [child] unchanged on desktop, so a dense panel keeps its density.
+  static Widget hitBox(
+    BuildContext context,
+    Widget child, {
+    double desktopExtent = 0.0,
+  }) {
+    final extent = minExtent(context, desktopExtent: desktopExtent);
+    if (extent <= 0) return child;
+    return ConstrainedBox(
+      constraints: BoxConstraints(minWidth: extent, minHeight: extent),
+      // The factors are what keep this a MINIMUM: without them the box
+      // expands to whatever the parent offers, which in a Row is infinite.
+      child: Center(widthFactor: 1, heightFactor: 1, child: child),
+    );
+  }
+
   /// The [VisualDensity] a dense control should carry.
   ///
   /// [VisualDensity.standard] on touch — anything tighter shrinks Material's

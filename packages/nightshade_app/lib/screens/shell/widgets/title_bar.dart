@@ -146,17 +146,7 @@ class _Brand extends StatelessWidget {
     );
   }
 
-  /// The wordmark: 12px / 700 / +1.6 tracking. Wider tracking and a heavier
-  /// weight than any label style in the ramp, because it is a logotype rather
-  /// than text.
-  // TODO(observatory): promote to NightshadeTypography.wordmark at merge.
-  static const TextStyle _wordmark = TextStyle(
-    fontFamily: NightshadeTypography.fontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 1.6,
-    height: 1.3,
-  );
+  static const TextStyle _wordmark = NightshadeTypography.wordmark;
 }
 
 /// The global command field. Click it, or press Ctrl/Cmd+K, to open the
@@ -232,10 +222,7 @@ class _CommandFieldState extends State<_CommandField> {
     );
   }
 
-  /// 15, between iconXs (14) and iconSm (16): the field is 30 tall and 16
-  /// crowds it.
-  // TODO(observatory): promote to NightshadeTokens.iconField at merge.
-  static const double _searchIconSize = 15.0;
+  static const double _searchIconSize = NightshadeTokens.iconField;
 }
 
 /// The "Ctrl K" hint inside the command field.
@@ -280,7 +267,7 @@ class _Actions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showSearchButton)
-          ShellIconButton(
+          NightshadeIconButton(
             icon: LucideIcons.search,
             tooltip: l10n.text('commandPalettePlaceholder'),
             onPressed: () => showCommandPalette(context),
@@ -318,7 +305,7 @@ class _Actions extends StatelessWidget {
         // Settings — keyed for the onboarding overlay so the first-launch
         // tour can spotlight where Plate Solving lives.
         Builder(
-          builder: (context) => ShellIconButton(
+          builder: (context) => NightshadeIconButton(
             key: TutorialKeys.navSettings,
             icon: LucideIcons.settings,
             tooltip: l10n.text('settingsTitle'),
@@ -345,104 +332,6 @@ class _Actions extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceMd),
       ],
     );
-  }
-}
-
-/// The shell's 32 x 32 ghost icon button.
-///
-/// Square, no fill at rest, `surfaceHover` and `textPrimary` on hover, and a
-/// tooltip that is REQUIRED — an unlabelled glyph in the top bar is a control
-/// that assistive tech cannot name and a new operator cannot guess.
-// TODO(observatory): replace with NightshadeIconButton at merge (05 §6). Wave
-// 2 builds it; this is the same spec, kept private so the two waves do not
-// race the same file.
-class ShellIconButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  /// Draws the selected state: a `primary` tint and a `primary` glyph.
-  final bool selected;
-
-  const ShellIconButton({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.selected = false,
-  });
-
-  @override
-  State<ShellIconButton> createState() => _ShellIconButtonState();
-}
-
-class _ShellIconButtonState extends State<ShellIconButton> {
-  bool _isHovered = false;
-
-  /// 17, the top bar's glyph size (03 §6 puts toolbar icons at 15-16 and the
-  /// rail at 18; the top bar sits between them).
-  // TODO(observatory): promote to NightshadeTokens.iconTopBar at merge.
-  static const double _iconSize = 17.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    final isEnabled = widget.onPressed != null;
-
-    final Color background;
-    final Color foreground;
-    if (widget.selected) {
-      background = colors.primary.withValues(
-        alpha: NightshadeTokens.opacityAccentTint,
-      );
-      foreground = colors.primary;
-    } else if (_isHovered && isEnabled) {
-      background = colors.surfaceHover;
-      foreground = colors.textPrimary;
-    } else {
-      background = Colors.transparent;
-      foreground = isEnabled ? colors.textSecondary : colors.textMuted;
-    }
-
-    // Named and typed for assistive tech. An InkWell contributes a tap ACTION
-    // but no role and no name, and a Tooltip contributes a tooltip rather than
-    // a label — so the whole icon group, the Settings gear included, was absent
-    // from the accessibility tree, which made Settings unreachable without
-    // sight of the unlabelled glyphs.
-    //
-    // `enabled` is the other half of that. A button node with no enabled state
-    // resolves none, and the AT-SPI bridge publishes ENABLED only for a node
-    // that resolves one — so Orca read the app's own Settings shortcut as
-    // unavailable while a click on it navigated.
-    final button = Semantics(
-      button: true,
-      label: widget.tooltip,
-      enabled: isEnabled,
-      focusable: isEnabled,
-      selected: widget.selected,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          child: Container(
-            width: NightshadeTokens.iconButtonSize,
-            height: NightshadeTokens.iconButtonSize,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: NightshadeTokens.borderRadiusSm,
-            ),
-            child: Icon(widget.icon, size: _iconSize, color: foreground),
-          ),
-        ),
-      ),
-    );
-
-    // Only show tooltip if Overlay is available
-    if (Overlay.maybeOf(context) != null) {
-      return Tooltip(message: widget.tooltip, child: button);
-    }
-    return button;
   }
 }
 
@@ -528,7 +417,8 @@ class _WindowButtonState extends State<_WindowButton> {
       // Minimize, maximize and close are the window's own controls and they
       // published no enabled state, so assistive tech announced all three as
       // unavailable — on the one bar an operator reaches for when the window is
-      // in their way. See [ShellIconButton] for why the field is what decides.
+      // in their way. See [NightshadeIconButton] for why the field is what
+      // decides.
       child: Semantics(
         button: true,
         label: widget.label,

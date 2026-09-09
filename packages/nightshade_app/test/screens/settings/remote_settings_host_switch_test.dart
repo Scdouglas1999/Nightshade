@@ -16,7 +16,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'settings_finders.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {
   int calibrationTagWrites = 0;
@@ -202,7 +201,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(findByTooltip('Edit tags / notes'));
+    await tester.tap(find.byTooltip('Edit tags / notes'));
     await tester.pumpAndSettle();
     expect(find.text('Tags — Dark #1'), findsOneWidget);
 
@@ -238,7 +237,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(findByTooltip('Delete'));
+    await tester.tap(find.byTooltip('Delete'));
     await tester.pumpAndSettle();
     expect(find.text('Delete calibration master?'), findsOneWidget);
 

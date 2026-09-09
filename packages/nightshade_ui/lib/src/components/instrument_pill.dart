@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/touch_target.dart';
 import '../tokens/shell_chrome_metrics.dart';
 
 /// What an [InstrumentPill]'s dot means.
@@ -107,8 +108,7 @@ class InstrumentPill extends StatefulWidget {
   static const double dotSize = 7.0;
 
   /// 03-tokens §6 puts chip and instrument-pill glyphs at 13.
-  // TODO(observatory): promote to NightshadeTokens.iconChipGlyph at merge.
-  static const double iconSize = 13.0;
+  static const double iconSize = NightshadeTokens.iconPillGlyph;
 
   @override
   State<InstrumentPill> createState() => _InstrumentPillState();
@@ -204,11 +204,16 @@ class _InstrumentPillState extends State<InstrumentPill> {
       enabled: true,
       label: widget.semanticLabel ?? widget.value,
       excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(onTap: widget.onTap, child: content),
+      // 22px is a POINTER size; a finger needs 48. The box grows, the pill
+      // itself stays the height the instrument bar gives it.
+      child: NightshadeTouchTarget.hitBox(
+        context,
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(onTap: widget.onTap, child: content),
+        ),
       ),
     );
   }

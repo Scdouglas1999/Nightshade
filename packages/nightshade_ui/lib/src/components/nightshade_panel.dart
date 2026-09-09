@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
@@ -25,6 +27,7 @@ class NightshadePanel extends StatelessWidget {
     this.padding = NightshadeTokens.paddingLg,
     this.flush = false,
     this.selected = false,
+    this.dashed = false,
   });
 
   /// The panel's content.
@@ -43,6 +46,19 @@ class NightshadePanel extends StatelessWidget {
   /// Draws the 1px `primary` ring at [NightshadeTokens.opacitySelectedRing]
   /// instead of the resting outline.
   final bool selected;
+
+  /// An EMPTY SLOT: no fill, and a dashed 1px `borderHighlight` outline
+  /// instead of the panel face (03 §1.1 gives `borderHighlight` to "dashed
+  /// empty slots"; 06 Equipment's unfilled device bay is one).
+  ///
+  /// A dash says "something belongs here and is missing" in a way a solid
+  /// outline cannot: a solid one reads as a panel that happens to be blank.
+  /// Ignored when [selected] is true — a slot cannot be both empty and chosen.
+  final bool dashed;
+
+  /// The dash and gap lengths of an empty slot's outline, in logical pixels.
+  static const double dashLength = 4;
+  static const double dashGap = 4;
 
   /// The gap between a [PanelHead] and the panel body.
   static const double headGap = NightshadeTokens.spaceMd;
@@ -69,6 +85,19 @@ class NightshadePanel extends StatelessWidget {
       );
     }
 
+    if (dashed && !selected) {
+      return CustomPaint(
+        painter: _DashedSlotBorder(
+          color: colors.borderHighlight,
+          radius: NightshadeTokens.radiusLg,
+        ),
+        child: Padding(
+          padding: flush ? EdgeInsets.zero : padding,
+          child: content,
+        ),
+      );
+    }
+
     if (flush) {
       return Container(
         decoration: decoration,
@@ -79,6 +108,50 @@ class NightshadePanel extends StatelessWidget {
 
     return Container(decoration: decoration, padding: padding, child: content);
   }
+}
+
+/// The dashed outline of an empty slot.
+///
+/// Flutter has no dashed `Border`, and the alternatives are worse than 30
+/// lines of painter: a dash image does not scale with the radius, and a
+/// repeated child does not follow a corner.
+class _DashedSlotBorder extends CustomPainter {
+  const _DashedSlotBorder({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = RRect.fromRectAndRadius(
+      // Inset by half the stroke so the dash sits INSIDE the slot's box, the
+      // way a `Border` does; otherwise the slot is 1px larger than a filled
+      // panel beside it and the grid stops lining up.
+      Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1),
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = math.min(
+          distance + NightshadePanel.dashLength,
+          metric.length,
+        );
+        canvas.drawPath(metric.extractPath(distance, next), paint);
+        distance = next + NightshadePanel.dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedSlotBorder oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 /// The one-row label at the top of a [NightshadePanel]:
@@ -138,6 +211,5 @@ class PanelHead extends StatelessWidget {
 }
 
 /// Icon size inside a panel head, in logical pixels (03 §6: 15–16 in panel
-/// heads; the scale has 14 and 16 but not 15).
-// TODO(observatory): promote to NightshadeTokens.iconPanelHead
-const double _panelHeadIconSize = 15;
+/// heads).
+const double _panelHeadIconSize = NightshadeTokens.iconGlyphPanelHead;

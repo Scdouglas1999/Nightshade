@@ -67,16 +67,29 @@ abstract final class NightshadeTokens {
   /// Dialog internal padding
   static const EdgeInsets dialogPadding = EdgeInsets.all(space2xl);
 
-  /// Button internal padding (horizontal, vertical)
+  /// Horizontal padding inside a button, per size: 10 / 12 / 18 (05 section 6).
+  /// The label, not the box, sets a button's width, so the padding scales with
+  /// the height rather than staying constant.
+  static const double buttonPaddingSm = 10.0;
+  static const double buttonPaddingMd = spaceMd;
+  static const double buttonPaddingLg = 18.0;
+
+  /// Horizontal padding inside a field (05 section 8). A field is 32 tall and
+  /// carries a 14px leading icon, so 12 crowds the glyph and 8 loses the edge.
+  static const double inputPaddingHorizontal = 10.0;
+
+  /// Button internal padding (horizontal, vertical), for the Material
+  /// fallbacks in the Material theme. Nightshade's own buttons read
+  /// [buttonPaddingSm]/[buttonPaddingMd]/[buttonPaddingLg] and their height.
   static const EdgeInsets buttonPadding = EdgeInsets.symmetric(
-    horizontal: spaceLg,
-    vertical: spaceMd,
+    horizontal: buttonPaddingMd,
+    vertical: spaceSm,
   );
 
-  /// Input field internal padding
+  /// Input field internal padding, for the Material fallbacks.
   static const EdgeInsets inputPadding = EdgeInsets.symmetric(
-    horizontal: spaceMd,
-    vertical: spaceMd,
+    horizontal: inputPaddingHorizontal,
+    vertical: spaceSm,
   );
 
   // Border radius scale
@@ -253,6 +266,59 @@ abstract final class NightshadeTokens {
   /// 48px - Hero icons
   static const double icon2xl = 48.0;
 
+  // Glyph sizes
+  //
+  // The icon SCALE above (14 / 16 / 20 / 24 / 32 / 48) sizes an icon that
+  // stands on its own. The glyph sizes below size an icon that sits INSIDE a
+  // control, where the control's height sets the glyph and the scale has no
+  // step for it: 03 section 6 puts the rail at 18, the top bar at 17, buttons
+  // and panel heads at 15, chips and instrument pills at 12-13. Each name says
+  // which control it belongs to, so a reader never has to ask why a 15 is a 15.
+
+  /// 17px - the glyph in a medium icon button (top bar, page header, capture
+  /// bar).
+  static const double iconGlyphMd = 17.0;
+
+  /// 15px - the glyph in a small icon button (toolbars).
+  static const double iconGlyphSm = 15.0;
+
+  /// 17px - the glyph in a side panel's section strip.
+  static const double iconGlyphStrip = 17.0;
+
+  /// 15px - the leading glyph in a button (16 in the large size, which the button
+  /// applies itself).
+  static const double iconGlyphButton = 15.0;
+
+  /// 15px - the leading glyph in an underline tab.
+  static const double iconGlyphTab = 15.0;
+
+  /// 15px - the leading glyph in a list row.
+  static const double iconGlyphRow = 15.0;
+
+  /// 15px - the leading glyph in a section title.
+  static const double iconGlyphSection = 15.0;
+
+  /// 15px - the leading glyph in a panel head.
+  static const double iconGlyphPanelHead = 15.0;
+
+  /// 12px - the glyph inside a chip.
+  static const double iconChipGlyph = 12.0;
+
+  /// 13px - the glyph inside an instrument pill and the filter chip's trailing
+  /// chevron. A pill's glyph carries state, so it is a step above a chip's.
+  static const double iconPillGlyph = 13.0;
+
+  /// 18px - the rail destination glyph and the page-header title glyph.
+  static const double iconRail = 18.0;
+
+  /// 17px - the top bar's glyph. Between the toolbar (15) and the rail (18),
+  /// because the top bar sits between them.
+  static const double iconTopBar = 17.0;
+
+  /// 15px - the leading glyph inside the top bar's command field. The field is
+  /// 30 tall and 16 crowds it.
+  static const double iconField = 15.0;
+
   // Responsive breakpoints
 
   /// Mobile: 0 - 480px
@@ -272,20 +338,24 @@ abstract final class NightshadeTokens {
 
   // Component sizes
 
-  /// Standard button height
-  static const double buttonHeight = 40.0;
+  /// 32px - the standard button height (03 section 3.3).
+  static const double buttonHeight = 32.0;
 
-  /// Small button height
-  static const double buttonHeightSm = 32.0;
+  /// 28px - the small button, and any control inside a dense row.
+  static const double buttonHeightSm = 28.0;
 
-  /// Large button height
-  static const double buttonHeightLg = 48.0;
+  /// 40px - the large button (the hero's Start).
+  static const double buttonHeightLg = 40.0;
 
-  /// Standard input height
-  static const double inputHeight = 40.0;
+  /// 32px - the standard field height. Equal to [buttonHeight] on purpose: a
+  /// field and a button on the same row have to share a baseline.
+  static const double inputHeight = 32.0;
+
+  /// 28px - the dense field, inside a toolbar or a side panel row.
+  static const double inputHeightSm = 28.0;
 
   /// Navigation sidebar width (collapsed)
-  static const double sidebarCollapsed = 72.0;
+  static const double sidebarCollapsed = 64.0;
 
   /// Navigation sidebar width (expanded)
   static const double sidebarExpanded = 220.0;
@@ -401,6 +471,9 @@ abstract final class NightshadeTokens {
 
   /// 22% - the STATIC 3px halo on a live dot, in `success`. It does not pulse.
   static const double opacityLiveHalo = 0.22;
+
+  /// 50% - the black scrim behind a dialog or the command palette.
+  static const double opacityScrim = 0.50;
 
   /// Muted/secondary content opacity
   static const double opacityMuted = 0.6;
