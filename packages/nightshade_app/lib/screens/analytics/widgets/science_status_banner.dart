@@ -336,18 +336,18 @@ class _BannerStyle {
       );
 
   factory _BannerStyle.busy(NightshadeColors c) => _BannerStyle._fromSurface(
-        NightshadeDecorations.emphasisSurface(c.primary),
+        NightshadeDecorations.chip(c, tone: c.primary),
         c.primary,
       );
 
   factory _BannerStyle.idle(NightshadeColors c) => _BannerStyle(
-        background: c.surfaceAlt,
+        background: c.well,
         border: c.border,
         accent: c.textSecondary,
       );
 
   factory _BannerStyle.error(NightshadeColors c) => _BannerStyle._fromSurface(
-        NightshadeDecorations.emphasisSurface(c.error),
+        NightshadeDecorations.chip(c, tone: c.error),
         c.error,
       );
 }

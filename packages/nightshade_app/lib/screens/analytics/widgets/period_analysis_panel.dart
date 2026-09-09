@@ -191,7 +191,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 child: ShimmerLoading(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
+                      color: colors.well,
                       borderRadius: NightshadeTokens.borderRadiusLg,
                       border: Border.all(color: colors.border),
                     ),
@@ -509,7 +509,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
       height: tooFew ? 215 : 140,
       child: Container(
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: NightshadeTokens.borderRadiusLg,
           border: Border.all(color: colors.border),
         ),

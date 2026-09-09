@@ -473,7 +473,7 @@ class _StoryFilterChip extends StatelessWidget {
       ),
       selected: selected,
       selectedColor: colors.primary.withValues(alpha: 0.2),
-      backgroundColor: colors.surfaceAlt,
+      backgroundColor: colors.surfaceHover,
       side: BorderSide(color: selected ? colors.primary : colors.border),
       onSelected: (_) => onTap(),
       visualDensity: VisualDensity.compact,

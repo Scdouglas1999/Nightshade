@@ -29,7 +29,7 @@ extension _PhotometricWizardFrameSelection
           error: (error, _) => Container(
             padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: NightshadeTokens.borderRadiusLg,
               border: Border.all(color: colors.error.withValues(alpha: 0.4)),
             ),
@@ -68,7 +68,7 @@ extension _PhotometricWizardFrameSelection
       return Container(
         padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: NightshadeTokens.borderRadiusLg,
           border: Border.all(color: colors.border.withValues(alpha: 0.3)),
         ),
@@ -183,7 +183,7 @@ extension _PhotometricWizardFrameSelection
               width: 140,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
+                  color: colors.well,
                   borderRadius: NightshadeTokens.borderRadiusMd,
                 ),
               ),
@@ -342,7 +342,8 @@ extension _PhotometricWizardFrameSelection
               selected: isSelected,
               selectedColor: colors.primary,
               selectedTileColor:
-                  NightshadeDecorations.tintedBadge(colors.primary).color,
+                  NightshadeDecorations.chip(colors, tone: colors.primary)
+                      .color,
               title: Text(
                 img.fileName,
                 style: NightshadeTypography.bodySm.copyWith(

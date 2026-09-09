@@ -41,11 +41,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         if (failed) ...[
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: NightshadeDecorations.emphasisSurface(
-              colors.error,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-            ),
+            decoration: NightshadeDecorations.chip(colors, tone: colors.error),
             child: Row(
               children: [
                 Icon(LucideIcons.alertTriangle, color: colors.error, size: 16),
@@ -81,10 +77,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: NightshadeDecorations.emphasisSurface(
-            colors.success,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          ),
+          decoration: NightshadeDecorations.chip(colors, tone: colors.success),
           child: Row(
             children: [
               Icon(LucideIcons.checkCircle2, color: colors.success, size: 16),

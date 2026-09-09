@@ -204,7 +204,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                       child: LinearProgressIndicator(
                         value: progress.completionFraction,
                         minHeight: 10,
-                        backgroundColor: colors.surfaceAlt,
+                        backgroundColor: colors.well,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           progress.isCompleted
                               ? colors.success
@@ -397,10 +397,7 @@ class _FilterBreakdownRow extends StatelessWidget {
         final color = _filterColor(entry.key);
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: NightshadeDecorations.statusChip(
-            color,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          ),
+          decoration: NightshadeDecorations.chip(colors, tone: color),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

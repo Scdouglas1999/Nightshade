@@ -86,7 +86,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
           children: [
             Text(
               'Transient Discovery Report',
-              style: NightshadeTypography.h6.copyWith(
+              style: NightshadeTypography.bodyStrong.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -101,7 +101,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             const SizedBox(height: NightshadeTokens.spaceMd),
             Text(
               'Detection',
-              style: NightshadeTypography.h6.copyWith(
+              style: NightshadeTypography.bodyStrong.copyWith(
                 color: colors.textSecondary,
               ),
             ),
@@ -120,7 +120,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             const SizedBox(height: NightshadeTokens.spaceMd),
             Text(
               'Network',
-              style: NightshadeTypography.h6.copyWith(
+              style: NightshadeTypography.bodyStrong.copyWith(
                 color: colors.textSecondary,
               ),
             ),
@@ -176,7 +176,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
                 decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
+                  color: colors.well,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(color: colors.border),
@@ -273,7 +273,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
               NightshadeButton(
                 label: 'Retry reporting settings',
                 icon: LucideIcons.refreshCw,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () => ref.invalidate(scienceSettingsProvider),
               ),
@@ -342,7 +342,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
           child: NightshadeButton(
             label: 'Preview',
             icon: LucideIcons.eye,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: _formatEnabled(_format, d, settings)
                 ? () => setState(
@@ -357,7 +357,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             child: NightshadeButton(
               label: 'Copy',
               icon: LucideIcons.clipboard,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: _formatEnabled(_format, d, settings)
                   ? () => _copy(d, settings)

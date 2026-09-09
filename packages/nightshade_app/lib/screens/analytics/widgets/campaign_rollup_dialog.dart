@@ -369,7 +369,7 @@ class _SummaryTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
@@ -418,7 +418,7 @@ class _OverallProgress extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
@@ -429,7 +429,7 @@ class _OverallProgress extends StatelessWidget {
             children: [
               Text(
                 'Overall',
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -534,7 +534,7 @@ class _FilterRow extends StatelessWidget {
               const Spacer(),
               Text(
                 '${(filter.capturedIntegrationSecs / 3600.0).toStringAsFixed(1)}h',
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -548,7 +548,7 @@ class _FilterRow extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: pct,
                 minHeight: 6,
-                backgroundColor: colors.surfaceAlt,
+                backgroundColor: colors.well,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   pct >= 1.0 ? colors.success : colors.primary,
                 ),
@@ -700,7 +700,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Row(

@@ -94,7 +94,7 @@ class ScienceSolveRateCard extends ConsumerWidget {
               child: LinearProgressIndicator(
                 value: total == 0 ? 0 : rate.clamp(0.0, 1.0),
                 minHeight: 6,
-                backgroundColor: colors.surfaceAlt,
+                backgroundColor: colors.well,
                 valueColor: AlwaysStoppedAnimation<Color>(tier.color(colors)),
               ),
             ),
@@ -114,7 +114,7 @@ class ScienceSolveRateCard extends ConsumerWidget {
                 child: NightshadeButton(
                   onPressed: () => context.push('/settings/plate-solving'),
                   label: 'Configure plate solver',
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                 ),
               ),
@@ -224,10 +224,7 @@ class _StatusPill extends StatelessWidget {
     final c = tier.color(colors);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: NightshadeDecorations.statusChip(
-        c,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: c),
       child: Text(
         tier.label,
         style: TextStyle(

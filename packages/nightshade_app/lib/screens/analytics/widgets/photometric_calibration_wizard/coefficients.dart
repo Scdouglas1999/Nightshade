@@ -124,10 +124,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: NightshadeDecorations.statusChip(
-        qualityColor,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: qualityColor),
       child: Row(
         children: [
           Container(

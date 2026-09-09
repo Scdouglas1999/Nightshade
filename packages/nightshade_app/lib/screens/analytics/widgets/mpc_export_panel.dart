@@ -60,7 +60,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
                 NightshadeButton(
                   label: 'Retry MPC settings',
                   icon: LucideIcons.refreshCw,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: () => ref.invalidate(scienceSettingsProvider),
                 ),
@@ -227,7 +227,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
                   child: NightshadeButton(
                     label: 'Copy to Clipboard',
                     icon: LucideIcons.clipboard,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed: (_selectedIds.isEmpty || !hasObsCode)
                         ? null
@@ -381,7 +381,7 @@ class _ObservationGroupTile extends StatelessWidget {
             Expanded(
               child: Text(
                 group.displayName,
-                style: NightshadeTypography.h6.copyWith(
+                style: NightshadeTypography.bodyStrong.copyWith(
                   color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -391,12 +391,8 @@ class _ObservationGroupTile extends StatelessWidget {
               Container(
                 margin: const EdgeInsets.only(left: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: NightshadeDecorations.statusChip(
-                  colors.success,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusXs),
-                  bordered: false,
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.success),
                 child: Text(
                   'Known',
                   style: TextStyle(
@@ -415,12 +411,8 @@ class _ObservationGroupTile extends StatelessWidget {
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: NightshadeDecorations.statusChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusXs),
-                  bordered: false,
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Text(
                   '${group.nightCount} nights',
                   style: TextStyle(
@@ -553,9 +545,8 @@ class _SmallActionButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: isDisabled
-                  ? colors.surfaceAlt.withValues(alpha: 0.5)
-                  : colors.surfaceAlt,
+              color:
+                  isDisabled ? colors.well.withValues(alpha: 0.5) : colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(

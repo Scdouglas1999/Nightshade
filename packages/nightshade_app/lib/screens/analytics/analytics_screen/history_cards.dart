@@ -7,7 +7,6 @@ class _ProjectsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final isRemote = ref.watch(backendProvider) is NetworkBackend;
     return Padding(
       padding: const EdgeInsets.all(NightshadeTokens.space2xl),

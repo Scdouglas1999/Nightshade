@@ -270,7 +270,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 border: Border(bottom: BorderSide(color: colors.border)),
               ),
               child: Row(
@@ -280,7 +280,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                   Expanded(
                     child: Text(
                       'Science Data Export',
-                      style: NightshadeTypography.h4.copyWith(
+                      style: NightshadeTypography.sectionTitle.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
@@ -305,7 +305,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 children: [
                   Text(
                     'Filters',
-                    style: NightshadeTypography.h6.copyWith(
+                    style: NightshadeTypography.bodyStrong.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),
@@ -543,7 +543,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
+                  color: colors.well,
                   border: Border(top: BorderSide(color: colors.border)),
                 ),
                 child: Text(
@@ -575,7 +575,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
             border: Border.all(color: colors.border),
           ),

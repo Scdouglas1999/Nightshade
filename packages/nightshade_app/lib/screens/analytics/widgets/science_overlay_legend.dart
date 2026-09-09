@@ -84,11 +84,8 @@ class ScienceOverlayLegend {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: NightshadeDecorations.tintedBadge(
-                colors.primary,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              ),
+              decoration:
+                  NightshadeDecorations.chip(colors, tone: colors.primary),
               child: Icon(entry.icon, color: colors.primary, size: 18),
             ),
             const SizedBox(width: 12),

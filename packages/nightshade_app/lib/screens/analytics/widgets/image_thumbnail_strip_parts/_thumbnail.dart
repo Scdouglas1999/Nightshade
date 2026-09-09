@@ -78,7 +78,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
             child: Container(
               width: 100,
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
+                color: colors.well,
                 borderRadius:
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(

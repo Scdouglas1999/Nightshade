@@ -87,10 +87,7 @@ class _VerdictChip extends StatelessWidget {
               color: color,
               borderRadius: NightshadeTokens.borderRadiusLg,
             )
-          : NightshadeDecorations.statusChip(
-              color,
-              borderRadius: NightshadeTokens.borderRadiusLg,
-            ),
+          : NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
         style: TextStyle(

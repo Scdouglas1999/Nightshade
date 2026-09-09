@@ -27,7 +27,6 @@ class _EquipmentStatsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final imagesAsync = ref.watch(allDbImagesProvider);
     // autofocusCount is aggregated per-session, not per-frame. Keep its
     // loading/error state distinct from a genuine count of zero.

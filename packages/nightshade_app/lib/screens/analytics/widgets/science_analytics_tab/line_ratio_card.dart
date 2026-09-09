@@ -190,7 +190,7 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
                         : _isGenerating
                             ? 'Generating...'
                             : 'Generate From Session Frames',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
               ),
             ),
@@ -411,7 +411,7 @@ class _MetricLine extends StatelessWidget {
           ),
           Text(
             value.toStringAsFixed(3),
-            style: NightshadeTypography.h6.copyWith(
+            style: NightshadeTypography.bodyStrong.copyWith(
               color: colors.textPrimary,
             ),
           ),

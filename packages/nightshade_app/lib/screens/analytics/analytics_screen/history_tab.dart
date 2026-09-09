@@ -41,7 +41,6 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
     // Frames shot outside a sequence carry no imaging_sessions row. They are

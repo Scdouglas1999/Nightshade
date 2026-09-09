@@ -323,11 +323,8 @@ class _KpiCard extends StatelessWidget {
                             horizontal: 6,
                             vertical: 2,
                           ),
-                          decoration: NightshadeDecorations.statusChip(
-                            t.tone ?? colors.textMuted,
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline4),
-                          ),
+                          decoration: NightshadeDecorations.chip(colors,
+                              tone: t.tone ?? colors.textMuted),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

@@ -372,7 +372,7 @@ class _PreviewSummary extends StatelessWidget {
         vertical: NightshadeTokens.spaceSm + 2,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
@@ -428,10 +428,7 @@ class _Chip extends StatelessWidget {
         horizontal: NightshadeTokens.spaceSm + 2,
         vertical: NightshadeTokens.spaceXs + 1,
       ),
-      decoration: NightshadeDecorations.statusChip(
-        tone,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: tone),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

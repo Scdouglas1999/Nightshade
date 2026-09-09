@@ -33,7 +33,7 @@ class _ExportTypeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: borderColor,
@@ -70,7 +70,7 @@ class _ExportTypeCard extends StatelessWidget {
             label: actionLabel,
             icon: actionIcon,
             size: ButtonSize.small,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: (isExporting || !enabled) ? null : onExport,
           ),
         ],
@@ -101,7 +101,7 @@ class _DateButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),

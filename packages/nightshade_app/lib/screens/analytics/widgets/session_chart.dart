@@ -311,7 +311,7 @@ class _ChartShell extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: NightshadeTypography.h5
+                        style: NightshadeTypography.bodyStrong
                             .copyWith(color: colors.textPrimary),
                       ),
                       Text(

@@ -154,7 +154,7 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
         onPressed: _doExport,
         icon: LucideIcons.fileOutput,
         label: _exporting ? 'Exporting...' : 'Export to AAVSO',
-        variant: ButtonVariant.outline,
+        variant: ButtonVariant.secondary,
         isLoading: _exporting,
       ),
     );

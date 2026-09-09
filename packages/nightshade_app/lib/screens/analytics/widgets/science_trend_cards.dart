@@ -442,10 +442,7 @@ class _LatestPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
         style: TextStyle(
@@ -468,7 +465,7 @@ class _Placeholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       alignment: Alignment.center,

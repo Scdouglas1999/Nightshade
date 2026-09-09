@@ -89,7 +89,7 @@ class ScienceCampaignStrip extends ConsumerWidget {
                           child: CircularProgressIndicator(
                             value: pct.clamp(0.0, 1.0),
                             strokeWidth: 5,
-                            backgroundColor: colors.surfaceAlt,
+                            backgroundColor: colors.well,
                             color: colors.primary,
                           ),
                         ),

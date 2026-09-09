@@ -676,7 +676,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               trailing: lightFrames.isEmpty
                   ? null
                   : NightshadeButton(
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                       onPressed: () async {
                         final rejected = await ImageGraderDialog.show(

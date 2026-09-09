@@ -299,11 +299,7 @@ class _SortBar extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: isSelected
-                ? NightshadeDecorations.selectedSurface(
-                    colors.primary,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  )
+                ? NightshadeDecorations.panelSelected(colors)
                 : BoxDecoration(
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),

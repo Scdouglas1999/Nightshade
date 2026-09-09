@@ -61,7 +61,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
                 onPressed: () => _openCalibrationWizard(context),
                 icon: LucideIcons.beaker,
                 label: 'Calibrate',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
               ),
             ),
           ],
@@ -142,11 +142,8 @@ class _TransformRow extends StatelessWidget {
                   horizontal: NightshadeTokens.spaceXs + 2,
                   vertical: 2,
                 ),
-                decoration: NightshadeDecorations.statusChip(
-                  colors.primary,
-                  borderRadius: NightshadeTokens.borderRadiusSm,
-                  bordered: false,
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Text(
                   transform.filterName,
                   style: NightshadeTypography.labelStrongSm.copyWith(
@@ -160,11 +157,8 @@ class _TransformRow extends StatelessWidget {
                   horizontal: NightshadeTokens.spaceXs + 2,
                   vertical: 2,
                 ),
-                decoration: NightshadeDecorations.statusChip(
-                  qualityColor,
-                  borderRadius: NightshadeTokens.borderRadiusSm,
-                  bordered: false,
-                ),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: qualityColor),
                 child: Text(
                   quality,
                   style: TextStyle(

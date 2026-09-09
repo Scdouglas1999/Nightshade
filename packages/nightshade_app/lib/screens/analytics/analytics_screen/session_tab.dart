@@ -222,7 +222,6 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                 // something to offer, it just isn't the quick-capture bucket.
                 if (allSessions.isNotEmpty) ...[
                   _SessionReviewBar(
-                    colors: colors,
                     sessions: allSessions,
                     selectedId: reviewSelectionId,
                     offerQuickCaptures: offerQuickCaptures,
@@ -395,7 +394,7 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
               // Captured images strip
               NightshadePanel(
                 head: PanelHead(
-                  icon: LucideIcons.images,
+                  icon: LucideIcons.image,
                   label: l10n.text('analyticsCapturedImages'),
                 ),
                 child: Column(

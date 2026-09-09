@@ -14,12 +14,10 @@ class _SummaryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: NightshadeDecorations.tintedBadge(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         '$label: $value',
         style: NightshadeTypography.labelStrongSm.copyWith(
@@ -53,7 +51,7 @@ class _QualityFilterChip extends StatelessWidget {
       ),
       selected: selected,
       selectedColor: colors.primary.withValues(alpha: 0.2),
-      backgroundColor: colors.surfaceAlt,
+      backgroundColor: colors.surfaceHover,
       side: BorderSide(color: selected ? colors.primary : colors.border),
       onSelected: (_) => onTap(),
       visualDensity: VisualDensity.compact,
@@ -129,7 +127,7 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: NightshadeTypography.h6.copyWith(
+              style: NightshadeTypography.bodyStrong.copyWith(
                 color: colors.textPrimary,
               ),
             ),

@@ -46,7 +46,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                 NightshadeButton(
                   label: 'Retry overlay preferences',
                   icon: LucideIcons.refreshCw,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: () =>
                       ref.invalidate(scienceVisualizationPrefsProvider),
@@ -257,11 +257,7 @@ class _LayerChip extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: active
-                ? NightshadeDecorations.selectedSurface(
-                    colors.primary,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  )
+                ? NightshadeDecorations.panelSelected(colors)
                 : BoxDecoration(
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
