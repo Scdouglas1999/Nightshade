@@ -1,6 +1,9 @@
 // The 'no node selected' placeholder and the central _NodeEditor dispatcher widget that picks the right per-node properties widget based on the selected node's runtime type.
 part of '../node_properties_panel.dart';
 
+/// The properties column with nothing selected: the app's ONE empty-state
+/// pattern, and no button — the action is to click a step, which is already
+/// on screen beside it (06 §Sequencer).
 class _EmptySelection extends StatelessWidget {
   final NightshadeColors colors;
   final bool isMobile;
@@ -9,37 +12,10 @@ class _EmptySelection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            LucideIcons.mousePointer,
-            size: isMobile ? 40 : 32,
-            color: colors.textMuted,
-          ),
-          SizedBox(height: isMobile ? 16 : 12),
-          Text(
-            'Select a node',
-            style: TextStyle(
-              fontSize: isMobile
-                  ? NightshadeTypography.fontSize16
-                  : NightshadeTypography.fontSize13,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'to view its properties',
-            style: TextStyle(
-              fontSize: isMobile
-                  ? NightshadeTypography.fontSize14
-                  : NightshadeTypography.fontSize11,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
+    return const EmptyState(
+      icon: LucideIcons.mousePointerClick,
+      title: 'Select a node',
+      body: 'Its settings appear here.',
     );
   }
 }
@@ -90,10 +66,6 @@ class _NodeEditor extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Node type badge
-                _NodeTypeBadge(colors: colors, node: node),
-                const SizedBox(height: 16),
-
                 // Name field
                 NodePropertyField(
                   colors: colors,
@@ -139,7 +111,7 @@ class _NodeEditor extends ConsumerWidget {
                   width: double.infinity,
                   child: NodeDangerButton(
                     colors: colors,
-                    label: 'Delete Node',
+                    label: 'Delete node',
                     icon: LucideIcons.trash2,
                     onPressed: () async {
                       await confirmAndDeleteSequenceNode(

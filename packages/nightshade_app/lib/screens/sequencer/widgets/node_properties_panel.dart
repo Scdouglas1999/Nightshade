@@ -90,32 +90,20 @@ class NodePropertiesPanel extends ConsumerWidget {
 
         // Header with close button
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Icon(
-                LucideIcons.settings2,
-                size: 18,
-                color: colors.primary,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Properties',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize18,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              if (onClose != null)
-                IconButton(
-                  onPressed: onClose,
-                  icon: Icon(LucideIcons.x, color: colors.textMuted),
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'Close',
-                ),
-            ],
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceLg,
+            vertical: NightshadeTokens.spaceSm,
+          ),
+          child: SectionTitle(
+            icon: LucideIcons.sliders,
+            title: selectedNode?.name ?? 'Properties',
+            trailing: onClose == null
+                ? null
+                : NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Close',
+                    onPressed: onClose,
+                  ),
           ),
         ),
 
@@ -138,66 +126,94 @@ class NodePropertiesPanel extends ConsumerWidget {
 
   Widget _buildDesktopSidebarContent(
       BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
+    // A side panel with no strip: 300 px of content, 16 px padding, each
+    // section opening with a SectionTitle (05 §15). The old 48 px "Properties"
+    // header bar is gone — a panel that only ever holds one thing does not
+    // need a row to say what that thing is, and the SectionTitle already names
+    // the node.
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(left: BorderSide(color: colors.border)),
       ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
-            child: Row(
+      child: selectedNode == null
+          ? _EmptySelection(colors: colors)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  LucideIcons.settings2,
-                  size: 16,
-                  color: colors.textSecondary,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    NightshadeTokens.spaceLg,
+                    NightshadeTokens.spaceLg,
+                    NightshadeTokens.spaceLg,
+                    0,
+                  ),
+                  child: SectionTitle(
+                    icon: LucideIcons.sliders,
+                    title: selectedNode.name,
+                    trailing: onCollapse == null
+                        ? null
+                        : NightshadeIconButton(
+                            icon: LucideIcons.panelRightClose,
+                            tooltip: 'Collapse panel',
+                            size: IconButtonSize.sm,
+                            onPressed: onCollapse,
+                          ),
+                  ),
                 ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Properties',
-                    style: NightshadeTypography.labelStrong
-                        .copyWith(color: colors.textPrimary),
-                  ),
-                ),
-                if (onCollapse != null)
-                  Tooltip(
-                    message: 'Collapse panel',
-                    child: InkWell(
-                      onTap: onCollapse,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline4),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          LucideIcons.panelRightClose,
-                          size: 16,
-                          color: colors.textMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Content
-          Expanded(
-            child: selectedNode == null
-                ? _EmptySelection(colors: colors)
-                : _NodeEditor(
+                  child: _NodeEditor(
                     colors: colors,
                     node: selectedNode,
                   ),
-          ),
-        ],
+                ),
+                _SelectedNodeBanner(nodeId: selectedNode.id),
+              ],
+            ),
+    );
+  }
+}
+
+/// The ONE banner the properties column may show: the worst live-validation
+/// issue for the selected node, pinned to the bottom (06 §Sequencer).
+///
+/// The mockup's banner is an "ends after astro dawn" warning. Nothing in the
+/// app computes that today, and inventing the calculation would be a new
+/// feature in a re-skin — so the slot carries the real per-node problem the
+/// validator already found instead of a fabricated one. See
+/// reports/observatory/w3-sequencer/notes.md.
+class _SelectedNodeBanner extends ConsumerWidget {
+  const _SelectedNodeBanner({required this.nodeId});
+
+  final String nodeId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final issues = ref.watch(liveValidationProvider).issuesByNodeId[nodeId];
+    if (issues == null || issues.isEmpty) return const SizedBox.shrink();
+
+    // One banner per problem: the worst issue speaks for the node, and the
+    // Preflight dialog in the page header lists the rest.
+    final worst = issues.reduce(
+      (a, b) => a.severity.index >= b.severity.index ? a : b,
+    );
+    final tone = switch (worst.severity) {
+      ValidationSeverity.error => BannerTone.error,
+      ValidationSeverity.warning => BannerTone.warning,
+      ValidationSeverity.info => BannerTone.info,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceLg,
+        0,
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.spaceLg,
+      ),
+      child: NightshadeBanner(
+        title: worst.title,
+        message: worst.resolutionHint ?? worst.description,
+        tone: tone,
       ),
     );
   }

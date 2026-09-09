@@ -83,41 +83,35 @@ class NodePropertyField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The label sits to the LEFT of the control (05 §8), which is what makes
+    // a twelve-row property form scannable instead of a scroll: every label
+    // lines up in one column and every control in another. A label above its
+    // field cost a whole line of height per setting.
+    //
+    // [helpText] stays a tooltip on a trailing question mark rather than
+    // becoming FormRow's `help` line: a form of explanations is a form nobody
+    // reads, and these strings qualify one control each.
     return Padding(
-      padding: EdgeInsets.only(bottom: Responsive.spacing(context, 16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: Responsive.fontSize(context, 12),
-                    fontWeight: FontWeight.w600,
-                    color: colors.textSecondary,
-                    letterSpacing: 0.3,
+      padding: const EdgeInsets.only(bottom: FormRow.rowGap),
+      child: FormRow(
+        label: label,
+        child: helpText == null
+            ? child
+            : Row(
+                children: [
+                  Expanded(child: child),
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Tooltip(
+                    message: helpText!,
+                    triggerMode: TooltipTriggerMode.tap,
+                    child: Icon(
+                      LucideIcons.helpCircle,
+                      size: 14,
+                      color: colors.textMuted,
+                    ),
                   ),
-                ),
+                ],
               ),
-              if (helpText != null) ...[
-                SizedBox(width: Responsive.spacing(context, 4)),
-                Tooltip(
-                  message: helpText!,
-                  triggerMode: TooltipTriggerMode.tap,
-                  child: Icon(
-                    LucideIcons.helpCircle,
-                    size: Responsive.iconSize(context, 13),
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          SizedBox(height: Responsive.spacing(context, 6)),
-          child,
-        ],
       ),
     );
   }
