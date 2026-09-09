@@ -292,6 +292,12 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       'its enum index and the list must cover every value.',
     );
 
+    // On a phone with the software keyboard up the whole viewport is ~200px
+    // tall; the header is the one row that can go, because the field the
+    // operator is typing into is the navigation context while it is open.
+    final keyboardCompact = Responsive.isPhone(context) &&
+        MediaQuery.viewInsetsOf(context).bottom > 0;
+
     final tabBar = AdaptiveTabBar(
       tabs: [for (final t in tabs) t.$2],
       selectedIndex: _currentSubTab,
@@ -299,6 +305,19 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       // The page header owns the 24px gutter, so the strip starts flush
       // against the title block.
       horizontalPadding: 0,
+      // Labels stay, at every width.
+      //
+      // `collapseLabelsWhenTight` drops them below 480px of AVAILABLE width,
+      // which is the right rule for a strip that owns its row. Inside
+      // `PageHeader` it misfires: the header's Row gives the title block, the
+      // tab slot and the trailing `Spacer` one flex share each, so on a 1400px
+      // desktop the strip is handed ~360px and collapses six labelled tabs to
+      // six anonymous glyphs — the opposite of `mockups/png/plan.png`, which
+      // shows all six names. The strip is horizontally scrollable, so keeping
+      // the labels costs nothing at a phone width either.
+      // TODO(observatory): remove once PageHeader stops splitting its free
+      // width three ways (see reports/observatory/w3-plan/notes.md).
+      collapseLabelsWhenTight: false,
     );
 
     return Scaffold(
@@ -308,12 +327,17 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         bottom: false,
         child: Column(
           children: [
-            PageHeader(
-              icon: LucideIcons.compass,
-              title: l10n.text('plannerTitleShort'),
-              tabs: tabBar,
-              actions: const [_PlanNightChips()],
-            ),
+            // While a phone keyboard is open, the focused search field is the
+            // active navigation context. Temporarily reclaim the header's
+            // height so the controls row still fits in a short landscape
+            // viewport; it returns unchanged when the keyboard closes.
+            if (!keyboardCompact)
+              PageHeader(
+                icon: LucideIcons.compass,
+                title: l10n.text('plannerTitleShort'),
+                tabs: tabBar,
+                actions: const [_PlanNightChips()],
+              ),
             Expanded(
               child: IndexedStack(
                 index: _currentSubTab,

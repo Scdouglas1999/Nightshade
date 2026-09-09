@@ -17,12 +17,17 @@ class _CandidateList extends ConsumerWidget {
   final int? selectedTargetId;
   final ValueChanged<TargetSuggestion> onSelect;
 
+  /// What the optimizer flagged about tonight as a whole (a bright moon, a
+  /// short window). One banner, joined — never one per factor.
+  final List<String> riskFactors;
+
   const _CandidateList({
     required this.candidates,
     required this.colors,
     required this.scrollController,
     required this.selectedTargetId,
     required this.onSelect,
+    required this.riskFactors,
   });
 
   @override
@@ -40,6 +45,8 @@ class _CandidateList extends ConsumerWidget {
     final query = filters.searchQuery.trim();
     final hasLookups = query.length >= _PlannerSearchResults.localQueryFloor;
     final hasLoadMore = visibleCount < candidates.length;
+    final hasRisks = riskFactors.isNotEmpty;
+    final leading = hasRisks ? 2 : 1;
 
     return ListView.separated(
       controller: scrollController,
@@ -47,23 +54,31 @@ class _CandidateList extends ConsumerWidget {
         horizontal: NightshadeTokens.space2xl,
         vertical: NightshadeTokens.spaceMd,
       ),
-      itemCount:
-          visible.length + 1 + (hasLoadMore ? 1 : 0) + (hasLookups ? 1 : 0),
+      itemCount: visible.length +
+          leading +
+          (hasLoadMore ? 1 : 0) +
+          (hasLookups ? 1 : 0),
       separatorBuilder: (_, __) =>
           const SizedBox(height: NightshadeTokens.spaceSm),
       itemBuilder: (context, index) {
-        if (index == 0) {
+        if (hasRisks && index == 0) {
+          return NightshadeBanner(
+            title: riskFactors.first,
+            message:
+                riskFactors.length > 1 ? riskFactors.skip(1).join(' · ') : null,
+            tone: BannerTone.warning,
+          );
+        }
+        if (index == leading - 1) {
           return _CandidateColumnHeader(
-            count: l10n.text(
-              'plannerCandidateCount',
-              params: {
-                'total': '${candidates.length}',
-                'shown': '${visible.length}',
-              },
+            count: _candidateCountLabel(
+              l10n,
+              total: candidates.length,
+              shown: visible.length,
             ),
           );
         }
-        final rowIndex = index - 1;
+        final rowIndex = index - leading;
         if (rowIndex >= visible.length) {
           final tailIndex = rowIndex - visible.length;
           if (hasLoadMore && tailIndex == 0) {
@@ -97,14 +112,32 @@ class _CandidateList extends ConsumerWidget {
           selected: selected,
           minAltitude: minAltitude,
           night: night,
-          // The top row's action is the page's "do it now"; every other row
-          // parks the target instead. One button per row either way.
-          isTop: rowIndex == 0,
           onSelect: () => onSelect(candidate),
         );
       },
     );
   }
+}
+
+/// "38 candidates · best 12 shown", or just "38 candidates" when the list is
+/// not paged, or "1 candidate" when there is only one. Three keys rather than a
+/// plural rule, which the string table does not have.
+String _candidateCountLabel(
+  NightshadeLocalizations l10n, {
+  required int total,
+  required int shown,
+}) {
+  if (total == 1) return l10n.text('plannerCandidateCountOne');
+  if (shown >= total) {
+    return l10n.text(
+      'plannerCandidateCountAll',
+      params: {'total': '$total'},
+    );
+  }
+  return l10n.text(
+    'plannerCandidateCount',
+    params: {'total': '$total', 'shown': '$shown'},
+  );
 }
 
 /// The column-header row above the candidates: the count on the left and the
@@ -113,6 +146,11 @@ class _CandidateColumnHeader extends StatelessWidget {
   final String count;
 
   const _CandidateColumnHeader({required this.count});
+
+  /// Below this the column names are dropped: a `Candidate` narrower than this
+  /// has already given its measurements up to the name, so naming columns that
+  /// are not there would be the header describing a row nobody can see.
+  static const double _columnNamesFloor = 560;
 
   @override
   Widget build(BuildContext context) {
@@ -126,15 +164,29 @@ class _CandidateColumnHeader extends StatelessWidget {
         left: Candidate.badgeSize + Candidate.columnGap,
         bottom: NightshadeTokens.spaceXs,
       ),
-      child: Row(
-        children: [
-          Expanded(child: Text(count.toUpperCase(), style: style)),
-          Text(l10n.text('plannerColTransit').toUpperCase(), style: style),
-          const SizedBox(width: NightshadeTokens.space2xl),
-          Text(l10n.text('plannerColImageable').toUpperCase(), style: style),
-          const SizedBox(width: NightshadeTokens.space2xl),
-          Text(l10n.text('plannerColWindow').toUpperCase(), style: style),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            Expanded(
+              child: Text(
+                count.toUpperCase(),
+                style: style,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (constraints.maxWidth >= _columnNamesFloor) ...[
+              Text(l10n.text('plannerColTransit').toUpperCase(), style: style),
+              const SizedBox(width: NightshadeTokens.space2xl),
+              Text(
+                l10n.text('plannerColImageable').toUpperCase(),
+                style: style,
+              ),
+              const SizedBox(width: NightshadeTokens.space2xl),
+              Text(l10n.text('plannerColWindow').toUpperCase(), style: style),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -144,7 +196,6 @@ class _CandidateColumnHeader extends StatelessWidget {
 class _PlannerCandidateRow extends ConsumerWidget {
   final TargetSuggestion suggestion;
   final bool selected;
-  final bool isTop;
   final double minAltitude;
   final _PlannerNightWindow? night;
   final VoidCallback onSelect;
@@ -153,7 +204,6 @@ class _PlannerCandidateRow extends ConsumerWidget {
     super.key,
     required this.suggestion,
     required this.selected,
-    required this.isTop,
     required this.minAltitude,
     required this.night,
     required this.onSelect,
@@ -193,13 +243,17 @@ class _PlannerCandidateRow extends ConsumerWidget {
         ),
       ],
       window: night?.windowFor(visibility),
+      // 06 SS Plan: the SELECTED row carries "Image tonight" - the thing you
+      // do with the target the detail column is describing - and every other
+      // row parks it instead. One button per row either way, and neither is
+      // the page's primary.
       action: NightshadeButton(
-        label: isTop
+        label: selected
             ? l10n.text('plannerImageTonight')
             : l10n.text('plannerAddTarget'),
         variant: ButtonVariant.secondary,
         size: ButtonSize.small,
-        onPressed: () => isTop
+        onPressed: () => selected
             ? _imageTonight(context, ref)
             : _addToObservingList(context, ref, colors),
       ),

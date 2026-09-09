@@ -26,6 +26,9 @@ class _TargetDetailColumn extends ConsumerWidget {
   /// Height of the altitude well.
   static const double _altitudeHeight = 110;
 
+  /// Whether the selected target IS the one the optimizer chose.
+  bool get _isOptimizerPick => plan.primaryTarget?.targetId == target.targetId;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
@@ -88,7 +91,7 @@ class _TargetDetailColumn extends ConsumerWidget {
         child: _TargetAltitudeWell(target: target, minAltitude: minAltitude),
       ),
       const SizedBox(height: NightshadeTokens.spaceMd),
-      KeyValueList(rows: _facts(context, ref, minAltitude)),
+      KeyValueList(rows: _facts(context, ref)),
       if (target.warnings.isNotEmpty) ...[
         const SizedBox(height: NightshadeTokens.spaceMd),
         // ONE banner for the target's problems, not one per warning: the
@@ -100,6 +103,25 @@ class _TargetDetailColumn extends ConsumerWidget {
               : null,
           tone: _bannerTone(target.warnings.first.severity),
         ),
+      ],
+      // The optimizer's reasoning belongs to the optimizer's PICK, not to
+      // whichever row the user has selected — the old screen showed it under a
+      // hero card a search could have replaced, so it explained numbers that
+      // were not on screen. It appears here only when the two agree.
+      if (_isOptimizerPick && plan.rationale.isNotEmpty) ...[
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        SectionTitle(
+          icon: LucideIcons.lightbulb,
+          title: l10n.text(
+            'plannerRationaleSubtitleNamed',
+            params: {'target': target.targetName},
+          ),
+        ),
+        for (var i = 0; i < plan.rationale.length; i++)
+          ListRow(
+            title: plan.rationale[i],
+            showDivider: i < plan.rationale.length - 1,
+          ),
       ],
     ];
 
@@ -149,7 +171,6 @@ class _TargetDetailColumn extends ConsumerWidget {
   List<(String, String)> _facts(
     BuildContext context,
     WidgetRef ref,
-    double minAltitude,
   ) {
     final l10n = context.l10n;
     final preview =
@@ -178,10 +199,7 @@ class _TargetDetailColumn extends ConsumerWidget {
       ),
       if (estimated != null && estimated.estimatedIntegrationHours > 0)
         (
-          l10n.text(
-            'plannerAboveMin',
-            params: {'value': minAltitude.round().toString()},
-          ),
+          l10n.text('plannerKvEstimatedIntegration'),
           _hoursAndMinutes(estimated.estimatedIntegrationHours) ??
               kReadoutUnknown,
         ),
@@ -445,20 +463,43 @@ class _TargetFieldPreview extends ConsumerWidget {
                   ),
                 ),
               ),
+            // The two things you can do with a target that are not the page's
+            // actions. A candidate row carries ONE button (05 §9) and the
+            // selected row spends it on "Image tonight", so the observing list
+            // has to be reachable from here or the selected target — the only
+            // one when the list has a single candidate — could never be added
+            // to one.
             Positioned(
               right: NightshadeTokens.spaceSm,
               bottom: NightshadeTokens.spaceSm,
-              child: NightshadeIconButton(
-                icon: LucideIcons.globe,
-                tooltip: context.l10n.text('plannerOpenPlanetarium'),
-                size: IconButtonSize.sm,
-                onPressed: () => showTargetInSky(
-                  context,
-                  ref,
-                  raHours: target.raHours,
-                  decDegrees: target.decDegrees,
-                  name: target.targetName,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NightshadeIconButton(
+                    icon: LucideIcons.listPlus,
+                    tooltip: 'Add to observing list',
+                    size: IconButtonSize.sm,
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => _CandidateObservingListDialog(
+                        suggestion: target,
+                        colors: NightshadeColors.of(context),
+                      ),
+                    ),
+                  ),
+                  NightshadeIconButton(
+                    icon: LucideIcons.globe,
+                    tooltip: context.l10n.text('plannerOpenPlanetarium'),
+                    size: IconButtonSize.sm,
+                    onPressed: () => showTargetInSky(
+                      context,
+                      ref,
+                      raHours: target.raHours,
+                      decDegrees: target.decDegrees,
+                      name: target.targetName,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

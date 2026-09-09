@@ -415,39 +415,64 @@ class _CandidateSkeleton extends StatelessWidget {
   static const double _readoutHeight = 30;
   static const double _buttonHeight = 28;
 
+  /// Width of one readout placeholder.
+  static const double _readoutWidth = 90;
+
+  /// Width of the action placeholder.
+  static const double _actionWidth = 96;
+
+  /// Width of the window-bar placeholder.
+  static const double _windowWidth = 120;
+
+  /// Below this the trailing placeholders are dropped rather than overflowed:
+  /// a `Candidate` at a phone width gives its measurements up to the name, and
+  /// a skeleton that claimed more would be a wider row than the one it stands
+  /// in for.
+  static const double _trailingFloor = 560;
+
   @override
   Widget build(BuildContext context) {
-    return const NightshadePanel(
-      padding: EdgeInsets.all(NightshadeTokens.spaceMd),
-      child: Row(
-        children: [
-          SkeletonBox(
-            width: Candidate.badgeSize,
-            height: Candidate.badgeSize,
-            borderRadius: NightshadeTokens.radiusLg,
-          ),
-          SizedBox(width: Candidate.columnGap),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SkeletonText(width: 120, height: _nameHeight),
-                SizedBox(height: NightshadeTokens.spaceXs),
-                SkeletonText(width: 220, height: _detailHeight),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= _trailingFloor;
+        return NightshadePanel(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+          child: Row(
+            children: [
+              const SkeletonBox(
+                width: Candidate.badgeSize,
+                height: Candidate.badgeSize,
+                borderRadius: NightshadeTokens.radiusLg,
+              ),
+              const SizedBox(width: Candidate.columnGap),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SkeletonText(width: 120, height: _nameHeight),
+                    SizedBox(height: NightshadeTokens.spaceXs),
+                    SkeletonText(width: 220, height: _detailHeight),
+                  ],
+                ),
+              ),
+              if (wide) ...const [
+                SizedBox(width: Candidate.columnGap),
+                SkeletonBox(width: _readoutWidth, height: _readoutHeight),
+                SizedBox(width: Candidate.columnGap),
+                SkeletonBox(width: _readoutWidth, height: _readoutHeight),
+                SizedBox(width: Candidate.columnGap),
+                SkeletonBox(
+                  width: _windowWidth,
+                  height: CandidateWindowBar.trackHeight,
+                ),
               ],
-            ),
+              const SizedBox(width: Candidate.columnGap),
+              const SkeletonBox(width: _actionWidth, height: _buttonHeight),
+            ],
           ),
-          SizedBox(width: Candidate.columnGap),
-          SkeletonBox(width: 90, height: _readoutHeight),
-          SizedBox(width: Candidate.columnGap),
-          SkeletonBox(width: 90, height: _readoutHeight),
-          SizedBox(width: Candidate.columnGap),
-          SkeletonBox(width: 120, height: CandidateWindowBar.trackHeight),
-          SizedBox(width: Candidate.columnGap),
-          SkeletonBox(width: 96, height: _buttonHeight),
-        ],
-      ),
+        );
+      },
     );
   }
 }

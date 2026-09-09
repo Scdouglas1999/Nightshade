@@ -38,8 +38,9 @@ class _ProjectsTabState extends State<_ProjectsTab> {
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          child: Align(
-            alignment: Alignment.centerLeft,
+          // Scrolls rather than overflows at a phone width.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: SegmentedControl(
               segments: const ['This project', 'All targets'],
               selectedIndex: _scope.index,

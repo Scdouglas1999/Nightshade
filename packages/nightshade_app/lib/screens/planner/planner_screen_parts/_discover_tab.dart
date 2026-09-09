@@ -104,14 +104,26 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
           ),
           child: Row(
             children: [
-              SegmentedControl(
-                segments: const ['Your sky', 'Constellation', 'Collaborate'],
-                selectedIndex: _view.index,
-                onSelected: (index) => setState(
-                  () => _view = DiscoverView.values[index],
+              // Scrolls rather than overflows: three segment labels plus the
+              // refresh button need ~330px, which a 360px phone does not have
+              // once the row is padded.
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedControl(
+                    segments: const [
+                      'Your sky',
+                      'Constellation',
+                      'Collaborate',
+                    ],
+                    selectedIndex: _view.index,
+                    onSelected: (index) => setState(
+                      () => _view = DiscoverView.values[index],
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               // The ONE refresh for all three surfaces. Each used to carry its
               // own header with its own button; 06 §Plan leaves the page one
               // header, so the action moves out here and dispatches on the

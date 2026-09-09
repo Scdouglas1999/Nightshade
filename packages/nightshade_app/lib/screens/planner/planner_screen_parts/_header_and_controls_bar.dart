@@ -14,6 +14,13 @@ class _PlanNightChips extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final location = ref.watch(appObserverLocationProvider);
     if (plannerSiteUnset(location)) return const SizedBox.shrink();
+    // Below the shell's layout breakpoint the header is 48px of title and tab
+    // strip with nothing to spare; two chips of prose there push the row into
+    // overflow. The same two facts are one tap away in the tab body.
+    if (MediaQuery.sizeOf(context).width <
+        ShellChromeMetrics.shellLayoutBreakpoint) {
+      return const SizedBox.shrink();
+    }
 
     final now = DateTime.now();
     final illumination = AstronomyCalculations.moonIllumination(now);
@@ -147,23 +154,35 @@ class _PlannerControlsBar extends ConsumerWidget {
               children: [
                 SizedBox(width: _kPlannerSearchWidth, child: searchField),
                 const SizedBox(width: NightshadeTokens.spaceSm),
-                _ObjectTypeMultiSelect(
-                  colors: colors,
-                  selected: filters.selectedObjectTypes,
+                // The chips scroll rather than wrap or overflow: the row is one
+                // strip in the mockup, and a second line of chips would push
+                // the candidate list down by 40px on every narrow desktop.
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _ObjectTypeMultiSelect(
+                          colors: colors,
+                          selected: filters.selectedObjectTypes,
+                        ),
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        _MinAltitudeControl(
+                          colors: colors,
+                          value: filters.minCurrentAltitude,
+                        ),
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        _MoonSeparationControl(
+                          colors: colors,
+                          value: filters.minMoonDistance,
+                        ),
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        moreChip,
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: NightshadeTokens.spaceSm),
-                _MinAltitudeControl(
-                  colors: colors,
-                  value: filters.minCurrentAltitude,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                _MoonSeparationControl(
-                  colors: colors,
-                  value: filters.minMoonDistance,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                moreChip,
-                const Spacer(),
                 _SortDropdown(
                   colors: colors,
                   value: filters.plannerSort ?? PlannerSortMode.score,

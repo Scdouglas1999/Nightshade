@@ -287,7 +287,8 @@ void main() {
     );
 
     // The candidate list header reports the count after filtering.
-    expect(find.textContaining('10 targets after filters'), findsOneWidget);
+    // 06 §Plan restates the count as the list's eyebrow column header.
+    expect(find.textContaining('10 CANDIDATES'), findsOneWidget);
 
     // All ten candidates should be rendered (default page size is 25).
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
@@ -320,7 +321,7 @@ void main() {
     // The candidate list header reports the filtered count (the primary
     // recommendation card above the list is intentionally unaffected — it
     // always shows tonight's globally-best target).
-    expect(find.textContaining('1 target after filters'), findsOneWidget);
+    expect(find.textContaining('1 CANDIDATE'), findsOneWidget);
     // M51 (the only match) appears in the list.
     expect(find.text('M51 Whirlpool'), findsAtLeastNWidgets(1));
     // Other candidate-list names disappear from the rendered tree (the

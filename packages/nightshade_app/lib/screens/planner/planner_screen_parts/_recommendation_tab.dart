@@ -188,6 +188,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
       scrollController: _scrollController,
       selectedTargetId: selected?.targetId,
       onSelect: (target) => setState(() => _selectedTargetId = target.targetId),
+      riskFactors: plan.riskFactors,
     );
 
     // Below the shell's layout breakpoint the two panes cannot both hold their

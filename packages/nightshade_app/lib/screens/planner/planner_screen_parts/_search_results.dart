@@ -137,10 +137,9 @@ class _SimbadResultsSection extends ConsumerWidget {
       data: (matches) {
         if (matches.isEmpty) {
           if (hasLocalMatches) return const SizedBox.shrink();
-          return _SearchProblemLine(
-            label: 'SIMBAD found nothing',
-            detail: 'No object matches "$query".',
-          );
+          // A lookup that succeeded and returned nothing is an ANSWER, not a
+          // problem: one quiet line, not a banner (02 rule 4).
+          return _SearchQuietLine(text: 'SIMBAD has no object named "$query".');
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -292,6 +291,26 @@ class _SearchProgressLine extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One muted line stating a lookup's result. Not a banner: nothing is wrong.
+class _SearchQuietLine extends StatelessWidget {
+  final String text;
+
+  const _SearchQuietLine({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
+      child: Text(
+        text,
+        style: NightshadeTypography.bodySm.copyWith(
+          color: NightshadeColors.of(context).textMuted,
+        ),
       ),
     );
   }

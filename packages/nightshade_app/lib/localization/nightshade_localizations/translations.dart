@@ -764,6 +764,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerColImageable': 'Imageable',
     'plannerColWindow': 'Window tonight',
     'plannerCandidateCount': '{total} candidates · best {shown} shown',
+    'plannerCandidateCountAll': '{total} candidates',
+    'plannerCandidateCountOne': '1 candidate',
     'plannerImageTonight': 'Image tonight',
     'plannerAddTarget': 'Add',
     'plannerAboveMin': 'Above {value}°',
@@ -779,6 +781,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerKvSize': 'Size',
     'plannerKvSuggestedFilters': 'Suggested filters',
     'plannerKvExposure': 'Suggested exposure',
+    'plannerKvEstimatedIntegration': 'Estimated integration',
     'plannerNoSiteTitle': 'Set your observing site',
     'plannerNoSiteBody':
         'The planner scores targets from where you are; add your latitude and '
@@ -1561,6 +1564,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerColImageable': 'Fotografiable',
     'plannerColWindow': 'Ventana esta noche',
     'plannerCandidateCount': '{total} candidatos · mejores {shown} mostrados',
+    'plannerCandidateCountAll': '{total} candidatos',
+    'plannerCandidateCountOne': '1 candidato',
     'plannerImageTonight': 'Fotografiar esta noche',
     'plannerAddTarget': 'Añadir',
     'plannerAboveMin': 'Sobre {value}°',
@@ -1576,6 +1581,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerKvSize': 'Tamaño',
     'plannerKvSuggestedFilters': 'Filtros sugeridos',
     'plannerKvExposure': 'Exposición sugerida',
+    'plannerKvEstimatedIntegration': 'Integración estimada',
     'plannerNoSiteTitle': 'Define tu lugar de observación',
     'plannerNoSiteBody':
         'El planificador puntúa objetivos desde donde estás; añade tu latitud '
