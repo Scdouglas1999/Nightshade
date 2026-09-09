@@ -161,7 +161,9 @@ what each style is FOR.
 Rules:
 - A readout is ALWAYS `readout*` for the value plus `readoutLabel` for the label. Never a bare
   `TextStyle(fontFamily: mono)`.
-- Units inside a readout: same style at 60% size, `textMuted`, weight 400, 2 px gap.
+- Units inside a readout: same style at 60% size, `textMuted`, weight 400, 2 px gap. Glyphs the
+  bundled fonts carry: `°`, `×`, `—`. NOT carried: `′`, `″`, thin space — use `'`, `"`, and no
+  thousands grouping.
 - Unknown values render `—` (U+2014) in `textMuted`, never `---` or `--:--`.
 - There are NO other sizes. 13.5, 12.5, 9 and 16 do not exist: rail labels and settings items
   are `button` (14), settings descriptions are `caption` (12), dialog and empty-state titles are
