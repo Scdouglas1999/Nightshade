@@ -9,13 +9,13 @@ import 'package:path/path.dart' as p;
 import '../../../widgets/raw_preview_status_badge.dart';
 import '../../../utils/preview_transform.dart';
 import '../../../widgets/catalog_overlay_widget.dart';
-import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
 import 'frame_science_chip.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
+import 'imaging_hud.dart';
 import 'narrator_ticker.dart';
 import 'overlay_painters.dart';
 import 'overlay_widgets.dart';
@@ -63,10 +63,13 @@ class LivePreviewArea extends ConsumerStatefulWidget {
   ConsumerState<LivePreviewArea> createState() => _LivePreviewAreaState();
 }
 
-/// Vertical band at the bottom of the preview canvas owned by the corner
-/// readouts (histogram bottom-left, image stats bottom-right). Content centred
-/// in the canvas must keep clear of it.
+/// Vertical band at the bottom of the preview canvas owned by the capture bar
+/// and the histogram. Content centred in the canvas must keep clear of it.
 const double _cornerReadoutBandHeight = 120.0;
+
+/// Distance from the canvas edge to a glass HUD panel
+/// (`mockups/imaging.html`: 14 px).
+const double _hudInset = 14.0;
 
 /// Whether the on-canvas measurement readouts — the histogram, the HFR / ECC /
 /// star-count chip and the image-stats panel — are drawn.
@@ -125,9 +128,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
     final onPanUpdate = widget.onPanUpdate;
     final currentImage = ref.watch(currentImageProvider);
     final readoutsVisible = ref.watch(previewReadoutsVisibleProvider);
-    final previewHistogram = ref.watch(previewDisplayHistogramProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
-    final lastStats = ref.watch(lastImageStatsProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final starDetectionResult = ref.watch(starDetectionResultProvider);
     final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull;
@@ -290,7 +291,9 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                 ? () => FullscreenImageViewer.show(context, currentImage)
                 : null,
             child: Container(
-              color: const Color(0xFF08080C),
+              // The canvas is a photo backdrop, so it stays on the dark
+              // ladder in every theme, exactly like the glass over it.
+              color: NightshadeColors.dark.background,
               child: Stack(
                 children: [
                   // Image display or empty state
@@ -330,69 +333,25 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                   minHeight: constraints.maxHeight,
                                 ),
                                 child: Center(
+                                  // The bottom of this canvas is spoken for by
+                                  // the capture bar and the histogram, so the
+                                  // prompt centres in the space actually free.
                                   child: Padding(
-                                    // The bottom corners of this same canvas
-                                    // are permanently occupied by the
-                                    // histogram and the HFR/Stars/Median/Mean
-                                    // readout (both `Positioned(bottom: 16)`).
-                                    // Centring the empty state in the FULL
-                                    // canvas ran "Take a snapshot or start a
-                                    // capture loop" straight through both
-                                    // cards — legible neither as prompt nor as
-                                    // readout, and worse at a 1.3 system font
-                                    // scale where the sentence is wider.
-                                    // Reserve the readout band so the prompt
-                                    // centres in the space actually free.
-                                    padding: const EdgeInsets.fromLTRB(
-                                      NightshadeTokens.spaceLg,
-                                      NightshadeTokens.spaceLg,
-                                      NightshadeTokens.spaceLg,
-                                      NightshadeTokens.spaceLg +
-                                          _cornerReadoutBandHeight,
+                                    padding: const EdgeInsets.only(
+                                      bottom: _cornerReadoutBandHeight,
                                     ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(
-                                              NightshadeTokens.space2xl),
-                                          decoration: BoxDecoration(
-                                            color: colors.surface
-                                                .withValues(alpha: 0.8),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                                color: colors.border),
-                                          ),
-                                          child: Icon(
-                                            NightshadeIcons.camera,
-                                            size: NightshadeTokens.icon2xl,
-                                            color: colors.textMuted,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                            height: NightshadeTokens.spaceXl),
-                                        Text(
-                                          isConnected
-                                              ? 'No Image'
-                                              : 'No Camera Connected',
-                                          style:
-                                              NightshadeTypography.h4.copyWith(
-                                            color: colors.textSecondary,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                            height: NightshadeTokens.spaceSm),
-                                        Text(
-                                          isConnected
-                                              ? 'Take a snapshot or start a capture loop'
-                                              : 'Connect a camera in Equipment settings',
-                                          textAlign: TextAlign.center,
-                                          style: NightshadeTypography.bodySm
-                                              .copyWith(
-                                            color: colors.textMuted,
-                                          ),
-                                        ),
-                                      ],
+                                    child: EmptyState(
+                                      icon: isConnected
+                                          ? NightshadeIcons.imageOff
+                                          : NightshadeIcons.cameraOff,
+                                      title: isConnected
+                                          ? 'No frames yet'
+                                          : 'No camera connected',
+                                      body: isConnected
+                                          ? 'Take a snapshot or start a loop '
+                                              'and the frame appears here.'
+                                          : 'Connect a camera in Equipment to '
+                                              'start imaging.',
                                     ),
                                   ),
                                 ),
@@ -407,7 +366,13 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     Positioned.fill(
                       child: CustomPaint(
                         painter: CrosshairOverlayPainter(
-                          color: colors.primary.withValues(alpha: 0.4),
+                          // 06 puts the reticle in primary 35-50%; the two
+                          // tokens that bracket that band are opacityStrong
+                          // (axes) and opacitySelectedRing (the ring itself,
+                          // set inside the painter).
+                          color: colors.primary.withValues(
+                            alpha: NightshadeTokens.opacityStrong,
+                          ),
                         ),
                       ),
                     ),
@@ -631,32 +596,34 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
                     ),
 
-                  // Upper-right preview status badges: raw/HQ progress and
-                  // calibration provenance. Both ride above the overlay bar
-                  // chips so the user sees them even when zoomed in.
+                  // Top-right: what the frame on screen is and when it
+                  // landed, with the raw-load and calibration badges that
+                  // qualify the SAME frame riding inside the one glass panel
+                  // rather than as two more floating boxes (05 §14: at most
+                  // four glass elements, one per corner).
                   if (currentImage != null)
                     Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
-                            RawPreviewStatusBadge(
-                              status: currentImage.rawLoadStatus,
-                              colors: colors,
-                            ),
-                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
-                            const SizedBox(width: 6),
-                          // Surface whether the on-disk frame
-                          // backing the current preview has actually been
-                          // through the calibration pipeline. The provider
-                          // only reports true when the saved file path
-                          // ended up at `_cal.fits` — calibration failures
-                          // leave the original path untouched, so an
-                          // uncalibrated frame never wears the badge.
-                          _CalibratedBadge(colors: colors),
-                        ],
+                      top: _hudInset,
+                      right: _hudInset,
+                      child: _readout(
+                        LastFrameStatusHud(
+                          trailing: <Widget>[
+                            if (currentImage.rawLoadStatus !=
+                                RawLoadStatus.idle)
+                              RawPreviewStatusBadge(
+                                status: currentImage.rawLoadStatus,
+                                colors: colors,
+                              ),
+                            // Surface whether the on-disk frame backing the
+                            // current preview has actually been through the
+                            // calibration pipeline. The provider only reports
+                            // true when the saved file path ended up at
+                            // `_cal.fits`, so an uncalibrated frame never
+                            // wears the badge.
+                            _CalibratedBadge(colors: colors),
+                          ],
+                        ),
+                        visible: readoutsVisible,
                       ),
                     ),
 
@@ -672,7 +639,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   if (viewportSize.height > 120)
                     Positioned(
                       top: 56,
-                      right: 16,
+                      right: _hudInset,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: Responsive.previewOverlayMaxWidth(
@@ -698,30 +665,22 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
                     ),
 
-                  // Bottom-left histogram overlay
+                  // Top-left: the frame's measurements (06 §Imaging).
                   Positioned(
-                    bottom: 16,
-                    left: 16,
+                    top: _hudInset,
+                    left: _hudInset,
                     child: _readout(
-                      HistogramWidget(
-                        key: ImagingTutorialKeys.histogram,
-                        colors: colors,
-                        histogram: previewHistogram,
-                      ),
+                      FrameStatsHud(eccentricity: frameEccentricity),
                       visible: readoutsVisible,
                     ),
                   ),
 
-                  // Bottom-right stats readout
+                  // Bottom-right: the histogram and the stretch in force.
                   Positioned(
-                    bottom: 16,
-                    right: 16,
+                    bottom: _hudInset,
+                    right: _hudInset,
                     child: _readout(
-                      ImageStatsOverlay(
-                        key: ImagingTutorialKeys.statsPanel,
-                        colors: colors,
-                        stats: lastStats,
-                      ),
+                      const HistogramHud(),
                       visible: readoutsVisible,
                     ),
                   ),
@@ -749,8 +708,8 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   // of the canvas keeps its pan/zoom gestures.
                   if (currentImage != null)
                     Positioned(
-                      bottom: 112,
-                      left: 12,
+                      bottom: _hudInset,
+                      left: _hudInset,
                       child: _readout(
                         ConstrainedBox(
                           constraints: BoxConstraints(

@@ -124,7 +124,7 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
         pixelScaleArcsecPerPixel: plateSolve.pixelScale,
         imageWidthPixels: plateSolve.imageWidth.toDouble(),
         zoomLevel: zoomLevel,
-        bottomMargin: readoutsVisible ? PreviewReadoutInsets.histogram : null,
+        bottomMargin: readoutsVisible ? PreviewReadoutInsets.bottomLeft : null,
       );
 
   /// The compass painter this widget draws with.
@@ -134,7 +134,7 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
   /// draw would put that resolve on every frame.
   late final CompassOverlayPainter _compass = CompassOverlayPainter(
     rotationDegrees: plateSolve.rotation,
-    bottomMargin: readoutsVisible ? PreviewReadoutInsets.stats : null,
+    bottomMargin: readoutsVisible ? PreviewReadoutInsets.bottomRight : null,
     colors: colors,
   );
 

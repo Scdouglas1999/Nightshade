@@ -1,16 +1,21 @@
 part of '../overlay_painters.dart';
 
-/// Bottom space the viewport's corner readouts occupy, so the painters anchored
-/// to the same corners can stay off them.
+/// Bottom space the canvas's corner HUD panels occupy, so the painters
+/// anchored to the same corners stay off them.
 ///
-/// Each is the readout's 16px anchor plus its height plus a gap. The histogram
-/// is a fixed 80px tall ([HistogramWidget]); the image-stats card is four
-/// [StatLine]s inside 12px padding, which measures 110px at the shipped type
-/// scale. Both are pinned by a layout test that measures the real widgets, so a
-/// readout that grows fails that test rather than silently colliding again.
+/// Each is the panel's 14px anchor plus its height plus a gap. Bottom-left is
+/// the at-a-glance quality stack (frame science chip, sub-quality badge,
+/// guiding indicator); bottom-right is the histogram glass — an eyebrow, 44px
+/// of bars and a caption inside 10px padding, which measures 104px at the
+/// shipped type scale. Both are pinned by a layout test that measures the real
+/// widgets, so a panel that grows fails that test rather than silently
+/// colliding again.
 abstract final class PreviewReadoutInsets {
-  static const double histogram = 16 + 80 + 8;
-  static const double stats = 16 + 110 + 8;
+  /// Clearance for the bottom-LEFT quality stack.
+  static const double bottomLeft = 14 + 80 + 8;
+
+  /// Clearance for the bottom-RIGHT histogram glass.
+  static const double bottomRight = 14 + 104 + 8;
 }
 
 /// Compass rose: the North axis.
