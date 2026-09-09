@@ -12,11 +12,11 @@ class _ScriptProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Script Settings'),
+        NodeSectionHeader(colors: colors, label: 'Script settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Script Path',
+          label: 'Script path',
           child: NodeTextInput(
             colors: colors,
             value: node.scriptPath,
@@ -172,7 +172,7 @@ class _DomeProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Shutter Only',
+          label: 'Shutter only',
           child: NodeToggleSwitch(
             colors: colors,
             value: shutterOnly,

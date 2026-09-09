@@ -9,7 +9,6 @@ import '../sequencer_screen.dart';
 import 'package:nightshade_app/utils/authority_bound_dialog.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import '../widgets/quick_start_wizard_dialog.dart';
-import '../widgets/sequencer_tab_header.dart';
 import '../../../utils/count_label.dart';
 import '../sequence_counts.dart';
 
@@ -231,16 +230,14 @@ class TemplatesTab extends ConsumerWidget {
                           const SizedBox(height: 16),
                           Text(
                             'Failed to load templates',
-                            style: TextStyle(
-                                color: colors.textPrimary,
-                                fontSize: NightshadeTypography.fontSize16),
+                            style: NightshadeTypography.sectionTitle
+                                .copyWith(color: colors.textPrimary),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             error.toString(),
-                            style: TextStyle(
-                                color: colors.textMuted,
-                                fontSize: NightshadeTypography.fontSize12),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: colors.textMuted),
                           ),
                         ],
                       ),
@@ -285,19 +282,15 @@ class _TemplatesSectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w700,
+                style: NightshadeTypography.sectionTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.caption.copyWith(
                   color: colors.textMuted,
-                  height: 1.3,
                 ),
               ),
             ],

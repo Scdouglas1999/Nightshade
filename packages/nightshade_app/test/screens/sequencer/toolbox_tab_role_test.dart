@@ -1,22 +1,27 @@
-// The Sequencer palette tabs must publish a role, not just an enabled state.
+// The Sequencer palette switch must publish a role and a state, not just a
+// label.
 //
-// Flutter's TabBar does set `role: SemanticsRole.tab`, but on an ANCESTOR node.
-// The node that carries the label — and therefore the node an AT-SPI client
-// reads — is the merged one built by `_ToolboxPanel._tabLabel`, which otherwise
-// dumps as `panel: Nodes / Tab 1 of 3`.
+// It used to be a Material `TabBar`, which sets `role: SemanticsRole.tab` on an
+// ANCESTOR node while the node that carries the LABEL — the one an AT-SPI
+// client reads — dumped as `panel: Nodes / Tab 1 of 3`. The screen worked
+// around that with its own `_tabLabel` builder.
+//
+// Wave 3 replaced the strip with `SegmentedControl`, which annotates every
+// segment with `button` + `enabled` + `selected` + `label` itself (its own
+// tests in `nightshade_ui` pin that). What is left to guard here is that this
+// screen keeps using it, and does not drift back to a bare TabBar with an
+// unnamed label node.
 //
 // `_ToolboxPanel` is private to SequencerScreen and cannot be pumped on its
 // own, and pumping the whole screen for a semantics flag is not a trade worth
-// making, so this guard reads the widget's source. It is deliberately narrow:
-// it asserts that the ONE builder every palette tab goes through declares both
-// a role and an enabled state.
+// making, so this guard reads the widget's source.
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('every palette tab label declares a role and an enabled state', () {
+  test('the palette switch is a SegmentedControl, not a bare TabBar', () {
     final file = File(
       'lib/screens/sequencer/sequencer_screen_parts/toolbox_panel.dart',
     );
@@ -24,42 +29,17 @@ void main() {
         reason: 'run from packages/nightshade_app');
     final source = file.readAsStringSync();
 
-    final start = source.indexOf('Widget _tabLabel(');
-    expect(start, greaterThan(0), reason: 'the shared tab-label builder moved');
-    final body = source.substring(start, source.indexOf('@override', start));
-
     expect(
-      body,
-      contains('button: true'),
-      reason: 'without it the tree reads `panel: Nodes / Tab 1 of 3` — no role',
+      source,
+      contains('SegmentedControl('),
+      reason: 'the palette switch must be the shared segmented control, which '
+          'names and roles each segment',
     );
     expect(
-      body,
-      contains('enabled: true'),
-      reason: 'the tab must publish an enabled state',
+      source,
+      isNot(contains('TabBar(')),
+      reason: 'a Material TabBar puts the role on an ancestor of the node that '
+          'carries the label, so the label node reads as a role-less panel',
     );
-    expect(
-      body,
-      contains('selected:'),
-      reason: 'which of the three is current has to be published too',
-    );
-  });
-
-  test('all three tabs go through that one builder', () {
-    final source = File(
-      'lib/screens/sequencer/sequencer_screen_parts/toolbox_panel.dart',
-    ).readAsStringSync();
-    for (final label in const ['Nodes', 'Snippets', 'Queue']) {
-      expect(
-        source,
-        contains("_tabLabel("),
-        reason: 'the builder is the single place the role is declared',
-      );
-      expect(
-        RegExp("_tabLabel\\(\\d+, '$label'").hasMatch(source),
-        isTrue,
-        reason: 'the $label tab must not hand-roll its own label widget',
-      );
-    }
   });
 }

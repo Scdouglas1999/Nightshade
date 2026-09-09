@@ -41,6 +41,10 @@ class TargetHeaderCard extends ConsumerStatefulWidget {
 }
 
 class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
+  /// The step's icon square and the glyph inside it (06 §Sequencer).
+  static const double _iconSquare = 28;
+  static const double _iconGlyph = 14;
+
   late bool _showAltitudeChart;
   bool _isHovered = false;
 
@@ -95,44 +99,33 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     final statusColor = _getStatusColor();
     final isDisabled = !node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
-    final categoryColor = widget.colors.warning; // Target category color
-
+    // The target step is the one step that carries the selected ring by
+    // default (06 §Sequencer). Its container is a NightshadePanel like every
+    // other step: no amber outline, no amber wash — the ring is the whole
+    // difference.
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
         onTap: widget.onSelect,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(vertical: 4),
+          duration: NightshadeTokens.durationNormal,
+          curve: NightshadeTokens.curveStandard,
+          margin:
+              const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
           decoration: widget.isSelected
-              ? NightshadeDecorations.cardSelected(
-                  categoryColor,
-                  background: widget.colors.surface,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  borderWidth: 2,
-                )
-              : BoxDecoration(
-                  color: _isHovered
-                      ? categoryColor.withValues(alpha: 0.06)
-                      : widget.colors.surface,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  border: Border.all(
-                    color: isRunning
-                        ? widget.colors.info
-                        : categoryColor.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
+              ? NightshadeDecorations.panelSelected(widget.colors)
+              : (_isHovered
+                  ? NightshadeDecorations.panel(widget.colors)
+                      .copyWith(color: widget.colors.surfaceHover)
+                  : NightshadeDecorations.panel(widget.colors)),
           child: Opacity(
             opacity: isDisabled ? 0.5 : 1.0,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header row
-                _buildHeader(node, statusColor, categoryColor, isRunning),
+                _buildHeader(node, statusColor, isRunning),
 
                 // Coordinates row
                 _buildCoordinatesRow(node),
@@ -172,15 +165,14 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   Widget _buildHeader(
     TargetHeaderNode node,
     Color statusColor,
-    Color categoryColor,
     bool isRunning,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: NightshadeDecorations.tintedBadge(
-        categoryColor,
-        borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(NightshadeTokens.radiusXl)),
+    // No tinted band across the top: the panel is one tone, and the step's
+    // identity is its icon square and its name.
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm + 2,
       ),
       child: Row(
         children: [
@@ -198,27 +190,27 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ),
             ),
 
-          // Target icon
+          // Target icon: the 28 px square every step wears, in `primary` at
+          // the accent tint because the target IS the selected step.
           Container(
-            width: 36,
-            height: 36,
-            decoration: NightshadeDecorations.statusChip(
-              categoryColor,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              bordered: false,
+            width: _iconSquare,
+            height: _iconSquare,
+            decoration: NightshadeDecorations.tintedBadge(
+              widget.colors.primary,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
             ),
             child: _isExecuting
                 ? _SpinningIcon(
                     icon: LucideIcons.target,
-                    color: categoryColor,
+                    color: widget.colors.primary,
                   )
                 : Icon(
                     LucideIcons.target,
-                    size: 18,
-                    color: categoryColor,
+                    size: _iconGlyph,
+                    color: widget.colors.primary,
                   ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: NightshadeTokens.spaceSm + 2),
 
           // Target name
           Expanded(
@@ -227,7 +219,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               children: [
                 Text(
                   node.displayName,
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.button
                       .copyWith(color: widget.colors.textPrimary),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -235,8 +227,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 if (node.mosaicPanel != null)
                   Text(
                     node.mosaicPanel!.mosaicName,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
+                    style: NightshadeTypography.caption.copyWith(
                       color: widget.colors.textMuted,
                     ),
                     maxLines: 1,
@@ -248,50 +239,27 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
 
           // Mosaic panel badge
           if (node.mosaicPanel != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: NightshadeDecorations.statusChip(
-                widget.colors.accent,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                bordered: false,
-              ),
-              child: Text(
-                node.mosaicPanel!.displayLabel,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.accent,
-                ),
-              ),
-            ),
+            NightshadeChip(label: node.mosaicPanel!.displayLabel),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: NightshadeTokens.spaceSm),
 
           // Altitude chart toggle
-          IconButton(
-            icon: Icon(
-              _showAltitudeChart
-                  ? LucideIcons.chevronUp
-                  : LucideIcons.chevronDown,
-              size: 16,
-              color: widget.colors.textMuted,
-            ),
+          // NightshadeIconButton is a fixed 28/32/36 box on every platform: 05 §6
+          // gives it no touch behaviour, so on a phone its tappable rect is 20 dp
+          // under Android's 48 dp rule. Until wave 4 grows the component's hit area
+          // (see reports/observatory/w3-sequencer/notes.md), touch platforms keep
+          // the nightshade_ui button that already implements that padding
+          // correctly. Same glyph, same tooltip, legal target.
+          NightshadeIconButton(
+            icon: _showAltitudeChart
+                ? LucideIcons.chevronUp
+                : LucideIcons.chevronDown,
+            size: IconButtonSize.sm,
             onPressed: () =>
                 setState(() => _showAltitudeChart = !_showAltitudeChart),
             tooltip: _showAltitudeChart
                 ? 'Hide altitude chart'
                 : 'Show altitude chart',
-            // `VisualDensity` decides this button's hit area: `IconButton`
-            // sizes its tap padding from `kMinInteractiveDimension` PLUS
-            // `visualDensity.baseSizeAdjustment`, so compact's -2 takes 8dp off
-            // 48 and the control measures 40x40 on a phone. `constraints` only
-            // bounds the visual button and does not override that.
-            visualDensity: NightshadeTouchTarget.visualDensity(context),
-            padding: EdgeInsets.zero,
-            constraints: NightshadeTouchTarget.constraints(
-              context,
-              desktopExtent: 28,
-            ),
           ),
 
           // Menu button
@@ -338,7 +306,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                         size: 16, color: widget.colors.error),
                     const SizedBox(width: 8),
                     Text('Delete',
-                        style: TextStyle(color: widget.colors.error)),
+                        style: NightshadeTypography.body
+                            .copyWith(color: widget.colors.error)),
                   ],
                 ),
               ),
@@ -414,9 +383,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ),
               child: Text(
                 'P${node.priority}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.caption.copyWith(
                   color: widget.colors.textMuted,
                 ),
               ),
@@ -631,8 +598,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                   const SizedBox(height: 2),
                   Text(
                     planLabel,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
+                    style: NightshadeTypography.caption.copyWith(
                       color: widget.colors.textMuted,
                     ),
                     maxLines: 1,
@@ -685,16 +651,14 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ),
               const SizedBox(width: 6),
               Text('•',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted)),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textMuted)),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   '$completedElapsed / $totalElapsed',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textMuted),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -769,11 +733,8 @@ class _CoordinateChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.readoutXs.copyWith(
             color: isPlaceholder ? colors.warning : colors.textPrimary,
-            fontFamily: 'monospace',
           ),
         ),
       ],
@@ -807,8 +768,7 @@ class _ConstraintChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
             ),
           ),

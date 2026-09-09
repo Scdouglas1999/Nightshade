@@ -172,6 +172,9 @@ void main() {
     final updated = container.read(currentSequenceProvider)!.nodes[exposure.id]
         as ExposureNode;
     expect(updated.durationSecs, 30);
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('Smart Exposure added rows use shared exposure recommendation',
@@ -203,6 +206,9 @@ void main() {
     final updated = container.read(currentSequenceProvider)!.nodes[smart.id]
         as SmartExposureNode;
     expect(updated.plans.single.durationSecs, 30);
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('Exposure properties can run non-counting test exposure',
@@ -229,8 +235,8 @@ void main() {
 
     await _pumpPanel(tester, container);
 
-    await tester.ensureVisible(find.text('Run Test Exposure'));
-    await tester.tap(find.text('Run Test Exposure'));
+    await tester.ensureVisible(find.text('Run test exposure'));
+    await tester.tap(find.text('Run test exposure'));
     await tester.pumpAndSettle();
 
     expect(spy.calls, 1);
@@ -251,5 +257,8 @@ void main() {
     final displayed = container.read(currentImageProvider);
     expect(displayed?.filePath, 'test-exposure.fits');
     expect(displayed?.stats.mean, 42);
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }

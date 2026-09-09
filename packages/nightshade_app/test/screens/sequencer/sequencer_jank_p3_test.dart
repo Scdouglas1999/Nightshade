@@ -25,6 +25,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+import 'canvas_bar_menu.dart';
 
 /// A rooted sequence with nothing in it — what "New Sequence" produces.
 Sequence _emptySequence() {
@@ -72,23 +73,37 @@ Future<HarnessHandle> _pumpBuilder(WidgetTester tester) async {
 
 /// The NODE-PALETTE rows currently on screen, top to bottom.
 ///
-/// Scoped to the palette column (the one owning the "Search nodes..." field)
+/// Scoped to the palette column (the one owning the "Search nodes…" field)
 /// — the same words appear in the snippet palette and the tree, and a global
 /// `find.text` picks those up and scrambles the order under test.
 List<String> _paletteRowOrder(WidgetTester tester, List<String> candidates) {
-  final palette = find
-      .ancestor(
-        of: find.text('Search nodes...'),
-        matching: find.byType(Column),
-      )
-      .first;
   // The result LIST only. Scoping to the whole palette column would also
   // match the query the test just typed into the search field, which sits
   // above every row and would always look like the top hit.
-  final list = find.descendant(of: palette, matching: find.byType(ListView));
+  //
+  // The search field is a NightshadeTextField now, and it has Columns of its
+  // own between the hint and the palette's, so "the first Column ancestor" is
+  // no longer the palette. Walk out until a Column is found that actually
+  // holds the result list.
+  Finder? list;
+  final columns = find.ancestor(
+    of: find.text('Search nodes…'),
+    matching: find.byType(Column),
+  );
+  for (final element in columns.evaluate()) {
+    final candidate = find.descendant(
+      of: find.byElementPredicate((e) => identical(e, element)),
+      matching: find.byType(ListView),
+    );
+    if (candidate.evaluate().isNotEmpty) {
+      list = candidate;
+      break;
+    }
+  }
+  expect(list, isNotNull, reason: 'the palette result list must be on screen');
   final seen = <(double, String)>[];
   for (final name in candidates) {
-    final rows = find.descendant(of: list.first, matching: find.text(name));
+    final rows = find.descendant(of: list!.first, matching: find.text(name));
     for (final element in rows.evaluate()) {
       final box = element.renderObject as RenderBox?;
       if (box == null || !box.hasSize) continue;
@@ -101,7 +116,7 @@ List<String> _paletteRowOrder(WidgetTester tester, List<String> candidates) {
 
 Future<void> _searchPalette(WidgetTester tester, String query) async {
   final search = find.ancestor(
-    of: find.text('Search nodes...'),
+    of: find.text('Search nodes…'),
     matching: find.byType(TextField),
   );
   expect(search, findsOneWidget, reason: 'palette search field must exist');
@@ -116,9 +131,9 @@ void main() {
     // The three searches from the sweep, asserted against the REAL palette
     // as rendered inside SequencerScreen.
     const cases = <(String, String, String)>[
-      ('Dither', 'Dither', 'Smart Exposure'),
-      ('loop', 'Loop', 'Instruction Set'),
-      ('start guiding', 'Start Guiding', 'Photometry Run (template)'),
+      ('Dither', 'Dither', 'Smart exposure'),
+      ('loop', 'Loop', 'Instruction set'),
+      ('start guiding', 'Start guiding', 'Photometry run (template)'),
     ];
 
     for (final (query, wanted, decoy) in cases) {
@@ -289,7 +304,9 @@ void main() {
         (tester) async {
       await _pumpBuilder(tester);
       // Root + container + exposure = 3 map entries, 2 real instructions.
-      expect(find.text('2 nodes'), findsOneWidget);
+      // The count is one clause of the canvas bar's summary chip
+      // ("1 target · 2 nodes · ~12m"), not a chip of its own.
+      expect(find.textContaining('2 nodes'), findsOneWidget);
       expect(find.text('3 nodes'), findsNothing);
     });
   });
@@ -314,7 +331,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.text('Save as Template'));
+      await tester.tap(find.text('Save as template'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.takeException(), isNull);
@@ -414,13 +431,13 @@ void main() {
       final handle = SemanticsBinding.instance.ensureSemantics();
       await _pumpBuilder(tester);
 
+      // The canvas bar's glyphs. Every one is a NightshadeIconButton, whose
+      // required tooltip doubles as its semantics label — which is what
+      // stopped the old bar shipping thirteen unnamed tappable boxes.
       for (final label in const [
-        'New Sequence',
-        'Quick-Start Wizard',
-        'Plan Mosaic',
-        'Plan Tonight',
-        'Open Sequence',
-        'Polar Alignment',
+        'Undo (Ctrl+Z)',
+        'Redo (Ctrl+Y)',
+        'More actions',
       ]) {
         expect(
           find.bySemanticsLabel(label),
@@ -433,11 +450,29 @@ void main() {
       // Named AND actionable: the label and the tap must live on one node,
       // or a screen reader announces a button it cannot press.
       final data = tester
-          .getSemantics(find.bySemanticsLabel('New Sequence'))
+          .getSemantics(find.bySemanticsLabel('More actions'))
           .getSemanticsData();
-      expect(data.label, 'New Sequence');
+      expect(data.label, 'More actions');
       expect(data.flagsCollection.isButton, isTrue);
       expect(data.hasAction(SemanticsAction.tap), isTrue);
+
+      // The actions that moved behind that button did not lose their names:
+      // in a menu they are WORDS, which is stronger than a tooltip.
+      await openCanvasBarMenu(tester);
+      for (final label in const [
+        'New sequence',
+        'Quick-start wizard',
+        'Plan mosaic',
+        'Plan tonight',
+        'Open sequence',
+        'Polar alignment',
+      ]) {
+        expect(
+          canvasBarAction(label),
+          findsOneWidget,
+          reason: '"$label" must still be reachable by name',
+        );
+      }
 
       handle.dispose();
     });

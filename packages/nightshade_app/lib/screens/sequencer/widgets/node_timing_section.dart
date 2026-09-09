@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -130,162 +129,45 @@ class NodeTimingSection extends ConsumerWidget {
         ? (duration.inSeconds / totalDuration.inSeconds * 100)
         : 0.0;
 
-    final sectionHeaderFontSize = Responsive.fontSize(context, 11);
-    final detailFontSize = Responsive.fontSize(context, 12);
-    final summaryFontSize = Responsive.fontSize(context, 13);
-    final contributeFontSize = Responsive.fontSize(context, 12);
-    final sectionIconSize = Responsive.iconSize(context, 15);
-    final sectionPadding = Responsive.spacing(context, 12);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header with divider line
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 1,
-                color: colors.border,
-              ),
+        // Hairline, eyebrow, readouts (06 §Sequencer). The old section was a
+        // label between two rules, a bordered breakdown box and a tinted
+        // "Duration: … / Contributes: …" panel — three containers and two
+        // sentences for two numbers.
+        Container(height: 1, color: colors.border),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Text(
+          'ESTIMATE',
+          style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        ReadoutRow(
+          gap: NightshadeTokens.space2xl,
+          children: <Readout>[
+            Readout(
+              value: formatDurationNice(duration),
+              label: 'Duration',
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: Responsive.spacing(context, 8)),
-              child: Text(
-                'Timing',
-                style: TextStyle(
-                  fontSize: sectionHeaderFontSize,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textMuted,
-                  letterSpacing: 0.5,
-                ),
+            if (totalDuration.inSeconds > 0 && percentage > 0.1)
+              Readout(
+                value: percentage.toStringAsFixed(1),
+                unit: '%',
+                label: 'Of total',
               ),
-            ),
-            Expanded(
-              child: Container(
-                height: 1,
-                color: colors.border,
-              ),
-            ),
           ],
         ),
-        SizedBox(height: sectionPadding),
-
-        // Node-specific duration details (if any)
         if (durationDetails != null) ...[
-          Container(
-            padding: EdgeInsets.all(sectionPadding),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: colors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final detail in durationDetails)
-                  Padding(
-                    padding:
-                        EdgeInsets.only(bottom: Responsive.spacing(context, 4)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          detail.label,
-                          style: TextStyle(
-                            fontSize: detailFontSize,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          detail.value,
-                          style: TextStyle(
-                            fontSize: detailFontSize,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textPrimary,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          SizedBox(height: sectionPadding),
-        ],
-
-        // Summary timing info
-        Container(
-          padding: EdgeInsets.all(sectionPadding),
-          decoration: NightshadeDecorations.iconChip(
-            colors.primary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            borderAlpha: 0.2,
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Icon(LucideIcons.clock,
-                      size: sectionIconSize, color: colors.primary),
-                  SizedBox(width: Responsive.spacing(context, 8)),
-                  Text(
-                    'Duration:',
-                    style: TextStyle(
-                      fontSize: summaryFontSize,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  SizedBox(width: Responsive.spacing(context, 8)),
-                  Flexible(
-                    child: Text(
-                      formatDurationNice(duration),
-                      style: TextStyle(
-                        fontSize: summaryFontSize,
-                        fontWeight: FontWeight.w600,
-                        color: colors.primary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              if (totalDuration.inSeconds > 0 && percentage > 0.1) ...[
-                SizedBox(height: Responsive.spacing(context, 8)),
-                Row(
-                  children: [
-                    Icon(LucideIcons.pieChart,
-                        size: sectionIconSize, color: colors.textMuted),
-                    SizedBox(width: Responsive.spacing(context, 8)),
-                    Text(
-                      'Contributes:',
-                      style: TextStyle(
-                        fontSize: contributeFontSize,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    SizedBox(width: Responsive.spacing(context, 8)),
-                    Flexible(
-                      child: Text(
-                        '${percentage.toStringAsFixed(1)}% of total',
-                        style: TextStyle(
-                          fontSize: contributeFontSize,
-                          color: colors.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          KeyValueList(
+            rows: <(String, String)>[
+              for (final detail in durationDetails)
+                (detail.label, detail.value),
             ],
           ),
-        ),
-
-        SizedBox(height: Responsive.spacing(context, 16)),
+        ],
+        const SizedBox(height: NightshadeTokens.spaceLg),
       ],
     );
   }

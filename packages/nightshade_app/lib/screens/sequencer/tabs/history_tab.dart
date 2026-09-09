@@ -13,7 +13,6 @@ import '../widgets/pending_session_reports_card.dart';
 import '../widgets/post_session_stats_dialog.dart';
 import '../widgets/replay_debug_screen.dart';
 import '../widgets/sequence_diff_dialog.dart';
-import '../widgets/sequencer_tab_header.dart';
 
 /// One-shot "open this run on first paint" hint for the history tab.
 ///
@@ -151,26 +150,15 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           // Reports from an unattended night queue here rather than opening as
           // a modal. Renders nothing when the queue is empty.
           const PendingSessionReportsCard(),
-          // Header. All four Sequencer tabs share `SequencerTabTitle`, so the
-          // type scale, the subtitle placement and the punctuation cannot
-          // drift between them.
+          // No title block: the page header names the screen and the
+          // underline tab names the tab. This row is the tab's actions.
           Row(
             children: [
-              Icon(LucideIcons.history, size: 20, color: colors.primary),
-              const SizedBox(width: 12),
-              const Flexible(
-                child: SequencerTabTitle(
-                  title: 'Execution History',
-                  subtitle:
-                      'Past sequence runs with statistics and performance '
-                      'data.',
-                ),
-              ),
               const Spacer(),
               NightshadeButton(
                 label: 'Browse all notes',
                 icon: LucideIcons.bookOpen,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () => GlobalNotesDialog.show(context),
               ),

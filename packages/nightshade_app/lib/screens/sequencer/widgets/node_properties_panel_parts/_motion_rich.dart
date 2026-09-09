@@ -17,11 +17,11 @@ class _CenterProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Centering Settings'),
+        NodeSectionHeader(colors: colors, label: 'Centering settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Use Target Coordinates',
+          label: 'Use target coordinates',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.useTargetCoords,
@@ -107,7 +107,7 @@ class _CenterProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Max Attempts',
+          label: 'Max attempts',
           child: NodeNumberInput(
             colors: colors,
             value: node.maxAttempts.toDouble(),
@@ -122,7 +122,7 @@ class _CenterProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Solve Exposure',
+          label: 'Solve exposure',
           child: NodeNumberInput(
             colors: colors,
             value: node.exposureDuration,
@@ -139,7 +139,7 @@ class _CenterProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Solve Filter',
+          label: 'Solve filter',
           child: NodeTextInput(
             colors: colors,
             value: node.filter ?? '',
@@ -171,12 +171,12 @@ class _AutofocusProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Autofocus Settings'),
+        NodeSectionHeader(colors: colors, label: 'Autofocus settings'),
         const SizedBox(height: 12),
         // Use Settings Defaults toggle
         NodePropertyField(
           colors: colors,
-          label: 'Use Settings Defaults',
+          label: 'Use settings defaults',
           child: Row(
             children: [
               NodeToggleSwitch(
@@ -214,7 +214,7 @@ class _AutofocusProperties extends ConsumerWidget {
         // Max Duration is always node-specific (not from global settings)
         NodePropertyField(
           colors: colors,
-          label: 'Max Duration',
+          label: 'Max duration',
           child: NodeNumberInput(
             colors: colors,
             value: node.maxDurationSecs,
@@ -341,7 +341,7 @@ class _AutofocusProperties extends ConsumerWidget {
             Expanded(
               child: NodePropertyField(
                 colors: colors,
-                label: 'Step Size',
+                label: 'Step size',
                 child: NodeNumberInput(
                   colors: colors,
                   value: node.stepSize.toDouble(),
@@ -365,7 +365,7 @@ class _AutofocusProperties extends ConsumerWidget {
             Expanded(
               child: NodePropertyField(
                 colors: colors,
-                label: 'Steps Out',
+                label: 'Steps out',
                 helpText:
                     'How many focuser steps to move outward from the centre on '
                     'each side when sampling the V-curve. More steps span a '
@@ -393,7 +393,7 @@ class _AutofocusProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Exposure Duration',
+          label: 'Exposure duration',
           child: NodeNumberInput(
             colors: colors,
             value: node.exposureDuration,
@@ -415,7 +415,7 @@ class _AutofocusProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Exposures Per Point',
+          label: 'Exposures per point',
           child: NodeNumberInput(
             colors: colors,
             value: node.exposuresPerPoint.toDouble(),
@@ -444,11 +444,11 @@ class _RotatorProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Rotator Settings'),
+        NodeSectionHeader(colors: colors, label: 'Rotator settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Target Angle',
+          label: 'Target angle',
           child: NodeNumberInput(
             colors: colors,
             value: node.targetAngle,
@@ -465,7 +465,7 @@ class _RotatorProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Relative Movement',
+          label: 'Relative movement',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.relative,
@@ -502,11 +502,11 @@ class _SlewProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Slew Settings'),
+        NodeSectionHeader(colors: colors, label: 'Slew settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Use Target Coordinates',
+          label: 'Use target coordinates',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.useTargetCoords,

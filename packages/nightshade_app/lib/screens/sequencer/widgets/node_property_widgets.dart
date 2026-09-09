@@ -52,9 +52,7 @@ class NodeQuickTimeButton extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: Responsive.fontSize(context, 12),
-              fontWeight: FontWeight.w500,
+            style: NightshadeTypography.buttonSm.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -62,6 +60,22 @@ class NodeQuickTimeButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A numeric field's text: as many decimals as the value HAS, never more.
+///
+/// The field allows three decimals so sub-second exposures can be typed, but
+/// printing that precision unconditionally turns a 120-second sub into
+/// "120.000", which reads like a measurement rather than a setting. Trailing
+/// zeros are dropped; a value that really is 1.5 still shows "1.5".
+String formatNodeNumber(double value, int decimals) {
+  if (decimals == 0) return value.toInt().toString();
+  final fixed = value.toStringAsFixed(decimals);
+  if (!fixed.contains('.')) return fixed;
+  final trimmed = fixed.replaceFirst(RegExp(r'0+$'), '');
+  return trimmed.endsWith('.')
+      ? trimmed.substring(0, trimmed.length - 1)
+      : trimmed;
 }
 
 class NodePropertyField extends StatelessWidget {
@@ -83,44 +97,56 @@ class NodePropertyField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The label sits to the LEFT of the control (05 §8), which is what makes
+    // a twelve-row property form scannable instead of a scroll: every label
+    // lines up in one column and every control in another. A label above its
+    // field cost a whole line of height per setting.
+    //
+    // [helpText] stays a tooltip on a trailing question mark rather than
+    // becoming FormRow's `help` line: a form of explanations is a form nobody
+    // reads, and these strings qualify one control each.
     return Padding(
-      padding: EdgeInsets.only(bottom: Responsive.spacing(context, 16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: Responsive.fontSize(context, 12),
-                    fontWeight: FontWeight.w600,
-                    color: colors.textSecondary,
-                    letterSpacing: 0.3,
-                  ),
+      padding: const EdgeInsets.only(bottom: FormRow.rowGap),
+      // The label column shrinks with the pane rather than pushing the control
+      // off the row. The properties pane ANIMATES between 48 px and 300 px, and
+      // a fixed 96 px label plus its 12 px gap is wider than the pane for part
+      // of that tween — 108 px of inflexible content in a 107.5 px box is a
+      // RenderFlex overflow on a frame nobody ever sees. Clamping the label to
+      // 40% of the row keeps every intermediate frame legal and leaves the
+      // settled pane at the spec's 96.
+      child: LayoutBuilder(
+        builder: (context, constraints) => FormRow(
+          label: label,
+          labelWidth: constraints.maxWidth.isFinite
+              ? math.min(
+                  FormRow.defaultLabelWidth,
+                  constraints.maxWidth * _labelWidthCeiling,
+                )
+              : FormRow.defaultLabelWidth,
+          child: helpText == null
+              ? child
+              : Row(
+                  children: [
+                    Expanded(child: child),
+                    const SizedBox(width: NightshadeTokens.spaceXs),
+                    Tooltip(
+                      message: helpText!,
+                      triggerMode: TooltipTriggerMode.tap,
+                      child: Icon(
+                        LucideIcons.helpCircle,
+                        size: 14,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              if (helpText != null) ...[
-                SizedBox(width: Responsive.spacing(context, 4)),
-                Tooltip(
-                  message: helpText!,
-                  triggerMode: TooltipTriggerMode.tap,
-                  child: Icon(
-                    LucideIcons.helpCircle,
-                    size: Responsive.iconSize(context, 13),
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          SizedBox(height: Responsive.spacing(context, 6)),
-          child,
-        ],
+        ),
       ),
     );
   }
+
+  /// The most of a row the label column may claim.
+  static const double _labelWidthCeiling = 0.4;
 }
 
 class NodeTextInput extends StatefulWidget {
@@ -180,7 +206,6 @@ class _NodeTextInputState extends State<NodeTextInput> {
 
   @override
   Widget build(BuildContext context) {
-    final inputFontSize = Responsive.fontSize(context, 13);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
     final variables = widget.variables;
@@ -199,14 +224,12 @@ class _NodeTextInputState extends State<NodeTextInput> {
         onChanged: widget.onChanged,
         maxLines: widget.maxLines ?? 1,
         minLines: widget.maxLines != null ? 1 : null,
-        style: TextStyle(
-          fontSize: inputFontSize,
+        style: NightshadeTypography.bodySm.copyWith(
           color: widget.colors.textPrimary,
         ),
         decoration: InputDecoration(
           hintText: widget.hint,
-          hintStyle: TextStyle(
-            fontSize: inputFontSize,
+          hintStyle: NightshadeTypography.bodySm.copyWith(
             color: widget.colors.textMuted,
           ),
           border: InputBorder.none,
@@ -272,9 +295,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
     _focusNode.addListener(_onFocusChange);
   }
 
-  String _formatValue(double value) => widget.decimals == 0
-      ? value.toInt().toString()
-      : value.toStringAsFixed(widget.decimals);
+  String _formatValue(double value) => formatNodeNumber(value, widget.decimals);
 
   void _onFocusChange() {
     final hadFocus = _hasFocus;
@@ -370,9 +391,6 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
 
   @override
   Widget build(BuildContext context) {
-    final inputFontSize = Responsive.fontSize(context, 13);
-    final suffixFontSize = Responsive.fontSize(context, 12);
-    final helperFontSize = Responsive.fontSize(context, 11);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
     final helperText = _resolvedHelperText;
@@ -400,10 +418,8 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
                     signed: (widget.min ?? 0) < 0,
                   ),
                   onChanged: _handleChanged,
-                  style: TextStyle(
-                    fontSize: inputFontSize,
+                  style: NightshadeTypography.inputMono.copyWith(
                     color: widget.colors.textPrimary,
-                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                   decoration: InputDecoration(
                     border: InputBorder.none,
@@ -416,8 +432,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
               if (widget.suffix != null)
                 Text(
                   widget.suffix!,
-                  style: TextStyle(
-                    fontSize: suffixFontSize,
+                  style: NightshadeTypography.caption.copyWith(
                     color: widget.colors.textMuted,
                   ),
                 ),
@@ -432,8 +447,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
             ),
             child: Text(
               helperText,
-              style: TextStyle(
-                fontSize: helperFontSize,
+              style: NightshadeTypography.caption.copyWith(
                 color: _invalid ? widget.colors.error : widget.colors.textMuted,
               ),
             ),
@@ -499,9 +513,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
     _focusNode.addListener(_onFocusChange);
   }
 
-  String _formatValue(double value) => widget.decimals == 0
-      ? value.toInt().toString()
-      : value.toStringAsFixed(widget.decimals);
+  String _formatValue(double value) => formatNodeNumber(value, widget.decimals);
 
   void _flushDebounce() {
     if (_debounce?.isActive ?? false) {
@@ -563,9 +575,6 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
         ? widget.colors.textSecondary
         : widget.colors.textPrimary;
 
-    final inputFontSize = Responsive.fontSize(context, 13);
-    final hintFontSize = Responsive.fontSize(context, 12);
-    final profileFontSize = Responsive.fontSize(context, 10);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
 
@@ -591,18 +600,15 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
                 signed: (widget.min ?? 0) < 0,
               ),
               onChanged: _handleChanged,
-              style: TextStyle(
-                fontSize: inputFontSize,
+              style: NightshadeTypography.inputMono.copyWith(
                 color: textColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(vertical: inputPaddingV),
                 hintText: widget.hintText,
-                hintStyle: TextStyle(
-                  fontSize: hintFontSize,
+                hintStyle: NightshadeTypography.inputMono.copyWith(
                   color: widget.colors.textMuted,
                 ),
               ),
@@ -614,9 +620,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
               padding: const EdgeInsets.only(left: 4),
               child: Text(
                 'profile',
-                style: TextStyle(
-                  fontSize: profileFontSize,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.caption.copyWith(
                   color: widget.colors.textMuted,
                   fontStyle: FontStyle.italic,
                 ),
@@ -642,9 +646,15 @@ class NodeToggleSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeSwitch(
-      value: value,
-      onChanged: onChanged,
+    // Right-aligned at its own size. `FormRow` gives its control an
+    // `Expanded`, and a bare switch inside one stretches its track across the
+    // whole 300 px column — a 200 px switch reads as a progress bar.
+    return Align(
+      alignment: Alignment.centerRight,
+      child: NightshadeSwitch(
+        value: value,
+        onChanged: onChanged,
+      ),
     );
   }
 }
@@ -667,7 +677,6 @@ class NodeDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dropdownFontSize = Responsive.fontSize(context, 13);
     final dropdownIconSize = Responsive.iconSize(context, 16);
     final dropdownPaddingH = Responsive.spacing(context, 12);
 
@@ -688,8 +697,7 @@ class NodeDropdown<T> extends StatelessWidget {
             color: colors.textMuted,
           ),
           dropdownColor: colors.surface,
-          style: TextStyle(
-            fontSize: dropdownFontSize,
+          style: NightshadeTypography.bodySm.copyWith(
             color: colors.textPrimary,
           ),
           items: items.map((item) {
@@ -733,7 +741,6 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
 
   @override
   Widget build(BuildContext context) {
-    final btnFontSize = Responsive.fontSize(context, 13);
     final btnIconSize = Responsive.iconSize(context, 15);
     final btnPaddingV = Responsive.spacing(context, 12);
 
@@ -771,9 +778,7 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
               SizedBox(width: Responsive.spacing(context, 8)),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: btnFontSize,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.buttonSm.copyWith(
                   color: _isHovered
                       ? widget.colors.error
                       : widget.colors.textSecondary,
@@ -805,8 +810,7 @@ class NodeSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: TextStyle(
-        fontSize: Responsive.fontSize(context, 13),
+      style: NightshadeTypography.bodySm.copyWith(
         fontWeight: FontWeight.w600,
         color: colors.textPrimary,
       ),

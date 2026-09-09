@@ -5,28 +5,28 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../../../localization/nightshade_localizations.dart';
 import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/count_label.dart';
 import '../../../utils/exported_file_reveal.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
-import 'preflight_validation_dialog.dart';
 import 'run_dashboard/run_dashboard_providers.dart';
-import 'run_dashboard/sequence_status_visuals.dart';
-import 'equipment_status_widget.dart';
 import 'flat_wizard_dialog.dart';
 import 'mosaic_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
+import 'sequence_issues_dialog.dart';
+import 'sequence_minimap.dart';
+import 'sequence_step_finder.dart';
+import 'sequence_tree_shortcuts.dart';
 import 'slew_to_target_dialog.dart';
 import 'smart_night_dialog.dart';
 import 'trigger_configuration_dialog.dart';
+import 'visual_timeline.dart';
+import '../sequence_counts.dart';
 import '../import_sequence_dialog.dart';
 
 part 'sequence_toolbar/actions_and_estimate.dart';
-part 'sequence_toolbar/playback_controls.dart';
-part 'sequence_toolbar/icon_and_status.dart';
 
 class SequenceToolbar extends ConsumerStatefulWidget {
   final NightshadeColors colors;
@@ -41,6 +41,39 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// Width of the bar's bottom divider. Named because the bar's own height has
   /// to account for it — see the `height:` comment in [build].
   static const double _bottomBorderWidth = 1.0;
+
+  /// The canvas bar's height (06 §Sequencer).
+  static const double _canvasBarHeight = 44.0;
+
+  /// The leading document glyph beside the sequence name.
+  static const double _canvasBarGlyph = 15.0;
+
+  /// The narrowest canvas that can still afford labelled Timeline / Map
+  /// buttons. Below it they fall back to glyphs with the same tooltips.
+  ///
+  /// Measured against the summary chip, which is worth more than two words:
+  /// at 816 px (a 1600 px window with the rail expanded and both side panels
+  /// open) the labels and the summary cannot both fit, and the summary is the
+  /// one carrying facts.
+  static const double _labelledToolbarWidth = 900.0;
+
+  /// The narrowest canvas that can afford anything but the name and the menu.
+  static const double _narrowBarWidth = 400.0;
+
+  /// The narrowest canvas that can still afford the view toggles at all.
+  /// Below it they move into the overflow menu with the rest of the actions,
+  /// so the bar shrinks by a whole group instead of overflowing.
+  static const double _toggleToolbarWidth = 560.0;
+
+  /// The most of the bar the sequence name may take before it ellipsises.
+  ///
+  /// The name is CAPPED rather than flexed, the way `PageHeader` caps its
+  /// title: a flexible name beside flexible chips leaves BOTH short at
+  /// 1280 px, which is the worst of both — the title read
+  /// "Mono LRGB M51 (Whi…" while the summary lost the "m" off "~2h 54m". The
+  /// chips state facts that are only useful whole, so they take their
+  /// intrinsic width and the name takes what is left, up to this fraction.
+  static const double _nameWidthFraction = 0.4;
 
   bool _fileActionRunning = false;
 
@@ -73,11 +106,16 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
     // Target" are NOT edits — they stay enabled even while running so
     // the user can still write a checkpoint or chase the current target.
     final canEdit = ref.watch(canEditSequenceProvider);
+    // Whether anything in the tree is collapsed, so the one menu entry can be
+    // "Collapse all" or "Expand all" rather than two entries, one of them
+    // always a no-op.
+    final anyCollapsed = ref.watch(
+      collapsedNodeIdsProvider.select((ids) => ids.isNotEmpty),
+    );
     // Phone is a device-class fact (short side < 600), so a phone in landscape
     // — where the ~430 px height is at a premium — still takes the compact
     // chrome instead of the desktop 64 px bar. isTablet keeps the medium size.
     final isPhone = Responsive.isPhone(context);
-    final isTablet = Responsive.isTablet(context);
     final actionService = ref.read(sequenceActionServiceProvider);
 
     Future<void> runSequenceAction(
@@ -89,31 +127,23 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
     }
 
     return Container(
-      // The phone tier is sized to the touch minimum PLUS the divider it
-      // draws, not to the touch minimum flat.
+      // The canvas bar is 44 px (06 §Sequencer) plus the hairline it draws.
       //
-      // `Container` folds `decoration.padding` into the child's padding, and
-      // `BoxDecoration.padding` is the border's own dimensions — so the 1 dp
-      // bottom border below took a dp out of the action row, not out of the
-      // bar. A flat `height: 48` therefore left the row 47 dp, and the
-      // overflow menu's IconButton (which correctly asks for a 48 dp tap
-      // target) was squeezed to 48.0x47.0: one dp under Android's rule, from
-      // a number that looked exactly right at the call site. The tablet and
-      // desktop tiers lose the same dp but start far enough above 48 that
-      // their rows stay legal, so they keep their established heights.
+      // The phone tier is sized to the touch minimum PLUS that divider, not to
+      // the touch minimum flat: `Container` folds `decoration.padding` into
+      // the child's padding, and `BoxDecoration.padding` is the border's own
+      // dimensions, so a flat `height: 48` leaves the row 47 dp — one dp under
+      // Android's rule, from a number that looks exactly right at the call
+      // site.
       height: isPhone
           ? NightshadeTokens.minTouchTarget + _bottomBorderWidth
-          : isTablet
-              ? 56
-              : 64,
+          : _canvasBarHeight + _bottomBorderWidth,
       padding: EdgeInsets.symmetric(
-          horizontal: isPhone
-              ? 8
-              : isTablet
-                  ? 12
-                  : 20),
+        horizontal:
+            isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd,
+      ),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: colors.background,
         border: Border(
           bottom: BorderSide(color: colors.border, width: _bottomBorderWidth),
         ),
@@ -513,34 +543,34 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             const _ToolbarAction.divider(),
             _ToolbarAction(
               icon: LucideIcons.filePlus,
-              label: 'New Sequence$lockedTooltipSuffix',
+              label: 'New sequence$lockedTooltipSuffix',
               onPressed: canEdit ? createNewSequence : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.wand2,
-              label: 'Quick-Start Wizard$lockedTooltipSuffix',
+              label: 'Quick-start wizard$lockedTooltipSuffix',
               onPressed: canEdit ? openWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.sun,
               label: sequence == null
-                  ? 'Calibrate Flat Exposures (create or open a sequence first)'
-                  : 'Calibrate Flat Exposures$lockedTooltipSuffix',
+                  ? 'Calibrate flat exposures (create or open a sequence first)'
+                  : 'Calibrate flat exposures$lockedTooltipSuffix',
               onPressed: canEdit && sequence != null ? openFlatWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.grid,
-              label: 'Plan Mosaic$lockedTooltipSuffix',
+              label: 'Plan mosaic$lockedTooltipSuffix',
               onPressed: canEdit ? openMosaicWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.sparkles,
-              label: 'Plan Tonight$lockedTooltipSuffix',
+              label: 'Plan tonight$lockedTooltipSuffix',
               onPressed: canEdit ? openSmartNight : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.folderOpen,
-              label: 'Open Sequence$lockedTooltipSuffix',
+              label: 'Open sequence$lockedTooltipSuffix',
               onPressed: canEdit && !_fileActionRunning
                   ? () => _runFileAction(openSequenceFile)
                   : null,
@@ -556,30 +586,17 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                       )
                   : null,
             ),
-            _ToolbarAction(
-              icon: LucideIcons.save,
-              // This writes a .nsq FILE through the OS chooser; saving into
-              // the app's library is the Sequences tab's "Save Current". Two
-              // actions both called "Save" was a real ambiguity - the name now
-              // says which one this is.
-              label: sequence == null
-                  ? 'Export Sequence File… (create or open a sequence first)'
-                  : 'Export Sequence File…',
-              onPressed: sequence != null && !_fileActionRunning
-                  ? () => _runFileAction(saveSequenceFile)
-                  : null,
-            ),
             const _ToolbarAction.divider(),
             _ToolbarAction(
               icon: LucideIcons.compass,
-              label: 'Polar Alignment',
+              label: 'Polar alignment',
               onPressed: () => context.push('/polar-alignment'),
             ),
             _ToolbarAction(
               icon: LucideIcons.bellRing,
               label: exposureNodes.isEmpty
-                  ? 'Exposure Triggers (add an exposure node first)'
-                  : 'Exposure Triggers$lockedTooltipSuffix',
+                  ? 'Exposure triggers (add an exposure node first)'
+                  : 'Exposure triggers$lockedTooltipSuffix',
               onPressed: canEdit && exposureNodes.isNotEmpty
                   ? openExposureTriggers
                   : null,
@@ -592,148 +609,481 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 // telescope: the audit slewed away mid-exposure and the run
                 // went on counting the frames either side as accepted. It
                 // locks with its neighbours.
-                label: 'Slew to Target$lockedTooltipSuffix',
+                label: 'Slew to target$lockedTooltipSuffix',
                 onPressed: canEdit ? slewToTarget : null,
               ),
+            const _ToolbarAction.divider(),
+            // Canvas view actions that used to sit in the tree's own header
+            // row. They belong to the document, so they follow it into the
+            // canvas bar rather than getting a second bar of their own.
             _ToolbarAction(
-              icon: LucideIcons.undo2,
-              label: 'Undo (Ctrl+Z)$lockedTooltipSuffix',
-              onPressed: (canEdit && notifier.canUndo) ? notifier.undo : null,
+              icon: LucideIcons.search,
+              label: 'Find a step…',
+              onPressed: sequence == null
+                  ? null
+                  : () => showSequenceStepFinder(context),
             ),
             _ToolbarAction(
-              icon: LucideIcons.redo2,
-              label: 'Redo (Ctrl+Y)$lockedTooltipSuffix',
-              onPressed: (canEdit && notifier.canRedo) ? notifier.redo : null,
+              icon: anyCollapsed
+                  ? LucideIcons.chevronsUpDown
+                  : LucideIcons.chevronsDownUp,
+              label: anyCollapsed ? 'Expand all steps' : 'Collapse all steps',
+              onPressed: sequence == null
+                  ? null
+                  : () {
+                      final collapsed =
+                          ref.read(collapsedNodeIdsProvider.notifier);
+                      if (anyCollapsed) {
+                        collapsed.expandAll();
+                        return;
+                      }
+                      collapsed.collapseAll(<String>[
+                        for (final entry in sequence.nodes.entries)
+                          if (entry.key != sequence.rootNodeId &&
+                              entry.value.childIds.isNotEmpty)
+                            entry.key,
+                      ]);
+                    },
+            ),
+            const _ToolbarAction.divider(),
+            _ToolbarAction(
+              icon: LucideIcons.skipForward,
+              label: 'Skip to next step',
+              onPressed: executionState.canSkip
+                  ? () => runSequenceAction(actionService.skip)
+                  : null,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.rotateCcw,
+              label: 'Reset run state',
+              onPressed: executionState.canReset
+                  ? () => runSequenceAction(actionService.reset)
+                  : null,
             ),
           ];
 
-          // Single overflow threshold. Below it, everything that
-          // isn't the playback controls / time estimate / status badge
-          // funnels into a single overflow menu so nothing disappears.
-          final isCompact =
-              constraints.maxWidth < BreakpointTokens.breakpointDesktop;
+          // What the bar can show is a question about THIS row's width, not
+          // about the device: the same canvas is 1036 px in a 1600 px window
+          // and 486 px in a 1000 px one with both side panels open. Below the
+          // narrowest tier the bar is the sequence name and the menu, and the
+          // menu still holds every action.
+          final isNarrowRow = constraints.maxWidth < _narrowBarWidth;
 
-          // Phone tier: the dedicated MobilePlaybackBar already owns the
-          // play/stop/skip controls AND the time estimate, so rendering them
-          // again here just overflows the row. On phone we collapse the
-          // toolbar to the file/edit overflow menu + status badge only.
-          //
-          // Detect "phone" by the device's SHORTER side (not this row's
-          // width) so a phone held in landscape — where this strip is wide
-          // but the mobile builder is in use below it — still collapses.
-          final mq = MediaQuery.sizeOf(context);
-          final shortSide = mq.width < mq.height ? mq.width : mq.height;
-          final isPhone = shortSide < BreakpointTokens.breakpointPhone;
+          final validation = ref.watch(liveValidationProvider);
+          final showTimeline = ref.watch(timelineVisibleProvider);
+          final showMinimap = ref.watch(minimapVisibleProvider);
+
+          // Below these the toolbar costs more than the canvas can spare and
+          // the row overflows — measured, not guessed: at 486 px (a 1000 px
+          // window with both side panels open) the labelled "Timeline" and
+          // "Map" are ~90 px wider than their glyphs, and at 570 px even the
+          // glyphs are 32 px too many. Nothing loses its name at either step:
+          // the glyphs keep the tooltips and the menu entries keep the words.
+          final labelledToggles = constraints.maxWidth >= _labelledToolbarWidth;
+          final inlineToggles = constraints.maxWidth >= _toggleToolbarWidth;
+
+          // When the bar cannot hold the toggle group, the toggles do not
+          // vanish — they join the menu, with the words the buttons had.
+          if (!inlineToggles) {
+            actions
+              ..add(const _ToolbarAction.divider())
+              ..add(_ToolbarAction(
+                icon: LucideIcons.clock,
+                label: showTimeline ? 'Hide the timeline' : 'Show the timeline',
+                onPressed: () => ref
+                    .read(timelineVisibleProvider.notifier)
+                    .state = !showTimeline,
+              ))
+              ..add(_ToolbarAction(
+                icon: LucideIcons.map,
+                label: showMinimap ? 'Hide the map' : 'Show the map',
+                onPressed: () => ref
+                    .read(minimapVisibleProvider.notifier)
+                    .state = !showMinimap,
+              ));
+          }
+
+          List<Widget> viewToggles() {
+            if (!inlineToggles) return const <Widget>[];
+            if (labelledToggles) {
+              return <Widget>[
+                // Labelled, with the on-state carried by the button's own
+                // variant rather than a colour of its own: a pressed toggle is
+                // `secondary` (outlined), an idle one `ghost`.
+                NightshadeButton(
+                  label: 'Timeline',
+                  icon: LucideIcons.clock,
+                  size: ButtonSize.small,
+                  variant: showTimeline
+                      ? ButtonVariant.secondary
+                      : ButtonVariant.ghost,
+                  onPressed: () => ref
+                      .read(timelineVisibleProvider.notifier)
+                      .state = !showTimeline,
+                ),
+                NightshadeButton(
+                  label: 'Map',
+                  icon: LucideIcons.map,
+                  size: ButtonSize.small,
+                  variant: showMinimap
+                      ? ButtonVariant.secondary
+                      : ButtonVariant.ghost,
+                  onPressed: () => ref
+                      .read(minimapVisibleProvider.notifier)
+                      .state = !showMinimap,
+                ),
+              ];
+            }
+            return <Widget>[
+              NightshadeIconButton(
+                icon: LucideIcons.clock,
+                tooltip:
+                    showTimeline ? 'Hide the timeline' : 'Show the timeline',
+                size: IconButtonSize.sm,
+                selected: showTimeline,
+                onPressed: () => ref
+                    .read(timelineVisibleProvider.notifier)
+                    .state = !showTimeline,
+              ),
+              NightshadeIconButton(
+                icon: LucideIcons.map,
+                tooltip: showMinimap ? 'Hide the map' : 'Show the map',
+                size: IconButtonSize.sm,
+                selected: showMinimap,
+                onPressed: () => ref
+                    .read(minimapVisibleProvider.notifier)
+                    .state = !showMinimap,
+              ),
+            ];
+          }
+
+          if (isNarrowRow) {
+            return Row(
+              children: [
+                Expanded(
+                  child: _CanvasBarName(colors: colors, sequence: sequence),
+                ),
+                _ToolbarOverflowMenu(colors: colors, actions: actions),
+              ],
+            );
+          }
 
           return Row(
             children: [
-              if (!isPhone)
-                _PlaybackControls(
-                  colors: colors,
-                  executionState: executionState,
-                  onStart: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => PreFlightValidationDialog(
-                        onStartSequence: () {
-                          runSequenceAction(actionService.start);
-                        },
-                      ),
-                    );
-                  },
-                  onPause: () => runSequenceAction(actionService.pause),
-                  onResume: () => runSequenceAction(actionService.resume),
-                  onStop: () => runSequenceAction(actionService.stop),
-                  onSkip: () => runSequenceAction(actionService.skip),
-                  // Awaited end to end so the reset's busy/error feedback flows
-                  // through the same snackbar path as every other action, and a
-                  // stop-failed / cleanup-failed reset surfaces instead of being
-                  // fire-and-forgotten.
-                  onReset: () => runSequenceAction(actionService.reset),
+              Icon(
+                LucideIcons.fileText,
+                size: _canvasBarGlyph,
+                color: colors.textMuted,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              // The name is capped; the chips are whole. Nothing in this bar
+              // may clip — a half-read count is worse than a shorter title.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * _nameWidthFraction,
                 ),
-              if (!isCompact) ...[
-                for (final a in actions) ...[
-                  if (a.isDivider) ...[
-                    const SizedBox(width: 24),
-                    _Divider(colors: colors),
-                    const SizedBox(width: 24),
-                  ] else ...[
-                    _ToolbarIconButton(
-                      icon: a.icon!,
-                      tooltip: a.label!,
-                      colors: colors,
-                      onPressed: a.onPressed,
+                child: _CanvasBarName(colors: colors, sequence: sequence),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              // A scroll view is the last line of defence, not a ClipRect: a
+              // ClipRect hides the pixels but the Row inside it still asserts.
+              // The width tiers above mean this never actually clips at any
+              // window the app is used at; it is here so a width nobody
+              // anticipated cannot throw.
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: _CanvasBarMeta(
+                    sequence: sequence,
+                    validation: validation,
+                    inSimulation: executorInSimulation,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              NightshadeToolbar(
+                groups: <List<Widget>>[
+                  <Widget>[
+                    NightshadeIconButton(
+                      icon: LucideIcons.undo2,
+                      tooltip: 'Undo (Ctrl+Z)$lockedTooltipSuffix',
+                      size: IconButtonSize.sm,
+                      onPressed:
+                          (canEdit && notifier.canUndo) ? notifier.undo : null,
                     ),
-                    const SizedBox(width: 4),
+                    NightshadeIconButton(
+                      icon: LucideIcons.redo2,
+                      tooltip: 'Redo (Ctrl+Y)$lockedTooltipSuffix',
+                      size: IconButtonSize.sm,
+                      onPressed:
+                          (canEdit && notifier.canRedo) ? notifier.redo : null,
+                    ),
+                  ],
+                  if (inlineToggles) viewToggles(),
+                  <Widget>[
+                    NightshadeIconButton(
+                      icon: LucideIcons.save,
+                      // This writes a .nsq FILE through the OS chooser;
+                      // saving into the app's library is the Saved tab's
+                      // "Save current". Two actions both called "Save" was a
+                      // real ambiguity — the name says which one this is.
+                      tooltip: sequence == null
+                          ? 'Export sequence file (create or open a sequence '
+                              'first)'
+                          : 'Export sequence file…',
+                      size: IconButtonSize.sm,
+                      onPressed: sequence != null && !_fileActionRunning
+                          ? () => _runFileAction(saveSequenceFile)
+                          : null,
+                    ),
+                    _ToolbarOverflowMenu(colors: colors, actions: actions),
                   ],
                 ],
-              ] else ...[
-                const SizedBox(width: 12),
-                _ToolbarOverflowMenu(colors: colors, actions: actions),
-              ],
-              const Spacer(),
-              if (sequence != null && !isPhone) ...[
-                // The estimate box is given a bounded width so it can never
-                // grow into — and paint over — the equipment-status icons and
-                // the run-status badge to its right. `Flexible` lets it shrink
-                // when the row is crowded; the box itself ellipsises its own
-                // text (see `_SequenceTimeEstimate`) instead of overflowing.
-                Flexible(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _SequenceTimeEstimate(
-                          colors: colors, sequence: sequence),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
-              if (!isCompact)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: EquipmentStatusWidget(colors: colors),
-                ),
-              if (!isCompact && executorInSimulation)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: NightshadeDecorations.kpiBadge(
-                      colors.warning,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline4),
-                      shape: BoxShape.rectangle,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.testTube,
-                            size: 14, color: colors.warning),
-                        const SizedBox(width: 6),
-                        Text(
-                          'SIMULATION',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            fontWeight: FontWeight.w600,
-                            color: colors.warning,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              _StatusBadge(
-                colors: colors,
-                executionState: executionState,
               ),
             ],
           );
         },
       ),
+    );
+  }
+}
+
+/// The canvas bar's sequence name: 15 / 600, with a muted "· unsaved changes"
+/// beside it while the editor holds edits the library has not got.
+///
+/// Double-click renames, as it always did.
+class _CanvasBarName extends ConsumerWidget {
+  const _CanvasBarName({required this.colors, required this.sequence});
+
+  final NightshadeColors colors;
+  final Sequence? sequence;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = sequence;
+    if (current == null) {
+      return Text(
+        'No sequence',
+        style: NightshadeTypography.sectionTitle.copyWith(
+          color: colors.textMuted,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    return GestureDetector(
+      onDoubleTap: () => _showRenameDialog(context, ref, current),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              current.name,
+              style: NightshadeTypography.sectionTitle.copyWith(
+                color: colors.textPrimary,
+              ),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          // The mockup's muted "· unsaved changes" is NOT rendered: the
+          // editor's dirty flag lives on the notifier
+          // (`SequenceEditor.isDirty`) and nothing publishes it as a provider,
+          // so the label could only be read at build time and would keep
+          // claiming unsaved work after a save. A label that lies is worse
+          // than no label. See reports/observatory/w3-sequencer/notes.md.
+        ],
+      ),
+    );
+  }
+
+  void _showRenameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Sequence current,
+  ) {
+    final controller = TextEditingController(text: current.name);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename sequence'),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            dialogContext,
+            designMaxWidth: 400,
+          ),
+          child: NightshadeTextField(
+            controller: controller,
+            autofocus: true,
+            hint: 'Sequence name',
+          ),
+        ),
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                dialogContext.showWarningSnackBar('Name cannot be empty');
+                return;
+              }
+              ref.read(currentSequenceProvider.notifier).setName(name);
+              Navigator.pop(dialogContext);
+            },
+            label: 'Rename',
+            size: ButtonSize.small,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The canvas bar's meta chips: the live error and warning counts, then one
+/// summary chip stating what the sequence IS
+/// ("1 target · 27 nodes · ~2 h 54 m").
+class _CanvasBarMeta extends ConsumerWidget {
+  const _CanvasBarMeta({
+    required this.sequence,
+    required this.validation,
+    required this.inSimulation,
+  });
+
+  final Sequence? sequence;
+  final LiveValidationState validation;
+
+  /// What the EXECUTOR is driving, not what anyone asked for. A run against
+  /// simulated devices has to say so on the surface the operator is watching,
+  /// which is why this chip survives the move to the instrument bar: the bar
+  /// reports the run, this reports what the run is made of.
+  final bool inSimulation;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = sequence;
+    if (current == null) return const SizedBox.shrink();
+
+    final estimator = SequenceTimeEstimator(
+      overhead: ref.watch(sequencerOverheadConfigProvider),
+    );
+    final totalSecs =
+        estimator.estimateTotalDuration(current, DateTime.now()).inSeconds;
+    final summary = <String>[
+      countLabel(current.targetHeaders.length, 'target'),
+      countLabel(visibleInstructionCount(current), 'node'),
+      if (totalSecs > 0)
+        '~${DurationFormat.seconds(totalSecs.toDouble(), style: DurationStyle.compact, rounding: DurationRounding.truncate)}',
+    ].join(' · ');
+
+    // The summary is the one chip here that is informational rather than
+    // actionable, so it is the first thing dropped when the bar is tight — and
+    // it is dropped WHOLE. A clipped summary reading "1 target" (or "~2h 54"
+    // with the m cut) states something the sequence does not.
+    //
+    // Measured, not tiered: the width this row gets depends on how long the
+    // operator called their sequence, so a breakpoint guesses wrong in both
+    // directions. The counts are fixed-width; only the summary has to be
+    // measured, and only when it is present.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final counts = (validation.errorCount > 0 ? _countChipWidth : 0.0) +
+            (validation.warningCount > 0 ? _countChipWidth : 0.0) +
+            (inSimulation ? _simulationChipWidth : 0.0);
+        final summaryWidth = _chipWidth(context, summary);
+        final showSummary = constraints.hasBoundedWidth &&
+            counts + summaryWidth <= constraints.maxWidth;
+        return _chips(context, summary: summary, showSummary: showSummary);
+      },
+    );
+  }
+
+  /// A count chip: two digits at most, plus its glyph, padding and the gap
+  /// after it. Fixed by construction, so it does not need measuring.
+  static const double _countChipWidth = 52;
+
+  /// The SIMULATION chip, which carries a word rather than a numeral.
+  static const double _simulationChipWidth = 104;
+
+  /// [text] as a [NightshadeChip] would lay it out, plus the gap after it.
+  double _chipWidth(BuildContext context, String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: NightshadeChip.textStyle()),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width +
+        NightshadeChip.horizontalPadding * 2 +
+        NightshadeTokens.spaceXs +
+        2;
+  }
+
+  Widget _chips(
+    BuildContext context, {
+    required String summary,
+    required bool showSummary,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // One tap opens the issue list. These chips are the only place the
+        // builder admits the sequence has problems, and decoding "2" otherwise
+        // means pressing Start and reading the pre-flight dialog — "press the
+        // button that starts the rig" is not how you ask what is wrong.
+        // The numeral is the design; the NAME is what a screen reader says,
+        // and "4" on its own is not a fact about anything.
+        if (validation.errorCount > 0) ...[
+          Semantics(
+            button: true,
+            enabled: true,
+            label: countLabel(validation.errorCount, 'error'),
+            child: ExcludeSemantics(
+              child: NightshadeChip(
+                label: '${validation.errorCount}',
+                icon: LucideIcons.xCircle,
+                tone: ChipTone.error,
+                onTap: () => SequenceIssuesDialog.show(context),
+              ),
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceXs + 2),
+        ],
+        if (validation.warningCount > 0) ...[
+          Semantics(
+            button: true,
+            enabled: true,
+            label: countLabel(validation.warningCount, 'warning'),
+            child: ExcludeSemantics(
+              child: NightshadeChip(
+                label: '${validation.warningCount}',
+                icon: LucideIcons.alertTriangle,
+                tone: ChipTone.warning,
+                onTap: () => SequenceIssuesDialog.show(context),
+              ),
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceXs + 2),
+        ],
+        if (showSummary) NightshadeChip(label: summary),
+        if (inSimulation) ...[
+          const SizedBox(width: NightshadeTokens.spaceXs + 2),
+          const NightshadeChip(
+            label: 'Simulation',
+            icon: LucideIcons.testTube,
+            tone: ChipTone.warning,
+          ),
+        ],
+      ],
     );
   }
 }

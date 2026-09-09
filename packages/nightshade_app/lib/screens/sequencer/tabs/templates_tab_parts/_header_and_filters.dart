@@ -1,6 +1,10 @@
 // Top-of-tab chrome and primary action chip: snippet summary card, header with search box, category filter chips, and the _ActionButton primitive.
 part of '../templates_tab.dart';
 
+/// "You have N reusable snippets, and they live on the Builder tab."
+///
+/// One NightshadeBanner with one action, in place of a tinted card with a
+/// 40 px accent disc, an h5 title, a two-clause sentence and a bespoke button.
 class _SnippetSummaryCard extends ConsumerWidget {
   final NightshadeColors colors;
   final int snippetCount;
@@ -12,62 +16,20 @@ class _SnippetSummaryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: NightshadeDecorations.iconChip(
-        colors.accent,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        borderAlpha: 0.2,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: NightshadeDecorations.statusChip(
-              colors.accent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              bordered: false,
-            ),
-            child: Icon(
-              LucideIcons.bookMarked,
-              size: 20,
-              color: colors.accent,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Reusable Snippets',
-                  style: NightshadeTypography.h5
-                      .copyWith(color: colors.textPrimary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$snippetCount snippets available. Switch to Builder tab and use the Snippets panel (Ctrl+T) to add them.',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _ActionButton(
-            colors: colors,
-            icon: LucideIcons.arrowRight,
-            label: 'Go to Builder',
-            onPressed: () {
-              // Switch to Builder tab and show snippets
-              ref.read(sequencerTabProvider.notifier).state = 0;
-              ref.read(snippetPaletteVisibleProvider.notifier).state = true;
-            },
-          ),
-        ],
+    return NightshadeBanner(
+      icon: LucideIcons.bookMarked,
+      title: countLabel(snippetCount, 'reusable snippet'),
+      message: 'Add them from the Snippets panel in the Builder.',
+      action: NightshadeButton(
+        label: 'Go to Builder',
+        icon: LucideIcons.arrowRight,
+        variant: ButtonVariant.secondary,
+        size: ButtonSize.small,
+        onPressed: () {
+          // Switch to Builder tab and show snippets
+          ref.read(sequencerTabProvider.notifier).state = 0;
+          ref.read(snippetPaletteVisibleProvider.notifier).state = true;
+        },
       ),
     );
   }
@@ -112,6 +74,9 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
     return _buildDesktopHeader(editingTemplate: editingTemplate);
   }
 
+  /// The desktop search field's width.
+  static const double _searchFieldWidth = 250;
+
   Widget _buildMobileHeader({required bool editingTemplate}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,86 +84,45 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
         // Title row with save button
         Row(
           children: [
-            // The shared tab heading at every width, not only on the wide row
-            // — the stacked layout gives it the room the packed row cannot.
-            const Expanded(
-              child: SequencerTabTitle(
-                title: 'Sequence Templates',
-                subtitle:
-                    'Start with a template or save your sequences for reuse.',
-              ),
-            ),
+            // No title block: the page header names the screen and the
+            // underline tab names the tab.
+            const Spacer(),
             // Quick-start wizard
             NightshadeButton(
               label: 'Wizard',
               icon: LucideIcons.wand2,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () {
-                showDialog(
+                showDialog<void>(
                   context: context,
                   builder: (context) => const QuickStartWizardDialog(),
                 );
               },
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             // Save current as template button
             NightshadeButton(
               label: editingTemplate ? 'Update' : 'Save',
               icon: LucideIcons.save,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: () => _showSaveTemplateDialog(context),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: NightshadeTokens.spaceMd),
         // Search field - full width on mobile
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            border: Border.all(color: widget.colors.border),
-          ),
-          child: Row(
-            children: [
-              Icon(LucideIcons.search,
-                  size: 16, color: widget.colors.textMuted),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    ref.read(templateSearchProvider.notifier).state = value;
-                  },
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    color: widget.colors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search templates...',
-                    hintStyle: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      color: widget.colors.textMuted,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              if (_searchController.text.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    _searchController.clear();
-                    ref.read(templateSearchProvider.notifier).state = '';
-                  },
-                  child: Icon(LucideIcons.x,
-                      size: 16, color: widget.colors.textMuted),
-                ),
-            ],
-          ),
+        NightshadeTextField(
+          controller: _searchController,
+          hint: 'Search templates',
+          prefixIcon: LucideIcons.search,
+          onChanged: (value) {
+            ref.read(templateSearchProvider.notifier).state = value;
+          },
         ),
-        const SizedBox(height: 10),
-        _CategoryFilterChips(colors: widget.colors),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        _CategoryFilter(colors: widget.colors),
       ],
     );
   }
@@ -209,106 +133,52 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
       children: [
         Row(
           children: [
-            // Title: the one Sequencer tab heading, shared by all four tabs so
-            // the type scale and the punctuation cannot drift.
-            //
-            // Expanded, not Flexible. Two Flexible children split the row's
-            // free space evenly, which at 1000x800 leaves the heading with
-            // "Sequence Te…" while the search box holds its 250 px — the tab
-            // stops naming itself so a filter field can keep its full width.
-            // The toolbar's width is fixed, so the heading takes the rest.
-            const Expanded(
-              child: SequencerTabTitle(
-                title: 'Sequence Templates',
-                subtitle:
-                    'Start with a template or save your sequences for reuse.',
-              ),
-            ),
+            // No title block: the page header names the screen and the
+            // underline tab names the tab. The filter row keeps the space.
+            const Spacer(),
 
             const SizedBox(width: 16),
 
             SizedBox(
-              width: 250,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: widget.colors.surfaceAlt,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusLg),
-                  border: Border.all(color: widget.colors.border),
-                ),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.search,
-                        size: 16, color: widget.colors.textMuted),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          ref.read(templateSearchProvider.notifier).state =
-                              value;
-                        },
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: widget.colors.textPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Search...',
-                          hintStyle: TextStyle(
-                            fontSize: NightshadeTypography.fontSize13,
-                            color: widget.colors.textMuted,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    if (_searchController.text.isNotEmpty)
-                      GestureDetector(
-                        onTap: () {
-                          _searchController.clear();
-                          ref.read(templateSearchProvider.notifier).state = '';
-                        },
-                        child: Icon(LucideIcons.x,
-                            size: 16, color: widget.colors.textMuted),
-                      ),
-                  ],
-                ),
+              width: _searchFieldWidth,
+              child: NightshadeTextField(
+                controller: _searchController,
+                hint: 'Search templates',
+                prefixIcon: LucideIcons.search,
+                onChanged: (value) {
+                  ref.read(templateSearchProvider.notifier).state = value;
+                },
               ),
             ),
 
-            const SizedBox(width: 16),
+            const SizedBox(width: NightshadeTokens.spaceSm),
 
-            // Quick-start wizard button
-            _ActionButton(
-              colors: widget.colors,
+            NightshadeButton(
+              label: 'Wizard',
               icon: LucideIcons.wand2,
-              label: 'Quick-Start Wizard',
-              isPrimary: false,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
               onPressed: () {
-                showDialog(
+                showDialog<void>(
                   context: context,
                   builder: (context) => const QuickStartWizardDialog(),
                 );
               },
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
 
-            // Save current as template button
-            _ActionButton(
-              colors: widget.colors,
+            NightshadeButton(
+              label: editingTemplate ? 'Update template' : 'Save as template',
               icon: LucideIcons.save,
-              label: editingTemplate ? 'Update Template' : 'Save as Template',
-              isPrimary: true,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
               onPressed: () => _showSaveTemplateDialog(context),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        _CategoryFilterChips(colors: widget.colors),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        _CategoryFilter(colors: widget.colors),
       ],
     );
   }
@@ -330,123 +200,33 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
   }
 }
 
-class _CategoryFilterChips extends ConsumerWidget {
+/// All / Beginner / Intermediate / Advanced / Specialized.
+///
+/// One choice out of five mutually exclusive ones is a [SegmentedControl],
+/// not five Material `FilterChip`s with tick marks (06 §Sequencer): a chip
+/// row invites multi-select and these categories cannot combine.
+class _CategoryFilter extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _CategoryFilterChips({required this.colors});
+  const _CategoryFilter({required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedCategory = ref.watch(templateCategoryProvider);
+    final selectedIndex = _templateCategoryOptions.indexWhere(
+      (option) => option.key == selectedCategory,
+    );
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _templateCategoryOptions.map((option) {
-          final value = option.key;
-          final label = option.value;
-          final selected = value == null
-              ? selectedCategory == null
-              : selectedCategory == value;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              selected: selected,
-              label: Text(label),
-              onSelected: (_) {
-                ref.read(templateCategoryProvider.notifier).state = value;
-              },
-              selectedColor: NightshadeDecorations.statusChip(
-                colors.primary,
-                bordered: false,
-              ).color,
-              backgroundColor: colors.surfaceAlt,
-              side: BorderSide(
-                color: selected ? colors.primary : colors.border,
-              ),
-              labelStyle: TextStyle(
-                color: selected ? colors.primary : colors.textSecondary,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              ),
-              checkmarkColor: colors.primary,
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatefulWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String label;
-  final bool isPrimary;
-  final VoidCallback onPressed;
-
-  const _ActionButton({
-    required this.colors,
-    required this.icon,
-    required this.label,
-    this.isPrimary = false,
-    required this.onPressed,
-  });
-
-  @override
-  State<_ActionButton> createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: widget.isPrimary
-                ? _isHovered
-                    ? widget.colors.primary.withValues(alpha: 0.9)
-                    : widget.colors.primary
-                : _isHovered
-                    ? widget.colors.surfaceAlt
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: widget.isPrimary
-                ? null
-                : Border.all(color: widget.colors.border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.icon,
-                size: 14,
-                color:
-                    widget.isPrimary ? onPrimary : widget.colors.textSecondary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.label,
-                style: NightshadeTypography.labelSm.copyWith(
-                    color: widget.isPrimary
-                        ? onPrimary
-                        : widget.colors.textSecondary),
-              ),
-            ],
-          ),
-        ),
+      child: SegmentedControl(
+        segments: <String>[
+          for (final option in _templateCategoryOptions) option.value,
+        ],
+        selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+        onSelected: (index) => ref
+            .read(templateCategoryProvider.notifier)
+            .state = _templateCategoryOptions[index].key,
       ),
     );
   }

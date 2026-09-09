@@ -70,6 +70,9 @@ void main() {
 
       _expectMeetsTouchMinimum('More actions');
       handle.dispose();
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     });
 
     testWidgets('bar height leaves a full touch target above its divider',
@@ -92,6 +95,9 @@ void main() {
             'of its child row, so the bar must be the touch minimum PLUS that '
             'border or every control inside it is 1dp short',
       );
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     });
   });
 
@@ -113,6 +119,9 @@ void main() {
 
       _expectMeetsTouchMinimum('Show altitude chart');
       handle.dispose();
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     });
 
     testWidgets('overflow menu meets the touch minimum on a phone',
@@ -124,6 +133,9 @@ void main() {
 
       _expectMeetsTouchMinimum('Show menu');
       handle.dispose();
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     });
   });
 }

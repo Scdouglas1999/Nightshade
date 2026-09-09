@@ -23,231 +23,93 @@ class _ToolbarAction {
         isDivider = true;
 }
 
-/// Single overflow popup that subsumes every secondary action below the
-/// compact breakpoint. PopupMenuItems are disabled-but-visible when an
-/// action's `onPressed` is null, matching inline behaviour.
+/// The canvas bar's "more" menu: every secondary action, in one popup.
+///
+/// The anchor is a [NightshadeIconButton], not `PopupMenuButton`'s own icon.
+/// PopupMenuButton sizes its anchor from `kMinInteractiveDimension` (48) and
+/// this button sits in a 44 px bar between two 28 px buttons — it cannot be
+/// the one control that is twenty pixels taller than its neighbours, and on a
+/// narrow canvas those twenty pixels are what overflowed the row. The menu is
+/// opened with [showMenu] positioned on the button's own rect, so the popup
+/// still hangs off the control the user pressed.
+///
+/// Entries are disabled-but-visible when an action's `onPressed` is null,
+/// matching the inline behaviour.
 class _ToolbarOverflowMenu extends StatelessWidget {
   final NightshadeColors colors;
   final List<_ToolbarAction> actions;
 
   const _ToolbarOverflowMenu({required this.colors, required this.actions});
 
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<int>(
-      tooltip: 'More actions',
-      icon: Icon(
-        LucideIcons.moreHorizontal,
-        size: 18,
-        color: colors.textSecondary,
-      ),
-      onSelected: (index) {
-        final action = actions[index];
-        action.onPressed?.call();
-      },
-      itemBuilder: (context) {
-        final items = <PopupMenuEntry<int>>[];
-        for (var i = 0; i < actions.length; i++) {
-          final a = actions[i];
-          if (a.isDivider) {
-            if (items.isNotEmpty) {
-              items.add(const PopupMenuDivider());
-            }
-            continue;
-          }
-          items.add(
-            PopupMenuItem<int>(
-              value: i,
-              enabled: a.onPressed != null,
-              child: Row(
-                children: [
-                  Icon(
-                    a.icon,
-                    size: 16,
+  Future<void> _open(BuildContext context) async {
+    final button = context.findRenderObject() as RenderBox?;
+    final overlay =
+        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
+    if (button == null || overlay == null) return;
+
+    final origin = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final position = RelativeRect.fromLTRB(
+      origin.dx,
+      origin.dy + button.size.height,
+      overlay.size.width - origin.dx - button.size.width,
+      0,
+    );
+
+    final items = <PopupMenuEntry<int>>[];
+    for (var i = 0; i < actions.length; i++) {
+      final a = actions[i];
+      if (a.isDivider) {
+        if (items.isNotEmpty) items.add(const PopupMenuDivider());
+        continue;
+      }
+      items.add(
+        PopupMenuItem<int>(
+          value: i,
+          enabled: a.onPressed != null,
+          child: Row(
+            children: [
+              Icon(
+                a.icon,
+                size: 16,
+                color: a.onPressed == null
+                    ? colors.textMuted
+                    : colors.textSecondary,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm + 2),
+              Flexible(
+                child: Text(
+                  a.label!,
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: a.onPressed == null
                         ? colors.textMuted
-                        : colors.textSecondary,
+                        : colors.textPrimary,
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      a.label!,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: a.onPressed == null
-                            ? colors.textMuted
-                            : colors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          );
-        }
-        return items;
-      },
-    );
-  }
-}
-
-/// Displays both pure integration time and overhead-aware total estimate
-class _SequenceTimeEstimate extends ConsumerWidget {
-  final NightshadeColors colors;
-  final Sequence sequence;
-
-  const _SequenceTimeEstimate({
-    required this.colors,
-    required this.sequence,
-  });
-
-  String _formatDuration(double seconds) => DurationFormat.seconds(
-        seconds,
-        style: DurationStyle.compact,
-        rounding: DurationRounding.truncate,
+            ],
+          ),
+        ),
       );
+    }
+    if (items.isEmpty) return;
 
-  /// Natural width of [text] in [style], used to decide which segments of the
-  /// pill actually fit before any of them is laid out.
-  double _measure(BuildContext context, String text, TextStyle style) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 1,
-    )..layout();
-    return painter.width;
+    final chosen = await showMenu<int>(
+      context: context,
+      position: position,
+      items: items,
+    );
+    if (chosen == null) return;
+    actions[chosen].onPressed?.call();
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Total from the SAME estimator the tree-row chips, the timeline and the
-    // Pre-Flight simulation use. `Sequence.estimateWithOverhead` is a third,
-    // coarser model (flat per-node constants, no clock-dependent nodes), and
-    // billing this chip against it is what made the Builder header and the
-    // Pre-Flight panel print different totals for one sequence.
-    final estimator = SequenceTimeEstimator(
-      overhead: ref.watch(sequencerOverheadConfigProvider),
-    );
-    final integrationSecs = sequence.estimateIntegrationSecs().estimatedSecs;
-    final totalSecs = estimator
-        .estimateTotalDuration(sequence, DateTime.now())
-        .inSeconds
-        .toDouble();
-    final overheadSecs = totalSecs - integrationSecs;
-
-    final valueStyle = TextStyle(
-      fontSize: NightshadeTypography.fontSize12,
-      color: colors.textSecondary,
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
-    final overheadStyle = TextStyle(
-      fontSize: NightshadeTypography.fontSize12,
-      color: colors.textMuted,
-      fontStyle: FontStyle.italic,
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
-
-    final framesText = '${sequence.totalExposures} frames';
-    final timeText = _formatDuration(integrationSecs);
-    final overheadText = '~${_formatDuration(totalSecs)}';
-
-    return Tooltip(
-      message: overheadSecs > 0
-          ? 'Integration: ${_formatDuration(integrationSecs)}\n'
-              'Overhead: ${_formatDuration(overheadSecs)} '
-              '(slews, AF, dithers, downloads, etc.)\n'
-              'Estimated total: ${_formatDuration(totalSecs)}'
-          : 'Integration time: ${_formatDuration(integrationSecs)}',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Icons and their gaps cannot shrink, so a `Flexible` text alone
-          // does NOT stop this row overflowing: below ~66 px the icons alone
-          // exceed the box. Measure each segment up front and drop the ones
-          // that do not fit, rather than painting a half-clipped icon with no
-          // number next to it.
-          const padding = 12.0 * 2 + 2; // horizontal padding + 1 px borders
-          final framesSegment =
-              14 + 6 + _measure(context, framesText, valueStyle);
-          final timeSegment =
-              12 + 14 + 6 + _measure(context, timeText, valueStyle);
-          final overheadSegment = 8 +
-              1 +
-              8 +
-              14 +
-              4 +
-              _measure(context, overheadText, overheadStyle);
-
-          final available = constraints.hasBoundedWidth
-              ? constraints.maxWidth
-              : double.infinity;
-
-          final showFrames = available >= padding + framesSegment;
-          final showTime = available >= padding + framesSegment + timeSegment;
-          final showOverhead = overheadSecs > 0 &&
-              available >=
-                  padding + framesSegment + timeSegment + overheadSegment;
-
-          // Nothing meaningful fits: render nothing rather than a clipped icon
-          // that tells the user neither a count nor a duration.
-          if (!showFrames) return const SizedBox.shrink();
-
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            clipBehavior: Clip.hardEdge,
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
-                const SizedBox(width: 6),
-                Text(
-                  framesText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                  style: valueStyle,
-                ),
-                if (showTime) ...[
-                  const SizedBox(width: 12),
-                  Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
-                  const SizedBox(width: 6),
-                  Text(
-                    timeText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: valueStyle,
-                  ),
-                ],
-                if (showOverhead) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 1,
-                    height: 16,
-                    color: colors.border,
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
-                  const SizedBox(width: 4),
-                  Text(
-                    overheadText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: overheadStyle,
-                  ),
-                ],
-              ],
-            ),
-          );
-        },
-      ),
+  Widget build(BuildContext context) {
+    return NightshadeIconButton(
+      icon: LucideIcons.moreHorizontal,
+      tooltip: 'More actions',
+      size: IconButtonSize.sm,
+      onPressed: () => _open(context),
     );
   }
 }

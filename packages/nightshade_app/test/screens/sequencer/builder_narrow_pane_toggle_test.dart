@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/pump_app_screen.dart';
@@ -39,6 +40,18 @@ List<Override> _overrides() {
   ];
 }
 
+/// The collapsed pane's reopen affordance.
+///
+/// `find.byTooltip` no longer reaches it: the control is a
+/// [NightshadeIconButton], which renders `NightshadeTooltip` (not Material's
+/// `Tooltip`) and publishes its tooltip as the semantics label. Matching on the
+/// widget keeps the test on the same control it always tested, by the same
+/// name the user hovers.
+Finder _paneToggle(String tooltip) => find.byWidgetPredicate(
+      (widget) => widget is NightshadeIconButton && widget.tooltip == tooltip,
+      description: 'NightshadeIconButton("$tooltip")',
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -62,24 +75,24 @@ void main() {
     // rail with a "Show …" affordance). If this stops holding, the width band
     // moved and the rest of the test is meaningless.
     expect(
-      find.byTooltip('Show Toolbox'),
+      _paneToggle('Show Toolbox'),
       findsOneWidget,
       reason: 'expected the derived collapse here; the width band moved',
     );
-    expect(find.byTooltip('Show Properties'), findsOneWidget);
+    expect(_paneToggle('Show Properties'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Show Toolbox'));
+    await tester.tap(_paneToggle('Show Toolbox'));
     await tester.pumpAndSettle();
     expect(
-      find.byTooltip('Show Toolbox'),
+      _paneToggle('Show Toolbox'),
       findsNothing,
       reason: 'one tap on the toolbox icon left the pane exactly as it was',
     );
 
-    await tester.tap(find.byTooltip('Show Properties'));
+    await tester.tap(_paneToggle('Show Properties'));
     await tester.pumpAndSettle();
     expect(
-      find.byTooltip('Show Properties'),
+      _paneToggle('Show Properties'),
       findsNothing,
       reason: 'one tap on the properties icon left the pane exactly as it was',
     );
@@ -96,9 +109,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Show Toolbox'));
+    await tester.tap(_paneToggle('Show Toolbox'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Show Toolbox'), findsNothing);
+    expect(_paneToggle('Show Toolbox'), findsNothing);
 
     // The panel header's own collapse control puts it back, and the override
     // must not immediately re-open it.
@@ -109,6 +122,6 @@ void main() {
     container.read(sequencerToolboxForceOpenProvider.notifier).state = false;
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Show Toolbox'), findsOneWidget);
+    expect(_paneToggle('Show Toolbox'), findsOneWidget);
   });
 }

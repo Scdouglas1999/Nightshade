@@ -218,7 +218,7 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
               _PreflightSection(
                 colors: colors,
                 icon: LucideIcons.moon,
-                title: 'Dark Library',
+                title: 'Dark library',
                 issues: darkLibrary,
                 trailing: TextButton.icon(
                   onPressed: _openCalibrationCenter,
@@ -237,14 +237,14 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
               _PreflightSection(
                 colors: colors,
                 icon: LucideIcons.activity,
-                title: 'Equipment Health',
+                title: 'Equipment health',
                 issues: equipmentHealth,
               ),
             if (opticalTrain.isNotEmpty)
               _PreflightSection(
                 colors: colors,
                 icon: LucideIcons.crosshair,
-                title: 'Optical Train',
+                title: 'Optical train',
                 issues: opticalTrain,
               ),
           ],

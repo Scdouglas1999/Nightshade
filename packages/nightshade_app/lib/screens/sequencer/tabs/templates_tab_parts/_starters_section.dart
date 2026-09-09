@@ -200,24 +200,23 @@ class _StarterCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Tooltip(
-                    message:
-                        canEdit ? '' : 'Cannot edit while sequence is running',
-                    child: NightshadeButton(
-                      onPressed: canEdit
-                          ? () async => _useStarter(context, ref)
-                          : null,
-                      label: 'Replace with this starter',
-                      icon: LucideIcons.copy,
-                      variant: ButtonVariant.primary,
-                      size: ButtonSize.small,
-                    ),
-                  ),
-                ),
-              ],
+            // Secondary, and sized to its words. Six starter cards on one
+            // view meant six full-width PRIMARY buttons; 02 rule 4 allows one
+            // primary per page and it is Start, in the header.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeButton(
+                onPressed:
+                    canEdit ? () async => _useStarter(context, ref) : null,
+                label: 'Use this starter',
+                icon: LucideIcons.copy,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                semanticsHint: canEdit
+                    ? 'Replaces the sequence currently in the builder.'
+                    : 'The sequence is running, so the builder cannot be '
+                        'replaced.',
+              ),
             ),
           ],
         ),

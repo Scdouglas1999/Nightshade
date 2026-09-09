@@ -1,33 +1,29 @@
 part of '../sequencer_screen.dart';
 
-/// Sequencer tab strip.
+/// The screen's 56 px [PageHeader]: `list-ordered` · "Sequencer" · underline
+/// tabs · Preflight + the run's transport button (06 §Sequencer).
 ///
-/// Uses [AdaptiveTabBar] so the four tabs (Builder / Templates / Sequences /
-/// History) scroll horizontally instead of overflowing on a 360 px phone —
-/// and collapse their labels to icon-only on a compact phone (`< 480`). The
-/// strip drives the screen's [TabController] so the existing keyboard
-/// shortcuts, provider sync and tutorial flow keep working.
-class _SequencerTabBar extends StatelessWidget {
-  final NightshadeColors colors;
-  final TabController controller;
-
-  /// The run's live STATE, not a boolean. An `isRunning` flag is true for both
-  /// running and paused, so a paused run would show a green "Sequence Running"
-  /// chip a row above the toolbar's amber "Paused" — the app's most prominent
-  /// run indicator contradicting the one beside it about whether the rig is
-  /// exposing.
-  final SequenceExecutionState executionState;
-
-  /// Form-factor decision computed once at the screen level so the
-  /// strip and the builder body agree on phone-vs-desktop.
-  final bool isPhone;
-
-  const _SequencerTabBar({
-    required this.colors,
+/// The old strip carried a title row, a keyboard-shortcut icon button and a
+/// "Sequence Running" chip. Shortcuts moved to the top bar's help popover and
+/// the run state is the instrument bar's job, so neither is rebuilt here: the
+/// header holds exactly the screen name, its tabs, and the action the operator
+/// came for.
+class _SequencerPageHeader extends ConsumerWidget {
+  const _SequencerPageHeader({
     required this.controller,
-    this.executionState = SequenceExecutionState.idle,
+    required this.executionState,
     required this.isPhone,
   });
+
+  final TabController controller;
+
+  /// The run's live state. Drives which transport button the header offers
+  /// (Start, or Pause/Resume + Stop) — never a status chip.
+  final SequenceExecutionState executionState;
+
+  /// Form-factor decision computed once at the screen level so the header and
+  /// the body agree on phone-vs-desktop.
+  final bool isPhone;
 
   /// Tutorial keys keyed by tab so the strip stays in sync with the
   /// [SequencerTab] enum that drives the controller.
@@ -44,251 +40,150 @@ class _SequencerTabBar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Derive the strip from the single SequencerTab enum so adding a tab
-    // there updates the controller length and this strip in one edit. On
-    // desktop the keyboard accelerators (Alt+1..4) are surfaced in the tab's
-    // tooltip/semantics so they are discoverable; phones have no keyboard so
-    // the hint is omitted.
+  Widget build(BuildContext context, WidgetRef ref) {
+    final validation = ref.watch(liveValidationProvider);
+    final actionService = ref.read(sequenceActionServiceProvider);
+
+    Future<void> run(Future<CommandActionResult> Function() action) async {
+      final result = await action();
+      if (!context.mounted) return;
+      context.showCommandActionResult(result);
+    }
+
+    void openPreflight({bool armed = false}) {
+      showDialog<void>(
+        context: context,
+        builder: (_) => PreFlightValidationDialog(
+          onStartSequence: armed ? () => run(actionService.start) : null,
+        ),
+      );
+    }
+
+    // Derive the strip from the single SequencerTab enum so adding a tab there
+    // updates the controller length and this strip in one edit. Desktop
+    // surfaces the Alt+1..4 accelerators in the semantic label; phones have no
+    // keyboard so the hint is omitted.
     final tabs = <AdaptiveTab>[
       for (final tab in SequencerTab.values)
         AdaptiveTab(
           label: tab.label,
-          icon: tab.icon,
           buttonKey: _buttonKeyFor(tab),
           semanticLabel:
               isPhone ? tab.label : '${tab.label} (Alt+${tab.index + 1})',
         ),
     ];
 
-    // The chip states the run's state verbatim; `null` draws no chip at all.
-    // Paused deliberately gets its own amber label rather than reusing the
-    // running one, because a paused rig is not exposing.
-    final String? chipLabel = switch (executionState) {
-      SequenceExecutionState.running => 'Sequence Running',
-      SequenceExecutionState.paused => 'Sequence Paused',
-      _ => null,
-    };
-    final chipColor = executionState == SequenceExecutionState.paused
-        ? colors.warning
-        : colors.success;
+    final blocking = validation.errorCount + validation.warningCount;
 
-    // On phone the running state is surfaced by the playback bar, so the
-    // trailing run chip is desktop/tablet only.
-    final trailing = <Widget>[
-      // A discoverable entry point to the full keyboard-shortcut
-      // cheat-sheet. Keyboard-only, so desktop/tablet just like the
-      // accelerator hints above.
-      if (!isPhone)
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Tooltip(
-            message: 'Keyboard shortcuts',
-            child: IconButton(
-              icon: Icon(
-                LucideIcons.keyboard,
-                size: 18,
-                color: colors.textSecondary,
-              ),
-              onPressed: () => _SequencerShortcutsSheet.show(context, colors),
-            ),
-          ),
-        ),
-      if (chipLabel != null && !isPhone)
-        Padding(
-          padding: const EdgeInsets.only(left: 4, right: 12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: NightshadeDecorations.statusChip(
-              chipColor,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: chipColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: chipColor.withValues(alpha: 0.5),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  chipLabel,
-                  style: NightshadeTypography.h6.copyWith(color: chipColor),
-                ),
-              ],
-            ),
-          ),
-        ),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          // Title + sub-tabs share ONE row (the screen had no title row of its
-          // own above the tabs — the outer nav named it). Fold the title inline
-          // to the left of the tab strip — icon-only on a phone — while the
-          // existing keyboard/running chips keep riding at the right end via
-          // the AdaptiveTabBar trailing slot.
-          child: Row(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(
-                  left: NightshadeTokens.spaceLg,
-                  right: isPhone
-                      ? NightshadeTokens.spaceSm
-                      : NightshadeTokens.spaceMd,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      NightshadeIcons.listOrdered,
-                      size: 18,
-                      color: colors.primary,
-                    ),
-                    if (!isPhone) ...[
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      Text(
-                        context.l10n.text('navSequencer'),
-                        style: NightshadeTypography.h5.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Expanded(
-                child: AnimatedBuilder(
-                  // Rebuild the strip when the controller's selection changes so
-                  // the highlighted tab + auto-scroll-into-view follow the
-                  // active index regardless of whether the change came from a
-                  // tap, a keyboard shortcut, or the provider→controller sync in
-                  // initState.
-                  animation: controller.animation ?? controller,
-                  builder: (context, _) {
-                    return AdaptiveTabBar(
-                      tabs: tabs,
-                      selectedIndex: controller.index,
-                      horizontalPadding: isPhone ? 8 : 20,
-                      onSelected: (i) => controller.animateTo(i),
-                      trailing: trailing,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+    return PageHeader(
+      icon: NightshadeIcons.listOrdered,
+      title: context.l10n.text('navSequencer'),
+      tabs: AnimatedBuilder(
+        // Rebuild the strip when the controller's selection changes so the
+        // underline and the scroll-into-view follow the active index whether
+        // the change came from a tap, a keyboard shortcut, or the
+        // provider->controller sync in initState.
+        animation: controller.animation ?? controller,
+        builder: (context, _) => AdaptiveTabBar(
+          tabs: tabs,
+          selectedIndex: controller.index,
+          horizontalPadding: 0,
+          onSelected: controller.animateTo,
         ),
       ),
+      actions: <Widget>[
+        // A phone header has room for a title and one glyph. The words go, not
+        // the action: the tooltip keeps the name and MobilePlaybackBar — right
+        // under this header — already owns the transport, so repeating
+        // Start/Stop here would be the second copy of the same control.
+        if (isPhone)
+          NightshadeIconButton(
+            icon: LucideIcons.listChecks,
+            tooltip: 'Preflight',
+            onPressed: openPreflight,
+          )
+        else
+          NightshadeButton(
+            label: 'Preflight',
+            icon: LucideIcons.listChecks,
+            variant: ButtonVariant.ghost,
+            onPressed: openPreflight,
+          ),
+        // The count rides beside the button rather than inside it: a chip is
+        // not one of NightshadeButton's slots, and inventing a local
+        // button-with-badge would be a second button style on the page.
+        if (blocking > 0)
+          Semantics(
+            button: true,
+            enabled: true,
+            label: countLabel(blocking, 'preflight issue'),
+            child: ExcludeSemantics(
+              child: NightshadeChip(
+                label: '$blocking',
+                tone: validation.hasErrors ? ChipTone.error : ChipTone.warning,
+                onTap: openPreflight,
+              ),
+            ),
+          ),
+        if (!isPhone)
+          ..._transportActions(
+            executionState: executionState,
+            onStart: () => openPreflight(armed: true),
+            onPause: () => run(actionService.pause),
+            onResume: () => run(actionService.resume),
+            onStop: () => run(actionService.stop),
+          ),
+      ],
     );
   }
-}
 
-/// A read-only cheat-sheet listing every sequencer keyboard binding, opened
-/// from the strip's keyboard icon. Mirrors the [CallbackShortcuts]
-/// bindings declared in `sequencer_screen.dart` and the toolbox Ctrl+T toggle
-/// — keep this list in sync when adding a shortcut.
-class _SequencerShortcutsSheet {
-  const _SequencerShortcutsSheet._();
-
-  static const List<({String keys, String action})> _shortcuts = [
-    (keys: 'Alt+1', action: 'Builder tab'),
-    (keys: 'Alt+2', action: 'Templates tab'),
-    (keys: 'Alt+3', action: 'Sequences tab'),
-    (keys: 'Alt+4', action: 'History tab'),
-    (keys: 'Ctrl+T', action: 'Toggle Nodes / Snippets'),
-    (keys: 'Ctrl+Z', action: 'Undo'),
-    (keys: 'Ctrl+Y', action: 'Redo'),
-    (keys: 'Ctrl+D', action: 'Duplicate node'),
-    (keys: 'Ctrl+C', action: 'Copy selected nodes'),
-    (keys: 'Ctrl+V', action: 'Paste nodes'),
-    (keys: 'Delete', action: 'Delete selected nodes'),
-    (keys: 'Esc', action: 'Clear multi-selection'),
-  ];
-
-  static Future<void> show(BuildContext context, NightshadeColors colors) {
-    return showAdaptiveModal<void>(
-      context: context,
-      designWidth: 420,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.keyboard, size: 18, color: colors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Keyboard Shortcuts',
-                  style: NightshadeTypography.h5
-                      .copyWith(color: colors.textPrimary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            for (final s in _shortcuts)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: NightshadeDecorations.tintedBadge(
-                        colors.primary,
-                        borderRadius: BorderRadius.circular(
-                            NightshadeTokens.radiusInline4),
-                      ),
-                      child: Text(
-                        s.keys,
-                        style: NightshadeTypography.labelSm
-                            .copyWith(color: colors.primary),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        s.action,
-                        style: NightshadeTypography.bodySm
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: NightshadeButton(
-                label: 'Close',
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
-                onPressed: () => Navigator.of(sheetContext).pop(),
-              ),
-            ),
-          ],
+  /// The header's transport: `start` "Start" while idle, `destructive` "Stop"
+  /// plus `secondary` "Pause"/"Resume" once the executor owns the tree.
+  ///
+  /// Skip and Reset are deliberately absent — they belong to a run in flight,
+  /// not to the page. They live on in the canvas bar's overflow menu, so no
+  /// capability is lost.
+  static List<Widget> _transportActions({
+    required SequenceExecutionState executionState,
+    required VoidCallback onStart,
+    required VoidCallback onPause,
+    required VoidCallback onResume,
+    required VoidCallback onStop,
+  }) {
+    if (!executionState.canStop) {
+      return <Widget>[
+        NightshadeButton(
+          label: 'Start',
+          icon: LucideIcons.play,
+          variant: ButtonVariant.start,
+          onPressed: executionState.canStart ? onStart : null,
+          semanticsHint: executionState.canStart
+              ? null
+              : 'The sequence is finishing the last command.',
         ),
+      ];
+    }
+    return <Widget>[
+      if (executionState.canPause)
+        NightshadeButton(
+          label: 'Pause',
+          icon: LucideIcons.pause,
+          variant: ButtonVariant.secondary,
+          onPressed: onPause,
+        )
+      else if (executionState.canResume)
+        NightshadeButton(
+          label: 'Resume',
+          icon: LucideIcons.play,
+          variant: ButtonVariant.secondary,
+          onPressed: onResume,
+        ),
+      NightshadeButton(
+        label: 'Stop',
+        icon: LucideIcons.square,
+        variant: ButtonVariant.destructive,
+        onPressed: onStop,
       ),
-    );
+    ];
   }
 }

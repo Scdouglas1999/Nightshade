@@ -1,4 +1,4 @@
-// The header's red/amber count badges must be readable without arming a run.
+// The canvas bar's red/amber count chips must be readable without arming a run.
 //
 // They were plain Containers: clicking did nothing, the builder has no issues
 // panel, and the only way to learn what "1 error" meant was to press Start and
@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_issues_dialog.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -45,9 +46,18 @@ void main() {
 
     final handle = await pumpAppScreen(
       tester,
+      // The counts moved from the tree's own header row to the canvas bar
+      // in wave 3 (06 §Sequencer), so the pair is pumped together — which is
+      // also how the builder lays them out.
       Builder(
-        builder: (context) =>
-            SequenceTree(colors: NightshadeColors.of(context)),
+        builder: (context) => Column(
+          children: [
+            SequenceToolbar(colors: NightshadeColors.of(context)),
+            Expanded(
+              child: SequenceTree(colors: NightshadeColors.of(context)),
+            ),
+          ],
+        ),
       ),
       size: const Size(1000, 800),
       extraOverrides: [
@@ -64,7 +74,15 @@ void main() {
     expect(issues, isNotEmpty, reason: 'no issues to surface');
     final nodeIssue = issues.firstWhere((i) => i.affectedNodeId != null);
 
-    await tester.tap(find.byTooltip('Show sequence issues'));
+    // The count chips ARE the affordance: tapping either opens the list.
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is NightshadeChip &&
+            (widget.tone == ChipTone.error || widget.tone == ChipTone.warning),
+        description: 'a validation count chip',
+      ).first,
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

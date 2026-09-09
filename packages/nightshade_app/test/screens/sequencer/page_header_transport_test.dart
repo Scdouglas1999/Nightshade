@@ -1,4 +1,5 @@
-// The Sequencer tab strip's run chip must state the run's real state.
+// The Sequencer page header must offer the transport the run's real state
+// admits.
 //
 // With a run PAUSED (toolbar chip "Paused 75%", node badge PAUSED, Pause
 // flipped to Resume, no further frames landing) the chip one row above still
@@ -6,6 +7,11 @@
 // prominent run indicator contradicting the one beside it about whether the
 // rig was exposing. It was driven by an `isRunning` bool that was true for
 // running AND paused.
+//
+// Wave 3 deleted that chip: the instrument bar is the app's one status
+// surface, and the header carries the ACTION instead. The same lie is
+// available to the new header (offering "Pause" on a paused run, or "Start"
+// while the executor owns the tree), so the guard moves to the buttons.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,25 +59,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   }
 
-  testWidgets('a running sequence shows the running chip', (tester) async {
+  testWidgets('a running sequence offers Pause and Stop', (tester) async {
     await pumpAt(tester, SequenceExecutionState.running);
-    expect(find.text('Sequence Running'), findsOneWidget);
-    expect(find.text('Sequence Paused'), findsNothing);
+    expect(find.text('Pause'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
+    expect(
+      find.text('Start'),
+      findsNothing,
+      reason: 'the sequence is already running',
+    );
   });
 
-  testWidgets('a PAUSED sequence does not claim it is running', (tester) async {
+  testWidgets('a PAUSED sequence does not offer Pause', (tester) async {
     await pumpAt(tester, SequenceExecutionState.paused);
     expect(
-      find.text('Sequence Running'),
+      find.text('Pause'),
       findsNothing,
       reason: 'the rig is not exposing while the run is paused',
     );
-    expect(find.text('Sequence Paused'), findsOneWidget);
+    expect(find.text('Resume'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
   });
 
-  testWidgets('an idle sequence shows no run chip at all', (tester) async {
+  testWidgets('an idle sequence offers Start and nothing else',
+      (tester) async {
     await pumpAt(tester, SequenceExecutionState.idle);
-    expect(find.text('Sequence Running'), findsNothing);
-    expect(find.text('Sequence Paused'), findsNothing);
+    expect(find.text('Start'), findsOneWidget);
+    expect(find.text('Stop'), findsNothing);
+    expect(find.text('Pause'), findsNothing);
+    expect(find.text('Resume'), findsNothing);
   });
 }

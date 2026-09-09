@@ -50,7 +50,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    final search = find.widgetWithText(TextField, 'Search nodes...');
+    final search = find.widgetWithText(TextField, 'Search nodes…');
     expect(search, findsOneWidget);
 
     await tester.enterText(search, _noMatch);
@@ -63,7 +63,8 @@ void main() {
     await tester.tap(find.text('Clear search'));
     await tester.pump();
     expect(find.byType(NodePaletteEmptyState), findsNothing);
-    expect(find.text('Imaging'), findsWidgets);
+    // The palette's group labels are eyebrows now (11 px uppercase, 03 §2).
+    expect(find.text('IMAGING'), findsWidgets);
 
     // Drain the live-validation debounce so the binding does not fail the
     // test on a pending timer.
@@ -84,7 +85,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search nodes...'),
+      find.widgetWithText(TextField, 'Search nodes…'),
       _noMatch,
     );
     await tester.pump();
@@ -110,7 +111,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search nodes...'),
+      find.widgetWithText(TextField, 'Search nodes…'),
       _noMatch,
     );
     await tester.pump();

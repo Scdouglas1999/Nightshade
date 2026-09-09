@@ -18,6 +18,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
+import 'canvas_bar_menu.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -34,26 +35,25 @@ void main() {
     );
   }
 
-  testWidgets('the toolbar exposes a Plan Mosaic action', (tester) async {
+  testWidgets('the canvas bar exposes a Plan mosaic action', (tester) async {
     await pumpToolbar(tester);
+    await openCanvasBarMenu(tester);
 
     expect(
-      find.byTooltip('Plan Mosaic'),
+      canvasBarAction('Plan mosaic'),
       findsOneWidget,
       reason: 'the mosaic planner had no entry point in the shipping app',
     );
     // The neighbouring wizards are untouched.
-    expect(find.byTooltip('Quick-Start Wizard'), findsOneWidget);
-    expect(find.byTooltip('Plan Tonight'), findsOneWidget);
+    expect(canvasBarAction('Quick-start wizard'), findsOneWidget);
+    expect(canvasBarAction('Plan tonight'), findsOneWidget);
   });
 
-  testWidgets('tapping Plan Mosaic opens the mosaic wizard', (tester) async {
+  testWidgets('tapping Plan mosaic opens the mosaic wizard', (tester) async {
     await pumpToolbar(tester);
 
     expect(find.byType(MosaicWizardDialog), findsNothing);
-    await tester.tap(find.byTooltip('Plan Mosaic'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tapCanvasBarAction(tester, 'Plan mosaic');
 
     expect(
       find.byType(MosaicWizardDialog),

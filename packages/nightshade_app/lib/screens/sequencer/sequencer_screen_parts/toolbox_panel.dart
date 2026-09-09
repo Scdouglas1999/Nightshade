@@ -71,32 +71,6 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
     super.dispose();
   }
 
-  /// Strip width (excluding the collapse button) below which the three tab
-  /// labels no longer fit at full size and the strip switches to equal shares.
-  static const double _compactStripWidth = 240.0;
-
-  /// A tab label that also states what it is to a screen reader.
-  ///
-  /// Flutter's [TabBar] wraps each tab in [MergeSemantics] and annotates it
-  /// with `selected` + "Tab n of m", but never with an enabled state, and its
-  /// `Semantics(role: SemanticsRole.tab)` is an ANCESTOR node — while the
-  /// merged node carrying the LABEL is the one an AT-SPI client reads. Without
-  /// the state and role declared here that node publishes as a role-less,
-  /// disabled panel for a tab that switches panes on click.
-  Widget _tabLabel(int index, String label, int activeIndex) {
-    return Semantics(
-      button: true,
-      enabled: true,
-      selected: activeIndex == index,
-      child: Text(
-        label,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Watched (not read off the controller) so the tabs' selected-state
@@ -109,103 +83,42 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
       ),
       child: Column(
         children: [
-          // Tab bar header
-          Container(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: widget.colors.border)),
-            ),
-            // The strip has to fit the width the PANEL actually got, which is
-            // not the width the screen has: at a 1000px window the palette is
-            // ~200px wide and the scrollable strip clipped its outer labels —
-            // "Nodes" renders as "\odes" with the N cut off the left edge and
-            // "Queue" as "Queu" with the e cut off behind the collapse button.
-            // A scrollable strip in a too-small viewport hides labels instead
-            // of resizing, so below the threshold we hand the three tabs equal
-            // shares of the strip and shrink the type.
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                const collapseButtonWidth = 24.0;
-                final stripWidth = constraints.maxWidth -
-                    (widget.onCollapse != null ? collapseButtonWidth : 0);
-                final compact = stripWidth < _compactStripWidth;
-                final labelFontSize =
-                    compact ? 11.0 : Responsive.fontSize(context, 12);
-                final labelPadding =
-                    compact ? 4.0 : Responsive.spacing(context, 12);
-                final tabHeight = Responsive.spacing(context, 34);
-
-                return Row(
-                  children: [
-                    Expanded(
-                      child: TabBar(
-                        controller: _tabController,
-                        isScrollable: !compact,
-                        tabAlignment:
-                            compact ? TabAlignment.fill : TabAlignment.start,
-                        indicatorSize: TabBarIndicatorSize.tab,
-                        indicator: NightshadeDecorations.statusChip(
-                          widget.colors.primary,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(NightshadeTokens.radiusLg),
-                          ),
-                          bordered: false,
-                        ),
-                        dividerColor: Colors.transparent,
-                        labelColor: widget.colors.primary,
-                        unselectedLabelColor: widget.colors.textMuted,
-                        labelPadding:
-                            EdgeInsets.symmetric(horizontal: labelPadding),
-                        labelStyle: TextStyle(
-                          fontSize: labelFontSize,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        unselectedLabelStyle: TextStyle(
-                          fontSize: labelFontSize,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        tabs: [
-                          Tab(
-                            height: tabHeight,
-                            child: _tabLabel(0, 'Nodes', activeIndex),
-                          ),
-                          Tab(
-                            height: tabHeight,
-                            // Surface the Ctrl+T accelerator on the
-                            // Snippets tab so the keyboard toggle is
-                            // discoverable.
-                            child: Tooltip(
-                              message: 'Toggle snippets (Ctrl+T)',
-                              child: _tabLabel(1, 'Snippets', activeIndex),
-                            ),
-                          ),
-                          Tab(
-                            height: tabHeight,
-                            child: _tabLabel(2, 'Queue', activeIndex),
-                          ),
-                        ],
-                      ),
+          // A second-level switch INSIDE a panel is a SegmentedControl, never
+          // a tab strip: the page header owns the only tab style in the app
+          // (05 §4). The control sizes itself, so the old shrink-the-labels
+          // LayoutBuilder is gone with the pills it was compensating for.
+          Padding(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+            child: Row(
+              children: [
+                Expanded(
+                  // SegmentedControl publishes button / enabled / selected /
+                  // label per segment, so the palette switch has a role and a
+                  // state in the tree without a wrapper of its own. The Ctrl+T
+                  // accelerator is not repeated here: shortcuts live in the top
+                  // bar's help popover (05 §11).
+                  // Scrolls rather than shrinks: the palette can be dragged
+                  // down to 220 px, where three labels do not fit, and the old
+                  // strip answered that by cutting "Nodes" to "\odes" and
+                  // "Queue" to "Queu". 07: "Do not scale fonts down to make
+                  // something fit. Reduce content or let it scroll."
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedControl(
+                      segments: const ['Nodes', 'Snippets', 'Queue'],
+                      selectedIndex: activeIndex,
+                      onSelected: _tabController.animateTo,
                     ),
-                    if (widget.onCollapse != null)
-                      Tooltip(
-                        message: 'Collapse panel',
-                        child: InkWell(
-                          onTap: widget.onCollapse,
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              LucideIcons.panelLeftClose,
-                              size: 16,
-                              color: widget.colors.textMuted,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
+                  ),
+                ),
+                if (widget.onCollapse != null)
+                  NightshadeIconButton(
+                    icon: LucideIcons.panelLeftClose,
+                    tooltip: 'Collapse panel',
+                    size: IconButtonSize.sm,
+                    onPressed: widget.onCollapse,
+                  ),
+              ],
             ),
           ),
 

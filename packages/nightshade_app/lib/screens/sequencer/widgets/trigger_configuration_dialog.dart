@@ -14,7 +14,7 @@ enum TriggerActionType { pauseAndRecalibrate, autofocus, abort }
 /// HFR, pixels per axis for drift), so reusing the prior numeric value across a
 /// unit boundary silently changes what the trigger means.
 ///
-///   * `guidingRms` 2.0″ matches `ExposureTriggerConfig.fromNativeJson`'s
+///   * `guidingRms` 2.0" matches `ExposureTriggerConfig.fromNativeJson`'s
 ///     fallback below.
 ///   * `hfr` 4.0 px matches `default_hfr_threshold` in the Rust quality module.
 ///   * `drift` 3.0 px is PER AXIS: the Rust executor
@@ -476,7 +476,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
       _condition = next;
       // J-X3: the threshold's *unit* changes with the condition (arcsec /
       // pixels / pixels-per-axis). Carrying over the raw numeric value would
-      // silently reinterpret 2.0″ as 2.0px (or worse). Reset to the new
+      // silently reinterpret 2.0" as 2.0px (or worse). Reset to the new
       // type's sensible default and tell the user we did so.
       switch (next) {
         case TriggerConditionType.guidingRms:

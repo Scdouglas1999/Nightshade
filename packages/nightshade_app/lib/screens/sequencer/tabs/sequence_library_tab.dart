@@ -14,7 +14,6 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../utils/count_label.dart';
 import '../../../utils/exported_file_reveal.dart';
 import '../plan_math.dart';
-import '../widgets/sequencer_tab_header.dart';
 
 part 'sequence_library_tab/library_header.dart';
 part 'sequence_library_tab/library_filter_row.dart';
@@ -175,14 +174,19 @@ class SequenceLibraryTab extends ConsumerWidget {
                         : LucideIcons.folderOpen,
                     title:
                         hasSearch ? 'No sequences found' : 'No saved sequences',
+                    // One sentence, and it already says where sequences come
+                    // from — the "Tip: Use \"Save Current\"" card under it was
+                    // a second sentence saying the same thing in a box, and it
+                    // overflowed its own row on a narrow window.
                     body: hasSearch
-                        ? 'Try a different search term or clear the filters'
-                        : 'Save your sequences to access them later',
+                        ? 'Try a different search, or clear the filters.'
+                        : 'Save a sequence from the Builder and it appears '
+                            'here.',
                     action: hasSearch
                         ? NightshadeButton(
                             label: 'Clear filters',
                             icon: LucideIcons.x,
-                            variant: ButtonVariant.ghost,
+                            variant: ButtonVariant.secondary,
                             size: ButtonSize.small,
                             onPressed: () {
                               ref.read(sequenceSearchProvider.notifier).state =
@@ -195,28 +199,7 @@ class SequenceLibraryTab extends ConsumerWidget {
                                   .state = false;
                             },
                           )
-                        : NightshadeCard(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            borderRadius: NightshadeTokens.radiusInline8,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(LucideIcons.lightbulb,
-                                    size: 14, color: colors.warning),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Tip: Use "Save Current" to save your sequence',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize12,
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        : null,
                   );
                 }
 

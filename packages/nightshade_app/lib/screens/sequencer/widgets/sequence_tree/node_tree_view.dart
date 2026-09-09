@@ -47,6 +47,13 @@ class _NodeTreeView extends ConsumerWidget {
     final nodeStatus = progress.nodeStatuses[nodeId];
     final nodeValidationSeverity = validation.worstSeverityForNode(nodeId);
 
+    // The root container is an implementation detail of the tree, not a step
+    // the operator wrote: it is not selectable, `visibleInstructionCount`
+    // already refuses to count it, and its row repeated the sequence name the
+    // canvas bar now states. Its children ARE the steps, so it renders as
+    // nothing but the column that holds them.
+    final isRoot = nodeId == sequence.rootNodeId;
+
     final children = sequence.getChildren(nodeId);
     final hasChildren = children.isNotEmpty;
     final siblingCount =
@@ -278,16 +285,17 @@ class _NodeTreeView extends ConsumerWidget {
         // context menu lives on the outside of the validation wrapper so
         // its hit-test rect covers the whole row including the warning
         // badge.
-        KeyedSubtree(
-          key: scrollKey,
-          child: headerRow,
-        ),
+        if (!isRoot)
+          KeyedSubtree(
+            key: scrollKey,
+            child: headerRow,
+          ),
 
         // Per-container duration rollup chip ("~2h 14m"). Shown for
         // container node types only — leaves already display their
         // own per-node detail. Lives below the row so a wide row name
         // doesn't get squeezed.
-        if (isContainer)
+        if (isContainer && !isRoot)
           Padding(
             padding: EdgeInsets.only(left: isMobile ? 16 : 24, bottom: 2),
             child: Align(
@@ -316,7 +324,9 @@ class _NodeTreeView extends ConsumerWidget {
         // Children area
         if ((hasChildren || isContainer) && !isCollapsed)
           Padding(
-            padding: EdgeInsets.only(left: isMobile ? 16 : 24),
+            padding: EdgeInsets.only(
+              left: isRoot ? 0 : (isMobile ? 16 : 24),
+            ),
             child: DragTarget<Object>(
               onWillAcceptWithDetails: (data) =>
                   data.data is String ||
@@ -481,22 +491,41 @@ class _NodeTreeView extends ConsumerWidget {
                           isActive: candidateData.isNotEmpty,
                         ),
 
-                      // If empty, show a hint
-                      if (!hasChildren && isContainer)
+                      // The canvas always ends on the line that says what to
+                      // do next (06 §Sequencer: "Last row: muted '+ Drop a
+                      // node here, or double-click one in the palette'").
+                      // Inside a container it names the container's contents
+                      // instead, and only while that container is empty.
+                      if (isRoot || (!hasChildren && isContainer))
                         Padding(
-                          padding:
-                              EdgeInsets.symmetric(vertical: isMobile ? 12 : 8),
-                          child: Text(
-                            isMobile
-                                ? 'Tap + to add instructions'
-                                : 'Drop instructions here',
-                            style: TextStyle(
-                              fontSize: isMobile
-                                  ? NightshadeTypography.fontSize12
-                                  : NightshadeTypography.fontSize11,
-                              color: colors.textMuted.withValues(alpha: 0.5),
-                              fontStyle: FontStyle.italic,
-                            ),
+                          padding: const EdgeInsets.only(
+                            top: NightshadeTokens.spaceMd,
+                            left: NightshadeTokens.spaceXs + 2,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                LucideIcons.plus,
+                                size: 14,
+                                color: colors.textMuted,
+                              ),
+                              const SizedBox(width: NightshadeTokens.spaceSm),
+                              Flexible(
+                                child: Text(
+                                  isMobile
+                                      ? 'Tap + to add a node'
+                                      : isRoot
+                                          ? 'Drop a node here, or '
+                                              'double-click one in the palette'
+                                          : 'Drop a node here',
+                                  style: NightshadeTypography.bodySm.copyWith(
+                                    color: colors.textMuted,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],

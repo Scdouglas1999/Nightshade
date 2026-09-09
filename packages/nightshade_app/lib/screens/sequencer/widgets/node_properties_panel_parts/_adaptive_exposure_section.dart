@@ -82,7 +82,7 @@ class _AdaptiveExposureSectionState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Adaptive Exposure (sky-brightness)',
+                  'Adaptive exposure',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: Responsive.fontSize(context, 12),

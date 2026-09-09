@@ -77,6 +77,9 @@ void main() {
 
     expect(find.textContaining('Will use target: M31'), findsOneWidget);
     expect(find.textContaining('has no coordinates set'), findsNothing);
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('tree card prints "Not set" rather than 00h 00m 00s',
@@ -104,6 +107,9 @@ void main() {
     expect(find.text('00h 00m 00s'), findsNothing);
     expect(find.text('+00° 00\' 00"'), findsNothing);
     expect(find.text('Not set'), findsNWidgets(2));
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('target editor warns about the placeholder and resolves the name',
@@ -169,5 +175,8 @@ void main() {
     expect(updated.raHours, closeTo(_m31RaHours, 1e-9));
     expect(updated.decDegrees, closeTo(_m31DecDegrees, 1e-9));
     expect(targetCoordinatesUnset(updated), isFalse);
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }

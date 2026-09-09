@@ -12,11 +12,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Meridian Flip Settings'),
+        NodeSectionHeader(colors: colors, label: 'Meridian flip settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Trigger Method',
+          label: 'Trigger method',
           child: NodeDropdown<MeridianTriggerMethod>(
             colors: colors,
             value: node.triggerMethod,
@@ -43,7 +43,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         if (node.triggerMethod == MeridianTriggerMethod.minutesPastMeridian)
           NodePropertyField(
             colors: colors,
-            label: 'Minutes Past Meridian',
+            label: 'Minutes past meridian',
             child: NodeNumberInput(
               colors: colors,
               value: node.minutesPastMeridian,
@@ -61,7 +61,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         if (node.triggerMethod == MeridianTriggerMethod.minutesBeforeLimit)
           NodePropertyField(
             colors: colors,
-            label: 'Minutes Before Limit',
+            label: 'Minutes before limit',
             child: NodeNumberInput(
               colors: colors,
               value: node.minutesBeforeLimit,
@@ -79,7 +79,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         if (node.triggerMethod == MeridianTriggerMethod.hourAngleThreshold)
           NodePropertyField(
             colors: colors,
-            label: 'Hour Angle Threshold',
+            label: 'Hour angle threshold',
             child: NodeNumberInput(
               colors: colors,
               value: node.hourAngleThreshold,
@@ -124,11 +124,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: 8),
-        NodeSectionHeader(colors: colors, label: 'Flip Sequence'),
+        NodeSectionHeader(colors: colors, label: 'Flip sequence'),
         const SizedBox(height: 8),
         NodePropertyField(
           colors: colors,
-          label: 'Pause Guiding',
+          label: 'Pause guiding',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.pauseGuiding,
@@ -141,7 +141,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Auto Center After Flip',
+          label: 'Auto center after flip',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.autoCenter,
@@ -154,7 +154,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Refocus After Flip',
+          label: 'Refocus after flip',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.refocusAfter,
@@ -167,7 +167,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Resume Guiding',
+          label: 'Resume guiding',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.resumeGuiding,
@@ -180,7 +180,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Time',
+          label: 'Settle time',
           helpText:
               'How long to wait after the flip for the mount to mechanically '
               'settle before resuming guiding/imaging.',
@@ -199,11 +199,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 8),
-        NodeSectionHeader(colors: colors, label: 'Error Handling'),
+        NodeSectionHeader(colors: colors, label: 'Error handling'),
         const SizedBox(height: 8),
         NodePropertyField(
           colors: colors,
-          label: 'Max Retries',
+          label: 'Max retries',
           child: NodeNumberInput(
             colors: colors,
             value: node.maxRetries.toDouble(),
@@ -218,7 +218,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Failure Action',
+          label: 'Failure action',
           child: NodeDropdown<FlipFailureAction>(
             colors: colors,
             value: node.failureAction,
@@ -277,7 +277,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NodeSectionHeader(colors: colors, label: 'Polar Alignment Settings'),
+        NodeSectionHeader(colors: colors, label: 'Polar alignment settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -299,7 +299,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
             Expanded(
               child: NodePropertyField(
                 colors: colors,
-                label: 'Exposure Duration',
+                label: 'Exposure duration',
                 child: NodeNumberInput(
                   colors: colors,
                   value: node.exposureDuration,
@@ -337,7 +337,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Start Altitude',
+          label: 'Start altitude',
           child: NodeNumberInput(
             colors: colors,
             value: node.startAltitude,
@@ -354,7 +354,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Rotation Step',
+          label: 'Rotation step',
           child: NodeNumberInput(
             colors: colors,
             value: node.rotationStep,
@@ -422,7 +422,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Start From Current Position',
+          label: 'Start from current position',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.startFromCurrent,
@@ -435,7 +435,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Manual Slew Mode',
+          label: 'Manual slew mode',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.manualSlew,

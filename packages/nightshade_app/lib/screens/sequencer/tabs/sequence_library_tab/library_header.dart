@@ -54,7 +54,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
         children: [
           Row(
             children: [
-              Expanded(child: _buildTitle()),
+              Expanded(child: _buildSearch()),
               const SizedBox(width: 12),
               _ActionButton(
                 colors: widget.colors,
@@ -68,8 +68,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildSearch()),
-              const SizedBox(width: 8),
+              const Spacer(),
               _buildSortControl(sortOrder),
             ],
           ),
@@ -79,11 +78,10 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
 
     return Row(
       children: [
-        // Title. Expanded, not Flexible beside a Spacer: the toolbar's widths
-        // are fixed rather than competing for a flex share, so the heading gets
-        // every pixel the toolbar does not need and cannot be clipped to
-        // "Sequenc…" while the controls stay right-aligned.
-        Expanded(child: _buildTitle()),
+        // No title row: the page header names the screen and the underline tab
+        // names the tab. The row is the tab's controls, right-aligned behind
+        // the space they do not need.
+        const Spacer(),
 
         const SizedBox(width: 16),
 
@@ -106,15 +104,6 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           onPressed: () => _showSaveSequenceDialog(context),
         ),
       ],
-    );
-  }
-
-  // One shared Sequencer tab heading; see
-  // `widgets/sequencer_tab_header.dart` for the rule it enforces.
-  Widget _buildTitle() {
-    return const SequencerTabTitle(
-      title: 'Sequence Library',
-      subtitle: 'Browse and load your saved imaging sequences.',
     );
   }
 

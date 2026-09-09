@@ -14,6 +14,13 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
+  /// Horizontal padding of the palette column (06 §Sequencer: 10 / 12).
+  static const EdgeInsets _columnPadding = EdgeInsets.fromLTRB(
+      NightshadeTokens.spaceMd,
+      0,
+      NightshadeTokens.spaceMd,
+      NightshadeTokens.spaceSm);
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -21,9 +28,6 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
   }
 
   IconData _getIcon(String iconName) => nodePaletteIconFor(iconName);
-
-  Color _getCategoryColor(String categoryName) =>
-      nodePaletteCategoryColor(categoryName, widget.colors);
 
   @override
   Widget build(BuildContext context) {
@@ -34,67 +38,32 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
     // widgets/node_palette_search.dart.
     final filteredCategories = rankNodePaletteMatches(categories, _searchQuery);
 
-    final searchFontSize = Responsive.fontSize(context, 13);
-    final searchIconSize = Responsive.iconSize(context, 15);
-    final searchPadding = Responsive.spacing(context, 12);
-
     return Column(
       children: [
-        // Search field
         Padding(
-          padding: EdgeInsets.all(searchPadding),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: searchPadding),
-            decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: widget.colors.border),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  LucideIcons.search,
-                  size: searchIconSize,
-                  color: widget.colors.textMuted,
-                ),
-                SizedBox(width: Responsive.spacing(context, 8)),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                    style: TextStyle(
-                      fontSize: searchFontSize,
-                      color: widget.colors.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search nodes...',
-                      hintStyle: TextStyle(
-                        fontSize: searchFontSize,
-                        color: widget.colors.textMuted,
-                      ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: Responsive.spacing(context, 10),
-                      ),
-                    ),
-                  ),
-                ),
-                if (_searchQuery.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
+          padding: const EdgeInsets.fromLTRB(
+            NightshadeTokens.spaceMd,
+            0,
+            NightshadeTokens.spaceMd,
+            NightshadeTokens.spaceSm,
+          ),
+          child: NightshadeTextField(
+            controller: _searchController,
+            hint: 'Search nodes…',
+            prefixIcon: LucideIcons.search,
+            dense: true,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            suffixWidget: _searchQuery.isEmpty
+                ? null
+                : NightshadeIconButton(
+                    icon: LucideIcons.x,
+                    tooltip: 'Clear search',
+                    size: IconButtonSize.sm,
+                    onPressed: () {
                       _searchController.clear();
                       setState(() => _searchQuery = '');
                     },
-                    child: Icon(
-                      LucideIcons.x,
-                      size: searchIconSize,
-                      color: widget.colors.textMuted,
-                    ),
                   ),
-              ],
-            ),
           ),
         ),
 
@@ -118,174 +87,84 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
                     },
                   )
                 : ListView.builder(
-                    padding:
-                        EdgeInsets.only(bottom: Responsive.spacing(context, 8)),
+                    padding: _columnPadding,
                     itemCount: filteredCategories.length,
                     itemBuilder: (context, index) {
                       final category = filteredCategories[index];
                       return _NodeCategorySection(
                         category: category,
                         colors: widget.colors,
-                        categoryColor: _getCategoryColor(category.name),
                         getIcon: _getIcon,
                       );
                     },
                   ),
           ),
         ),
-
-        // Help tip
-        Container(
-          padding: EdgeInsets.all(Responsive.spacing(context, 10)),
-          margin: EdgeInsets.all(Responsive.spacing(context, 10)),
-          decoration: NightshadeDecorations.iconChip(
-            widget.colors.info,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            borderAlpha: 0.2,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                LucideIcons.info,
-                size: Responsive.iconSize(context, 13),
-                color: widget.colors.info,
-              ),
-              SizedBox(width: Responsive.spacing(context, 6)),
-              Expanded(
-                child: Text(
-                  'Drag nodes or double-click to add',
-                  style: TextStyle(
-                    fontSize: Responsive.fontSize(context, 11),
-                    color: widget.colors.info,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        // The "drag nodes or double-click to add" tip is gone: the canvas
+        // already says "Drop a node here, or double-click one in the palette"
+        // exactly once, where the drop happens.
       ],
     );
   }
 }
 
-/// Node category section for the palette content
-class _NodeCategorySection extends ConsumerStatefulWidget {
+/// One eyebrow-labelled group of palette rows.
+///
+/// Flat, not collapsible: the palette is a list to scan, and a chevron per
+/// group turned eight nodes into eight decisions. The category is a label, not
+/// a colour — chrome carries no rainbow (02 "What Observatory is not").
+class _NodeCategorySection extends ConsumerWidget {
   final NodePaletteCategory category;
   final NightshadeColors colors;
-  final Color categoryColor;
   final IconData Function(String) getIcon;
 
   const _NodeCategorySection({
     required this.category,
     required this.colors,
-    required this.categoryColor,
     required this.getIcon,
   });
 
   @override
-  ConsumerState<_NodeCategorySection> createState() =>
-      _NodeCategorySectionState();
-}
-
-class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
-  bool _isExpanded = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final badgeSize = Responsive.spacing(context, 26);
-    final badgeIconSize = Responsive.iconSize(context, 13);
-    final categoryFontSize = Responsive.fontSize(context, 12);
-    final chevronSize = Responsive.iconSize(context, 14);
-    final hPadding = Responsive.spacing(context, 12);
-    final vPadding = Responsive.spacing(context, 8);
-    final itemPadding = Responsive.spacing(context, 10);
-
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          child: Padding(
-            padding:
-                EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
-            child: Row(
-              children: [
-                Container(
-                  width: badgeSize,
-                  height: badgeSize,
-                  decoration: NightshadeDecorations.statusChip(
-                    widget.categoryColor,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
-                    bordered: false,
-                  ),
-                  child: Icon(
-                    widget.getIcon(widget.category.icon),
-                    size: badgeIconSize,
-                    color: widget.categoryColor,
-                  ),
-                ),
-                SizedBox(width: Responsive.spacing(context, 8)),
-                Expanded(
-                  child: Text(
-                    widget.category.name,
-                    style: TextStyle(
-                      fontSize: categoryFontSize,
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.textPrimary,
-                    ),
-                  ),
-                ),
-                AnimatedRotation(
-                  turns: _isExpanded ? 0 : -0.25,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    LucideIcons.chevronDown,
-                    size: chevronSize,
-                    color: widget.colors.textMuted,
-                  ),
-                ),
-              ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            NightshadeTokens.spaceXs,
+            NightshadeTokens.spaceSm,
+            NightshadeTokens.spaceXs,
+            2,
+          ),
+          child: Text(
+            category.name.toUpperCase(),
+            style: NightshadeTypography.eyebrow.copyWith(
+              color: colors.textMuted,
             ),
           ),
         ),
-        AnimatedCrossFade(
-          firstChild: Padding(
-            padding: EdgeInsets.only(
-                left: itemPadding, right: itemPadding, bottom: 4),
-            child: Column(
-              children: widget.category.items.map((item) {
-                return _DraggableNodeItemCompact(
-                  item: item,
-                  colors: widget.colors,
-                  categoryColor: widget.categoryColor,
-                  getIcon: widget.getIcon,
-                );
-              }).toList(),
-            ),
+        for (final item in category.items)
+          _DraggableNodeItemCompact(
+            item: item,
+            colors: colors,
+            getIcon: getIcon,
           ),
-          secondChild: const SizedBox.shrink(),
-          crossFadeState: _isExpanded
-              ? CrossFadeState.showFirst
-              : CrossFadeState.showSecond,
-          duration: const Duration(milliseconds: 200),
-        ),
       ],
     );
   }
 }
 
-/// Compact draggable node item for the toolbox
+/// A palette row: `[26 px icon square in well] [name 13] [description 12
+/// muted] … [plus muted]` (06 §Sequencer). Draggable onto the canvas, and a
+/// single tap on the trailing plus adds it under the selection.
 class _DraggableNodeItemCompact extends ConsumerStatefulWidget {
   final NodePaletteItem item;
   final NightshadeColors colors;
-  final Color categoryColor;
   final IconData Function(String) getIcon;
 
   const _DraggableNodeItemCompact({
     required this.item,
     required this.colors,
-    required this.categoryColor,
     required this.getIcon,
   });
 
@@ -297,6 +176,12 @@ class _DraggableNodeItemCompact extends ConsumerStatefulWidget {
 class _DraggableNodeItemCompactState
     extends ConsumerState<_DraggableNodeItemCompact> {
   bool _isHovered = false;
+
+  /// The row's icon square (06 §Sequencer).
+  static const double _iconSquare = 26;
+
+  /// Glyph inside that square, and the trailing plus.
+  static const double _glyph = 14;
 
   void _addNode() {
     // Refuse the click while the executor owns the tree; the editor still
@@ -323,39 +208,31 @@ class _DraggableNodeItemCompactState
 
   @override
   Widget build(BuildContext context) {
-    final nameFontSize = Responsive.fontSize(context, 12);
-    final descFontSize = Responsive.fontSize(context, 10);
-    final feedbackFontSize = Responsive.fontSize(context, 12);
-    final iconBoxSize = Responsive.spacing(context, 28);
-    final itemIconSize = Responsive.iconSize(context, 14);
-    final feedbackIconSize = Responsive.iconSize(context, 13);
-    final plusIconSize = Responsive.iconSize(context, 12);
-    final hPadding = Responsive.spacing(context, 10);
-    final vPadding = Responsive.spacing(context, 8);
+    final colors = widget.colors;
 
     return Draggable<NodePaletteItem>(
       data: widget.item,
       feedback: Material(
         color: Colors.transparent,
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: 6),
-          decoration: NightshadeDecorations.selectedSurface(
-            widget.categoryColor,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            fillAlpha: 0.2,
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceMd,
+            vertical: NightshadeTokens.spaceSm,
           ),
+          decoration: NightshadeDecorations.popover(colors),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.getIcon(widget.item.icon),
-                  size: feedbackIconSize, color: widget.categoryColor),
-              const SizedBox(width: 6),
+              Icon(
+                widget.getIcon(widget.item.icon),
+                size: _glyph,
+                color: colors.primary,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
-                widget.item.name,
-                style: TextStyle(
-                  fontSize: feedbackFontSize,
-                  fontWeight: FontWeight.w500,
-                  color: widget.colors.textPrimary,
+                paletteSentenceCase(widget.item.name),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textPrimary,
                 ),
               ),
             ],
@@ -367,60 +244,52 @@ class _DraggableNodeItemCompactState
         onExit: (_) => setState(() => _isHovered = false),
         child: GestureDetector(
           onDoubleTap: _addNode,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(top: 3),
-            padding:
-                EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
-            decoration: BoxDecoration(
-              color: _isHovered
-                  ? widget.colors.surfaceAlt
-                  : widget.colors.background,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              border: Border.all(
-                color: _isHovered
-                    ? widget.categoryColor.withValues(alpha: 0.5)
-                    : widget.colors.border,
-              ),
+          child: Container(
+            margin: const EdgeInsets.only(top: NightshadeTokens.spaceXs + 2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm + 2,
+              vertical: NightshadeTokens.spaceSm,
             ),
+            decoration: _isHovered
+                ? NightshadeDecorations.panel(colors).copyWith(
+                    color: colors.surfaceHover,
+                  )
+                : NightshadeDecorations.panel(colors),
             child: Row(
               children: [
                 Container(
-                  width: iconBoxSize,
-                  height: iconBoxSize,
-                  decoration: NightshadeDecorations.tintedBadge(
-                    widget.categoryColor,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
-                  ),
+                  width: _iconSquare,
+                  height: _iconSquare,
+                  decoration: NightshadeDecorations.well(colors),
                   child: Icon(
                     widget.getIcon(widget.item.icon),
-                    size: itemIconSize,
-                    color: widget.categoryColor,
+                    size: _glyph,
+                    color: colors.textSecondary,
                   ),
                 ),
-                SizedBox(width: Responsive.spacing(context, 8)),
+                const SizedBox(width: NightshadeTokens.spaceSm + 2),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.item.name,
-                        style: TextStyle(
-                          fontSize: nameFontSize,
-                          fontWeight: FontWeight.w500,
-                          color: _isHovered
-                              ? widget.colors.textPrimary
-                              : widget.colors.textSecondary,
+                        // Sentence case at the point of DRAWING: the strings
+                        // live in nightshade_core, which this wave may not
+                        // touch, and the name a node carries once it is in a
+                        // sequence is the user's data (see palette_copy.dart).
+                        paletteSentenceCase(widget.item.name),
+                        style: NightshadeTypography.bodySm.copyWith(
+                          color: colors.textPrimary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         widget.item.description,
-                        style: TextStyle(
-                          fontSize: descFontSize,
-                          color: widget.colors.textMuted,
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textMuted,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -436,10 +305,10 @@ class _DraggableNodeItemCompactState
                       padding: const EdgeInsets.all(2),
                       child: Icon(
                         LucideIcons.plus,
-                        size: plusIconSize,
+                        size: _glyph,
                         color: _isHovered
-                            ? widget.categoryColor
-                            : widget.categoryColor.withValues(alpha: 0.6),
+                            ? colors.textSecondary
+                            : colors.textMuted,
                       ),
                     ),
                   ),
@@ -452,5 +321,3 @@ class _DraggableNodeItemCompactState
     );
   }
 }
-
-/// Snippet palette content for the toolbox

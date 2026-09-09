@@ -6,11 +6,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
+import 'canvas_bar_menu.dart';
 
 /// Root
 ///   TargetHeader "M42"
@@ -54,8 +56,18 @@ Future<HarnessHandle> _pumpTree(WidgetTester tester) async {
 
   return pumpAppScreen(
     tester,
+    // Collapse-all moved from the tree's own header row into the canvas
+    // bar's menu in wave 3 (06 §Sequencer), so the pair is pumped
+    // together — which is also how the builder lays them out.
     Builder(
-      builder: (context) => SequenceTree(colors: NightshadeColors.of(context)),
+      builder: (context) => Column(
+        children: [
+          SequenceToolbar(colors: NightshadeColors.of(context)),
+          Expanded(
+            child: SequenceTree(colors: NightshadeColors.of(context)),
+          ),
+        ],
+      ),
     ),
     size: const Size(1000, 900),
     // The target card animates continuously (altitude chart / status pulse),
@@ -86,9 +98,7 @@ void main() {
       expect(find.text('Inner one'), findsOneWidget);
       expect(find.text('Tail'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Collapse all'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tapCanvasBarAction(tester, 'Collapse all steps');
 
       expect(tester.takeException(), isNull);
 
@@ -114,24 +124,26 @@ void main() {
           .id;
       expect(handle.container.read(selectedNodeIdProvider), tailId);
       await tester.pump(const Duration(milliseconds: 800));
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 
   testWidgets('Expand all restores the hidden rows', (tester) async {
     await _pumpAndDrain(tester);
 
-    await tester.tap(find.byTooltip('Collapse all'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tapCanvasBarAction(tester, 'Collapse all steps');
     expect(find.text('Inner one'), findsNothing);
 
-    await tester.tap(find.byTooltip('Expand all'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tapCanvasBarAction(tester, 'Expand all steps');
 
     expect(find.text('Inner one'), findsOneWidget);
     expect(find.text('Inner two'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(milliseconds: 800));
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }

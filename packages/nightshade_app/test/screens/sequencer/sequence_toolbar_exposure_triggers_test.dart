@@ -16,6 +16,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
+import 'canvas_bar_menu.dart';
 
 Sequence _sequence({required bool withExposure}) {
   final root = InstructionSetNode(name: 'Sequence');
@@ -62,13 +63,13 @@ void main() {
     (tester) async {
       await _pumpToolbar(tester, withExposure: false);
 
-      final action = find.byTooltip(
-        'Exposure Triggers (add an exposure node first)',
-      );
-      expect(action, findsOneWidget);
+      await openCanvasBarMenu(tester);
+      const label = 'Exposure triggers (add an exposure node first)';
+      expect(canvasBarAction(label), findsOneWidget);
 
       // Disabled, not merely labelled: tapping must not open the dialog.
-      await tester.tap(action, warnIfMissed: false);
+      expect(canvasBarActionEnabled(tester, label), isFalse);
+      await tester.tap(canvasBarAction(label), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(TriggerConfigurationDialog), findsNothing);
@@ -81,9 +82,7 @@ void main() {
     (tester) async {
       final handle = await _pumpToolbar(tester, withExposure: true);
 
-      await tester.tap(find.byTooltip('Exposure Triggers'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tapCanvasBarAction(tester, 'Exposure triggers');
 
       expect(find.byType(TriggerConfigurationDialog), findsOneWidget);
       // The dialog states what it is editing.
@@ -109,6 +108,10 @@ void main() {
         isNotEmpty,
         reason: 'Save must land on the node that runs the trigger',
       );
+
+      // Writing the trigger re-arms live validation's 500 ms debounce; drain
+      // it so the binding does not fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 }

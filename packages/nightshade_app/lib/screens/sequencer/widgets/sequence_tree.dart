@@ -7,19 +7,15 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../../../utils/count_label.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../widgets/tutorial_keys/sequencer_keys.dart';
 import '../../accessible_dropdown.dart';
-import '../sequence_counts.dart';
 import 'delete_node_confirmation.dart';
 import 'exposure_node_thumbnail_strip.dart';
 import 'node_duration_chip.dart';
 import 'node_progress_panels.dart';
 import 'node_summary.dart';
 import 'node_summary_line.dart';
-import 'palette_icon_map.dart';
-import 'sequence_issues_dialog.dart';
 import 'sequence_minimap.dart';
 import 'sequence_tree_context_menu.dart';
 import 'sequence_tree_shortcuts.dart';
@@ -27,7 +23,6 @@ import 'target_header_card.dart';
 import 'target_queue_panel.dart';
 import 'visual_timeline.dart';
 
-part 'sequence_tree/sequence_header.dart';
 part 'sequence_tree/node_tree_view.dart';
 part 'sequence_tree/node_item.dart';
 part 'sequence_tree/support_widgets.dart';
@@ -298,17 +293,19 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
 
   Widget _buildEmptyState(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
+    // One empty-state pattern, one button, and that button is `secondary`:
+    // the page's single primary is Start, in the header.
     return EmptyState(
       icon: LucideIcons.workflow,
-      title: 'Build Your Sequence',
+      title: 'Build your sequence',
       body: isMobile
-          ? 'Tap + to add nodes'
-          : 'Drag nodes from the palette to start building',
+          ? 'Tap + to add a node.'
+          : 'Drag a node from the palette, or double-click one.',
       action: NightshadeButton(
         onPressed: _addStarterTargetHeader,
-        label: 'Add Target Header',
+        label: 'Add a target',
         icon: LucideIcons.target,
-        variant: ButtonVariant.primary,
+        variant: ButtonVariant.secondary,
         size: ButtonSize.small,
       ),
     );
@@ -432,18 +429,19 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               }
               return Column(
                 children: [
-                  // Sequence header with validation counts
-                  _SequenceHeader(
-                    colors: widget.colors,
-                    sequence: sequence,
-                    validation: validation,
-                  ),
-
-                  // Tree view
+                  // No header row: the canvas bar above the tree carries the
+                  // sequence's name, its issue counts and its view toggles.
                   Expanded(
                     child: SingleChildScrollView(
                       controller: _scrollController,
-                      padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
+                      // 16 / 20 (06 §Sequencer): the canvas breathes at the
+                      // sides and packs vertically.
+                      padding: widget.isMobile
+                          ? const EdgeInsets.all(NightshadeTokens.spaceMd)
+                          : const EdgeInsets.symmetric(
+                              horizontal: NightshadeTokens.spaceXl,
+                              vertical: NightshadeTokens.spaceLg,
+                            ),
                       child: _NodeTreeView(
                         colors: widget.colors,
                         sequence: sequence,

@@ -74,6 +74,9 @@ void main() {
             'in / out per transport.',
       );
     }
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets(
@@ -89,6 +92,9 @@ void main() {
           'so the chip must annotate that fact rather than silently '
           'render as if Telegram were ready.',
     );
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   // The title and message hints advertise ${frame} / ${target.name} /
@@ -113,6 +119,9 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'frame');
     await tester.pumpAndSettle();
     expect(find.text(r'${frame}'), findsOneWidget);
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('inserting a variable commits it to the node', (tester) async {
@@ -133,6 +142,9 @@ void main() {
     final saved = container.read(currentSequenceProvider)!.nodes[node.id]!
         as NotificationNode;
     expect(saved.title, r'${target.name}');
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('preview_section_is_present: the live preview header renders',
@@ -146,5 +158,8 @@ void main() {
     expect(find.text('Preview'), findsOneWidget,
         reason: 'The NotificationNode property panel must surface a Preview '
             'box so the user can see the rendered template before run time.');
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }
