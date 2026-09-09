@@ -59,10 +59,10 @@ class GuideTargetDisplay extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.background,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        borderRadius: NightshadeTokens.borderRadiusLg,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+        borderRadius: NightshadeTokens.borderRadiusSm,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final size = math.min(constraints.maxWidth, constraints.maxHeight);

@@ -86,7 +86,6 @@ class _DecisionPanel extends ConsumerWidget {
             if (status.pausedByOperatorStop) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
               _OperatorStopBanner(
-                colors: colors,
                 busy: controlsBusy,
                 onResume: onResume,
               ),
@@ -110,10 +109,15 @@ class _DecisionPanel extends ConsumerWidget {
             ),
             if (status.state == SchedulerState.idle && readiness.blocked) ...[
               const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                'Cannot start unattended until: ${readiness.blockers.map((item) => item.title).join(', ')}.',
-                style:
-                    NightshadeTypography.caption.copyWith(color: colors.error),
+              // ONE banner for the problem (05 §11), not a red paragraph. The
+              // blockers read as a comma list; the Start button keeps its own
+              // tooltip, which carries each blocker's detail line.
+              NightshadeBanner(
+                key: const ValueKey('scheduler-start-blocked-banner'),
+                tone: BannerTone.warning,
+                title: 'Cannot start unattended yet',
+                message:
+                    readiness.blockers.map((item) => item.title).join(', '),
               ),
             ] else if (status.state == SchedulerState.idle &&
                 !candidateAvailable) ...[
@@ -151,65 +155,38 @@ class _DecisionPanel extends ConsumerWidget {
 /// among four other controls. Standing down is only an improvement if the
 /// operator can see that it happened and take the night back in one press.
 class _OperatorStopBanner extends StatelessWidget {
-  final NightshadeColors colors;
   final bool busy;
   final Future<void> Function() onResume;
 
   const _OperatorStopBanner({
-    required this.colors,
     required this.busy,
     required this.onResume,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // One banner style across the app (05 §11): the same NightshadeBanner the
+    // start-blocked case uses, with the resume action in its action slot.
+    return NightshadeBanner(
       key: const ValueKey('scheduler-operator-pause-banner'),
-      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.40)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(LucideIcons.pauseCircle,
-              size: NightshadeTokens.iconMd, color: colors.warning),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Autopilot paused — resume?',
-                  style: NightshadeTypography.buttonSm
-                      .copyWith(color: colors.textPrimary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'You stopped the run it had started, so it is leaving the rig '
-                  'alone instead of picking another target.',
-                  style: NightshadeTypography.caption
-                      .copyWith(color: colors.textSecondary),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                NightshadeButton(
-                  key: const ValueKey('scheduler-operator-pause-resume'),
-                  label: 'Resume autopilot',
-                  icon: LucideIcons.play,
-                  size: ButtonSize.small,
-                  onPressed: busy ? null : () => onResume(),
-                ),
-              ],
-            ),
-          ),
-        ],
+      tone: BannerTone.warning,
+      icon: LucideIcons.pauseCircle,
+      title: 'Autopilot paused',
+      message: 'You stopped the run it had started, so it is leaving the rig '
+          'alone instead of picking another target.',
+      action: NightshadeButton(
+        key: const ValueKey('scheduler-operator-pause-resume'),
+        label: 'Resume autopilot',
+        icon: LucideIcons.play,
+        size: ButtonSize.small,
+        variant: ButtonVariant.secondary,
+        onPressed: busy ? null : () => onResume(),
       ),
     );
   }
 }
 
+/// The autopilot's run state, as the one status-chip style (05 §10).
 class _StateBadge extends StatelessWidget {
   final SchedulerState state;
   final NightshadeColors colors;
@@ -217,20 +194,12 @@ class _StateBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (state) {
-      SchedulerState.idle => ('Idle', colors.textMuted),
-      SchedulerState.running => ('Running', colors.success),
-      SchedulerState.paused => ('Paused', colors.warning),
+    final (label, tone) = switch (state) {
+      SchedulerState.idle => ('Idle', ChipTone.neutral),
+      SchedulerState.running => ('Running', ChipTone.success),
+      SchedulerState.paused => ('Paused', ChipTone.warning),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: NightshadeDecorations.chip(colors, tone: color),
-      child: Text(
-        label,
-        style: NightshadeTypography.caption
-            .copyWith(color: color, fontWeight: FontWeight.w700),
-      ),
-    );
+    return NightshadeChip(label: label, tone: tone, dot: true);
   }
 }
 

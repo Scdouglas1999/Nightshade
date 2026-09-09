@@ -75,112 +75,111 @@ class _CanvasControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer(
       builder: (context, ref, child) {
-        // The survey-source picker plus toggle chips. On a narrow phone canvas
-        // there is not enough width to keep all of these on one line, so they
-        // live in a [Wrap] that flows to a second line instead of overflowing.
-        final chips = <Widget>[
-          // Survey-source selector: a real NightshadeDropdown wired to the
-          // framing notifier so changing the source refetches the imagery for
-          // the new survey. No dead handler — selection drives setSurveySource.
-          _SurveySourceSelector(
-            colors: colors,
-            source: framingState.surveySource,
-            onChanged: (source) =>
-                ref.read(framingProvider.notifier).setSurveySource(source),
-          ),
-          _ControlChip(
+        // One toolbar (05 §7): the survey picker in its own group, then the
+        // layer toggles as selectable icon buttons. NightshadeToolbar only
+        // measures itself when it is given an `overflow` list; with none it is
+        // a min-width Row, so on a phone canvas the strip scrolls sideways
+        // rather than overflowing (07: reduce content or let it scroll).
+        final toggles = <Widget>[
+          NightshadeIconButton(
             icon: NightshadeIcons.grid,
-            label: 'Grid',
-            isActive: framingState.showGrid,
-            colors: colors,
-            onTap: () => ref.read(framingProvider.notifier).toggleGrid(),
+            tooltip: 'Grid',
+            size: IconButtonSize.sm,
+            selected: framingState.showGrid,
+            onPressed: () => ref.read(framingProvider.notifier).toggleGrid(),
           ),
-          _ControlChip(
+          NightshadeIconButton(
             icon: NightshadeIcons.tag,
-            label: 'Labels',
-            isActive: framingState.showLabels,
-            colors: colors,
-            onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
+            tooltip: 'Labels',
+            size: IconButtonSize.sm,
+            selected: framingState.showLabels,
+            onPressed: () => ref.read(framingProvider.notifier).toggleLabels(),
           ),
           // Guide-star finder: highlights bright (V < 10) catalog stars inside
           // the imaging FOV as candidate autoguider guide stars.
-          _ControlChip(
+          NightshadeIconButton(
             icon: NightshadeIcons.guider,
-            label: 'Guide Stars',
-            isActive: framingState.showGuideStars,
-            colors: colors,
-            onTap: () => ref.read(framingProvider.notifier).toggleGuideStars(),
+            tooltip: 'Guide stars',
+            size: IconButtonSize.sm,
+            selected: framingState.showGuideStars,
+            onPressed: () =>
+                ref.read(framingProvider.notifier).toggleGuideStars(),
           ),
-          // HiPS deep-survey tiles toggle. Only shown for surveys that have a
+          // HiPS deep-survey tiles. Only offered for surveys that have a
           // verified HiPS pyramid (the toggle would be inert otherwise — the
           // capability gate, hipsSurveyIsTileCapable, would keep tiles off);
-          // for those surveys it flips hipsFramingEnabledProvider, the same
-          // user preference hipsFramingActiveProvider combines with the
-          // capability gate to mount/unmount the streamed tile mosaic.
+          // for those it flips hipsFramingEnabledProvider, the same user
+          // preference hipsFramingActiveProvider combines with the capability
+          // gate to mount/unmount the streamed tile mosaic.
           if (hipsSurveyIsTileCapable(framingState.surveySource))
-            _ControlChip(
+            NightshadeIconButton(
               icon: NightshadeIcons.sparkle,
-              label: 'HiPS Tiles',
-              isActive: ref.watch(hipsFramingEnabledProvider),
-              colors: colors,
-              onTap: () {
+              tooltip: 'HiPS tiles',
+              size: IconButtonSize.sm,
+              selected: ref.watch(hipsFramingEnabledProvider),
+              onPressed: () {
                 final notifier = ref.read(hipsFramingEnabledProvider.notifier);
                 notifier.state = !notifier.state;
               },
             ),
         ];
 
-        final loading = framingState.isLoadingImage
-            ? Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: NightshadeTokens.spaceMd,
-                    vertical: NightshadeTokens.spaceSm),
-                decoration: BoxDecoration(
-                  color: colors.surfaceOverlay
-                      .withValues(alpha: NightshadeTokens.opacityMuted),
-                  borderRadius: NightshadeTokens.borderRadiusMd,
+        final Widget toolbar = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: NightshadeToolbar(
+            groups: [
+              [
+                _SurveySourceSelector(
+                  colors: colors,
+                  source: framingState.surveySource,
+                  onChanged: (source) => ref
+                      .read(framingProvider.notifier)
+                      .setSurveySource(source),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: NightshadeTokens.iconXs,
-                      height: NightshadeTokens.iconXs,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceSm),
-                    Text(
-                      'Loading...',
-                      style: NightshadeTypography.labelQuiet
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              )
-            : null;
+              ],
+              toggles,
+            ],
+          ),
+        );
 
-        // Chips take the available width (wrapping when needed); the loading
-        // pill sits at the trailing edge on the first line. Using a Row with an
-        // Expanded(Wrap) keeps the loading indicator right-aligned without a
-        // Spacer (which would force everything onto one unbreakable line).
+        if (!framingState.isLoadingImage) return toolbar;
+
+        // The loading pill sits at the trailing edge, outside the toolbar, so
+        // it never competes with the toolbar's own overflow measurement.
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
-              child: Wrap(
-                spacing: NightshadeTokens.spaceSm,
-                runSpacing: NightshadeTokens.spaceSm,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: chips,
+            Expanded(child: toolbar),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: NightshadeTokens.spaceMd,
+                  vertical: NightshadeTokens.spaceSm),
+              decoration: BoxDecoration(
+                color: colors.surfaceOverlay
+                    .withValues(alpha: NightshadeTokens.opacityMuted),
+                borderRadius: NightshadeTokens.borderRadiusMd,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: NightshadeTokens.iconXs,
+                    height: NightshadeTokens.iconXs,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Text(
+                    'Loading…',
+                    style: NightshadeTypography.labelQuiet
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ],
               ),
             ),
-            if (loading != null) ...[
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              loading,
-            ],
           ],
         );
       },
@@ -258,84 +257,6 @@ class _SurveySourceSelector extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ControlChip extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final NightshadeColors colors;
-  final VoidCallback? onTap;
-
-  const _ControlChip({
-    required this.icon,
-    required this.label,
-    this.isActive = false,
-    required this.colors,
-    this.onTap,
-  });
-
-  @override
-  State<_ControlChip> createState() => _ControlChipState();
-}
-
-class _ControlChipState extends State<_ControlChip> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: NightshadeTokens.durationQuick,
-          padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceMd,
-              vertical: NightshadeTokens.spaceSm),
-          decoration: BoxDecoration(
-            color: widget.isActive
-                ? widget.colors.primary
-                    .withValues(alpha: NightshadeTokens.opacityMedium)
-                : widget.colors.surfaceOverlay.withValues(
-                    alpha: _isHovered
-                        ? NightshadeTokens.opacityHoverBorder
-                        : NightshadeTokens.opacityHalf),
-            borderRadius: NightshadeTokens.borderRadiusMd,
-            border: Border.all(
-              color: widget.isActive
-                  ? widget.colors.primary
-                      .withValues(alpha: NightshadeTokens.opacityHalf)
-                  : widget.colors.border
-                      .withValues(alpha: NightshadeTokens.opacitySubtle),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.icon,
-                size: NightshadeTokens.iconXs,
-                color: widget.isActive
-                    ? widget.colors.primary
-                    : widget.colors.textSecondary,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceXs),
-              Text(
-                widget.label,
-                style: NightshadeTypography.labelQuiet.copyWith(
-                  color: widget.isActive
-                      ? widget.colors.primary
-                      : widget.colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

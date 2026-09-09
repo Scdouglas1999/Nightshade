@@ -239,7 +239,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -402,7 +402,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.error.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.error.withValues(alpha: 0.4)),
       ),
       child: Row(
@@ -413,7 +413,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colors.error, fontSize: 12),
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
             ),
           ),
           const SizedBox(width: 4),
@@ -442,7 +442,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.info.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.info.withValues(alpha: 0.4)),
       ),
       child: Row(
@@ -453,7 +453,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colors.info, fontSize: 12),
+              style: NightshadeTypography.caption.copyWith(color: colors.info),
             ),
           ),
           const SizedBox(width: 4),
@@ -546,14 +546,15 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           children: [
             Text(
               'Amount:',
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
             Expanded(
               child: SliderTheme(
                 data: SliderThemeData(
                   trackHeight: 4,
                   activeTrackColor: colors.primary,
-                  inactiveTrackColor: colors.surfaceAlt,
+                  inactiveTrackColor: colors.well,
                   thumbColor: colors.primary,
                   overlayColor: colors.primary.withValues(alpha: 0.2),
                   thumbShape:
@@ -572,16 +573,13 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               width: 32,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                color: colors.well,
+                borderRadius: NightshadeTokens.borderRadiusXs,
               ),
               child: Text(
                 widget.ditherAmount.toStringAsFixed(0),
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: colors.textPrimary),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -617,15 +615,14 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                         side: BorderSide(color: colors.border),
                         activeColor: colors.primary,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusXs)),
+                            borderRadius: NightshadeTokens.borderRadiusXs),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'RA only',
-                      style:
-                          TextStyle(color: colors.textSecondary, fontSize: 12),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ),
@@ -662,14 +659,13 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             expanded: _settleExpanded,
             child: InkWell(
               onTap: () => setState(() => _settleExpanded = !_settleExpanded),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              borderRadius: NightshadeTokens.borderRadiusLg,
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusLg),
+                  color: colors.well,
+                  borderRadius: NightshadeTokens.borderRadiusLg,
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -685,11 +681,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                         'Settle settings',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textSecondary),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -712,8 +705,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             margin: const EdgeInsets.only(top: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              color: colors.well.withValues(alpha: 0.5),
+              borderRadius: NightshadeTokens.borderRadiusLg,
               border: Border.all(color: colors.border.withValues(alpha: 0.5)),
             ),
             child: Column(
@@ -746,7 +739,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           width: 72,
           child: Text(
             label,
-            style: TextStyle(color: colors.textMuted, fontSize: 11),
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
           ),
         ),
         Expanded(
@@ -771,11 +765,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           width: 40,
           child: Text(
             value.toStringAsFixed(1),
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelQuiet
+                .copyWith(color: colors.textPrimary),
             textAlign: TextAlign.right,
           ),
         ),
@@ -792,12 +783,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         Expanded(
           child: Text(
             title,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.eyebrow
+                .copyWith(color: colors.textSecondary),
             maxLines: 1,
             overflow: TextOverflow.visible,
           ),
@@ -857,7 +844,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         color: Colors.transparent,
         child: InkWell(
           onTap: isDisabled ? null : () => _runReportingAction(id, action),
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+          borderRadius: NightshadeTokens.borderRadiusLg,
           child: ConstrainedBox(
             // Ensure minimum 44px touch target height for accessibility
             constraints: BoxConstraints(minHeight: small ? 40 : 44),
@@ -871,9 +858,9 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 color: isOutline
                     ? Colors.transparent
                     : (isDisabled
-                        ? colors.surfaceAlt
+                        ? colors.well
                         : color.withValues(alpha: 0.15)),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                borderRadius: NightshadeTokens.borderRadiusLg,
                 border: Border.all(
                   color: isDisabled
                       ? colors.border
@@ -905,11 +892,11 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                   Flexible(
                     child: Text(
                       label,
-                      style: TextStyle(
-                        fontSize: small ? 11 : 12,
-                        fontWeight: FontWeight.w500,
-                        color: isDisabled ? colors.textMuted : color,
-                      ),
+                      style: (small
+                              ? NightshadeTypography.labelQuiet
+                              : NightshadeTypography.labelSm)
+                          .copyWith(
+                              color: isDisabled ? colors.textMuted : color),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

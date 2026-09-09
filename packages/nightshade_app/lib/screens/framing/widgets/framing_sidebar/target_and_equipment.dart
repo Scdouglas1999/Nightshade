@@ -47,19 +47,14 @@ class FramingTargetSearch extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Target',
-            style: NightshadeTypography.eyebrow
-                .copyWith(color: colors.textPrimary),
+          const SectionTitle(
+            icon: NightshadeIcons.target,
+            title: 'Target',
           ),
-          const SizedBox(height: 8),
           TextField(
             key: FramingTutorialKeys.targetSearch,
             controller: searchController,
@@ -204,7 +199,7 @@ class FramingTargetSearch extends ConsumerWidget {
             ),
 
           // Manual coordinate entry
-          const SizedBox(height: 12),
+          const SizedBox(height: NightshadeTokens.spaceMd),
           Row(
             children: [
               Expanded(
@@ -269,9 +264,10 @@ class FramingTargetSearch extends ConsumerWidget {
   }
 }
 
-/// Equipment summary section in the sidebar: status badge plus a context card
-/// for the current `EquipmentStatus` (noProfile / noFocalLength /
-/// noCameraSpecs / ready) and a warning for default sensor specs.
+/// Equipment summary section in the side panel: a [SectionTitle] with a status
+/// chip, then either the profile's key/value summary or the single
+/// [NightshadeBanner] for the current `EquipmentStatus` (noProfile /
+/// noFocalLength / noCameraSpecs).
 class FramingEquipmentSection extends StatelessWidget {
   final NightshadeColors colors;
   final AsyncValue<FramingEquipmentResult> equipmentAsync;
@@ -282,149 +278,94 @@ class FramingEquipmentSection extends StatelessWidget {
     required this.equipmentAsync,
   });
 
+  /// The status badge that rides in the [SectionTitle]'s trailing slot.
+  Widget _badge() {
+    return equipmentAsync.when(
+      // Keep the resolved badge on screen while framingFOVProvider re-runs,
+      // instead of blanking on every camera-telemetry tick.
+      skipLoadingOnReload: true,
+      data: (result) {
+        if (result.isReady) {
+          return NightshadeChip(
+            label: result.profileName ?? 'Ready',
+            tone: ChipTone.success,
+            dot: true,
+          );
+        }
+        return const NightshadeChip(
+          label: 'Not configured',
+          tone: ChipTone.warning,
+          dot: true,
+        );
+      },
+      // An empty box here made a stuck first load look identical to "no badge
+      // for this state". Name it.
+      loading: () => const NightshadeChip(label: 'Loading…'),
+      error: (error, _) => const NightshadeChip(
+        label: 'Error',
+        tone: ChipTone.error,
+        dot: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Equipment',
-              style: NightshadeTypography.eyebrow
-                  .copyWith(color: colors.textPrimary),
-            ),
-            // Flexible so a long profile name ellipsizes instead of pushing
-            // the status badge off a narrow phone-landscape controls panel.
-            Flexible(
-              child: equipmentAsync.when(
-                // See the card below: keep the resolved badge on screen while
-                // framingFOVProvider re-runs, instead of blanking to an empty
-                // SizedBox on every camera-telemetry tick.
-                skipLoadingOnReload: true,
-                data: (result) {
-                  if (result.isReady) {
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(NightshadeIcons.success,
-                            size: 12, color: colors.success),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            result.profileName ?? 'Ready',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: NightshadeTypography.caption
-                                .copyWith(color: colors.success),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(LucideIcons.alertCircle,
-                          size: 12, color: colors.warning),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          'Not Configured',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: NightshadeTypography.caption
-                              .copyWith(color: colors.warning),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-                // An empty SizedBox here meant a stuck first load looked
-                // identical to "no badge for this state" — the spinner below
-                // was the only hint anything was pending. Name it.
-                loading: () => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Loading…',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.textMuted),
-                      ),
-                    ),
-                  ],
-                ),
-                error: (error, _) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.alertCircle,
-                        size: 12, color: colors.error),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        'Error',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.error),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        SectionTitle(
+          icon: NightshadeIcons.camera,
+          title: 'Equipment',
+          trailing: _badge(),
         ),
-        const SizedBox(height: 12),
         equipmentAsync.when(
           // framingFOVProvider watches cameraStateProvider, so every telemetry
-          // tick (cooler power, sensor temperature, exposure progress) re-runs
-          // its async getCameraStatus round-trip. With the default
-          // skipLoadingOnReload: false this card threw away the equipment it
-          // had already resolved and painted a bare spinner for the duration of
-          // each of those round-trips — measured at 8 of 10 samples over 30 s,
-          // which is what read as "spinning for twenty minutes". The rows below
-          // never flickered because they read `valueOrNull` and keep the
-          // retained value; this makes the card behave the same way. A genuine
-          // first load still shows the spinner.
+          // tick re-runs its async getCameraStatus round-trip. With the default
+          // skipLoadingOnReload: false this threw away the equipment it had
+          // already resolved and painted a bare spinner for the duration of
+          // each round-trip — measured at 8 of 10 samples over 30 s, which is
+          // what read as "spinning for twenty minutes". A genuine first load
+          // still shows the spinner.
           skipLoadingOnReload: true,
           data: (result) {
             switch (result.status) {
+              // ONE banner per problem (05 §11), same wording and same action
+              // as the Tonight checklist's equipment step.
               case EquipmentStatus.noProfile:
-                return FramingEquipmentWarningCard(
-                  colors: colors,
-                  icon: NightshadeIcons.settings,
-                  title: 'No Equipment Profile',
+                return NightshadeBanner(
+                  tone: BannerTone.warning,
+                  title: 'No equipment profile',
                   message:
-                      'Create and activate an equipment profile in Settings → Equipment to enable framing preview.',
-                  actionLabel: 'Open Settings',
-                  onAction: () => context.go('/equipment'),
+                      'Create and activate one to preview your field of view.',
+                  action: NightshadeButton(
+                    label: 'Open settings',
+                    size: ButtonSize.small,
+                    variant: ButtonVariant.secondary,
+                    onPressed: () => context.go('/equipment'),
+                  ),
                 );
 
               case EquipmentStatus.noFocalLength:
-                return FramingEquipmentWarningCard(
-                  colors: colors,
-                  icon: NightshadeIcons.focuser,
-                  title: 'Optical Specs Missing',
-                  message:
-                      'Set the focal length in profile "${result.profileName}" to enable FOV preview.',
-                  actionLabel: 'Edit Profile',
-                  onAction: () => context.go('/equipment'),
+                return NightshadeBanner(
+                  tone: BannerTone.warning,
+                  title: 'Optical specs missing',
+                  message: 'Set the focal length in "${result.profileName}" to '
+                      'preview your field of view.',
+                  action: NightshadeButton(
+                    label: 'Open settings',
+                    size: ButtonSize.small,
+                    variant: ButtonVariant.secondary,
+                    onPressed: () => context.go('/equipment'),
+                  ),
                 );
 
               case EquipmentStatus.noCameraSpecs:
-                return FramingEquipmentWarningCard(
-                  colors: colors,
-                  icon: NightshadeIcons.camera,
-                  title: 'Camera Not Configured',
-                  message:
-                      'Connect a camera or configure camera specs to enable accurate FOV preview.',
-                  actionLabel: null,
-                  onAction: null,
+                return const NightshadeBanner(
+                  tone: BannerTone.warning,
+                  title: 'Camera not configured',
+                  message: 'Connect a camera, or enter its sensor specs, for '
+                      'an accurate field of view.',
                 );
 
               case EquipmentStatus.ready:
@@ -432,38 +373,20 @@ class FramingEquipmentSection extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    FramingInfoRow(
-                      label: 'Camera',
-                      value: equipment.cameraName,
-                      colors: colors,
-                    ),
-                    const SizedBox(height: 6),
-                    FramingInfoRow(
-                      label: 'Telescope',
-                      value:
-                          '${equipment.effectiveFocalLength.round()}mm f/${equipment.focalRatio.toStringAsFixed(1)}',
-                      colors: colors,
-                    ),
+                    KeyValueList(rows: [
+                      ('Camera', equipment.cameraName),
+                      (
+                        'Telescope',
+                        '${equipment.effectiveFocalLength.round()} mm '
+                            'f/${equipment.focalRatio.toStringAsFixed(1)}'
+                      ),
+                    ]),
                     if (result.message != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: NightshadeDecorations.chip(colors,
-                            tone: colors.warning),
-                        child: Row(
-                          children: [
-                            Icon(NightshadeIcons.info,
-                                size: 12, color: colors.warning),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                result.message!,
-                                style: NightshadeTypography.caption
-                                    .copyWith(color: colors.warning),
-                              ),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(height: NightshadeTokens.spaceSm),
+                      NightshadeBanner(
+                        tone: BannerTone.warning,
+                        title: 'Default sensor specs',
+                        message: result.message!,
                       ),
                     ],
                   ],
@@ -474,13 +397,10 @@ class FramingEquipmentSection extends StatelessWidget {
             height: 60,
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
-          error: (e, _) => FramingEquipmentWarningCard(
-            colors: colors,
-            icon: NightshadeIcons.warning,
-            title: 'Error Loading Equipment',
+          error: (e, _) => NightshadeBanner(
+            tone: BannerTone.error,
+            title: 'Could not read your equipment',
             message: e.toString(),
-            actionLabel: null,
-            onAction: null,
           ),
         ),
       ],

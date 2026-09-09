@@ -1,8 +1,9 @@
 part of '../framing_sidebar.dart';
 
-/// "Frame" section: rotation slider, equipment FOV summary (or hint when no
-/// equipment), preview FOV slider, equipment-overlay controls, survey-source
-/// dropdown, and display toggles (Grid / Labels / Directions).
+/// "Frame" section of the framing side panel: rotation, the equipment field of
+/// view as readouts, the preview-FOV control, the equipment-overlay controls,
+/// the survey source, and the display toggles — every row a [FormRow] under one
+/// [SectionTitle].
 class FramingControlsSection extends ConsumerWidget {
   final NightshadeColors colors;
   final FramingState framingState;
@@ -24,15 +25,12 @@ class FramingControlsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Frame',
-          style:
-              NightshadeTypography.eyebrow.copyWith(color: colors.textPrimary),
-        ),
-        const SizedBox(height: 12),
+        const SectionTitle(icon: NightshadeIcons.frame, title: 'Frame'),
 
         // Rotation (only useful with equipment). Slider + exact numeric entry +
-        // ±1/±90 steps — see [FramingRotationField].
+        // ±1/±90 steps — see [FramingRotationField]. Not wrapped in a FormRow:
+        // the field already carries its own label-left row, and a FormRow round
+        // it printed "Rotation" twice.
         FramingRotationField(
           key: FramingTutorialKeys.rotation,
           value: framingState.rotation,
@@ -41,57 +39,51 @@ class FramingControlsSection extends ConsumerWidget {
               ? (value) => ref.read(framingProvider.notifier).setRotation(value)
               : null,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: NightshadeTokens.spaceMd),
 
-        // FOV display (only show when equipment is ready)
+        // The equipment field of view, as readouts (05 §3), once a profile
+        // resolves; otherwise the section says so in one quiet line.
         if (hasEquipment && equipment != null) ...[
-          FramingInfoRow(
-            label: 'FOV',
-            value:
-                '${equipment.fovWidthDeg.toStringAsFixed(2)}° × ${equipment.fovHeightDeg.toStringAsFixed(2)}°',
-            colors: colors,
-            highlight: true,
+          ReadoutRow(
+            gap: NightshadeTokens.spaceLg,
+            children: [
+              Readout(
+                size: ReadoutSize.sm,
+                label: 'FOV',
+                value: '${equipment.fovWidthDeg.toStringAsFixed(2)}° × '
+                    '${equipment.fovHeightDeg.toStringAsFixed(2)}°',
+              ),
+              Readout(
+                size: ReadoutSize.sm,
+                label: 'Scale',
+                value: equipment.imageScale.toStringAsFixed(2),
+                unit: '"/px',
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          FramingInfoRow(
-            label: 'Resolution',
-            value: '${equipment.imageScale.toStringAsFixed(2)} arcsec/px',
-            colors: colors,
-          ),
-          const SizedBox(height: 8),
-          FramingInfoRow(
-            label: 'Sensor',
-            value: '${equipment.pixelsX} × ${equipment.pixelsY}',
-            colors: colors,
-          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          KeyValueList(rows: [
+            ('Sensor', '${equipment.pixelsX} × ${equipment.pixelsY}'),
+          ]),
         ] else ...[
-          NightshadePanel(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(NightshadeIcons.frame,
-                      size: 16, color: colors.textMuted),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Configure equipment to see FOV overlay',
-                      style: NightshadeTypography.caption
-                          .copyWith(color: colors.textMuted),
-                    ),
-                  ),
-                ],
-              )),
+          Text(
+            'Configure equipment to see the field-of-view overlay',
+            style:
+                NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
+          ),
         ],
 
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
-        // Preview FOV control (always available for browsing)
+        // Preview FOV (always available for browsing). A full-width composite
+        // rather than a FormRow: the label column would squeeze the preset
+        // row, and the panel already carries its own value readout.
         Text(
-          'Preview Field of View',
-          style: NightshadeTypography.caption
-              .copyWith(color: colors.textSecondary),
+          'Preview field of view',
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: NightshadeTokens.spaceXs),
         FramingPreviewFovSlider(
           colors: colors,
           value: framingState.previewFovDegrees,
@@ -102,11 +94,12 @@ class FramingControlsSection extends ConsumerWidget {
           },
         ),
 
-        // Equipment FOV overlay controls (only when equipment is configured and preview FOV > equipment FOV)
+        // Equipment FOV overlay controls (only when equipment is configured and
+        // the preview FOV is wider than the equipment FOV).
         if (hasEquipment &&
             equipment != null &&
             framingState.previewFovDegrees > equipment.fovWidthDeg) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           FramingEquipmentFovOverlayControls(
             colors: colors,
             showOverlay: framingState.showEquipmentFovOverlay,
@@ -122,72 +115,55 @@ class FramingControlsSection extends ConsumerWidget {
           ),
         ],
 
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
-        // Survey source dropdown (always available - can browse sky without FOV)
-        Text(
-          'Survey Source',
-          style: NightshadeTypography.caption
-              .copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: colors.well,
-            borderRadius: NightshadeTokens.borderRadiusMd,
-            border: Border.all(color: colors.border),
-          ),
-          child: AccessibleDropdown<SurveySource>(
-            value: framingState.surveySource,
+        // Survey source (always available — the sky is browsable without a
+        // profile).
+        FormRow(
+          label: 'Survey',
+          child: NightshadeDropdown(
+            value: framingState.surveySource.name,
             isExpanded: true,
-            underline: const SizedBox(),
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textPrimary),
-            dropdownColor: colors.surfaceElevated,
-            items: SurveySource.values.map((source) {
-              return DropdownMenuItem(
-                value: source,
-                child: Text(source.displayName),
-              );
-            }).toList(),
-            onChanged: (source) {
-              if (source != null) {
-                ref.read(framingProvider.notifier).setSurveySource(source);
-              }
+            items: SurveySource.values.map((s) => s.name).toList(),
+            itemLabels: SurveySource.values.map((s) => s.displayName).toList(),
+            onChanged: (name) {
+              if (name == null) return;
+              ref
+                  .read(framingProvider.notifier)
+                  .setSurveySource(SurveySource.values.byName(name));
             },
           ),
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
-        // Display toggles
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FramingToggleChip(
-              label: 'Grid',
-              isActive: framingState.showGrid,
-              colors: colors,
-              onTap: () => ref.read(framingProvider.notifier).toggleGrid(),
-            ),
-            FramingToggleChip(
-              label: 'Labels',
-              isActive: framingState.showLabels,
-              colors: colors,
-              onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
-            ),
-            if (hasEquipment)
-              FramingToggleChip(
-                label: 'Directions',
-                isActive: framingState.showCardinalDirections,
-                colors: colors,
-                onTap: () => ref
-                    .read(framingProvider.notifier)
-                    .toggleCardinalDirections(),
+        // Display toggles.
+        FormRow(
+          label: 'Show',
+          child: Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            children: [
+              NightshadeChip(
+                label: 'Grid',
+                selected: framingState.showGrid,
+                onTap: () => ref.read(framingProvider.notifier).toggleGrid(),
               ),
-          ],
+              NightshadeChip(
+                label: 'Labels',
+                selected: framingState.showLabels,
+                onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
+              ),
+              if (hasEquipment)
+                NightshadeChip(
+                  label: 'Directions',
+                  selected: framingState.showCardinalDirections,
+                  onTap: () => ref
+                      .read(framingProvider.notifier)
+                      .toggleCardinalDirections(),
+                ),
+            ],
+          ),
         ),
       ],
     );

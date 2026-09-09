@@ -255,8 +255,8 @@ void main() {
   });
 
   testWidgets(
-      'empty queue shows actionable empty state with Open target catalog '
-      'button + Learn more expander', (tester) async {
+      'empty queue shows an EmptyState naming the cause with one button',
+      (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1280, 800);
     addTearDown(() {
@@ -319,27 +319,26 @@ void main() {
     // empty state genuinely does not know which cause applies and must not
     // name one. See scheduler_empty_state_cause_test.dart for the diagnoses.
     expect(
-      find.textContaining('produced no candidate targets'),
+      find.textContaining('produced no candidates'),
       findsOneWidget,
     );
     expect(
       find.widgetWithText(NightshadeButton, 'Open target catalog'),
       findsOneWidget,
     );
+    // ONE button (05 §12). The old card offered three plus a "Learn more"
+    // expander whose paragraph explained the scoring engine — exactly the
+    // screen-explaining prose 07 "What NOT to do" routes to the help popover.
     expect(
-      find.widgetWithText(NightshadeButton, 'Learn more'),
+      find.descendant(
+        of: find.byType(EmptyState),
+        matching: find.byType(NightshadeButton),
+      ),
       findsOneWidget,
     );
-
-    // Expanding the inline explainer should swap the label and reveal the
-    // detailed scoring paragraph.
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Learn more'));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('How the scheduler picks targets'), findsOneWidget);
-    expect(
-      find.textContaining('weighted blend of how'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(NightshadeButton, 'Learn more'), findsNothing);
+    expect(find.text('How the scheduler picks targets'), findsNothing);
+    expect(find.byType(EmptyState), findsOneWidget);
 
     await settleProviderTeardown(tester);
   });

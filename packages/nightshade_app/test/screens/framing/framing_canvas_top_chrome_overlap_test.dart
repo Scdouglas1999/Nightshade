@@ -5,7 +5,7 @@
 // equipment-status hint were each pinned at a literal `top: 60`. Below roughly
 // 1100 px wide the wrapped second row landed exactly under those cards — and
 // because the cards were LATER children of the same [Stack], they painted over
-// it and absorbed its hits. The "HiPS Tiles" chip was visible ghosting through
+// it and absorbed its hits. The HiPS control was visible ghosting through
 // the target card and could not be clicked at all.
 //
 // These tests pin geometry, not pixels: the toolbar's bottom edge must be above
@@ -23,6 +23,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/models/framing_plate_scale.dart';
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../settings/settings_finders.dart' show findByTooltip;
 
 const _target = FramingTarget(
   name: 'Custom Location',
@@ -50,7 +51,7 @@ void main() {
 
   /// Pumps the canvas at [size] with a target resolved, labels on (so the
   /// floating target card is shown) and DSS2 red selected (so the tile-capable
-  /// "HiPS Tiles" chip is present).
+  /// the HiPS control is present).
   Future<void> pumpCanvas(WidgetTester tester, Size size) async {
     final container = ProviderContainer(overrides: [
       inMemoryDatabaseOverride(),
@@ -99,18 +100,18 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('the HiPS Tiles chip is present and hittable at a narrow canvas',
+  testWidgets('the HiPS control is present and hittable at a narrow canvas',
       (tester) async {
     // The reported repro width. The toolbar wraps here.
     await pumpCanvas(tester, const Size(1100, 720));
 
-    final chip = find.text('HiPS Tiles');
+    final chip = findByTooltip('HiPS tiles');
     expect(chip, findsOneWidget, reason: 'the tile toggle should be offered');
 
     // The chip's own centre must actually hit the chip — not a card painted
     // over it. hitTestable() resolves through the real Stack hit-test order.
     expect(
-      find.text('HiPS Tiles').hitTestable(),
+      findByTooltip('HiPS tiles').hitTestable(),
       findsOneWidget,
       reason: 'the chip is covered by later Stack chrome and cannot be clicked',
     );
@@ -124,7 +125,7 @@ void main() {
       (tester) async {
         await pumpCanvas(tester, Size(width, 720));
 
-        final toolbarRect = tester.getRect(find.text('HiPS Tiles'));
+        final toolbarRect = tester.getRect(findByTooltip('HiPS tiles'));
         final cardRect = tester.getRect(find.text('Custom Location'));
 
         expect(

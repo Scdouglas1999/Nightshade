@@ -214,124 +214,71 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             'refine.'
         : hostOnly;
     final canRefine = darkroomReason == null;
-    // The same two reasons, sized for the phone overflow menu. A popup item has
-    // no tooltip to hang an explanation on, so the reason is part of the row —
-    // and the row is ~256 px wide, which the full sentence wraps to four lines
-    // of caption inside.
-    final darkroomMenuReason = sessionId == null
-        ? 'No imaging session, so no linear master'
-        : (hostOnly == null ? null : 'The Darkroom runs on the imaging host');
-
-    // On a phone the four export buttons cannot share the ScreenHeader's Row
-    // with the title without overflowing the ~430 px width, so collapse them
-    // into a single overflow menu. The header trailing then stays narrow in
-    // both orientations. Wider layouts keep the inline button row.
-    if (Responsive.isPhone(context)) {
-      return PopupMenuButton<_StackResultAction>(
-        icon: Icon(NightshadeIcons.share, color: colors.textPrimary),
-        tooltip: 'Export / share',
-        enabled: !_exporting,
-        onSelected: (action) {
-          switch (action) {
-            case _StackResultAction.png:
-              if (rgba != null) _export(result, rgba, ShareExportFormat.png);
-            case _StackResultAction.jpeg:
-              if (rgba != null) _export(result, rgba, ShareExportFormat.jpeg);
-            case _StackResultAction.shareCard:
-              if (rgba != null) {
-                _export(result, rgba, ShareExportFormat.shareCard);
-              }
-            case _StackResultAction.astroBin:
-              _exportAstroBin(result);
-            case _StackResultAction.darkroom:
-              if (sessionId != null) {
-                unawaited(openDarkroomForSession(context, ref, sessionId));
-              }
-          }
-        },
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: _StackResultAction.png,
-            enabled: canExport,
-            child: const _ActionMenuRow(
-              icon: LucideIcons.fileImage,
-              label: 'Export PNG',
-            ),
+    // ONE overflow menu plus ONE primary, at every width (05 §5: a page header
+    // carries at most two actions). The four export buttons used to sit inline
+    // on anything wider than a phone, which overflowed the header Row by 247 px
+    // at an 800 px window; the menu that already existed for the phone is now
+    // the only export surface, so the header trailing stays narrow everywhere.
+    final exportMenu = PopupMenuButton<_StackResultAction>(
+      key: const ValueKey('stack_result_export_menu'),
+      icon: Icon(NightshadeIcons.share, color: colors.textPrimary),
+      tooltip: 'Export / share',
+      enabled: !_exporting,
+      onSelected: (action) {
+        switch (action) {
+          case _StackResultAction.png:
+            if (rgba != null) _export(result, rgba, ShareExportFormat.png);
+          case _StackResultAction.jpeg:
+            if (rgba != null) _export(result, rgba, ShareExportFormat.jpeg);
+          case _StackResultAction.shareCard:
+            if (rgba != null) {
+              _export(result, rgba, ShareExportFormat.shareCard);
+            }
+          case _StackResultAction.astroBin:
+            _exportAstroBin(result);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _StackResultAction.png,
+          enabled: canExport,
+          child: const _ActionMenuRow(
+            icon: LucideIcons.fileImage,
+            label: 'Export PNG',
           ),
-          PopupMenuItem(
-            value: _StackResultAction.jpeg,
-            enabled: canExport,
-            child: const _ActionMenuRow(
-              icon: NightshadeIcons.image,
-              label: 'Export JPEG',
-            ),
+        ),
+        PopupMenuItem(
+          value: _StackResultAction.jpeg,
+          enabled: canExport,
+          child: const _ActionMenuRow(
+            icon: NightshadeIcons.image,
+            label: 'Export JPEG',
           ),
-          PopupMenuItem(
-            value: _StackResultAction.shareCard,
-            enabled: canExport,
-            child: const _ActionMenuRow(
-              icon: NightshadeIcons.share,
-              label: 'Share Card',
-            ),
+        ),
+        PopupMenuItem(
+          value: _StackResultAction.shareCard,
+          enabled: canExport,
+          child: const _ActionMenuRow(
+            icon: NightshadeIcons.share,
+            label: 'Share card',
           ),
-          const PopupMenuItem(
-            value: _StackResultAction.astroBin,
-            child: _ActionMenuRow(
-              icon: NightshadeIcons.file,
-              label: 'AstroBin',
-            ),
+        ),
+        const PopupMenuItem(
+          value: _StackResultAction.astroBin,
+          child: _ActionMenuRow(
+            icon: NightshadeIcons.file,
+            label: 'AstroBin',
           ),
-          PopupMenuItem(
-            value: _StackResultAction.darkroom,
-            enabled: canRefine,
-            child: _ActionMenuRow(
-              icon: NightshadeIcons.sliders,
-              label: 'Refine in Darkroom',
-              reason: darkroomMenuReason,
-            ),
-          ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
 
     return Wrap(
       spacing: NightshadeTokens.spaceSm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        NightshadeButton(
-          label: 'Export PNG',
-          icon: LucideIcons.fileImage,
-          variant: ButtonVariant.secondary,
-          size: ButtonSize.small,
-          isLoading: _exporting,
-          onPressed: canExport
-              ? () => _export(result, rgba, ShareExportFormat.png)
-              : null,
-        ),
-        NightshadeButton(
-          label: 'Export JPEG',
-          icon: NightshadeIcons.image,
-          variant: ButtonVariant.secondary,
-          size: ButtonSize.small,
-          onPressed: canExport
-              ? () => _export(result, rgba, ShareExportFormat.jpeg)
-              : null,
-        ),
-        NightshadeButton(
-          label: 'Share Card',
-          icon: NightshadeIcons.share,
-          variant: ButtonVariant.secondary,
-          size: ButtonSize.small,
-          onPressed: canExport
-              ? () => _export(result, rgba, ShareExportFormat.shareCard)
-              : null,
-        ),
-        NightshadeButton(
-          label: 'AstroBin',
-          icon: NightshadeIcons.file,
-          size: ButtonSize.small,
-          onPressed: !_exporting ? () => _exportAstroBin(result) : null,
-        ),
+        exportMenu,
+        // The page's single primary: the one action that is not an export.
         Tooltip(
           message: darkroomReason ??
               'Open this night\'s linear master in the Darkroom',
@@ -339,7 +286,6 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             key: const ValueKey('stack_result_refine_in_darkroom'),
             label: 'Refine in Darkroom',
             icon: NightshadeIcons.sliders,
-            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             semanticsHint: darkroomReason,
             onPressed: canRefine
