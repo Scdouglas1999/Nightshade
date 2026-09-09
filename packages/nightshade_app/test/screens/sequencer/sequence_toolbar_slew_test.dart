@@ -14,6 +14,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
+import 'canvas_bar_menu.dart';
 
 Sequence _sequenceWithTarget() {
   final exposure = ExposureNode(
@@ -67,22 +68,22 @@ void main() {
       (tester) async {
     await _pumpToolbar(tester, executionState: SequenceExecutionState.running);
 
+    await openCanvasBarMenu(tester);
+    const locked = 'Slew to target (locked while sequence is running)';
+    expect(canvasBarAction(locked), findsOneWidget);
+    expect(canvasBarAction('Slew to target'), findsNothing);
     expect(
-      find.byTooltip('Slew to Target (locked while sequence is running)'),
-      findsOneWidget,
+      canvasBarActionEnabled(tester, locked),
+      isFalse,
+      reason: 'a mount command during a run fights the executor for the '
+          'telescope',
     );
-    expect(find.byTooltip('Slew to Target'), findsNothing);
   });
 
   testWidgets('when idle it asks before moving the mount', (tester) async {
     await _pumpToolbar(tester, executionState: SequenceExecutionState.idle);
 
-    final action = find.byTooltip('Slew to Target');
-    expect(action, findsOneWidget);
-
-    await tester.tap(action);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tapCanvasBarAction(tester, 'Slew to target');
 
     expect(find.text('Slew to M42-TEST?'), findsOneWidget);
     expect(find.text('The mount will move now.'), findsOneWidget);

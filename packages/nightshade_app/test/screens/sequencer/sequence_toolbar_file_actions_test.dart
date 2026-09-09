@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+import 'canvas_bar_menu.dart';
 
 class _DeferredSequenceFileService extends SequenceFileService {
   final importResult = Completer<Sequence?>();
@@ -55,12 +56,12 @@ void main() {
         ],
       );
 
-      await tester.tap(find.byTooltip('Open Sequence'));
+      await tapCanvasBarAction(tester, 'Open sequence');
       await tester.pump();
       expect(fileService.importCalls, 1);
 
       // The same action is visibly disabled while the native picker is open.
-      await tester.tap(find.byTooltip('Open Sequence'), warnIfMissed: false);
+      await tapCanvasBarAction(tester, 'Open sequence');
       await tester.pump();
       expect(fileService.importCalls, 1);
 
@@ -74,6 +75,9 @@ void main() {
         find.textContaining('imaging host changed while the file dialog'),
         findsOneWidget,
       );
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 }

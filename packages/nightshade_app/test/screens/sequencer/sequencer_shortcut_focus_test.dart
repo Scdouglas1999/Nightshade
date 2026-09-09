@@ -60,7 +60,7 @@ Future<HarnessHandle> _pumpBuilder(WidgetTester tester) async {
 /// parks primary focus on a TextField), then click the node row.
 Future<void> _searchThenSelectRow(WidgetTester tester) async {
   final search = find.ancestor(
-    of: find.text('Search nodes...'),
+    of: find.text('Search nodes…'),
     matching: find.byType(TextField),
   );
   expect(search, findsOneWidget, reason: 'palette search field must exist');
@@ -101,6 +101,9 @@ void main() {
       );
       // Drain the autosave/snackbar timers the mutation schedules.
       await tester.pump(const Duration(milliseconds: 800));
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 
@@ -114,6 +117,9 @@ void main() {
       await tester.pump();
 
       expect(find.text('Delete "Lum"?'), findsOneWidget);
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 
@@ -191,6 +197,9 @@ void main() {
         handle.container.read(sequencerTabProvider),
         SequencerTab.sequences.index,
       );
+      // Drain live validation's 500 ms debounce so the binding does not
+      // fail the test on a pending timer.
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 
@@ -206,6 +215,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('cannot be undone except'), findsNothing);
+    // Drain live validation's 500 ms debounce so the binding does not
+    // fail the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   // The SECOND dialog that carried the same false sentence. The single-node
@@ -248,5 +260,8 @@ void main() {
     expect(find.text('Delete 1 node?'), findsOneWidget);
     expect(find.textContaining('Undo in the toolbar'), findsOneWidget);
     expect(find.textContaining('cannot be undone except'), findsNothing);
+    // Drain live validation's 500 ms debounce so the binding does not
+    // fail the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }

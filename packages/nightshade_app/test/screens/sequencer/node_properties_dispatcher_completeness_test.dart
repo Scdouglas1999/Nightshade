@@ -86,5 +86,8 @@ void main() {
             'the NodePropertiesPanel dispatcher.',
       );
     }
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }

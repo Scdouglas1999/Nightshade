@@ -18,6 +18,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
+import 'canvas_bar_menu.dart';
 
 List<Override> _overrides({SequenceFileService? fileService}) {
   final editor = CurrentSequenceNotifier();
@@ -49,6 +50,14 @@ class _FailingFileService extends SequenceFileService {
   }
 }
 
+/// The canvas bar's export-to-file button.
+Finder _exportButton() => find.byWidgetPredicate(
+      (widget) =>
+          widget is NightshadeIconButton &&
+          widget.tooltip.startsWith('Export sequence file'),
+      description: 'the canvas bar\'s export button',
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -66,9 +75,23 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    // Tooltips carry the toolbar labels.
-    expect(find.byTooltip('Export Sequence File…'), findsOneWidget);
-    expect(find.byTooltip('Save Sequence'), findsNothing);
+    // The action is the canvas bar's save button; its tooltip carries the
+    // name. `find.byTooltip` no longer reaches it — NightshadeIconButton
+    // renders NightshadeTooltip and publishes the tooltip as its semantics
+    // label — so match the widget.
+    expect(_exportButton(), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is NightshadeIconButton &&
+            widget.tooltip.toLowerCase().contains('save sequence'),
+      ),
+      findsNothing,
+    );
+    // And there is exactly ONE of it: the duplicate menu entry that spelled
+    // the same action differently is gone.
+    await openCanvasBarMenu(tester);
+    expect(canvasBarAction('Export sequence file…'), findsNothing);
 
     await tester.pump(const Duration(seconds: 1));
   });
@@ -90,7 +113,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.tap(find.byTooltip('Export Sequence File…'));
+    await tester.tap(_exportButton());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

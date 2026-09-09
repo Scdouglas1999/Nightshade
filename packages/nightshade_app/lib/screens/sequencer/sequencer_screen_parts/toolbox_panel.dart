@@ -92,8 +92,18 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
             child: Row(
               children: [
                 Expanded(
-                  child: Semantics(
-                    label: 'Toggle snippets, Ctrl+T',
+                  // SegmentedControl publishes button / enabled / selected /
+                  // label per segment, so the palette switch has a role and a
+                  // state in the tree without a wrapper of its own. The Ctrl+T
+                  // accelerator is not repeated here: shortcuts live in the top
+                  // bar's help popover (05 §11).
+                  // Scrolls rather than shrinks: the palette can be dragged
+                  // down to 220 px, where three labels do not fit, and the old
+                  // strip answered that by cutting "Nodes" to "\odes" and
+                  // "Queue" to "Queu". 07: "Do not scale fonts down to make
+                  // something fit. Reduce content or let it scroll."
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
                     child: SegmentedControl(
                       segments: const ['Nodes', 'Snippets', 'Queue'],
                       selectedIndex: activeIndex,

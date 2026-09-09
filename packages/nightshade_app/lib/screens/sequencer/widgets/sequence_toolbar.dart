@@ -15,6 +15,7 @@ import 'run_dashboard/run_dashboard_providers.dart';
 import 'flat_wizard_dialog.dart';
 import 'mosaic_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
+import 'sequence_issues_dialog.dart';
 import 'sequence_minimap.dart';
 import 'sequence_step_finder.dart';
 import 'sequence_tree_shortcuts.dart';
@@ -47,10 +48,23 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// The leading document glyph beside the sequence name.
   static const double _canvasBarGlyph = 15.0;
 
-  /// The most of the bar the sequence name may claim before it ellipsises.
-  /// The name gets its space BEFORE the meta chips — the chips shrink first —
-  /// but a pathological name must not push the toolbar off the row.
-  static const double _nameWidthFraction = 0.45;
+  /// The narrowest canvas that can still afford labelled Timeline / Map
+  /// buttons. Below it they fall back to glyphs with the same tooltips.
+  static const double _labelledToolbarWidth = 720.0;
+
+  /// The narrowest canvas that can afford anything but the name and the menu.
+  static const double _narrowBarWidth = 400.0;
+
+  /// The narrowest canvas that can still afford the view toggles at all.
+  /// Below it they move into the overflow menu with the rest of the actions,
+  /// so the bar shrinks by a whole group instead of overflowing.
+  static const double _toggleToolbarWidth = 560.0;
+
+  /// How the name and the meta chips divide the bar's flexible middle. The
+  /// name gets the larger share, so the chips are what shrinks first; the name
+  /// only ever takes its natural width, so the chips sit right beside it.
+  static const int _nameFlex = 3;
+  static const int _metaFlex = 2;
 
   bool _fileActionRunning = false;
 
@@ -520,34 +534,34 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             const _ToolbarAction.divider(),
             _ToolbarAction(
               icon: LucideIcons.filePlus,
-              label: 'New Sequence$lockedTooltipSuffix',
+              label: 'New sequence$lockedTooltipSuffix',
               onPressed: canEdit ? createNewSequence : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.wand2,
-              label: 'Quick-Start Wizard$lockedTooltipSuffix',
+              label: 'Quick-start wizard$lockedTooltipSuffix',
               onPressed: canEdit ? openWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.sun,
               label: sequence == null
-                  ? 'Calibrate Flat Exposures (create or open a sequence first)'
-                  : 'Calibrate Flat Exposures$lockedTooltipSuffix',
+                  ? 'Calibrate flat exposures (create or open a sequence first)'
+                  : 'Calibrate flat exposures$lockedTooltipSuffix',
               onPressed: canEdit && sequence != null ? openFlatWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.grid,
-              label: 'Plan Mosaic$lockedTooltipSuffix',
+              label: 'Plan mosaic$lockedTooltipSuffix',
               onPressed: canEdit ? openMosaicWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.sparkles,
-              label: 'Plan Tonight$lockedTooltipSuffix',
+              label: 'Plan tonight$lockedTooltipSuffix',
               onPressed: canEdit ? openSmartNight : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.folderOpen,
-              label: 'Open Sequence$lockedTooltipSuffix',
+              label: 'Open sequence$lockedTooltipSuffix',
               onPressed: canEdit && !_fileActionRunning
                   ? () => _runFileAction(openSequenceFile)
                   : null,
@@ -563,30 +577,17 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                       )
                   : null,
             ),
-            _ToolbarAction(
-              icon: LucideIcons.save,
-              // This writes a .nsq FILE through the OS chooser; saving into
-              // the app's library is the Sequences tab's "Save Current". Two
-              // actions both called "Save" was a real ambiguity - the name now
-              // says which one this is.
-              label: sequence == null
-                  ? 'Export Sequence File… (create or open a sequence first)'
-                  : 'Export Sequence File…',
-              onPressed: sequence != null && !_fileActionRunning
-                  ? () => _runFileAction(saveSequenceFile)
-                  : null,
-            ),
             const _ToolbarAction.divider(),
             _ToolbarAction(
               icon: LucideIcons.compass,
-              label: 'Polar Alignment',
+              label: 'Polar alignment',
               onPressed: () => context.push('/polar-alignment'),
             ),
             _ToolbarAction(
               icon: LucideIcons.bellRing,
               label: exposureNodes.isEmpty
-                  ? 'Exposure Triggers (add an exposure node first)'
-                  : 'Exposure Triggers$lockedTooltipSuffix',
+                  ? 'Exposure triggers (add an exposure node first)'
+                  : 'Exposure triggers$lockedTooltipSuffix',
               onPressed: canEdit && exposureNodes.isNotEmpty
                   ? openExposureTriggers
                   : null,
@@ -599,7 +600,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 // telescope: the audit slewed away mid-exposure and the run
                 // went on counting the frames either side as accepted. It
                 // locks with its neighbours.
-                label: 'Slew to Target$lockedTooltipSuffix',
+                label: 'Slew to target$lockedTooltipSuffix',
                 onPressed: canEdit ? slewToTarget : null,
               ),
             const _ToolbarAction.divider(),
@@ -652,22 +653,102 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             ),
           ];
 
-          // Phone tier: the dedicated MobilePlaybackBar already owns the
-          // play/stop/skip controls, so the bar there is the sequence name and
-          // the file/edit overflow menu and nothing else.
-          //
-          // Detect "phone" by the device's SHORTER side (not this row's width)
-          // so a phone held in landscape — where this strip is wide but the
-          // mobile builder is in use below it — still collapses.
-          final mq = MediaQuery.sizeOf(context);
-          final shortSide = mq.width < mq.height ? mq.width : mq.height;
-          final isPhoneRow = shortSide < BreakpointTokens.breakpointPhone;
+          // What the bar can show is a question about THIS row's width, not
+          // about the device: the same canvas is 1036 px in a 1600 px window
+          // and 486 px in a 1000 px one with both side panels open. Below the
+          // narrowest tier the bar is the sequence name and the menu, and the
+          // menu still holds every action.
+          final isNarrowRow = constraints.maxWidth < _narrowBarWidth;
 
           final validation = ref.watch(liveValidationProvider);
           final showTimeline = ref.watch(timelineVisibleProvider);
           final showMinimap = ref.watch(minimapVisibleProvider);
 
-          if (isPhoneRow) {
+          // Below these the toolbar costs more than the canvas can spare and
+          // the row overflows — measured, not guessed: at 486 px (a 1000 px
+          // window with both side panels open) the labelled "Timeline" and
+          // "Map" are ~90 px wider than their glyphs, and at 570 px even the
+          // glyphs are 32 px too many. Nothing loses its name at either step:
+          // the glyphs keep the tooltips and the menu entries keep the words.
+          final labelledToggles = constraints.maxWidth >= _labelledToolbarWidth;
+          final inlineToggles = constraints.maxWidth >= _toggleToolbarWidth;
+
+          // When the bar cannot hold the toggle group, the toggles do not
+          // vanish — they join the menu, with the words the buttons had.
+          if (!inlineToggles) {
+            actions
+              ..add(const _ToolbarAction.divider())
+              ..add(_ToolbarAction(
+                icon: LucideIcons.clock,
+                label: showTimeline ? 'Hide the timeline' : 'Show the timeline',
+                onPressed: () => ref
+                    .read(timelineVisibleProvider.notifier)
+                    .state = !showTimeline,
+              ))
+              ..add(_ToolbarAction(
+                icon: LucideIcons.map,
+                label: showMinimap ? 'Hide the map' : 'Show the map',
+                onPressed: () => ref
+                    .read(minimapVisibleProvider.notifier)
+                    .state = !showMinimap,
+              ));
+          }
+
+          List<Widget> viewToggles() {
+            if (!inlineToggles) return const <Widget>[];
+            if (labelledToggles) {
+              return <Widget>[
+                // Labelled, with the on-state carried by the button's own
+                // variant rather than a colour of its own: a pressed toggle is
+                // `secondary` (outlined), an idle one `ghost`.
+                NightshadeButton(
+                  label: 'Timeline',
+                  icon: LucideIcons.clock,
+                  size: ButtonSize.small,
+                  variant: showTimeline
+                      ? ButtonVariant.secondary
+                      : ButtonVariant.ghost,
+                  onPressed: () => ref
+                      .read(timelineVisibleProvider.notifier)
+                      .state = !showTimeline,
+                ),
+                NightshadeButton(
+                  label: 'Map',
+                  icon: LucideIcons.map,
+                  size: ButtonSize.small,
+                  variant: showMinimap
+                      ? ButtonVariant.secondary
+                      : ButtonVariant.ghost,
+                  onPressed: () => ref
+                      .read(minimapVisibleProvider.notifier)
+                      .state = !showMinimap,
+                ),
+              ];
+            }
+            return <Widget>[
+              NightshadeIconButton(
+                icon: LucideIcons.clock,
+                tooltip:
+                    showTimeline ? 'Hide the timeline' : 'Show the timeline',
+                size: IconButtonSize.sm,
+                selected: showTimeline,
+                onPressed: () => ref
+                    .read(timelineVisibleProvider.notifier)
+                    .state = !showTimeline,
+              ),
+              NightshadeIconButton(
+                icon: LucideIcons.map,
+                tooltip: showMinimap ? 'Hide the map' : 'Show the map',
+                size: IconButtonSize.sm,
+                selected: showMinimap,
+                onPressed: () => ref
+                    .read(minimapVisibleProvider.notifier)
+                    .state = !showMinimap,
+              ),
+            ];
+          }
+
+          if (isNarrowRow) {
             return Row(
               children: [
                 Expanded(
@@ -686,30 +767,34 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 color: colors.textMuted,
               ),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * _nameWidthFraction,
-                ),
-                child: _CanvasBarName(colors: colors, sequence: sequence),
-              ),
-              // The meta chips take whatever the name leaves and clip: the
-              // name is what the operator is looking for, so it is served
-              // first and the counts shrink around it.
+              // The name and the meta chips share ONE flexible region, so the
+              // toolbar is the row's only inflexible child and is measured for
+              // free — the bar cannot overflow whatever the sequence is
+              // called. Inside the region the name has the larger flex and
+              // takes only its natural width, so the chips sit right beside it
+              // and are the ones that shrink and scroll.
               Expanded(
-                child: ClipRect(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        left: NightshadeTokens.spaceMd,
-                      ),
-                      child: _CanvasBarMeta(
-                        sequence: sequence,
-                        validation: validation,
-                        inSimulation: executorInSimulation,
+                child: Row(
+                  children: [
+                    Flexible(
+                      flex: _nameFlex,
+                      child: _CanvasBarName(colors: colors, sequence: sequence),
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceMd),
+                    Flexible(
+                      flex: _metaFlex,
+                      child: ClipRect(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: _CanvasBarMeta(
+                            sequence: sequence,
+                            validation: validation,
+                            inSimulation: executorInSimulation,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(width: NightshadeTokens.spaceSm),
@@ -731,36 +816,14 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                           (canEdit && notifier.canRedo) ? notifier.redo : null,
                     ),
                   ],
-                  <Widget>[
-                    // Labelled, with the on-state carried by the button's own
-                    // variant rather than a colour of its own: a pressed
-                    // toggle is `secondary` (outlined), an idle one `ghost`.
-                    NightshadeButton(
-                      label: 'Timeline',
-                      icon: LucideIcons.clock,
-                      size: ButtonSize.small,
-                      variant: showTimeline
-                          ? ButtonVariant.secondary
-                          : ButtonVariant.ghost,
-                      onPressed: () => ref
-                          .read(timelineVisibleProvider.notifier)
-                          .state = !showTimeline,
-                    ),
-                    NightshadeButton(
-                      label: 'Map',
-                      icon: LucideIcons.map,
-                      size: ButtonSize.small,
-                      variant: showMinimap
-                          ? ButtonVariant.secondary
-                          : ButtonVariant.ghost,
-                      onPressed: () => ref
-                          .read(minimapVisibleProvider.notifier)
-                          .state = !showMinimap,
-                    ),
-                  ],
+                  if (inlineToggles) viewToggles(),
                   <Widget>[
                     NightshadeIconButton(
                       icon: LucideIcons.save,
+                      // This writes a .nsq FILE through the OS chooser;
+                      // saving into the app's library is the Saved tab's
+                      // "Save current". Two actions both called "Save" was a
+                      // real ambiguity — the name says which one this is.
                       tooltip: sequence == null
                           ? 'Export sequence file (create or open a sequence '
                               'first)'
@@ -918,11 +981,16 @@ class _CanvasBarMeta extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // One tap opens the issue list. These chips are the only place the
+        // builder admits the sequence has problems, and decoding "2" otherwise
+        // means pressing Start and reading the pre-flight dialog — "press the
+        // button that starts the rig" is not how you ask what is wrong.
         if (validation.errorCount > 0) ...[
           NightshadeChip(
             label: '${validation.errorCount}',
             icon: LucideIcons.xCircle,
             tone: ChipTone.error,
+            onTap: () => SequenceIssuesDialog.show(context),
           ),
           const SizedBox(width: NightshadeTokens.spaceXs + 2),
         ],
@@ -931,6 +999,7 @@ class _CanvasBarMeta extends ConsumerWidget {
             label: '${validation.warningCount}',
             icon: LucideIcons.alertTriangle,
             tone: ChipTone.warning,
+            onTap: () => SequenceIssuesDialog.show(context),
           ),
           const SizedBox(width: NightshadeTokens.spaceXs + 2),
         ],

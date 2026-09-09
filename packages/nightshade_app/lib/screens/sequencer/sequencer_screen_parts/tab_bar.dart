@@ -92,12 +92,23 @@ class _SequencerPageHeader extends ConsumerWidget {
         ),
       ),
       actions: <Widget>[
-        NightshadeButton(
-          label: 'Preflight',
-          icon: LucideIcons.listChecks,
-          variant: ButtonVariant.ghost,
-          onPressed: openPreflight,
-        ),
+        // A phone header has room for a title and one glyph. The words go, not
+        // the action: the tooltip keeps the name and MobilePlaybackBar — right
+        // under this header — already owns the transport, so repeating
+        // Start/Stop here would be the second copy of the same control.
+        if (isPhone)
+          NightshadeIconButton(
+            icon: LucideIcons.listChecks,
+            tooltip: 'Preflight',
+            onPressed: openPreflight,
+          )
+        else
+          NightshadeButton(
+            label: 'Preflight',
+            icon: LucideIcons.listChecks,
+            variant: ButtonVariant.ghost,
+            onPressed: openPreflight,
+          ),
         // The count rides beside the button rather than inside it: a chip is
         // not one of NightshadeButton's slots, and inventing a local
         // button-with-badge would be a second button style on the page.
@@ -107,13 +118,14 @@ class _SequencerPageHeader extends ConsumerWidget {
             tone: validation.hasErrors ? ChipTone.error : ChipTone.warning,
             onTap: openPreflight,
           ),
-        ..._transportActions(
-          executionState: executionState,
-          onStart: () => openPreflight(armed: true),
-          onPause: () => run(actionService.pause),
-          onResume: () => run(actionService.resume),
-          onStop: () => run(actionService.stop),
-        ),
+        if (!isPhone)
+          ..._transportActions(
+            executionState: executionState,
+            onStart: () => openPreflight(armed: true),
+            onPause: () => run(actionService.pause),
+            onResume: () => run(actionService.resume),
+            onStop: () => run(actionService.stop),
+          ),
       ],
     );
   }

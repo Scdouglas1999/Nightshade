@@ -71,6 +71,9 @@ void main() {
       find.text('Unset — the camera keeps its current offset'),
       findsOneWidget,
     );
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('an explicit gain/offset drops the unset notice', (tester) async {
@@ -87,5 +90,8 @@ void main() {
       find.text('Unset — the camera keeps its current offset'),
       findsNothing,
     );
+    // Drain live validation's 500 ms debounce so the binding does not fail
+    // the test on a pending timer.
+    await tester.pump(const Duration(seconds: 1));
   });
 }

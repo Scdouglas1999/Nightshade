@@ -91,28 +91,46 @@ class NodePropertyField extends StatelessWidget {
     // reads, and these strings qualify one control each.
     return Padding(
       padding: const EdgeInsets.only(bottom: FormRow.rowGap),
-      child: FormRow(
-        label: label,
-        child: helpText == null
-            ? child
-            : Row(
-                children: [
-                  Expanded(child: child),
-                  const SizedBox(width: NightshadeTokens.spaceXs),
-                  Tooltip(
-                    message: helpText!,
-                    triggerMode: TooltipTriggerMode.tap,
-                    child: Icon(
-                      LucideIcons.helpCircle,
-                      size: 14,
-                      color: colors.textMuted,
+      // The label column shrinks with the pane rather than pushing the control
+      // off the row. The properties pane ANIMATES between 48 px and 300 px, and
+      // a fixed 96 px label plus its 12 px gap is wider than the pane for part
+      // of that tween — 108 px of inflexible content in a 107.5 px box is a
+      // RenderFlex overflow on a frame nobody ever sees. Clamping the label to
+      // 40% of the row keeps every intermediate frame legal and leaves the
+      // settled pane at the spec's 96.
+      child: LayoutBuilder(
+        builder: (context, constraints) => FormRow(
+          label: label,
+          labelWidth: constraints.maxWidth.isFinite
+              ? math.min(
+                  FormRow.defaultLabelWidth,
+                  constraints.maxWidth * _labelWidthCeiling,
+                )
+              : FormRow.defaultLabelWidth,
+          child: helpText == null
+              ? child
+              : Row(
+                  children: [
+                    Expanded(child: child),
+                    const SizedBox(width: NightshadeTokens.spaceXs),
+                    Tooltip(
+                      message: helpText!,
+                      triggerMode: TooltipTriggerMode.tap,
+                      child: Icon(
+                        LucideIcons.helpCircle,
+                        size: 14,
+                        color: colors.textMuted,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
+
+  /// The most of a row the label column may claim.
+  static const double _labelWidthCeiling = 0.4;
 }
 
 class NodeTextInput extends StatefulWidget {

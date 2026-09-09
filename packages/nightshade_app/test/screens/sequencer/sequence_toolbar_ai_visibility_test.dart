@@ -4,6 +4,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
+import 'canvas_bar_menu.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +21,9 @@ void main() {
       size: const Size(1600, 900),
     );
 
-    expect(find.byTooltip('Quick-Start Wizard'), findsOneWidget);
-    expect(find.byTooltip('Plan Tonight'), findsOneWidget);
-    expect(find.byTooltip('Conversational Builder (AI)'), findsNothing);
+    await openCanvasBarMenu(tester);
+    expect(canvasBarAction('Quick-start wizard'), findsOneWidget);
+    expect(canvasBarAction('Plan tonight'), findsOneWidget);
+    expect(canvasBarAction('Conversational Builder (AI)'), findsNothing);
   });
 }
