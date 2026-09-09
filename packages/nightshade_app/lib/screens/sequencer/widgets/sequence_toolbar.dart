@@ -60,11 +60,14 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// so the bar shrinks by a whole group instead of overflowing.
   static const double _toggleToolbarWidth = 560.0;
 
-  /// How the name and the meta chips divide the bar's flexible middle. The
-  /// name gets the larger share, so the chips are what shrinks first; the name
-  /// only ever takes its natural width, so the chips sit right beside it.
-  static const int _nameFlex = 3;
-  static const int _metaFlex = 2;
+  /// How the name and the meta chips divide the bar's flexible middle.
+  ///
+  /// The name only ever takes its NATURAL width — its share is a ceiling, not
+  /// a claim — so the chips get the larger flex: measured at 1600 x 900 with
+  /// both side panels open, an even split clipped "0 targets · 0 nodes" to
+  /// "0 node". The name still ellipsises last, because it is served first.
+  static const int _nameFlex = 2;
+  static const int _metaFlex = 3;
 
   bool _fileActionRunning = false;
 

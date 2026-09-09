@@ -197,20 +197,17 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               final effectivePropertiesCollapsed = propertiesCollapsed ||
                   (autoCollapseProperties && !propertiesForceOpen);
 
-              // Derived expanded widths. When space is tight, both panels use
-              // their min width. Otherwise a panel may grow to its expanded
-              // width when the *other* panel is collapsed. A user-dragged
-              // width (persisted) overrides the derived width.
-              final leftDerived = spaceTight
-                  ? dims.leftMin
-                  : (effectivePropertiesCollapsed
-                      ? dims.leftExpanded
-                      : dims.leftMin);
-              final rightDerived = spaceTight
-                  ? dims.rightMin
-                  : (effectiveToolboxCollapsed
-                      ? dims.rightExpanded
-                      : dims.rightMin);
+              // Derived widths. The columns are the spec's 264 / 300 whenever
+              // there is room for them; only a genuinely tight window packs
+              // them down to their floor. (They used to sit at the floor
+              // WHENEVER both were open and grow only when the other one
+              // collapsed, so the shipped default was a 220 px palette that
+              // clipped its own tab labels and its node descriptions.) A
+              // user-dragged width still overrides.
+              final leftDerived =
+                  spaceTight ? dims.leftMin : dims.leftExpanded;
+              final rightDerived =
+                  spaceTight ? dims.rightMin : dims.rightExpanded;
               final leftWidth = (persistedLeftWidth ?? leftDerived).clamp(
                 dims.leftMin,
                 dims.leftMax,

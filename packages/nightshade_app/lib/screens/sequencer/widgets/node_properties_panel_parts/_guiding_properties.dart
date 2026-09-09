@@ -42,7 +42,7 @@ class _StartGuidingProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Threshold',
+          label: 'Settle threshold',
           helpText:
               'Guiding is considered settled once the guide-star error stays '
               'below this many pixels for the settle time. Lower = tighter '
@@ -66,7 +66,7 @@ class _StartGuidingProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Time',
+          label: 'Settle time',
           child: NodeNumberInput(
             colors: colors,
             value: node.settleTime,
@@ -86,7 +86,7 @@ class _StartGuidingProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Timeout',
+          label: 'Settle timeout',
           child: NodeNumberInput(
             colors: colors,
             value: node.settleTimeout,
@@ -106,7 +106,7 @@ class _StartGuidingProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Auto-select Star',
+          label: 'Auto-select star',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.autoSelectStar,

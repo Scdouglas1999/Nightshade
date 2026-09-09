@@ -22,7 +22,7 @@ class _DitherProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Dither Amount',
+          label: 'Dither amount',
           child: NodeNumberInput(
             colors: colors,
             value: node.pixels,
@@ -43,7 +43,7 @@ class _DitherProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Time',
+          label: 'Settle time',
           child: NodeNumberInput(
             colors: colors,
             value: node.settleTime,
@@ -64,7 +64,7 @@ class _DitherProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Threshold',
+          label: 'Settle threshold',
           child: NodeNumberInput(
             colors: colors,
             value: node.settlePixels,
@@ -81,7 +81,7 @@ class _DitherProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Settle Timeout',
+          label: 'Settle timeout',
           child: NodeNumberInput(
             colors: colors,
             value: node.settleTimeout,
@@ -101,7 +101,7 @@ class _DitherProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'RA Only',
+          label: 'RA only',
           child: NodeToggleSwitch(
             colors: colors,
             value: node.raOnly,
@@ -136,7 +136,7 @@ class _DitherProperties extends ConsumerWidget {
         if (node.pattern == DitherPattern.grid)
           NodePropertyField(
             colors: colors,
-            label: 'Grid Size (N)',
+            label: 'Grid size (N)',
             child: NodeNumberInput(
               colors: colors,
               value: node.gridSize.toDouble(),

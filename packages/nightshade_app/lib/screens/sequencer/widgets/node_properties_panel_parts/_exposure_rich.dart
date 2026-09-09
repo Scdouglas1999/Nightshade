@@ -202,7 +202,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          NodeSectionHeader(colors: colors, label: 'Exposure Settings'),
+          NodeSectionHeader(colors: colors, label: 'Exposure settings'),
           const SizedBox(height: 12),
 
           NodePropertyField(
@@ -284,7 +284,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
 
           NodePropertyField(
             colors: colors,
-            label: 'Frame Type',
+            label: 'Frame type',
             child: NodeDropdown<FrameType>(
               colors: colors,
               value: node.frameType,
@@ -396,7 +396,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
 
           NodePropertyField(
             colors: colors,
-            label: 'Dither Every',
+            label: 'Dither every',
             child: NodeNumberInput(
               colors: colors,
               value: (node.ditherEvery ?? 0).toDouble(),
