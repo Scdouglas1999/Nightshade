@@ -365,37 +365,46 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                 constraints.maxWidth < _discoveryHeadCompactWidth;
             return Row(
               children: [
-                Icon(
-                  LucideIcons.radio,
-                  size: SectionTitle.iconSize,
-                  color: colors.textMuted,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm + 2),
-                // NOT Flexible: a Flexible child beside a Spacer shares the
-                // row's slack with it and gets half, which truncated the label
-                // to "DISCOVERED DEVIC…" in a 652 px row it fits twice over.
-                // The eyebrow is the row's name; the summary is what gives way.
-                Text(
-                  'Discovered devices'.toUpperCase(),
-                  style: NightshadeTypography.eyebrow.copyWith(
-                    color: colors.textMuted,
-                  ),
-                  maxLines: 1,
-                ),
-                if (!compact) ...[
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  Flexible(
-                    child: Text(
-                      '$found found · $lastScanText',
-                      style: NightshadeTypography.caption.copyWith(
+                // The label and the summary share ONE Expanded, and there is
+                // no Spacer: a Flexible child beside a Spacer splits the row's
+                // slack three ways, which truncated the label to
+                // "DISCOVERED DEVIC…" in a 652 px row it fits twice over.
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.radio,
+                        size: SectionTitle.iconSize,
                         color: colors.textMuted,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(width: NightshadeTokens.spaceSm + 2),
+                      Flexible(
+                        child: Text(
+                          'Discovered devices'.toUpperCase(),
+                          style: NightshadeTypography.eyebrow.copyWith(
+                            color: colors.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!compact) ...[
+                        const SizedBox(width: NightshadeTokens.spaceMd),
+                        Flexible(
+                          child: Text(
+                            '$found found · $lastScanText',
+                            style: NightshadeTypography.caption.copyWith(
+                              color: colors.textMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-                const Spacer(),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
                 if (compact)
                   NightshadeIconButton(
                     icon: LucideIcons.refreshCw,
