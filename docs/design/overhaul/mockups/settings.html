@@ -28,6 +28,10 @@
   .srow .field { width: 160px; height: 30px; }
   .swatches { display: flex; gap: 8px; }
   .swatches span { width: 22px; height: 22px; border-radius: 50%; }
+  .swatches-light { display: none; }
+  :root[data-theme="light"] .swatches-dark { display: none; }
+  :root[data-theme="light"] .swatches-light { display: flex; }
+  :root[data-theme="redNight"] .accent-row { display: none; }
   .swatches span.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--textPrimary); }
   .themes { display: flex; gap: 10px; }
   .themes .th { width: 132px; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--panel-outline); font-size: 12px; color: var(--textSecondary); }
@@ -75,8 +79,9 @@
                   <div class="th"><div class="pv" style="background:#F3F5F8"><i style="background:#fff;box-shadow:0 0 0 1px #DCE1E7"></i><i style="background:#fff;box-shadow:0 0 0 1px #DCE1E7"></i></div><div class="lab">Light</div></div>
                   <div class="th"><div class="pv" style="background:#0A0000"><i style="background:#140808"></i><i style="background:#140808"></i></div><div class="lab">Red night</div></div>
                 </div></div>
-              <div class="srow"><div><div class="t">Accent</div><div class="d">Used for the primary action, selection and links. Nothing else.</div></div>
-                <div class="swatches"><span class="sel" style="background:#6EB3EC"></span><span style="background:#43B67A"></span><span style="background:#E0A53E"></span><span style="background:#E86A6A"></span><span style="background:#A48CF2"></span><span style="background:#E77FB3"></span><span style="background:#4FC3C8"></span></div></div>
+              <!-- Accent row: per-theme swatch set (03 §1.4); hidden in red night, which has no accent choice. -->
+              <div class="srow accent-row"><div><div class="t">Accent</div><div class="d">Used for the primary action, selection and links. Nothing else.</div></div>
+                <div class="swatches swatches-dark"><span class="sel" style="background:#6EB3EC"></span><span style="background:#43B67A"></span><span style="background:#E0A53E"></span><span style="background:#E86A6A"></span><span style="background:#A48CF2"></span><span style="background:#E77FB3"></span><span style="background:#4FC3C8"></span></div><div class="swatches swatches-light"><span class="sel" style="background:#256F9E"></span><span style="background:#277549"></span><span style="background:#8F5D14"></span><span style="background:#BC3838"></span><span style="background:#6A4FD1"></span><span style="background:#B03A7A"></span><span style="background:#1B7278"></span></div></div>
             </div>
           </div>
           <div class="group">
