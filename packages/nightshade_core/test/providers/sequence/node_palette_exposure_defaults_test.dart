@@ -67,7 +67,7 @@ void main() {
       final item = container
           .read(nodePaletteProvider)
           .expand((category) => category.items)
-          .singleWhere((item) => item.name == 'Take Exposures');
+          .singleWhere((item) => item.name == 'Take exposures');
 
       final node = item.createNode() as ExposureNode;
 

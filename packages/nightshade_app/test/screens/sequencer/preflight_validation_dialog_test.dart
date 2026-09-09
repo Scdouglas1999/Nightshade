@@ -208,7 +208,7 @@ void main() {
         ),
       ],
     );
-    expect(find.text('Equipment Health'), findsOneWidget);
+    expect(find.text('Equipment health'), findsOneWidget);
     expect(find.text('USB Stability Concern'), findsOneWidget);
   });
 
@@ -225,7 +225,7 @@ void main() {
         ),
       ],
     );
-    expect(find.text('Optical Train'), findsOneWidget);
+    expect(find.text('Optical train'), findsOneWidget);
     expect(find.text('Optical Train Has Shifted'), findsOneWidget);
   });
 

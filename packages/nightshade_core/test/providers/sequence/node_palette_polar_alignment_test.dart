@@ -52,7 +52,7 @@ void main() {
 
     final categories = container.read(nodePaletteProvider);
     final mount = categories.singleWhere((c) => c.name == 'Mount');
-    final item = mount.items.singleWhere((i) => i.name == 'Polar Alignment');
+    final item = mount.items.singleWhere((i) => i.name == 'Polar alignment');
 
     expect(item.createNode(), isA<PolarAlignmentNode>());
   });
@@ -90,7 +90,7 @@ void main() {
       final item = container
           .read(nodePaletteProvider)
           .expand((c) => c.items)
-          .singleWhere((i) => i.name == 'Polar Alignment');
+          .singleWhere((i) => i.name == 'Polar alignment');
 
       expect((item.createNode() as PolarAlignmentNode).isNorth, isFalse);
     },
@@ -109,7 +109,7 @@ void main() {
       final item = container
           .read(nodePaletteProvider)
           .expand((c) => c.items)
-          .singleWhere((i) => i.name == 'Polar Alignment');
+          .singleWhere((i) => i.name == 'Polar alignment');
 
       expect((item.createNode() as PolarAlignmentNode).isNorth, isTrue);
     },

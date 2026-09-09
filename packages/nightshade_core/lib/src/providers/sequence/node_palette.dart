@@ -147,7 +147,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'camera',
       items: [
         NodePaletteItem(
-          name: 'Take Exposures',
+          name: 'Take exposures',
           icon: 'camera',
           description: 'Capture images with specified settings',
           createNode: () => ExposureNode(
@@ -161,7 +161,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           ),
         ),
         NodePaletteItem(
-          name: 'Change Filter',
+          name: 'Change filter',
           icon: 'circle',
           description: 'Change the filter wheel position',
           createNode: () =>
@@ -172,7 +172,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         // rotation order. Adds a single row using the current profile
         // filter so the user has a working starting point.
         NodePaletteItem(
-          name: 'Smart Exposure',
+          name: 'Smart exposure',
           icon: 'layers',
           description: 'One row per filter; handles rotation + dither',
           createNode: () => SmartExposureNode(
@@ -206,7 +206,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         // working private broadcast on the user's chosen port; flipping
         // to public is an explicit edit in the properties panel.
         NodePaletteItem(
-          name: 'Live Stacking',
+          name: 'Live stacking',
           icon: 'cast_connected',
           description:
               'Broadcast a building live stack to a public/private URL',
@@ -227,7 +227,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'lineChart',
       items: [
         NodePaletteItem(
-          name: 'Science Photometry',
+          name: 'Science photometry',
           icon: 'analytics',
           description:
               'Cadence-enforced photometric capture with live reduction',
@@ -240,10 +240,10 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           ),
         ),
         NodePaletteItem(
-          name: 'Photometry Run (template)',
+          name: 'Photometry run (template)',
           icon: 'lineChart',
           description: 'Center, start guiding, then run AAVSO-grade photometry',
-          createNode: () => InstructionSetNode(name: 'Photometry Run'),
+          createNode: () => InstructionSetNode(name: 'Photometry run'),
           createChildren: () => [
             CenterNode(),
             StartGuidingNode(
@@ -267,7 +267,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'crosshair',
       items: [
         NodePaletteItem(
-          name: 'Start Guiding',
+          name: 'Start guiding',
           icon: 'crosshair',
           description: 'Start PHD2 guiding and wait for settle',
           createNode: () => StartGuidingNode(
@@ -276,7 +276,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           ),
         ),
         NodePaletteItem(
-          name: 'Stop Guiding',
+          name: 'Stop guiding',
           icon: 'x-circle',
           description: 'Stop PHD2 guiding',
           createNode: () => StopGuidingNode(),
@@ -288,31 +288,31 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'compass',
       items: [
         NodePaletteItem(
-          name: 'Slew to Target',
+          name: 'Slew to target',
           icon: 'compass',
           description: 'Slew mount to target coordinates',
           createNode: () => SlewNode(),
         ),
         NodePaletteItem(
-          name: 'Center Target',
+          name: 'Center target',
           icon: 'crosshair',
           description: 'Plate solve and center on target',
           createNode: () => CenterNode(),
         ),
         NodePaletteItem(
-          name: 'Park Mount',
+          name: 'Park mount',
           icon: 'parking-circle',
           description: 'Park the mount',
           createNode: () => ParkNode(),
         ),
         NodePaletteItem(
-          name: 'Unpark Mount',
+          name: 'Unpark mount',
           icon: 'unlock',
           description: 'Unpark the mount',
           createNode: () => UnparkNode(),
         ),
         NodePaletteItem(
-          name: 'Meridian Flip',
+          name: 'Meridian flip',
           icon: 'refresh-cw',
           description: 'Perform meridian flip',
           createNode: () => MeridianFlipNode(),
@@ -321,7 +321,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         // SmartNightService derives: a southern-hemisphere run must rotate
         // about the SOUTH celestial pole.
         NodePaletteItem(
-          name: 'Polar Alignment',
+          name: 'Polar alignment',
           icon: 'compass',
           description: 'Measure polar error by rotating in RA',
           createNode: () =>
@@ -334,19 +334,19 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'home',
       items: [
         NodePaletteItem(
-          name: 'Open Dome',
+          name: 'Open dome',
           icon: 'home',
           description: 'Open dome shutter',
           createNode: () => OpenDomeNode(),
         ),
         NodePaletteItem(
-          name: 'Close Dome',
+          name: 'Close dome',
           icon: 'home',
           description: 'Close dome shutter',
           createNode: () => CloseDomeNode(),
         ),
         NodePaletteItem(
-          name: 'Park Dome',
+          name: 'Park dome',
           icon: 'parking-circle',
           description: 'Park the dome',
           createNode: () => ParkDomeNode(),
@@ -354,29 +354,29 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       ],
     ),
     NodePaletteCategory(
-      name: 'Flat Panel',
+      name: 'Flat panel',
       icon: 'lightbulb',
       items: [
         NodePaletteItem(
-          name: 'Open Cover',
+          name: 'Open cover',
           icon: 'door-open',
           description: 'Open dust cover / flat panel lid',
           createNode: () => OpenCoverNode(),
         ),
         NodePaletteItem(
-          name: 'Close Cover',
+          name: 'Close cover',
           icon: 'door-closed',
           description: 'Close dust cover / flat panel lid',
           createNode: () => CloseCoverNode(),
         ),
         NodePaletteItem(
-          name: 'Calibrator On',
+          name: 'Calibrator on',
           icon: 'lightbulb',
           description: 'Turn on flat panel at brightness',
           createNode: () => CalibratorOnNode(),
         ),
         NodePaletteItem(
-          name: 'Calibrator Off',
+          name: 'Calibrator off',
           icon: 'lightbulb-off',
           description: 'Turn off flat panel light',
           createNode: () => CalibratorOffNode(),
@@ -404,19 +404,19 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'aperture',
       items: [
         NodePaletteItem(
-          name: 'Cool Camera',
+          name: 'Cool camera',
           icon: 'snowflake',
           description: 'Cool camera to target temperature',
           createNode: () => CoolCameraNode(),
         ),
         NodePaletteItem(
-          name: 'Warm Camera',
+          name: 'Warm camera',
           icon: 'flame',
           description: 'Warm camera at controlled rate',
           createNode: () => WarmCameraNode(),
         ),
         NodePaletteItem(
-          name: 'Move Rotator',
+          name: 'Move rotator',
           icon: 'rotate-cw',
           description: 'Move rotator to angle',
           createNode: () => RotatorNode(),
@@ -428,7 +428,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'workflow',
       items: [
         NodePaletteItem(
-          name: 'Instruction Set',
+          name: 'Instruction set',
           icon: 'list',
           description: 'Group instructions sequentially (no loop)',
           createNode: () => InstructionSetNode(),
@@ -464,7 +464,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         // the operator's Settings → Adaptive Conditions preferences
         // without needing to retouch every knob.
         NodePaletteItem(
-          name: 'Target Scheduler',
+          name: 'Target scheduler',
           icon: 'scheduler',
           description: 'Dynamically pick the best target right now',
           createNode: () => TargetSchedulerNode(
@@ -483,7 +483,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       icon: 'clock',
       items: [
         NodePaletteItem(
-          name: 'Wait for Time',
+          name: 'Wait for time',
           icon: 'clock',
           description: 'Wait until specific time',
           createNode: () => WaitTimeNode(),
@@ -507,7 +507,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           createNode: () => NotificationNode(),
         ),
         NodePaletteItem(
-          name: 'Run Script',
+          name: 'Run script',
           icon: 'code',
           description: 'Execute custom script',
           createNode: () => ScriptNode(),
