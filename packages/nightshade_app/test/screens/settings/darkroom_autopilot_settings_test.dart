@@ -490,7 +490,7 @@ void main() {
     expect(label, contains('It is currently off.'));
     expect(
       label,
-      contains('Settings › Image Grading › Post-session integration.'),
+      contains('Settings › Image grading › Post-session integration.'),
       reason: 'the sentence carries the state; the visual echo must not '
           'publish a second, unbound copy of it',
     );

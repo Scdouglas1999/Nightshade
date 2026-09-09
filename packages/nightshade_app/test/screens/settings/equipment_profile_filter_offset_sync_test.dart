@@ -78,12 +78,12 @@ void main() {
     await openEditor(tester, _emptyRig);
 
     // A rig with no filters starts with one blank chip and no offsets card.
-    expect(find.text('Filter Focus Offsets'), findsNothing);
+    expect(find.text('Filter focus offsets'), findsNothing);
 
     await tester.enterText(_filterNameFields.first, 'Lum');
     await tester.pump();
 
-    expect(find.text('Filter Focus Offsets'), findsOneWidget,
+    expect(find.text('Filter focus offsets'), findsOneWidget,
         reason: 'the offsets card must follow the name in the same session');
     // Chip (EditableText) plus the offsets-row label.
     expect(find.text('Lum'), findsNWidgets(2));
@@ -93,7 +93,7 @@ void main() {
       (tester) async {
     await openEditor(tester, _oneFilterRig);
 
-    expect(find.text('Filter Focus Offsets'), findsOneWidget);
+    expect(find.text('Filter focus offsets'), findsOneWidget);
     expect(_filterNameFields, findsOneWidget);
 
     await tester.tap(findByTooltip('Add filter'));

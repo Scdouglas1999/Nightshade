@@ -292,7 +292,7 @@ void main() {
       expect(find.text('Get started in 3 steps'), findsOneWidget);
       expect(find.text('Install ASTAP'), findsOneWidget);
       expect(find.text('Download a star catalog'), findsOneWidget);
-      expect(find.text('Click Re-scan'), findsOneWidget);
+      expect(find.text('Click re-scan'), findsOneWidget);
       expect(find.textContaining('V17 is recommended'), findsOneWidget);
 
       // Each step also exposes its own action button.

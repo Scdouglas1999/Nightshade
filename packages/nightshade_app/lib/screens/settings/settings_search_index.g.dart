@@ -11,6 +11,10 @@
 const Map<String, List<String>> kSettingsSearchTerms = {
   'about': [
     'About',
+    'License',
+    'Nightshade',
+    'Software Update',
+    'System Information',
   ],
   'adaptive-conditions': [
     'Adaptive conditions',
@@ -123,6 +127,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Backlash IN',
     'Backlash OUT',
     'Bad runs before warning',
+    'Behavior',
     'Below this count, even a high-R² model still forces a',
     'Binning',
     'Central exclusion; must be smaller than outer',
@@ -172,7 +177,12 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'When enabled, each successful AF run appends a sample',
   ],
   'backup': [
+    'Auto-Save Status',
     'Backup & restore',
+    'Backup & Sync',
+    'Backup & Sync (imaging host)',
+    'Quick Actions',
+    'Recent Backups',
   ],
   'calibration': [
     'Apply dark, flat, and bias correction to captured images automatically',
@@ -197,9 +207,14 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Captured images',
   ],
   'catalogs': [
+    'Actions',
+    'Deep-Star Tier (Tycho-2 / Gaia)',
     'Delete annotation catalog',
     'Delete catalogs',
+    'Download Catalogs',
+    'GLADE+ Galaxy Catalog',
     'HYG Star Database',
+    'Minor Planets & Comets (MPC)',
     'OpenNGC',
   ],
   'connection': [
@@ -263,6 +278,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
   'equipment-profiles': [
     'Camera defaults',
     'Device assignments',
+    'Equipment profiles',
     'Filter configuration',
     'Filter focus offsets',
     'Optical configuration',
@@ -401,6 +417,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
   'logs': [
     'Entries on screen',
     'Full history',
+    'Logs',
   ],
   'notifications': [
     'Alert sound',
@@ -529,6 +546,13 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Which of these decides where an alert goes',
     'Which sound to play when critical events fire',
     'Write-only secret stored on the imaging host.',
+  ],
+  'observation-log': [
+    'Observation Log',
+  ],
+  'observing-lists': [
+    'No observing lists yet',
+    'Observing Lists',
   ],
   'phd2-guiding': [
     'Host',

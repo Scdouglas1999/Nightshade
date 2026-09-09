@@ -176,6 +176,6 @@ void main() {
     // Equipment Profiles renders its rows from `part` files; the index used to
     // hold nothing but that page's two error strings.
     expect(kSettingsSearchTerms['equipment-profiles'],
-        contains('Camera Defaults'));
+        contains('Camera defaults'));
   });
 }

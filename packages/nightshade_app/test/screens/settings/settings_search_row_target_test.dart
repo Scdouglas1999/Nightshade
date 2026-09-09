@@ -136,13 +136,13 @@ void main() {
     await tester.tap(result);
     await tester.pumpAndSettle();
 
-    final heading = _detailRow('Dithering');
+    final heading = _detailRow('Dithering'.toUpperCase());
     expect(heading, findsOneWidget);
     final rect = tester.getRect(heading);
     expect(rect.top, greaterThanOrEqualTo(0));
     expect(rect.bottom, lessThanOrEqualTo(_windowSize.height));
     expect(
-      _highlighted(tester, 'Dithering'),
+      _highlighted(tester, 'Dithering'.toUpperCase()),
       isTrue,
       reason: 'a heading result must point at the heading, not just open the '
           'page',

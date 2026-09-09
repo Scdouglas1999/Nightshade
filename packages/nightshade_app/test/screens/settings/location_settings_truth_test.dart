@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/widgets/location_settings.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
@@ -118,7 +119,11 @@ void main() {
 
       await tester.tap(find.byIcon(LucideIcons.crosshair));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Detect location'));
+      // The consent dialog's confirm button, not the row that opened it:
+      // both read 'Detect location' now that the row title is sentence case.
+      await tester.tap(
+        find.widgetWithText(NightshadeButton, 'Detect location'),
+      );
       await tester.pumpAndSettle();
 
       final settings = handle.container.read(appSettingsProvider).requireValue;
@@ -141,7 +146,11 @@ void main() {
 
       await tester.tap(find.byIcon(LucideIcons.crosshair));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Detect location'));
+      // The consent dialog's confirm button, not the row that opened it:
+      // both read 'Detect location' now that the row title is sentence case.
+      await tester.tap(
+        find.widgetWithText(NightshadeButton, 'Detect location'),
+      );
       await tester.pumpAndSettle();
 
       expect(

@@ -170,9 +170,9 @@ void main() {
       variants,
       hasLength(1),
       reason: 'the Tutorial Tours "Start" must not render filled-primary '
-          'directly beneath the outline "Start" of Guided Flows',
+          'directly beneath the secondary "Start" of Guided flows',
     );
-    expect(variants.single, ButtonVariant.outline);
+    expect(variants.single, ButtonVariant.secondary);
   });
 
   test('no row title in the widget source is Title Case', () {
@@ -187,17 +187,14 @@ void main() {
       final title = match.group(1)!;
       if (_isTitleCase(title)) offenders.add(title);
     }
-    // The SECTION headers are a different level of the hierarchy and stay
-    // Title Case app-wide; they are declared with `title:` too, so they are
-    // the expected members of this list and nothing else may join them.
+    // The four SECTION headers used to be the allowed exceptions, on the
+    // grounds that headers stayed Title Case app-wide. 06's copy rules ended
+    // that — sentence case everywhere, headers included — so the list is now
+    // empty and there is no exception left to enumerate.
     expect(
       offenders,
-      unorderedEquals(<String>[
-        'Guided flows',
-        'Tutorial tours',
-        'Reset progress',
-        'Help & tutorials',
-      ]),
+      isEmpty,
+      reason: 'sentence case everywhere (06 §Copy rules), headers included',
     );
   });
 

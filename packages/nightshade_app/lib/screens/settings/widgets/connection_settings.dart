@@ -241,8 +241,8 @@ class ConnectionSettings extends ConsumerWidget {
           // the imaging host — so relabel to make clear whose driver support
           // this describes and avoid implying it is the rig's capabilities.
           title: isConnected
-              ? 'This Device Capabilities'
-              : 'Platform Capabilities',
+              ? 'This device capabilities'
+              : 'Platform capabilities',
           isMobile: isMobile,
           children: [
             _PlatformCapabilityMatrixView(
@@ -423,7 +423,7 @@ class _HostSettingsRefreshButtonState
     }
     return NightshadeIconButton(
       icon: LucideIcons.downloadCloud,
-      tooltip: 'Refresh the host settings',
+      tooltip: 'Refresh host settings',
       onPressed: _refresh,
       color: colors.primary,
     );

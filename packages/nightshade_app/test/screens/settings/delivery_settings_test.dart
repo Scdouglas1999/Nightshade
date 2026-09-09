@@ -910,7 +910,7 @@ void main() {
 
       await _pumpDelivery(tester, database);
 
-      expect(find.text('Paired desktop pulls'), findsWidgets);
+      expect(find.text('Paired desktop pulls'.toUpperCase()), findsWidgets);
       expect(
         find.textContaining(
           'no paired desktop is registered under "office-pc"',

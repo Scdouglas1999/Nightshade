@@ -177,11 +177,10 @@ void main() {
 
     expect(find.textContaining('host settings unavailable'), findsOneWidget);
     expect(find.text('Host settings refreshed'), findsNothing);
-    final button = tester.widget<IconButton>(
-      find.ancestor(
-        of: findByTooltip('Refresh host settings'),
-        matching: find.byType(IconButton),
-      ),
+    // The control is a NightshadeIconButton now, not a Material IconButton
+    // wrapping one, so its own onPressed is what says the retry is live.
+    final button = tester.widget<NightshadeIconButton>(
+      findByTooltip('Refresh host settings'),
     );
     expect(button.onPressed, isNotNull);
     expect(tester.takeException(), isNull);
