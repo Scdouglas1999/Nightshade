@@ -701,9 +701,43 @@ pub(crate) fn format_dms(value: f64, degree_width: usize, with_seconds: bool) ->
 /// `+05`. Returned here in the ordinary sense (UTC-5 → -5.0).
 pub(crate) fn parse_utc_offset(response: &str) -> Result<f64, NativeError> {
     let cleaned = response.trim().trim_end_matches('#').trim();
-    let value: f64 = cleaned
-        .parse()
-        .map_err(|_| NativeError::SdkError(format!("Bad UTC offset {:?}", response)))?;
+    if cleaned.is_empty() {
+        return Err(NativeError::SdkError("Empty UTC offset".into()));
+    }
+
+    // Firmware disagrees about the shape. The spec says `sHH`, the Pegasus
+    // NYX-101 answers `+05:00`, and half-hour zones show up as either `+05:30`
+    // or `+05.5`. Parsing only the spec form made a real mount's clock
+    // unreadable, so all three are accepted here.
+    let (sign, magnitude) = match cleaned.as_bytes()[0] {
+        b'-' => (-1.0, &cleaned[1..]),
+        b'+' => (1.0, &cleaned[1..]),
+        _ => (1.0, cleaned),
+    };
+
+    let value = if let Some((hours_text, minutes_text)) = magnitude.split_once(':') {
+        let hours: f64 = hours_text
+            .trim()
+            .parse()
+            .map_err(|_| NativeError::SdkError(format!("Bad UTC offset {:?}", response)))?;
+        let minutes: f64 = minutes_text
+            .trim()
+            .parse()
+            .map_err(|_| NativeError::SdkError(format!("Bad UTC offset {:?}", response)))?;
+        if !(0.0..60.0).contains(&minutes) {
+            return Err(NativeError::SdkError(format!(
+                "UTC offset minutes out of range: {:?}",
+                response
+            )));
+        }
+        sign * (hours + minutes / 60.0)
+    } else {
+        sign * magnitude
+            .trim()
+            .parse::<f64>()
+            .map_err(|_| NativeError::SdkError(format!("Bad UTC offset {:?}", response)))?
+    };
+
     if !(-14.0..=14.0).contains(&value) {
         return Err(NativeError::SdkError(format!(
             "UTC offset out of range: {:?}",
@@ -922,6 +956,21 @@ mod site_tests {
     fn longitude_is_three_digits_wide() {
         assert_eq!(format_dms(75.383333, 3, false), "+075*23");
         assert_eq!(format_dms(5.5, 3, false), "+005*30");
+    }
+
+    #[test]
+    fn utc_offset_accepts_the_shapes_real_firmware_sends() {
+        // The Pegasus NYX-101 answers `:GG#` with `+05:00`, not the spec's
+        // `+05`. Parsing only the spec form made its clock unreadable.
+        assert!((parse_utc_offset("+05:00#").unwrap() + 5.0).abs() < 1e-9);
+        assert!((parse_utc_offset("+05#").unwrap() + 5.0).abs() < 1e-9);
+        // Half-hour zones, both spellings.
+        assert!((parse_utc_offset("-05:30#").unwrap() - 5.5).abs() < 1e-9);
+        assert!((parse_utc_offset("-05.5#").unwrap() - 5.5).abs() < 1e-9);
+        // Still nonsense-proof.
+        assert!(parse_utc_offset("+05:99#").is_err());
+        assert!(parse_utc_offset("").is_err());
+        assert!(parse_utc_offset("banana#").is_err());
     }
 
     #[test]
