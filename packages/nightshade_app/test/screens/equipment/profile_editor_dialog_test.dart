@@ -26,11 +26,11 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('New Profile'), findsOneWidget);
-    expect(find.text('Profile Identity'), findsOneWidget);
-    expect(find.text('Optical Train'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
+    expect(find.text('Profile identity'), findsOneWidget);
+    expect(find.text('Optical train'), findsOneWidget);
     expect(find.text('Devices'), findsOneWidget);
-    expect(find.text('Camera Defaults'), findsOneWidget);
+    expect(find.text('Camera defaults'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Save changes'), findsOneWidget);
   });

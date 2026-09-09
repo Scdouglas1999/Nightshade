@@ -74,7 +74,7 @@ class _WorkLocallyButtonState extends ConsumerState<WorkLocallyButton> {
   @override
   Widget build(BuildContext context) {
     final button = NightshadeButton(
-      label: 'Work Locally',
+      label: 'Work locally',
       icon: widget.icon,
       variant: widget.variant,
       size: ButtonSize.small,

@@ -62,11 +62,15 @@ class _FailingAppSettingsNotifier extends AppSettingsNotifier {
   }
 }
 
-Widget _wrap(ProviderContainer container, Widget child) {
+Widget _wrap(
+  ProviderContainer container,
+  Widget child, {
+  Size size = const Size(1200, 1000),
+}) {
   return UncontrolledProviderScope(
     container: container,
     child: MediaQuery(
-      data: const MediaQueryData(size: Size(1200, 1000)),
+      data: MediaQueryData(size: size),
       child: MaterialApp(
         theme: NightshadeTheme.dark,
         home: Scaffold(
@@ -88,6 +92,7 @@ void main() {
       longitude: -75,
     ),
     Sequence? sequence,
+    Size size = const Size(1200, 1000),
   }) async {
     final container = ProviderContainer(overrides: [
       inMemoryDatabaseOverride(),
@@ -101,31 +106,14 @@ void main() {
     ]);
     addTearDown(container.dispose);
 
-    await tester
-        .pumpWidget(_wrap(container, const PreFlightValidationDialog()));
+    await tester.pumpWidget(
+      _wrap(container, const PreFlightValidationDialog(), size: size),
+    );
     await tester.pumpAndSettle();
-  }
-
-  /// Pre-existing layout: the dialog is 500px wide; when the summary
-  /// title is long the headline row tightens beyond available width by
-  /// ~21 pixels. The widget paints correctly (yellow/black stripe is
-  /// debug-only), but `flutter_test` re-throws the framework's overflow
-  /// assertion which would otherwise fail the test. We treat overflow
-  /// errors as non-fatal so the section-render assertions still run.
-  void ignoreLayoutOverflow() {
-    final original = FlutterError.onError;
-    FlutterError.onError = (details) {
-      if (details.exceptionAsString().contains('A RenderFlex overflowed')) {
-        return;
-      }
-      original?.call(details);
-    };
-    addTearDown(() => FlutterError.onError = original);
   }
 
   testWidgets('renders the dark library section with capture button',
       (tester) async {
-    ignoreLayoutOverflow();
     await pumpDialog(
       tester: tester,
       issues: const [
@@ -145,7 +133,6 @@ void main() {
 
   testWidgets('renders compact simulation summary when location is set',
       (tester) async {
-    ignoreLayoutOverflow();
     final target = TargetHeaderNode(
       id: 'target-m31',
       targetName: 'M31',
@@ -173,15 +160,15 @@ void main() {
     );
 
     expect(find.text('Simulation'), findsOneWidget);
-    expect(find.text('Duration'), findsOneWidget);
-    expect(find.text('Segments'), findsOneWidget);
-    expect(find.text('Targets'), findsOneWidget);
-    expect(find.text('Issues'), findsOneWidget);
+    // `Readout` renders its label uppercase (05 §3).
+    expect(find.text('DURATION'), findsOneWidget);
+    expect(find.text('SEGMENTS'), findsOneWidget);
+    expect(find.text('TARGETS'), findsOneWidget);
+    expect(find.text('ISSUES'), findsOneWidget);
   });
 
   testWidgets('simulation section degrades cleanly without observer location',
       (tester) async {
-    ignoreLayoutOverflow();
     await pumpDialog(
       tester: tester,
       issues: const [],
@@ -196,7 +183,6 @@ void main() {
   });
 
   testWidgets('renders the equipment health section', (tester) async {
-    ignoreLayoutOverflow();
     await pumpDialog(
       tester: tester,
       issues: const [
@@ -213,7 +199,6 @@ void main() {
   });
 
   testWidgets('renders the optical train section', (tester) async {
-    ignoreLayoutOverflow();
     await pumpDialog(
       tester: tester,
       issues: const [
@@ -259,7 +244,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.textContaining(RegExp(r'^Start (Sequence|Anyway)$')),
+      find.textContaining(RegExp(r'^Start (sequence|anyway)$')),
     );
     await tester.pumpAndSettle();
 
@@ -267,10 +252,19 @@ void main() {
     expect(find.textContaining('history database offline'), findsOneWidget);
     expect(started, isFalse);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    final confirmDialog = find.ancestor(
+      of: find.text('Prior-session history unavailable'),
+      matching: find.byType(NightshadeDialog),
+    );
+    await tester.tap(
+      find.descendant(
+        of: confirmDialog,
+        matching: find.widgetWithText(NightshadeButton, 'Cancel'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(started, isFalse);
-    expect(find.text('Pre-Flight Validation'), findsOneWidget);
+    expect(find.text('Pre-flight check'), findsOneWidget);
   });
 
   testWidgets('disabled auto-prompt does not read carry-over history',
@@ -309,7 +303,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.textContaining(RegExp(r'^Start (Sequence|Anyway)$')),
+      find.textContaining(RegExp(r'^Start (sequence|anyway)$')),
     );
     await tester.pumpAndSettle();
 
@@ -352,12 +346,9 @@ void main() {
       find.widgetWithText(NightshadeButton, 'Retry validation'),
       findsOneWidget,
     );
-    final startGesture = find.ancestor(
-      of: find.text('Start Sequence'),
-      matching: find.byType(GestureDetector),
-    );
-    expect(startGesture, findsOneWidget);
-    expect(tester.widget<GestureDetector>(startGesture).onTap, isNull);
+    final start = find.widgetWithText(NightshadeButton, 'Start sequence');
+    expect(start, findsOneWidget);
+    expect(tester.widget<NightshadeButton>(start).onPressed, isNull);
     expect(started, isFalse);
     expect(historyReads, 0);
   });
@@ -392,7 +383,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.textContaining(RegExp(r'^Start (Sequence|Anyway)$')),
+      find.textContaining(RegExp(r'^Start (sequence|anyway)$')),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Start without prior progress'));
@@ -402,10 +393,39 @@ void main() {
     expect(container.read(sessionHandoffIgnoreUnavailableOnceProvider), isTrue);
   });
 
-  // A bare GestureDetector for the green primary prints `panel: Start Anyway` —
+  testWidgets('lays out without overflow at 700px', (tester) async {
+    await pumpDialog(
+      tester: tester,
+      size: const Size(700, 800),
+      issues: const [
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.equipmentHealth,
+          title: 'Daylight Gate',
+          description: 'The sun is above the configured altitude limit.',
+          resolutionHint: 'Wait for astronomical dusk, or lower the sun limit.',
+        ),
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.darkLibrary,
+          title: 'Missing Dark Frames',
+          description: 'No matching darks for gain=100 offset=10',
+        ),
+      ],
+    );
+
+    // No FlutterError was swallowed above: a RenderFlex overflow would have
+    // failed the pump. This just proves the dialog actually rendered.
+    expect(find.text('Pre-flight check'), findsOneWidget);
+    expect(find.text('Cannot start', findRichText: true), findsOneWidget);
+  });
+
+  // A bare GestureDetector for the green primary printed `panel: Start anyway` —
   // no role, no state — right beside its own siblings `button: Re-check` and
-  // `button: Cancel`, and cannot be reached from the keyboard at all.
-  testWidgets('Start Anyway announces itself as an enabled button',
+  // `button: Cancel`, and could not be reached from the keyboard at all. The
+  // primary is a `NightshadeButton` now; this pins that it still publishes
+  // the role and the live state.
+  testWidgets('Start anyway announces itself as an enabled button',
       (tester) async {
     final handle = tester.ensureSemantics();
     await pumpDialog(
@@ -420,14 +440,14 @@ void main() {
       ],
     );
 
-    expect(find.text('Start Anyway'), findsOneWidget);
-    final node = tester.getSemantics(find.text('Start Anyway'));
+    expect(find.text('Start anyway'), findsOneWidget);
+    final node = tester.getSemantics(find.text('Start anyway'));
     expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
     expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
     expect(
       node.label.trim(),
-      'Start Anyway',
+      'Start anyway',
       reason: 'nothing blocks a warnings-only run, so no reason is announced',
     );
     handle.dispose();
@@ -452,14 +472,14 @@ void main() {
       ],
     );
 
-    expect(find.text('Start Sequence'), findsOneWidget);
-    final node = tester.getSemantics(find.text('Start Sequence'));
+    expect(find.text('Start sequence'), findsOneWidget);
+    final node = tester.getSemantics(find.text('Start sequence'));
     expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
     expect(node.hasFlag(SemanticsFlag.isEnabled), isFalse);
     expect(
       node.label.trim(),
-      'Start Sequence — unavailable: fix the 1 pre-flight error above first',
+      'Start sequence — unavailable: fix the 1 pre-flight error above first',
     );
     expect(
       node.getSemanticsData().hasAction(SemanticsAction.tap),

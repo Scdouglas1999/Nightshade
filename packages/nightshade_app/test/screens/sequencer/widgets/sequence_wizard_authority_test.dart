@@ -83,7 +83,7 @@ void main() {
     await _expectClosesOnHostSwitch(
       tester,
       dialog: const MosaicWizardDialog(initialRa: 12, initialDec: 30),
-      dialogTitle: 'Mosaic Wizard',
+      dialogTitle: 'Mosaic wizard',
       hostA: hostA,
       hostB: hostB,
     );

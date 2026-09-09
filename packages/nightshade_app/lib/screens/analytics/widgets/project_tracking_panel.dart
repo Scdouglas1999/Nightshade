@@ -147,7 +147,7 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
             title: 'No projects yet',
             body: 'Create a project in Plan Tonight → Projects, then the '
                 'frames you capture for its targets accrue here.',
-            actionLabel: 'New Project',
+            actionLabel: 'New project',
             onAction: () => context.go('/planner?tab=projects'),
           );
         }

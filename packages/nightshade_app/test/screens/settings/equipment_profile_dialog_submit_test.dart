@@ -100,7 +100,7 @@ void main() {
       (tester) async {
     final notifier = await openScreen(tester);
 
-    await tester.tap(find.text('New Profile'));
+    await tester.tap(find.text('New profile'));
     await tester.pumpAndSettle();
     expect(find.text('Create New Profile'), findsOneWidget);
 
@@ -117,7 +117,7 @@ void main() {
       (tester) async {
     final notifier = await openScreen(tester);
 
-    await tester.tap(find.text('New Profile'));
+    await tester.tap(find.text('New profile'));
     await tester.pumpAndSettle();
     await tester.enterText(dialogField().first, '   ');
     await tester.testTextInput.receiveAction(TextInputAction.done);

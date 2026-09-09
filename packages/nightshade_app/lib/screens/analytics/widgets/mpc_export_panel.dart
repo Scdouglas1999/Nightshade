@@ -145,7 +145,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
             children: [
               _SmallActionButton(
                 colors: widget.colors,
-                label: 'Select All',
+                label: 'Select all',
                 onPressed: () {
                   setState(() {
                     _selectedIds.clear();

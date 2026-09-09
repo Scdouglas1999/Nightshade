@@ -147,7 +147,7 @@ extension _AutomationStep on _QuickStartWizardDialogState {
         _buildToggleRow(
           colors: colors,
           icon: LucideIcons.refreshCw,
-          title: 'Meridian Flip',
+          title: 'Meridian flip',
           subtitle: 'Automatically flip the mount when crossing the meridian',
           value: _enableMeridianFlip,
           onChanged: (v) => _update(() => _enableMeridianFlip = v),

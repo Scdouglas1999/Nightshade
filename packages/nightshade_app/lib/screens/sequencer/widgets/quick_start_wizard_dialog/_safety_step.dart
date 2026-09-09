@@ -23,7 +23,7 @@ extension _SafetyStep on _QuickStartWizardDialogState {
         _buildToggleRow(
           colors: colors,
           icon: LucideIcons.snowflake,
-          title: 'Cool Camera',
+          title: 'Cool camera',
           subtitle: 'Cool the camera sensor before imaging and warm after',
           value: _coolCamera,
           onChanged: (v) => _update(() => _coolCamera = v),
@@ -92,7 +92,7 @@ extension _SafetyStep on _QuickStartWizardDialogState {
         _buildToggleRow(
           colors: colors,
           icon: LucideIcons.cloudRain,
-          title: 'Weather Abort',
+          title: 'Weather abort',
           subtitle: 'Park and abort if the weather becomes unsafe',
           value: _weatherAbort,
           onChanged: (v) => _update(() => _weatherAbort = v),
@@ -100,7 +100,7 @@ extension _SafetyStep on _QuickStartWizardDialogState {
         _buildToggleRow(
           colors: colors,
           icon: LucideIcons.sunrise,
-          title: 'Dawn Shutdown',
+          title: 'Dawn shutdown',
           subtitle: 'Warm camera and park mount at the end of the session',
           value: _dawnShutdown,
           onChanged: (v) => _update(() => _dawnShutdown = v),

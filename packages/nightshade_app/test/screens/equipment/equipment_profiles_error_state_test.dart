@@ -37,7 +37,7 @@ void main() {
 
     expect(find.text('Could not load equipment profiles'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
-    expect(find.text('Start Setup'), findsNothing);
+    expect(find.text('Start setup'), findsNothing);
   });
 
   testWidgets('profile loading is not rendered as first-time onboarding',
@@ -53,6 +53,6 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Start Setup'), findsNothing);
+    expect(find.text('Start setup'), findsNothing);
   });
 }

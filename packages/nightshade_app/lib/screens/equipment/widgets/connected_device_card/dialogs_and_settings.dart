@@ -34,7 +34,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
           return StatefulBuilder(builder: (context, setState) {
             final colors = NightshadeColors.of(context);
             return NightshadeDialog(
-              title: 'Mount Configuration',
+              title: 'Mount configuration',
               icon: LucideIcons.compass,
               width: 400,
               actions: [
@@ -188,7 +188,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
           return StatefulBuilder(builder: (context, setState) {
             final colors = NightshadeColors.of(context);
             return NightshadeDialog(
-              title: 'Focuser Configuration',
+              title: 'Focuser configuration',
               icon: LucideIcons.focus,
               width: 400,
               actions: [
@@ -368,7 +368,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
           return StatefulBuilder(builder: (context, setState) {
             final colors = NightshadeColors.of(context);
             return NightshadeDialog(
-              title: 'Rotator Configuration',
+              title: 'Rotator configuration',
               icon: LucideIcons.rotateCw,
               width: 400,
               actions: [
@@ -460,7 +460,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
           return StatefulBuilder(builder: (context, setState) {
             final colors = NightshadeColors.of(context);
             return NightshadeDialog(
-              title: 'Dome Configuration',
+              title: 'Dome configuration',
               icon: LucideIcons.home,
               width: 400,
               actions: [
@@ -588,7 +588,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
           return StatefulBuilder(builder: (context, setState) {
             final colors = NightshadeColors.of(context);
             return NightshadeDialog(
-              title: 'Calibrator Configuration',
+              title: 'Calibrator configuration',
               icon: LucideIcons.lamp,
               width: 400,
               actions: [

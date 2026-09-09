@@ -2,8 +2,36 @@ part of '../profile_editor_dialog.dart';
 
 // Helper widgets
 
-/// Collapsible section card
-class _SectionCard extends StatelessWidget {
+/// Width of the label column shared by every [FormRow] in this editor.
+///
+/// 05 §8 puts the column at 84–104. This form runs wider because two of its
+/// labels do not fit that window in `bodySm`/HankenGrotesk — measured,
+/// "Centering exposure" is 114.0 px and "Cover / calibrator" 104.6 — and a
+/// column that wraps to two lines on two rows out of twenty-three is a worse
+/// defect than one that is 16 px wider and never wraps.
+const double profileEditorLabelWidth = 120;
+
+/// Side of the square an emoji profile icon is offered in.
+const double _iconOptionSize = NightshadeTokens.inputHeight;
+
+/// Diameter of an accent swatch (03 §1.4).
+const double _swatchSize = 22;
+
+/// Ring drawn around the chosen accent swatch.
+const double _swatchSelectedRing = 2;
+
+/// Width of a filter row's focus-offset field.
+const double _filterOffsetWidth = 104;
+
+/// Width of the ordinal column in the filter table.
+const double _filterIndexWidth = 28;
+
+/// A section of the editor: a [SectionTitle] with a collapse control, then
+/// either the section's content or, when collapsed, its one-line summary.
+///
+/// NOT a card. The dialog is already the surface; a panel per section would be
+/// a panel inside a panel, which 02 §2 says does not exist.
+class _SectionBlock extends StatelessWidget {
   final String title;
   final IconData icon;
   final bool isExpanded;
@@ -12,7 +40,7 @@ class _SectionCard extends StatelessWidget {
   final Widget child;
   final NightshadeColors colors;
 
-  const _SectionCard({
+  const _SectionBlock({
     required this.title,
     required this.icon,
     required this.isExpanded,
@@ -24,75 +52,82 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadePanel(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          // Header (always visible, clickable to toggle)
-          InkWell(
-            onTap: onToggle,
-            borderRadius: isExpanded
-                ? const BorderRadius.vertical(
-                    top: Radius.circular(NightshadeTokens.radiusLg))
-                : BorderRadius.circular(NightshadeTokens.radiusInline8),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: NightshadeDecorations.tintedBadge(
-                      colors.primary,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    ),
-                    child: Icon(icon, size: 16, color: colors.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: NightshadeTypography.sectionTitle
-                              .copyWith(color: colors.textPrimary),
-                        ),
-                        if (!isExpanded) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            summary,
-                            style: NightshadeTypography.caption
-                                .copyWith(color: colors.textMuted),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    isExpanded
-                        ? LucideIcons.chevronUp
-                        : LucideIcons.chevronDown,
-                    size: 18,
-                    color: colors.textMuted,
-                  ),
-                ],
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SectionTitle(
+          icon: icon,
+          title: title,
+          trailing: NightshadeIconButton(
+            icon: isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+            tooltip: isExpanded ? 'Collapse $title' : 'Expand $title',
+            size: IconButtonSize.sm,
+            onPressed: onToggle,
           ),
-
-          // Content (only when expanded)
-          if (isExpanded)
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: child,
-            ),
-        ],
-      ),
+        ),
+        if (isExpanded)
+          child
+        else
+          Text(
+            summary,
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
+          ),
+      ],
     );
   }
 }
+
+/// One label + control row of the editor's form.
+///
+/// The label sits to the LEFT in [FormRow]'s fixed column (05 §8) and is also
+/// hung on the control as its accessible name — [FormRow] paints the label as a
+/// sibling [Text], so without this the field reaches assistive tech as an
+/// anonymous text box.
+class _EditorRow extends StatelessWidget {
+  const _EditorRow({
+    required this.label,
+    required this.child,
+    this.help,
+    this.trailing,
+  });
+
+  /// The label, in sentence case.
+  final String label;
+
+  /// The control.
+  final Widget child;
+
+  /// One short line under the control.
+  final String? help;
+
+  /// An affordance that belongs after the control (a help icon, a clear
+  /// button) rather than inside it.
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final named = Semantics(label: label, child: child);
+    return FormRow(
+      label: label,
+      labelWidth: profileEditorLabelWidth,
+      help: help,
+      child: trailing == null
+          ? named
+          : Row(
+              children: [
+                Expanded(child: named),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                trailing!,
+              ],
+            ),
+    );
+  }
+}
+
+/// Vertical gap between two [_EditorRow]s.
+const double _rowGap = FormRow.rowGap;
 
 /// Icon selection option
 class _IconOption extends StatelessWidget {
@@ -110,38 +145,43 @@ class _IconOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color:
-              isSelected ? colors.primary.withValues(alpha: 0.2) : colors.well,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-            width: isSelected ? 2 : 1,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: icon.isEmpty ? 'No icon' : 'Icon $icon',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: _iconOptionSize,
+          height: _iconOptionSize,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colors.primary.withValues(
+                    alpha: NightshadeTokens.opacityAccentTint,
+                  )
+                : colors.well,
+            borderRadius: NightshadeTokens.borderRadiusSm,
+            border: Border.all(
+              color: isSelected ? colors.primary : colors.border,
+              width: isSelected ? _swatchSelectedRing : 1,
+            ),
           ),
-        ),
-        child: Center(
-          child: icon.isEmpty
-              ? Icon(
-                  LucideIcons.ban,
-                  size: 18,
-                  color: colors.textMuted,
-                )
-              : Text(
-                  icon,
-                  style: NightshadeTypography.pageTitle,
-                ),
+          child: Center(
+            child: icon.isEmpty
+                ? Icon(
+                    LucideIcons.ban,
+                    size: NightshadeTokens.iconXs,
+                    color: colors.textMuted,
+                  )
+                : Text(icon, style: NightshadeTypography.bodyLg),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Color selection option
+/// Accent-colour swatch.
 class _ColorOption extends StatelessWidget {
   final Color? color;
   final bool isSelected;
@@ -157,46 +197,44 @@ class _ColorOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: color ?? colors.well,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected ? onPrimary : (color ?? colors.border),
-            width: isSelected ? 3 : 1,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: color == null ? 'No accent colour' : 'Accent colour',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: _swatchSize,
+          height: _swatchSize,
+          decoration: BoxDecoration(
+            color: color ?? colors.well,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected ? colors.textPrimary : colors.border,
+              width: isSelected ? _swatchSelectedRing : 1,
+            ),
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: (color ?? colors.primary).withValues(alpha: 0.4),
-                    blurRadius: 8,
-                    spreadRadius: 0,
-                  ),
-                ]
+          child: color == null
+              ? Icon(
+                  LucideIcons.ban,
+                  size: NightshadeTokens.iconChipGlyph,
+                  color: colors.textMuted,
+                )
               : null,
         ),
-        child: color == null
-            ? Icon(
-                LucideIcons.ban,
-                size: 14,
-                color: colors.textMuted,
-              )
-            : null,
       ),
     );
   }
 }
 
-/// Computed value display
+/// A derived optical value: a [Readout] with an optional line of provenance
+/// under it.
 class _ComputedValue extends StatelessWidget {
   final String label;
-  final String value;
+
+  /// The formatted value, or null when the inputs do not describe a possible
+  /// system — [Readout] then shows [kReadoutUnknown].
+  final String? value;
   final String? subtitle;
   final NightshadeColors colors;
 
@@ -211,19 +249,11 @@ class _ComputedValue extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: NightshadeTypography.sectionTitle
-              .copyWith(color: colors.primary, fontWeight: FontWeight.bold),
-        ),
+        Readout(value: value, label: label, size: ReadoutSize.sm),
         if (subtitle != null) ...[
-          const SizedBox(height: 1),
+          const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             subtitle!,
             style:
@@ -235,10 +265,10 @@ class _ComputedValue extends StatelessWidget {
   }
 }
 
-/// Device row with dropdown for selection
+/// One device slot: the friendly name, the device picker, and a clear button,
+/// with the assigned device id as the row's help line.
 class _DeviceRow extends StatelessWidget {
   final String type;
-  final IconData icon;
   // Null when this device type has no persisted friendly-name column, so the
   // row shows only the device id (no editable name field to silently discard).
   final TextEditingController? nameController;
@@ -251,7 +281,6 @@ class _DeviceRow extends StatelessWidget {
 
   const _DeviceRow({
     required this.type,
-    required this.icon,
     required this.nameController,
     required this.deviceId,
     required this.discoveredDevices,
@@ -264,124 +293,44 @@ class _DeviceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nameController = this.nameController;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.well,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(
-          color: deviceId != null
-              ? colors.primary.withValues(alpha: 0.3)
-              : colors.border,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Device type header with dropdown
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                ),
-                child: Icon(icon, size: 14, color: colors.primary),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      type,
-                      style: NightshadeTypography.labelQuiet
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                    if (nameController != null) ...[
-                      const SizedBox(height: 4),
-                      // Friendly name text field
-                      SizedBox(
-                        height: 32,
-                        child: TextField(
-                          controller: nameController,
-                          style: NightshadeTypography.bodySm
-                              .copyWith(color: colors.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: 'Friendly name...',
-                            hintStyle: NightshadeTypography.bodySm
-                                .copyWith(color: colors.textMuted),
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 6),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                              borderSide: BorderSide(color: colors.primary),
-                            ),
-                            filled: true,
-                            fillColor: colors.surface,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Device selection dropdown
-              _DeviceDropdown(
-                deviceId: deviceId,
-                discoveredDevices: discoveredDevices,
-                onSelected: onDeviceSelected,
-                onScan: onScan,
-                colors: colors,
-              ),
-              // Clear button
-              if (deviceId != null)
-                NightshadeIconButton(
-                  icon: LucideIcons.x,
-                  tooltip: 'Clear this device',
-                  size: IconButtonSize.sm,
-                  onPressed: onClear,
-                ),
-            ],
-          ),
+    final picker = _DeviceDropdown(
+      deviceId: deviceId,
+      discoveredDevices: discoveredDevices,
+      onSelected: onDeviceSelected,
+      onScan: onScan,
+      colors: colors,
+    );
 
-          // Show device ID if assigned
-          if (deviceId != null) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.only(left: 38),
-              child: Text(
-                deviceId!,
-                style: NightshadeTypography.caption
-                    .copyWith(color: colors.textMuted, fontFamily: 'monospace'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+    return _EditorRow(
+      label: type,
+      help: deviceId,
+      trailing: deviceId == null
+          ? null
+          : NightshadeIconButton(
+              icon: LucideIcons.x,
+              tooltip: 'Clear this device',
+              size: IconButtonSize.sm,
+              onPressed: onClear,
             ),
-          ],
-        ],
-      ),
+      child: nameController == null
+          ? Align(alignment: Alignment.centerLeft, child: picker)
+          : Row(
+              children: [
+                Expanded(
+                  child: NightshadeTextField(
+                    controller: nameController,
+                    hint: 'Friendly name',
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                picker,
+              ],
+            ),
     );
   }
 }
 
-/// Dropdown for selecting a device
+/// Dropdown for selecting a device.
 class _DeviceDropdown extends StatelessWidget {
   final String? deviceId;
   final List<UnifiedDevice> discoveredDevices;
@@ -408,7 +357,7 @@ class _DeviceDropdown extends StatelessWidget {
           // Trigger a real discovery refresh; the parent watches
           // unifiedDiscoveryProvider so the dropdown repopulates when it lands.
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Scanning for devices...')),
+            const SnackBar(content: Text('Scanning for devices…')),
           );
           onScan();
         } else {
@@ -428,12 +377,16 @@ class _DeviceDropdown extends StatelessWidget {
             value: deviceId,
             child: Row(
               children: [
-                Icon(LucideIcons.check, size: 14, color: colors.primary),
-                const SizedBox(width: 8),
+                Icon(
+                  LucideIcons.check,
+                  size: NightshadeTokens.iconXs,
+                  color: colors.primary,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
                     _getDeviceDisplayName(deviceId!),
-                    style: NightshadeTypography.body
+                    style: NightshadeTypography.bodySm
                         .copyWith(color: colors.textPrimary),
                   ),
                 ),
@@ -451,10 +404,11 @@ class _DeviceDropdown extends StatelessWidget {
               value: device.activeDeviceId,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     device.displayName,
-                    style: NightshadeTypography.body
+                    style: NightshadeTypography.bodySm
                         .copyWith(color: colors.textPrimary),
                   ),
                   Text(
@@ -474,12 +428,17 @@ class _DeviceDropdown extends StatelessWidget {
           value: '_scan_',
           child: Row(
             children: [
-              Icon(LucideIcons.refreshCw,
-                  size: 14, color: colors.textSecondary),
-              const SizedBox(width: 8),
-              Text('Scan…',
-                  style: NightshadeTypography.body
-                      .copyWith(color: colors.textSecondary)),
+              Icon(
+                LucideIcons.refreshCw,
+                size: NightshadeTokens.iconXs,
+                color: colors.textSecondary,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Text(
+                'Scan',
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textSecondary),
+              ),
             ],
           ),
         ));
@@ -487,35 +446,47 @@ class _DeviceDropdown extends StatelessWidget {
           value: '_manual_',
           child: Row(
             children: [
-              Icon(LucideIcons.edit3, size: 14, color: colors.textSecondary),
-              const SizedBox(width: 8),
-              Text('Enter manually...',
-                  style: NightshadeTypography.body
-                      .copyWith(color: colors.textSecondary)),
+              Icon(
+                LucideIcons.edit3,
+                size: NightshadeTokens.iconXs,
+                color: colors.textSecondary,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Text(
+                'Enter manually…',
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textSecondary),
+              ),
             ],
           ),
         ));
 
         return items;
       },
+      // The closed control wears the same field face as every other input in
+      // the row, so a select and a text box do not read as two different kinds
+      // of control (05 §8).
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(color: colors.border),
+        height: fieldHeight,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.inputPaddingHorizontal,
         ),
+        decoration: NightshadeDecorations.field(colors),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              deviceId != null ? 'Selected' : 'Select...',
-              style: NightshadeTypography.caption.copyWith(
-                  color:
-                      deviceId != null ? colors.textPrimary : colors.textMuted),
+              deviceId != null ? 'Selected' : 'Select…',
+              style: NightshadeTypography.input.copyWith(
+                color: deviceId != null ? colors.textPrimary : colors.textMuted,
+              ),
             ),
-            const SizedBox(width: 4),
-            Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Icon(
+              LucideIcons.chevronDown,
+              size: NightshadeTokens.iconXs,
+              color: colors.textMuted,
+            ),
           ],
         ),
       ),
@@ -529,39 +500,42 @@ class _DeviceDropdown extends StatelessWidget {
   }
 
   Future<void> _showManualEntryDialog(BuildContext context) async {
-    var deviceId = '';
+    final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Enter Device ID'),
-          content: TextFormField(
-            onChanged: (value) => deviceId = value,
-            decoration: const InputDecoration(
-              hintText: 'Device ID or path...',
-            ),
-            autofocus: true,
-          ),
+        return NightshadeDialog(
+          title: 'Enter device ID',
+          width: NightshadeDialog.widthConfirm,
           actions: [
-            TextButton(
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, deviceId.trim()),
-              child: const Text('Add'),
+            NightshadeButton(
+              label: 'Add',
+              variant: ButtonVariant.primary,
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
             ),
           ],
+          child: NightshadeTextField(
+            controller: controller,
+            hint: 'Device ID or path',
+            autofocus: true,
+            onSubmitted: (value) => Navigator.pop(context, value.trim()),
+          ),
         );
       },
     );
+    controller.dispose();
     if (result != null && result.isNotEmpty) {
       onSelected(result, null);
     }
   }
 }
 
-/// Filter row widget
+/// One row of the filter table: ordinal, name, focus offset, remove.
 class _FilterRow extends StatelessWidget {
   final int index;
   final TextEditingController nameController;
@@ -582,7 +556,10 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: NightshadeTokens.spaceXs,
+      ),
       decoration: BoxDecoration(
         border:
             isLast ? null : Border(bottom: BorderSide(color: colors.border)),
@@ -590,88 +567,40 @@ class _FilterRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 36,
+            width: _filterIndexWidth,
             child: Text(
               '$index',
-              style: NightshadeTypography.bodySm
+              style: NightshadeTypography.monoSm
                   .copyWith(color: colors.textSecondary),
             ),
           ),
           Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: 32,
-              child: TextField(
+            child: Semantics(
+              label: 'Filter $index name',
+              child: NightshadeTextField(
+                dense: true,
                 controller: nameController,
-                style: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: 'Filter name',
-                  hintStyle: NightshadeTypography.bodySm
-                      .copyWith(color: colors.textMuted),
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline4),
-                    borderSide: BorderSide(color: colors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline4),
-                    borderSide: BorderSide(color: colors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline4),
-                    borderSide: BorderSide(color: colors.primary),
-                  ),
-                  filled: true,
-                  fillColor: colors.surface,
-                ),
+                hint: 'Filter name',
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           SizedBox(
-            width: 100,
-            height: 32,
-            child: TextField(
-              controller: offsetController,
-              keyboardType: const TextInputType.numberWithOptions(signed: true),
-              style: NightshadeTypography.bodySm
-                  .copyWith(color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText: '0',
-                hintStyle: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textMuted),
-                suffixText: 'steps',
-                suffixStyle: NightshadeTypography.caption
-                    .copyWith(color: colors.textMuted),
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
-                  borderSide: BorderSide(color: colors.primary),
-                ),
-                filled: true,
-                fillColor: colors.surface,
+            width: _filterOffsetWidth,
+            child: Semantics(
+              label: 'Filter $index focus offset',
+              child: NightshadeTextField(
+                dense: true,
+                mono: true,
+                controller: offsetController,
+                hint: '0',
+                suffix: 'steps',
+                keyboardType:
+                    const TextInputType.numberWithOptions(signed: true),
               ),
             ),
           ),
+          const SizedBox(width: NightshadeTokens.spaceXs),
           NightshadeIconButton(
             icon: LucideIcons.trash2,
             tooltip: 'Remove this filter',

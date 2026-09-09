@@ -154,7 +154,7 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
                       .copyWith(color: widget.colors.textPrimary),
                 ),
               ),
-              const _ScienceInfoButton(title: 'Narrowband Ratios'),
+              const _ScienceInfoButton(title: 'Narrowband ratios'),
             ],
           ),
           const SizedBox(height: 8),

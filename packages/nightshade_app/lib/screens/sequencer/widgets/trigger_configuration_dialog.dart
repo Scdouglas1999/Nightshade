@@ -282,7 +282,7 @@ class _TriggerConfigurationDialogState
     // widgets are invalid inside a Wrap and throw "Incorrect use of
     // ParentDataWidget" at mount.
     return NightshadeDialog(
-      title: 'Exposure Triggers',
+      title: 'Exposure triggers',
       icon: NightshadeIcons.notifications,
       width: 600,
       height: 500,
@@ -296,7 +296,7 @@ class _TriggerConfigurationDialogState
               NightshadeButton(
                 onPressed: _addTrigger,
                 icon: NightshadeIcons.add,
-                label: 'Add Trigger',
+                label: 'Add trigger',
                 variant: ButtonVariant.outline,
               ),
               const Spacer(),
@@ -534,7 +534,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
     final colors = NightshadeColors.of(context);
 
     return NightshadeDialog(
-      title: 'Edit Trigger',
+      title: 'Edit trigger',
       icon: NightshadeIcons.edit,
       width: 440,
       actions: [
@@ -652,7 +652,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
           _StableNumberField(
             key: const ValueKey('trigger_debounce_field'),
             value: _debounce,
-            label: 'Debounce Time',
+            label: 'Debounce time',
             suffix: 'seconds',
             helperText: 'Wait time before triggering again',
             onChanged: (v) => _debounce = v,

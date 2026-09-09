@@ -199,6 +199,9 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     Uint8List? rgba,
   ) {
     final canExport = !_exporting && rgba != null;
+    // Device-class aware, the same signal the body layout uses: a landscape
+    // phone gets the phone header too.
+    final phoneHeader = Responsive.isPhone(context);
     // The Darkroom edits the recipe over the night's LINEAR master, which is
     // reached through the session this stack belongs to. A standalone stack —
     // frames dropped in with no session row — has no such master, so the
@@ -214,6 +217,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             'refine.'
         : hostOnly;
     final canRefine = darkroomReason == null;
+    // The same two reasons, sized for the overflow menu. A popup item has no
+    // tooltip to hang an explanation on, so the reason is part of the row.
+    final darkroomMenuReason = sessionId == null
+        ? 'No imaging session, so no linear master'
+        : (hostOnly == null ? null : 'The Darkroom runs on the imaging host');
     // ONE overflow menu plus ONE primary, at every width (05 §5: a page header
     // carries at most two actions). The four export buttons used to sit inline
     // on anything wider than a phone, which overflowed the header Row by 247 px
@@ -236,6 +244,10 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             }
           case _StackResultAction.astroBin:
             _exportAstroBin(result);
+          case _StackResultAction.darkroom:
+            if (sessionId != null) {
+              unawaited(openDarkroomForSession(context, ref, sessionId));
+            }
         }
       },
       itemBuilder: (context) => [
@@ -270,8 +282,28 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             label: 'AstroBin',
           ),
         ),
+        // On a phone this menu is the ONLY trailing control the 360 dp header
+        // can hold, so Refine in Darkroom rides in it — with its reason as the
+        // row's second line, since a popup item has no tooltip. At wider
+        // widths it is the header's own primary instead.
+        if (phoneHeader)
+          PopupMenuItem(
+            value: _StackResultAction.darkroom,
+            enabled: canRefine,
+            child: _ActionMenuRow(
+              icon: NightshadeIcons.sliders,
+              label: 'Refine in Darkroom',
+              reason: darkroomMenuReason,
+            ),
+          ),
       ],
     );
+
+    // A phone header carries the title and this one menu. Adding the labelled
+    // primary beside it overflowed the row by 5.8 px at 430 dp — the label is
+    // simply wider than the space left, so the control moves into the menu
+    // rather than the type getting smaller (07: reduce content, never scale).
+    if (phoneHeader) return exportMenu;
 
     return Wrap(
       spacing: NightshadeTokens.spaceSm,

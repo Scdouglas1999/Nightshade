@@ -4,7 +4,7 @@
 // and does not:
 //
 //  * the action cluster was a horizontally scrolling Row, so at phone width the
-//    first three icons — "Review & Integrate", "Refine in Darkroom" and
+//    first three icons — "Review & integrate", "Refine in Darkroom" and
 //    "Session Report" — were clipped away while the accessibility tree went on
 //    advertising all seven, and a tap where one used to be landed on nothing;
 //  * the Darkroom refusal was posted to the page's ScaffoldMessenger while the
@@ -225,8 +225,8 @@ void main() {
     expect(announced, contains('Session actions'));
     expect(announced, contains('Close'));
     expect(announced, isNot(contains('Refine in Darkroom')));
-    expect(announced, isNot(contains('Review & Integrate')));
-    expect(announced, isNot(contains('Session Report')));
+    expect(announced, isNot(contains('Review & integrate')));
+    expect(announced, isNot(contains('Session report')));
 
     // And every one of them is reachable once the menu is open.
     await tester.tap(find.byKey(const ValueKey('session_detail_actions_menu')));
@@ -236,9 +236,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     for (final label in const [
-      'Review & Integrate',
+      'Review & integrate',
       'Refine in Darkroom',
-      'Session Report',
+      'Session report',
       'Export to JSON',
       'Export to CSV',
       'Export HTML report',
@@ -322,7 +322,7 @@ void main() {
     // last one has stopped describing anything on screen. Session Report is
     // the one action that neither dismisses this dialog nor writes a file —
     // it opens a second dialog over it whose own data is an AsyncValue.
-    await tester.tap(findIconButtonByTooltip('Session Report'));
+    await tester.tap(findIconButtonByTooltip('Session report'));
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }

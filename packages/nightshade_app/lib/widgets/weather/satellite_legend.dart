@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../red_night_filter.dart';
+
 /// The infrared-satellite colour scale: white is a cold, high, thick cloud
 /// top; grey is lower or thinner cloud; dark is clear sky over warm ground.
 ///
@@ -103,12 +105,17 @@ class SatelliteLegend extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: _compactBarWidth,
-          height: _compactBarHeight,
-          decoration: BoxDecoration(
-            borderRadius: NightshadeTokens.borderRadiusXs,
-            gradient: _gradient(_compactRampRgb, _compactRampStops),
+        // The legend describes the MAP, and the map is red-filtered under red
+        // night, so the swatch takes the same filter or it stops matching the
+        // thing it explains.
+        RedNightImage(
+          child: Container(
+            width: _compactBarWidth,
+            height: _compactBarHeight,
+            decoration: BoxDecoration(
+              borderRadius: NightshadeTokens.borderRadiusXs,
+              gradient: _gradient(_compactRampRgb, _compactRampStops),
+            ),
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
@@ -147,11 +154,13 @@ class SatelliteLegend extends StatelessWidget {
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
-        Container(
-          height: _fullBarHeight,
-          decoration: BoxDecoration(
-            borderRadius: NightshadeTokens.borderRadiusXs,
-            gradient: _gradient(_fullRampRgb, _fullRampStops),
+        RedNightImage(
+          child: Container(
+            height: _fullBarHeight,
+            decoration: BoxDecoration(
+              borderRadius: NightshadeTokens.borderRadiusXs,
+              gradient: _gradient(_fullRampRgb, _fullRampStops),
+            ),
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),

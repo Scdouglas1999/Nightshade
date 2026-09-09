@@ -302,7 +302,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                       ),
                       const SizedBox(width: 12),
                       NightshadeButton(
-                        label: 'Start Centering',
+                        label: 'Start centering',
                         icon: NightshadeIcons.target,
                         onPressed: _startCentering,
                         variant: ButtonVariant.primary,

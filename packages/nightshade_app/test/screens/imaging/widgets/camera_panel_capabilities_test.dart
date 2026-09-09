@@ -157,7 +157,7 @@ void main() {
     final readModeRow = tester.widgetList<DropdownRow>(
       find.byType(DropdownRow),
     );
-    final dropdowns = readModeRow.where((d) => d.label == 'Read Mode').toList();
+    final dropdowns = readModeRow.where((d) => d.label == 'Read mode').toList();
     expect(dropdowns, hasLength(1),
         reason: 'Read Mode row must be present when modes are reported.');
     expect(dropdowns.single.items, ['Mode A', 'Mode B'],
@@ -178,7 +178,7 @@ void main() {
 
     final readModeDropdowns = tester
         .widgetList<DropdownRow>(find.byType(DropdownRow))
-        .where((d) => d.label == 'Read Mode');
+        .where((d) => d.label == 'Read mode');
     expect(readModeDropdowns, isEmpty,
         reason:
             'Read Mode row must be hidden entirely when the camera reports no '
@@ -206,7 +206,7 @@ void main() {
 
     final row = tester
         .widgetList<DropdownRow>(find.byType(DropdownRow))
-        .singleWhere((widget) => widget.label == 'Read Mode');
+        .singleWhere((widget) => widget.label == 'Read mode');
     row.onChanged!('Mode B');
     await tester.pump();
 
@@ -241,7 +241,7 @@ void main() {
 
     final row = tester
         .widgetList<DropdownRow>(find.byType(DropdownRow))
-        .singleWhere((widget) => widget.label == 'Read Mode');
+        .singleWhere((widget) => widget.label == 'Read mode');
     row.onChanged!('Mode B');
     await tester.pump();
 
@@ -279,7 +279,7 @@ void main() {
 
     final row = tester
         .widgetList<DropdownRow>(find.byType(DropdownRow))
-        .singleWhere((widget) => widget.label == 'Read Mode');
+        .singleWhere((widget) => widget.label == 'Read mode');
     expect(row.value, isNull);
     expect(
       handle.container.read(exposureSettingsProvider).readoutModeIndex,
@@ -309,7 +309,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 25));
     }
 
-    await tester.tap(find.text('Warm Up'));
+    await tester.tap(find.text('Warm up'));
     await tester.pump();
 
     verify(

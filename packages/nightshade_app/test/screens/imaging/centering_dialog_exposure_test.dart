@@ -144,7 +144,7 @@ void main() {
   }
 
   Future<void> tapStart(WidgetTester tester) async {
-    await tester.tap(find.text('Start Centering'));
+    await tester.tap(find.text('Start centering'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
   }
@@ -157,7 +157,7 @@ void main() {
     expect(recorder.ensureCalls, 0, reason: 'must not probe the solver');
     expect(recorder.centerCalls, 0, reason: 'must not start centering');
     // Not in a misleading "running" state: Start is still offered, Abort is not.
-    expect(find.text('Start Centering'), findsOneWidget);
+    expect(find.text('Start centering'), findsOneWidget);
     expect(find.text('Abort'), findsNothing);
   }
 
@@ -263,7 +263,7 @@ void main() {
       (tester) async {
     final recorder = await pumpDialog(tester);
     await tester.enterText(find.byType(TextField), '2.5');
-    await tester.tap(find.text('Start Centering'));
+    await tester.tap(find.text('Start centering'));
     await tester.pumpAndSettle();
 
     expect(recorder.ensureCalls, 1);
@@ -284,7 +284,7 @@ void main() {
   testWidgets('centering syncs the mount by default', (tester) async {
     final recorder = await pumpDialog(tester);
     await tester.enterText(find.byType(TextField), '3');
-    await tester.tap(find.text('Start Centering'));
+    await tester.tap(find.text('Start centering'));
     await tester.pumpAndSettle();
 
     expect(recorder.centerCalls, 1);
@@ -298,7 +298,7 @@ void main() {
       settings: const AppSettingsState(centeringSyncMount: false),
     );
     await tester.enterText(find.byType(TextField), '3');
-    await tester.tap(find.text('Start Centering'));
+    await tester.tap(find.text('Start centering'));
     await tester.pumpAndSettle();
 
     expect(recorder.centerCalls, 1);
@@ -312,7 +312,7 @@ void main() {
       ensureError: const SolverNotAvailableError('No plate solver configured'),
     );
     await tester.enterText(find.byType(TextField), '3');
-    await tester.tap(find.text('Start Centering'));
+    await tester.tap(find.text('Start centering'));
     await tester.pumpAndSettle();
 
     // Probed the solver, surfaced the banner, never started centering.
@@ -320,7 +320,7 @@ void main() {
     expect(recorder.centerCalls, 0);
     expect(find.byType(PlateSolverRequiredBanner), findsOneWidget);
     // Retryable: Start is offered again, Abort is gone.
-    expect(find.text('Start Centering'), findsOneWidget);
+    expect(find.text('Start centering'), findsOneWidget);
     expect(find.text('Abort'), findsNothing);
   });
 
@@ -331,7 +331,7 @@ void main() {
       centerError: Exception('camera fault'),
     );
     await tester.enterText(find.byType(TextField), '3');
-    await tester.tap(find.text('Start Centering'));
+    await tester.tap(find.text('Start centering'));
     // Explicit pumps (not pumpAndSettle) so the error SnackBar's dismiss timer
     // can't stall settling; the result section renders on the setState above.
     await tester.pump();
@@ -342,7 +342,7 @@ void main() {
     expect(recorder.lastConfig!.exposureTime, 3.0);
     expect(find.text('Centering Failed'), findsOneWidget);
     // Retryable: not stuck in the running state.
-    expect(find.text('Start Centering'), findsOneWidget);
+    expect(find.text('Start centering'), findsOneWidget);
     expect(find.text('Abort'), findsNothing);
   });
 }

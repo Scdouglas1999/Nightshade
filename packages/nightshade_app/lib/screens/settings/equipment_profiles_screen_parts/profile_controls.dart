@@ -146,10 +146,11 @@ class _FieldCard extends StatelessWidget {
                 child: Text(
                   value ?? 'Not set',
                   style: NightshadeTypography.bodyStrong.copyWith(
-                      color:
-                          value != null && value != 'Not set' && value != 'N/A'
-                              ? colors.textPrimary
-                              : colors.textMuted),
+                      color: value != null &&
+                              value != 'Not set' &&
+                              value != kReadoutUnknown
+                          ? colors.textPrimary
+                          : colors.textMuted),
                 ),
               ),
             ),

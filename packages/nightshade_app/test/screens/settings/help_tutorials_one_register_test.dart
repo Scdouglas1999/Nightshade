@@ -134,6 +134,10 @@ void main() {
     ]) {
       expect(find.text(title), findsOneWidget, reason: 'missing row "$title"');
     }
+    // These are the OLD Title Case forms, held here as NEGATIVES: the page
+    // must not have drifted back into a second register. My sentence-case
+    // sweep's mechanical finder repair rewrote them into the sentence forms
+    // the list above already asserts, which made the test contradict itself.
     for (final shouted in const [
       'First Night Walkthrough',
       'Generate Diagnostic Dump',

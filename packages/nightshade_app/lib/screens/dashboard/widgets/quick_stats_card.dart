@@ -43,7 +43,7 @@ class QuickStatsCard extends ConsumerWidget {
       if (cameraTemp != null) {
         tempValue = '${cameraTemp.toStringAsFixed(1)}°C';
       } else {
-        tempValue = 'N/A';
+        tempValue = kReadoutUnknown;
       }
     }
 
@@ -65,7 +65,7 @@ class QuickStatsCard extends ConsumerWidget {
       if (focuserPosition != null) {
         focusValue = focuserPosition.toString();
       } else {
-        focusValue = 'N/A';
+        focusValue = kReadoutUnknown;
       }
     }
 

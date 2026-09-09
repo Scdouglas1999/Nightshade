@@ -163,10 +163,13 @@ void main() {
         .pumpWidget(_wrap(container, const PreFlightValidationDialog()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pre-Flight Validation'), findsOneWidget,
+    expect(find.text('Pre-flight check'), findsOneWidget,
         reason: 'Header must render regardless of diff state.');
     expect(
-      find.text('Sequence has changed since last successful run'),
+      find.textContaining(
+        'Sequence has changed since last successful run',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(find.text('View changes'), findsOneWidget);
@@ -174,16 +177,18 @@ void main() {
     // the (real) PreSessionSimulator reports. The validator override
     // returns an empty ValidationResult, but the simulator runs against
     // the actual wall clock and can emit a warning when the sequence
-    // would start before astronomical dusk. Either "All Checks Passed"
-    // or "Ready with Warnings" is acceptable here — what matters is
+    // would start before astronomical dusk. Either "All checks passed"
+    // or "Ready with warnings" is acceptable here — what matters is
     // that the dialog escaped the loading state and rendered a tile.
     expect(
-      find.byWidgetPredicate((w) =>
-          w is Text &&
-          (w.data == 'All Checks Passed' || w.data == 'Ready with Warnings')),
-      findsOneWidget,
-      reason: 'Empty validation result must surface a non-error summary tile '
-          '(either "All Checks Passed" or "Ready with Warnings" depending '
+      find.text('All checks passed', findRichText: true).evaluate().length +
+          find
+              .text('Ready with warnings', findRichText: true)
+              .evaluate()
+              .length,
+      1,
+      reason: 'Empty validation result must surface a non-error verdict banner '
+          '(either "All checks passed" or "Ready with warnings" depending '
           'on the live PreSessionSimulator).',
     );
   });
@@ -208,17 +213,20 @@ void main() {
 
     // No databaseId => the diff path returns early and the banner
     // never appears. Verify the dialog still works end-to-end.
-    expect(find.text('Pre-Flight Validation'), findsOneWidget);
+    expect(find.text('Pre-flight check'), findsOneWidget);
     // Same rationale as the previous case: accept either summary tile
     // since the live PreSessionSimulator may warn depending on the
     // current wall-clock-vs-dark-window relationship.
     expect(
-      find.byWidgetPredicate((w) =>
-          w is Text &&
-          (w.data == 'All Checks Passed' || w.data == 'Ready with Warnings')),
-      findsOneWidget,
+      find.text('All checks passed', findRichText: true).evaluate().length +
+          find
+              .text('Ready with warnings', findRichText: true)
+              .evaluate()
+              .length,
+      1,
     );
-    expect(find.textContaining('Sequence has changed'), findsNothing,
+    expect(find.textContaining('Sequence has changed', findRichText: true),
+        findsNothing,
         reason: 'No previous-run diff banner for an unsaved sequence.');
   });
 }

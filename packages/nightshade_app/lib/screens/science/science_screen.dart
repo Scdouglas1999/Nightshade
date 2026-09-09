@@ -96,11 +96,11 @@ class _ScienceWorkspaceViewState extends ConsumerState<ScienceWorkspaceView> {
         icon: LucideIcons.flaskConical,
       ),
       const AdaptiveTab(
-        label: 'First Light',
+        label: 'First light',
         icon: LucideIcons.sparkles,
       ),
       const AdaptiveTab(
-        label: 'Observing Alerts',
+        label: 'Observing alerts',
         icon: LucideIcons.satellite,
       ),
     ];

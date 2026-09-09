@@ -13,36 +13,48 @@ class _SentimentPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const options = ['😊', '😐', '😞'];
+    // The STORED value stays the emoji — `JournalNote.sentiment` persists it
+    // and old notes must keep resolving — but a colour emoji is a bitmap no
+    // theme can retint, so red night could not put it on the red axis and the
+    // light theme could not darken it. The glyph is a Lucide icon in the
+    // kit's own colour; only the painting changed, not the data.
+    const options = <(String, IconData, String)>[
+      ('😊', LucideIcons.smile, 'Good night'),
+      ('😐', LucideIcons.meh, 'Mixed night'),
+      ('😞', LucideIcons.frown, 'Poor night'),
+    ];
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final opt in options)
+        for (final (opt, icon, tooltip) in options)
           Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: InkWell(
-              onTap: () => onChanged(value == opt ? null : opt),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: value == opt
-                      ? NightshadeDecorations.selectedSurface(
-                          colors.primary,
-                          borderRadius:
-                              BorderRadius.circular(NightshadeTokens.radiusMd),
-                          fillAlpha: 0.18,
-                        ).color
-                      : Colors.transparent,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  border: Border.all(
-                    color: value == opt ? colors.primary : colors.border,
+            padding: const EdgeInsets.only(left: NightshadeTokens.spaceXs),
+            child: NightshadeTooltip(
+              message: tooltip,
+              child: InkWell(
+                onTap: () => onChanged(value == opt ? null : opt),
+                borderRadius: NightshadeTokens.borderRadiusMd,
+                child: Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceXs + 2),
+                  decoration: BoxDecoration(
+                    color: value == opt
+                        ? NightshadeDecorations.selectedSurface(
+                            colors.primary,
+                            borderRadius: NightshadeTokens.borderRadiusMd,
+                            fillAlpha: NightshadeTokens.opacityStatusFill,
+                          ).color
+                        : Colors.transparent,
+                    borderRadius: NightshadeTokens.borderRadiusMd,
+                    border: Border.all(
+                      color: value == opt ? colors.primary : colors.border,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: NightshadeTokens.iconSm,
+                    color: value == opt ? colors.primary : colors.textSecondary,
                   ),
                 ),
-                child: Text(opt,
-                    style: const TextStyle(
-                        fontSize: NightshadeTypography.fontSize18)),
               ),
             ),
           ),

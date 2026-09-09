@@ -1,48 +1,6 @@
 // Stat cards, action buttons and dark-library group/entry tiles.
 part of '../dark_library_settings.dart';
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Expanded(
-      child: NightshadePanel(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: colors.primary),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: NightshadeTypography.pageTitle.copyWith(
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;

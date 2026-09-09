@@ -525,7 +525,7 @@ class _MeridianFlipProgressDialogState
             ),
           ] else ...[
             NightshadeButton(
-              label: 'Abort Flip',
+              label: 'Abort flip',
               icon: LucideIcons.octagon,
               variant: ButtonVariant.destructive,
               onPressed: () {

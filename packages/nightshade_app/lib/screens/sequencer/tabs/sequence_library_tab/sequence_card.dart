@@ -63,7 +63,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   String _formatDuration() {
     final totalSecs = _summary.totalIntegrationSecs;
-    if (totalSecs <= 0) return 'N/A';
+    if (totalSecs <= 0) return kReadoutUnknown;
     return DurationFormat.seconds(
       totalSecs,
       style: DurationStyle.compact,
@@ -848,7 +848,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       final force = await showValidationIssueDialog(
         context,
         issues: e.issues,
-        operationName: 'Export Sequence',
+        operationName: 'export sequence',
         forceLabel: 'Force export anyway',
       );
       if (!force || !context.mounted || !_isCurrentAuthority(authority)) {

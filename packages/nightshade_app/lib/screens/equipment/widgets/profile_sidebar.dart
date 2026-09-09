@@ -822,7 +822,7 @@ class _ProfileCardState extends State<_ProfileCard>
       _DeviceType.camera => 'Camera',
       _DeviceType.mount => 'Mount',
       _DeviceType.focuser => 'Focuser',
-      _DeviceType.filterWheel => 'Filter Wheel',
+      _DeviceType.filterWheel => 'Filter wheel',
       _DeviceType.guider => 'Guider',
       _DeviceType.rotator => 'Rotator',
     };

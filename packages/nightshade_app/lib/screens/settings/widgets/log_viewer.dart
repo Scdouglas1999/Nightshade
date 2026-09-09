@@ -424,7 +424,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
           onTap: () => setState(() => _autoScroll = !_autoScroll),
         ),
         NightshadeButton(
-          label: 'Copy All',
+          label: 'Copy all',
           icon: LucideIcons.copy,
           variant: ButtonVariant.secondary,
           size: ButtonSize.small,

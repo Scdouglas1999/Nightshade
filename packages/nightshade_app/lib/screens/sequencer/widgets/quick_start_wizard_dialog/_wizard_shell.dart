@@ -253,7 +253,7 @@ extension _WizardShell on _QuickStartWizardDialogState {
                             ? _createSequence
                             : null,
                         icon: LucideIcons.sparkles,
-                        label: 'Create Sequence',
+                        label: 'Create sequence',
                         isLoading: _finishingAsTemplate == false,
                       ),
                     ],

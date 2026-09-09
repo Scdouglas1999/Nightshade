@@ -166,7 +166,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Not connected to a server'), findsOneWidget);
-    final workLocally = find.text('Work Locally');
+    final workLocally = find.text('Work locally');
     expect(workLocally, findsOneWidget);
 
     await tester.tap(workLocally);
@@ -176,7 +176,7 @@ void main() {
     expect(identical(notifier.currentBackend, local), isTrue);
     // Once a backend is installed the offer is withdrawn — a machine already
     // in local mode must not be shown a control that would do nothing.
-    expect(find.text('Work Locally'), findsNothing);
+    expect(find.text('Work locally'), findsNothing);
   });
 }
 

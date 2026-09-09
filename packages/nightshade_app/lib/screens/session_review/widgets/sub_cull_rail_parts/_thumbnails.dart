@@ -144,6 +144,7 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
@@ -153,7 +154,7 @@ class _Badge extends StatelessWidget {
       child: Text(
         text,
         style: NightshadeTypography.captionSm.copyWith(
-          color: const Color(0xFFFFFFFF),
+          color: colors.textPrimary,
           fontWeight: FontWeight.w700,
         ),
       ),

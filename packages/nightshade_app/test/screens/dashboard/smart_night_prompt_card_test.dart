@@ -461,7 +461,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Build tonight\'s plan?'), findsOneWidget);
-    expect(find.text('Plan Tonight'), findsOneWidget);
+    expect(find.text('Plan tonight'), findsOneWidget);
     expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
 
     // The reserve must be the band the SHOWING card actually occupies — its

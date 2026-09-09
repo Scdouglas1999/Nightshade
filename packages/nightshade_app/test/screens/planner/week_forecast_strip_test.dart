@@ -130,7 +130,7 @@ void main() {
     );
     // No night cards in the unavailable state.
     expect(find.byType(NightshadePanel), findsNothing);
-    expect(find.text('This Week'), findsNothing);
+    expect(find.text('This week'), findsNothing);
   });
 
   testWidgets('available but empty week renders the honest empty state',
@@ -214,7 +214,7 @@ void main() {
     // One card per night.
     expect(find.byType(NightshadePanel), findsNWidgets(3));
     // The section header is present in the available state.
-    expect(find.text('This Week'), findsOneWidget);
+    expect(find.text('This week'), findsOneWidget);
     // The clear-hours rows render for every dark night.
     expect(find.textContaining('clear'), findsNWidgets(3));
     // Each night surfaces its top target name.

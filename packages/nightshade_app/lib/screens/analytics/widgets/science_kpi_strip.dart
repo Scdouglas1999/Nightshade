@@ -237,7 +237,7 @@ class _MovingObjectsKpi extends StatelessWidget {
     final tone = count == 0 ? colors.textMuted : colors.success;
     return _KpiCard(
       colors: colors,
-      title: 'Moving Objects',
+      title: 'Moving objects',
       headline: count.toString(),
       headlineTone: tone,
       value: count == 0 ? 'No candidates' : 'Live track overlay ready',

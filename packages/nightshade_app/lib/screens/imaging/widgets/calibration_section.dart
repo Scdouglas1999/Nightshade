@@ -91,7 +91,7 @@ class CalibrationSection extends ConsumerWidget {
         !isConnected || cameraId == null || cameraId.isEmpty;
 
     return PanelSection(
-      title: 'Image Calibration',
+      title: 'Image calibration',
       colors: colors,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,7 +158,7 @@ class CalibrationSection extends ConsumerWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: NightshadeButton(
-              label: 'Flat Wizard',
+              label: 'Flat wizard',
               icon: LucideIcons.sun,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,

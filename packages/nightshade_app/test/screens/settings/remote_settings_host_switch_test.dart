@@ -690,7 +690,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Apply Staged'),
+      find.widgetWithText(NightshadeButton, 'Apply staged'),
     );
     await tester.pumpAndSettle();
     verifyNever(backend.applyUpdate);
@@ -738,7 +738,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Apply Staged'),
+      find.widgetWithText(NightshadeButton, 'Apply staged'),
     );
     await tester.pumpAndSettle();
     await tester.tap(
@@ -784,7 +784,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Discard Staged'),
+      find.widgetWithText(NightshadeButton, 'Discard staged'),
     );
     await tester.pumpAndSettle();
     verifyNever(backend.discardStagedUpdate);
@@ -831,8 +831,8 @@ void main() {
     for (final label in [
       'Check for Updates',
       'Download',
-      'Apply Staged',
-      'Discard Staged',
+      'Apply staged',
+      'Discard staged',
       'Rollback',
     ]) {
       expect(

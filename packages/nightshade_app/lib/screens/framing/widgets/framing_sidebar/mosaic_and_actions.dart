@@ -354,7 +354,7 @@ class FramingActionsPanel extends ConsumerWidget {
             Expanded(
               child: NightshadeButton(
                 icon: LucideIcons.bookmark,
-                label: 'Save Target',
+                label: 'Save target',
                 variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onSaveTarget : null,
@@ -364,7 +364,7 @@ class FramingActionsPanel extends ConsumerWidget {
             Expanded(
               child: NightshadeButton(
                 icon: NightshadeIcons.download,
-                label: 'Cache Image',
+                label: 'Cache image',
                 variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasSurveyImage ? onCacheImage : null,

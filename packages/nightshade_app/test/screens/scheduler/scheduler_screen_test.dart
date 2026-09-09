@@ -233,7 +233,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // Header and state badge.
-    expect(find.text('Unattended Autopilot'), findsOneWidget);
+    expect(find.text('Unattended autopilot'), findsOneWidget);
     expect(find.text('Idle'), findsOneWidget);
 
     // Three control buttons should be present in idle state: Start +

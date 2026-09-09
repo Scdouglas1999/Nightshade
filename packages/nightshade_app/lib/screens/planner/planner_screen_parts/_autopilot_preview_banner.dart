@@ -77,7 +77,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
     // and speaks only when it has something the queue does not.
     if (queueEmpty) return const SizedBox.shrink();
 
-    return NightshadeBanner(
+    return const NightshadeBanner(
       title: 'Nothing eligible right now',
       message: 'The queue has targets, but none pass right now — still below '
           'the horizon, or their filters are not in the active wheel.',

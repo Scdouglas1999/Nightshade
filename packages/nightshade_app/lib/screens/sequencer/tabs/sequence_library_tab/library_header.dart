@@ -99,7 +99,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
         _ActionButton(
           colors: widget.colors,
           icon: LucideIcons.save,
-          label: 'Save Current',
+          label: 'Save current',
           isPrimary: true,
           onPressed: () => _showSaveSequenceDialog(context),
         ),

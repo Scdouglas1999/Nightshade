@@ -232,7 +232,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
 
         // Relative movement section
         PanelSection(
-          title: 'Relative Move',
+          title: 'Relative move',
           colors: colors,
           child: _buildRelativeMoveSection(colors),
         ),

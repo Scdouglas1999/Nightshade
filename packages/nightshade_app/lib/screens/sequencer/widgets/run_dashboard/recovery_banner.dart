@@ -292,7 +292,7 @@ class _RecoveryActionButtonsState extends State<_RecoveryActionButtons> {
       children: [
         NightshadeButton(
           key: const Key('recovery_try_now'),
-          label: 'Try Now',
+          label: 'Try now',
           icon: LucideIcons.rotateCw,
           size: ButtonSize.small,
           isLoading: _tryNowBusy,
@@ -301,7 +301,7 @@ class _RecoveryActionButtonsState extends State<_RecoveryActionButtons> {
         const SizedBox(width: NightshadeTokens.spaceSm),
         NightshadeButton(
           key: const Key('recovery_skip_node'),
-          label: 'Skip Node',
+          label: 'Skip node',
           icon: LucideIcons.skipForward,
           size: ButtonSize.small,
           variant: ButtonVariant.outline,

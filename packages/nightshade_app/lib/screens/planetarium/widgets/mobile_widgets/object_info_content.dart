@@ -181,7 +181,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
         // Current position
         if (altAz != null && grade != null)
           MobileInfoCard(
-            title: 'Current Position',
+            title: 'Current position',
             colors: colors,
             child: Row(
               children: [

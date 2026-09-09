@@ -199,7 +199,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('New Profile'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
     expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
   });
 }

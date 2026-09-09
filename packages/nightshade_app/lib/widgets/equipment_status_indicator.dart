@@ -138,7 +138,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
       (
         icon: LucideIcons.circle,
         name: _getDeviceDisplayName(
-            filterWheel.deviceName, profile.filterWheelName, 'Filter Wheel'),
+            filterWheel.deviceName, profile.filterWheelName, 'Filter wheel'),
         connectionState: filterWheel.connectionState,
         profileDeviceId: profile.filterWheelId,
         status: _getFilterWheelStatus(filterWheel),
@@ -238,7 +238,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   }
 
   static String _readyStatus(DeviceConnectionState state) =>
-      state == DeviceConnectionState.connected ? 'Ready' : '---';
+      state == DeviceConnectionState.connected ? 'Ready' : kReadoutUnknown;
 
   List<PopupMenuEntry<String>> _buildDropdownItems(
     BuildContext context,
@@ -332,7 +332,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'Disconnect All',
+              'Disconnect all',
               style: TextStyle(
                 fontSize: 13,
                 color: canDisconnect ? colors.textPrimary : colors.textMuted,
@@ -382,7 +382,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   String _getCameraStatus(CameraStateSnapshot state) {
     if (state.connectionState != DeviceConnectionState.connected) {
-      return '---';
+      return kReadoutUnknown;
     }
     if (state.temperature != null) {
       return '${state.temperature!.toStringAsFixed(1)}°C';
@@ -392,7 +392,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   String _getMountStatus(MountState state) {
     if (state.connectionState != DeviceConnectionState.connected) {
-      return '---';
+      return kReadoutUnknown;
     }
     if (state.isSlewing) return 'Slewing';
     if (state.isParked) return 'Parked';
@@ -402,7 +402,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   String _getFocuserStatus(FocuserState state) {
     if (state.connectionState != DeviceConnectionState.connected) {
-      return '---';
+      return kReadoutUnknown;
     }
     if (state.isMoving) return 'Moving';
     if (state.position != null) return state.position.toString();
@@ -411,7 +411,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   String _getFilterWheelStatus(FilterWheelState state) {
     if (state.connectionState != DeviceConnectionState.connected) {
-      return '---';
+      return kReadoutUnknown;
     }
     if (state.isMoving) return 'Moving';
     if (state.currentFilterName != null) return state.currentFilterName!;
@@ -421,7 +421,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   String _getGuiderStatus(GuiderState state) {
     if (state.connectionState != DeviceConnectionState.connected) {
-      return '---';
+      return kReadoutUnknown;
     }
     if (state.isCalibrating) return 'Calibrating';
     if (state.isGuiding && state.rmsTotal != null) {
@@ -433,7 +433,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   String _getRotatorStatus(RotatorState state) {
     if (state.connectionState != DeviceConnectionState.connected) {
-      return '---';
+      return kReadoutUnknown;
     }
     if (state.isMoving) return 'Moving';
     if (state.position != null) return '${state.position!.toStringAsFixed(1)}°';

@@ -75,7 +75,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
               ] else ...[
                 if (!widget.isActive)
                   NightshadeButton(
-                    label: 'Set Active',
+                    label: 'Set active',
                     icon: LucideIcons.check,
                     variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
@@ -249,10 +249,10 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         ),
                         const SizedBox(height: 12),
                         _FieldCard(
-                          label: 'Focal Ratio',
+                          label: 'Focal ratio',
                           value: widget.profile.calculatedFocalRatio != null
                               ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
-                              : 'N/A',
+                              : kReadoutUnknown,
                           readOnly: true,
                         ),
                       ],
@@ -292,10 +292,10 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _FieldCard(
-                            label: 'Focal Ratio',
+                            label: 'Focal ratio',
                             value: widget.profile.calculatedFocalRatio != null
                                 ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
-                                : 'N/A',
+                                : kReadoutUnknown,
                             readOnly: true,
                           ),
                         ),
@@ -318,7 +318,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                           children: [
                             Expanded(
                               child: _FieldCard(
-                                label: 'Default Gain',
+                                label: 'Default gain',
                                 value: widget.isEditing
                                     ? null
                                     : (widget.profile.defaultGain?.toString() ??
@@ -331,7 +331,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                             const SizedBox(width: 12),
                             Expanded(
                               child: _FieldCard(
-                                label: 'Default Offset',
+                                label: 'Default offset',
                                 value: widget.isEditing
                                     ? null
                                     : (widget.profile.defaultOffset
@@ -346,7 +346,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         ),
                         const SizedBox(height: 12),
                         _FieldCard(
-                          label: 'Cooling Temp',
+                          label: 'Cooling temp',
                           value: widget.isEditing
                               ? null
                               : (widget.profile.defaultCoolingTemp != null
@@ -363,7 +363,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       children: [
                         Expanded(
                           child: _FieldCard(
-                            label: 'Default Gain',
+                            label: 'Default gain',
                             value: widget.isEditing
                                 ? null
                                 : (widget.profile.defaultGain?.toString() ??
@@ -376,7 +376,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _FieldCard(
-                            label: 'Default Offset',
+                            label: 'Default offset',
                             value: widget.isEditing
                                 ? null
                                 : (widget.profile.defaultOffset?.toString() ??
@@ -389,7 +389,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _FieldCard(
-                            label: 'Cooling Temp',
+                            label: 'Cooling temp',
                             value: widget.isEditing
                                 ? null
                                 : (widget.profile.defaultCoolingTemp != null
@@ -621,7 +621,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                             : widget.profile.focuserId,
                         (val) => _update(() => _focuserId = val)),
                     _buildDeviceAssignment(
-                        'Filter Wheel',
+                        'Filter wheel',
                         widget.isEditing
                             ? _filterWheelId
                             : widget.profile.filterWheelId,

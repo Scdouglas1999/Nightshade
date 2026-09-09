@@ -16,8 +16,12 @@ class StarFieldPainter extends CustomPainter {
       final brightness = random.nextDouble() * 0.25 + 0.05;
       final radius = random.nextDouble() * 1.2 + 0.3;
 
-      // absolute: simulated star field drawn on the preview canvas
-      paint.color = Colors.white.withValues(alpha: brightness);
+      // absolute: simulated star field drawn on the preview canvas. White is
+      // already neutral (R == G == B), but under red night a white star still
+      // emits the green and blue a dark-adapted eye is protected from, so the
+      // ink comes off the red-night ladder there.
+      paint.color = (colors.isRedNight ? colors.textPrimary : Colors.white)
+          .withValues(alpha: brightness);
       canvas.drawCircle(Offset(x, y), radius, paint);
     }
   }

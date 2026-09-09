@@ -120,7 +120,7 @@ class _QuickActionsCardState extends ConsumerState<QuickActionsCard> {
           DashboardCardHeader(
             colors: colors,
             icon: LucideIcons.zap,
-            title: 'Quick Actions',
+            title: 'Quick actions',
             accent: colors.primary,
           ),
 

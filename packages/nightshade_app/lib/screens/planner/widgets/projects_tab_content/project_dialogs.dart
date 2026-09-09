@@ -51,7 +51,7 @@ class _ProjectFormDialogState extends State<_ProjectFormDialog> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return NightshadeDialog(
-      title: _isEdit ? 'Edit Project' : 'New Project',
+      title: _isEdit ? 'Edit project' : 'New project',
       icon: _isEdit ? LucideIcons.pencil : LucideIcons.folderPlus,
       width: 480,
       actions: [
@@ -165,7 +165,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
     final catalogAsync = ref.watch(installedCatalogSearchProvider(_query));
 
     return NightshadeDialog(
-      title: 'Add Target',
+      title: 'Add target',
       icon: LucideIcons.plus,
       width: 560,
       height: 560,

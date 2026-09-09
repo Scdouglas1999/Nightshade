@@ -392,7 +392,7 @@ class _SystemInformationCard extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  'System Information',
+                  'System information',
                   style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                 ),
@@ -581,7 +581,7 @@ class _SoftwareUpdateCardState extends ConsumerState<_SoftwareUpdateCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Software Update',
+            'Software update',
             style: NightshadeTypography.bodyStrong
                 .copyWith(color: colors.textPrimary),
           ),

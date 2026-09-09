@@ -111,6 +111,10 @@ class _DesktopBuilderLayout extends ConsumerWidget {
     final propertiesForceOpen = ref.watch(sequencerPropertiesForceOpenProvider);
     final persistedLeftWidth = ref.watch(sequencerLeftPanelWidthProvider);
     final persistedRightWidth = ref.watch(sequencerRightPanelWidthProvider);
+    // An EMPTY properties column is 300 px of "Select a node"; below the
+    // desktop breakpoint that width belongs to the document. See
+    // autoCollapseEmptyProperties below.
+    final hasSelection = ref.watch(selectedNodeIdProvider) != null;
 
     // Derive panel sizes from a bucketed width so a continuous resize
     // drag only steps the dimensions every ~64px instead of every frame.
@@ -182,8 +186,22 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               final centerWithToolboxCollapsed = availableWidth -
                   (autoCollapseToolbox ? collapsedPanelWidth : dims.leftMin) -
                   dims.rightMin;
+              // At 700x900 the arithmetic above lands just the wrong side of
+              // the line: 700 - 48 - 270 = 382, two pixels clear of the 380
+              // comfortable width, so the properties column survived at its
+              // floor and the operator got a 48 px strip, a 382 px canvas and
+              // 270 px of "Select a node". An empty column is never worth a
+              // column, so below the desktop breakpoint it collapses to the
+              // side strip while nothing is selected and opens the moment a
+              // node is. Derived only — the user-pref providers are never
+              // written, so widening restores the saved state, and an explicit
+              // force-open still wins.
+              final autoCollapseEmptyProperties =
+                  availableWidth < NightshadeTokens.breakpointDesktop &&
+                      !hasSelection;
               final autoCollapseProperties =
-                  centerWithToolboxCollapsed < comfortableCenterWidth;
+                  centerWithToolboxCollapsed < comfortableCenterWidth ||
+                      autoCollapseEmptyProperties;
 
               // The derived collapse is the DEFAULT at this width, not a
               // verdict: an explicit "show me" always wins. Without the
@@ -204,8 +222,7 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               // collapsed, so the shipped default was a 220 px palette that
               // clipped its own tab labels and its node descriptions.) A
               // user-dragged width still overrides.
-              final leftDerived =
-                  spaceTight ? dims.leftMin : dims.leftExpanded;
+              final leftDerived = spaceTight ? dims.leftMin : dims.leftExpanded;
               final rightDerived =
                   spaceTight ? dims.rightMin : dims.rightExpanded;
               final leftWidth = (persistedLeftWidth ?? leftDerived).clamp(

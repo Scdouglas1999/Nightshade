@@ -52,7 +52,7 @@ extension _ConnectedDeviceMotionDialogs on _ConnectedDeviceCardState {
               }
             },
             child: NightshadeDialog(
-              title: 'Move Focuser',
+              title: 'Move focuser',
               icon: LucideIcons.focus,
               width: 400,
               actions: [

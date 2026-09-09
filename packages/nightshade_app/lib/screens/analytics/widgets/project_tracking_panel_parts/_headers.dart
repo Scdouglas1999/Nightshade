@@ -178,7 +178,7 @@ class _SummaryStatsHeader extends ConsumerWidget {
           Expanded(
             child: _SummaryStat(
               icon: LucideIcons.timer,
-              label: 'Total Integration',
+              label: 'Total integration',
               value: '${totalIntegrationHours.toStringAsFixed(1)}h',
               colors: colors,
             ),

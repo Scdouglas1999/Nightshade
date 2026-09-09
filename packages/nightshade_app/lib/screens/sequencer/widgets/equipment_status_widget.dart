@@ -101,7 +101,7 @@ class EquipmentStatusWidget extends ConsumerWidget {
                 _ExpandedStatusChip(
                   colors: colors,
                   icon: LucideIcons.filter,
-                  label: 'Filter Wheel',
+                  label: 'Filter wheel',
                   isConnected: hasFilterWheel,
                   deviceName: _getDeviceName(devices, DeviceType.filterWheel),
                 ),

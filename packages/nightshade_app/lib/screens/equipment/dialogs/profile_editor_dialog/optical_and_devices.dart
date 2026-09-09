@@ -3,11 +3,11 @@
 part of '../profile_editor_dialog.dart';
 
 extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
-  // Section 2: Optical Train
+  // Section 2: optical train
 
   Widget _buildOpticalTrainSection(NightshadeColors colors, ThemeData theme) {
-    return _SectionCard(
-      title: 'Optical Train',
+    return _SectionBlock(
+      title: 'Optical train',
       icon: LucideIcons.target,
       isExpanded: _expandedSections['optical']!,
       onToggle: () => setState(
@@ -17,7 +17,8 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           : _telescopeNameController.text,
       colors: colors,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // One-tap prefill from the built-in + user telescope library (C10).
           // Manual entry below remains fully available afterwards.
@@ -34,138 +35,122 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               onPressed: _pickTelescopeFromLibrary,
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Telescope name
-          NightshadeTextField(
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          _EditorRow(
             label: 'Telescope / OTA',
-            controller: _telescopeNameController,
-            hint: 'e.g., Esprit 100ED, RC8',
+            child: NightshadeTextField(
+              controller: _telescopeNameController,
+              hint: 'e.g., Esprit 100ED, RC8',
+            ),
           ),
-          const SizedBox(height: 16),
-
-          // Focal length and aperture row. Each carries an inline help
-          // affordance (C10) beside its label; the labels are rendered
-          // externally (matching the file's existing literal fontSize-12/w500
-          // label style) so the help icon can sit next to them.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabelWithHelp(
-                      colors,
-                      label: 'Focal length',
-                      helpTitle: 'Focal length (mm)',
-                      helpBody:
-                          "The telescope's NATIVE focal length in millimetres "
-                          '— on the OTA label or its spec sheet. Enter any '
-                          'reducer or barlow separately below; the profile '
-                          'stores the two multiplied together as the focal '
-                          'length everything else images at.',
-                    ),
-                    const SizedBox(height: 4),
-                    NightshadeTextField(
-                      controller: _focalLengthController,
-                      hint: 'e.g., 550',
-                      suffix: 'mm',
-                      errorText: _fieldErrors[ProfileEditorField.focalLength],
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) {
-                        clearFieldError(ProfileEditorField.focalLength);
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Focal length',
+            trailing: helpAffordance(
+              context,
+              title: 'Focal length (mm)',
+              body: "The telescope's NATIVE focal length in millimetres "
+                  '— on the OTA label or its spec sheet. Enter any '
+                  'reducer or barlow separately below; the profile '
+                  'stores the two multiplied together as the focal '
+                  'length everything else images at.',
+            ),
+            child: NightshadeTextField(
+              controller: _focalLengthController,
+              hint: 'e.g., 550',
+              suffix: 'mm',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.focalLength],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabelWithHelp(
-                      colors,
-                      label: 'Aperture',
-                      helpTitle: 'Aperture (mm)',
-                      helpBody: 'The diameter of the telescope in millimetres. '
-                          'Focal length ÷ aperture gives your focal ratio and '
-                          'sets how much light you gather.',
-                    ),
-                    const SizedBox(height: 4),
-                    NightshadeTextField(
-                      controller: _apertureController,
-                      hint: 'e.g., 100',
-                      suffix: 'mm',
-                      errorText: _fieldErrors[ProfileEditorField.aperture],
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) {
-                        clearFieldError(ProfileEditorField.aperture);
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              onChanged: (_) {
+                clearFieldError(ProfileEditorField.focalLength);
+                setState(() {});
+              },
+            ),
           ),
-          const SizedBox(height: 16),
-
+          const SizedBox(height: _rowGap),
+          _EditorRow(
+            label: 'Aperture',
+            trailing: helpAffordance(
+              context,
+              title: 'Aperture (mm)',
+              body: 'The diameter of the telescope in millimetres. '
+                  'Focal length ÷ aperture gives your focal ratio and '
+                  'sets how much light you gather.',
+            ),
+            child: NightshadeTextField(
+              controller: _apertureController,
+              hint: 'e.g., 100',
+              suffix: 'mm',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.aperture],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) {
+                clearFieldError(ProfileEditorField.aperture);
+                setState(() {});
+              },
+            ),
+          ),
+          const SizedBox(height: _rowGap),
           // Reducer / barlow. Without this field the profile's effective focal
           // length was unrepresentable here, so opening a reducer'd rig (the
           // wizard is the only other surface that can set one) and pressing
           // Save quietly multiplied its focal length back up by 1/reducer.
-          _fieldLabelWithHelp(
-            colors,
-            label: 'Reducer / Barlow',
-            helpTitle: 'Reducer or barlow factor',
-            helpBody:
-                'The multiplier printed on the reducer or barlow \u2014 0.8 '
-                'for a 0.8x reducer, 2 for a 2x barlow. Leave blank (or 1) '
-                'when the camera is at prime focus. Focal length x this factor '
-                'is what the rig actually images at.',
+          _EditorRow(
+            label: 'Reducer / barlow',
+            trailing: helpAffordance(
+              context,
+              title: 'Reducer or barlow factor',
+              body: 'The multiplier printed on the reducer or barlow — 0.8 '
+                  'for a 0.8x reducer, 2 for a 2x barlow. Leave blank (or 1) '
+                  'when the camera is at prime focus. Focal length x this factor '
+                  'is what the rig actually images at.',
+            ),
+            child: NightshadeTextField(
+              controller: _reducerController,
+              hint: '1 (none)',
+              suffix: '×',
+              mono: true,
+              errorText: _fieldErrors[ProfileEditorField.reducer],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) {
+                clearFieldError(ProfileEditorField.reducer);
+                setState(() {});
+              },
+            ),
           ),
-          const SizedBox(height: 4),
-          NightshadeTextField(
-            controller: _reducerController,
-            hint: '1 (none)',
-            suffix: '\u00D7',
-            errorText: _fieldErrors[ProfileEditorField.reducer],
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) {
-              clearFieldError(ProfileEditorField.reducer);
-              setState(() {});
-            },
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: NightshadeTokens.spaceLg),
 
-          // Computed values. A Wrap, not a Row: the effective focal length is a
-          // third entry on a 600px-wide dialog that a Row would overflow.
+          // Computed values, in a well. A Wrap, not a Row: the effective focal
+          // length is a third entry on a 640px-wide dialog that a Row would
+          // overflow.
           Container(
-            padding: NightshadeTokens.paddingLg,
+            padding: NightshadeTokens.paddingMd,
             decoration: NightshadeDecorations.well(colors),
             child: Wrap(
-              spacing: 32,
-              runSpacing: 12,
+              spacing: NightshadeTokens.space3xl,
+              runSpacing: NightshadeTokens.spaceMd,
               children: [
                 _ComputedValue(
-                  label: 'f/Ratio',
+                  label: 'Focal ratio',
                   value: _computedFRatio != null
                       ? 'f/${_computedFRatio!.toStringAsFixed(1)}'
-                      : kReadoutUnknown,
+                      : null,
                   colors: colors,
                 ),
                 _ComputedValue(
-                  label: 'Scale',
+                  label: 'Image scale',
                   value: _computedScale != null
                       ? '${_computedScale!.toStringAsFixed(2)}"/px'
-                      : kReadoutUnknown,
+                      : null,
                   subtitle: _pixelSize != null
-                      ? 'at ${_pixelSize!.toStringAsFixed(2)}\u00B5m'
+                      ? 'at ${_pixelSize!.toStringAsFixed(2)}µm'
                       : null,
                   colors: colors,
                 ),
@@ -185,29 +170,6 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           ),
         ],
       ),
-    );
-  }
-
-  /// A field label rendered externally (matching this file's literal
-  /// fontSize-12 / w500 / textSecondary label style) with an inline rich help
-  /// affordance (C10) beside it.
-  Widget _fieldLabelWithHelp(
-    NightshadeColors colors, {
-    required String label,
-    required String helpTitle,
-    required String helpBody,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: NightshadeTypography.labelSm
-              .copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(width: NightshadeTokens.spaceXs),
-        helpAffordance(context, title: helpTitle, body: helpBody),
-      ],
     );
   }
 
@@ -258,7 +220,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
       ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
     }
 
-    return _SectionCard(
+    return _SectionBlock(
       title: 'Devices',
       icon: LucideIcons.plugZap,
       isExpanded: _expandedSections['devices']!,
@@ -269,12 +231,12 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           : 'None assigned',
       colors: colors,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Camera
           _DeviceRow(
             type: 'Camera',
-            icon: LucideIcons.camera,
             nameController: _cameraNameController,
             deviceId: _cameraId,
             discoveredDevices: cameras,
@@ -291,12 +253,11 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           // Mount
           _DeviceRow(
             type: 'Mount',
-            icon: LucideIcons.compass,
             nameController: _mountNameController,
             deviceId: _mountId,
             discoveredDevices: mounts,
@@ -313,12 +274,11 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           // Focuser
           _DeviceRow(
             type: 'Focuser',
-            icon: LucideIcons.focus,
             nameController: _focuserNameController,
             deviceId: _focuserId,
             discoveredDevices: focusers,
@@ -335,12 +295,11 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
-          // Filter Wheel
+          // Filter wheel
           _DeviceRow(
-            type: 'Filter Wheel',
-            icon: LucideIcons.disc,
+            type: 'Filter wheel',
             nameController: _filterWheelNameController,
             deviceId: _filterWheelId,
             discoveredDevices: filterWheels,
@@ -357,12 +316,11 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           // Guider
           _DeviceRow(
             type: 'Guider',
-            icon: LucideIcons.crosshair,
             nameController: _guiderNameController,
             deviceId: _guiderId,
             discoveredDevices: guiders,
@@ -379,12 +337,11 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           // Rotator
           _DeviceRow(
             type: 'Rotator',
-            icon: LucideIcons.rotateCcw,
             nameController: _rotatorNameController,
             deviceId: _rotatorId,
             discoveredDevices: rotators,
@@ -401,11 +358,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           _DeviceRow(
             type: 'Dome',
-            icon: LucideIcons.home,
             nameController: null,
             deviceId: _domeId,
             discoveredDevices: domes,
@@ -418,11 +374,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           _DeviceRow(
             type: 'Weather',
-            icon: LucideIcons.cloud,
             nameController: null,
             deviceId: _weatherId,
             discoveredDevices: weatherStations,
@@ -435,11 +390,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           _DeviceRow(
-            type: 'Safety Monitor',
-            icon: LucideIcons.shieldCheck,
+            type: 'Safety monitor',
             nameController: _safetyMonitorNameController,
             deviceId: _safetyMonitorId,
             discoveredDevices: safetyMonitors,
@@ -456,11 +410,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           _DeviceRow(
             type: 'Switch',
-            icon: LucideIcons.toggleLeft,
             nameController: _switchNameController,
             deviceId: _switchId,
             discoveredDevices: switches,
@@ -477,11 +430,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _rowGap),
 
           _DeviceRow(
-            type: 'Cover / Calibrator',
-            icon: LucideIcons.sunMedium,
+            type: 'Cover / calibrator',
             nameController: null,
             deviceId: _coverCalibratorId,
             discoveredDevices: coverCalibrators,
@@ -494,15 +446,18 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             onScan: onScan,
             colors: colors,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: NightshadeTokens.spaceLg),
 
           // Add from connected button
-          NightshadeButton(
-            label: 'Add from connected',
-            icon: LucideIcons.plus,
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: _populateFromConnected,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Add from connected',
+              icon: LucideIcons.plus,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: _populateFromConnected,
+            ),
           ),
         ],
       ),

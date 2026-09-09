@@ -499,7 +499,7 @@ class _FooterActions {
   }
 
   String get primaryLabel {
-    if (isNextSteps) return 'Go to dashboard';
+    if (isNextSteps) return 'Go to Tonight';
     if (isSummary) return 'Save profile';
     return 'Next';
   }

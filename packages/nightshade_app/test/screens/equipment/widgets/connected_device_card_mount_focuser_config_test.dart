@@ -69,7 +69,7 @@ Future<void> _waitForDialogToClose(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Mount Configuration', () {
+  group('Mount configuration', () {
     testWidgets('settings failure does not open a default-valued editor',
         (tester) async {
       await pumpAppScreen(
@@ -83,7 +83,7 @@ void main() {
 
       await _openDialog(tester);
 
-      expect(find.text('Mount Configuration'), findsNothing);
+      expect(find.text('Mount configuration'), findsNothing);
       expect(
           find.textContaining('Could not load mount settings'), findsOneWidget);
     });
@@ -100,7 +100,7 @@ void main() {
       await tester.enterText(find.byType(TextField), 'abc');
       await _tapSave(tester);
 
-      expect(find.text('Mount Configuration'), findsOneWidget,
+      expect(find.text('Mount configuration'), findsOneWidget,
           reason: 'a malformed value must leave the dialog open');
       expect(
         handle.container
@@ -124,7 +124,7 @@ void main() {
       await tester.enterText(find.byType(TextField), '121');
       await _tapSave(tester);
 
-      expect(find.text('Mount Configuration'), findsOneWidget);
+      expect(find.text('Mount configuration'), findsOneWidget);
       expect(
         handle.container
             .read(appSettingsProvider)
@@ -140,9 +140,9 @@ void main() {
       await _openDialog(tester);
       await tester.enterText(find.byType(TextField), '120');
       await _tapSave(tester);
-      await _waitForDialogToClose(tester, 'Mount Configuration');
+      await _waitForDialogToClose(tester, 'Mount configuration');
 
-      expect(find.text('Mount Configuration'), findsNothing,
+      expect(find.text('Mount configuration'), findsNothing,
           reason: 'a valid save must close the dialog');
       expect(
         handle.container
@@ -159,9 +159,9 @@ void main() {
       await _openDialog(tester);
       await tester.enterText(find.byType(TextField), '0');
       await _tapSave(tester);
-      await _waitForDialogToClose(tester, 'Mount Configuration');
+      await _waitForDialogToClose(tester, 'Mount configuration');
 
-      expect(find.text('Mount Configuration'), findsNothing);
+      expect(find.text('Mount configuration'), findsNothing);
       expect(
         handle.container
             .read(appSettingsProvider)
@@ -172,7 +172,7 @@ void main() {
     });
   });
 
-  group('Focuser Configuration', () {
+  group('Focuser configuration', () {
     // Field order in the dialog: [0] coefficient, [1] backlash.
     Finder coeffField() => find.byType(TextField).at(0);
     Finder backlashField() => find.byType(TextField).at(1);
@@ -190,7 +190,7 @@ void main() {
 
       await _openDialog(tester);
 
-      expect(find.text('Focuser Configuration'), findsNothing);
+      expect(find.text('Focuser configuration'), findsNothing);
       expect(
         find.textContaining('Could not load focuser settings'),
         findsOneWidget,
@@ -209,7 +209,7 @@ void main() {
       await tester.enterText(coeffField(), 'abc');
       await _tapSave(tester);
 
-      expect(find.text('Focuser Configuration'), findsOneWidget);
+      expect(find.text('Focuser configuration'), findsOneWidget);
       expect(
         handle.container.read(appSettingsProvider).requireValue.tempCoefficient,
         before,
@@ -227,7 +227,7 @@ void main() {
       await tester.enterText(coeffField(), 'NaN');
       await _tapSave(tester);
 
-      expect(find.text('Focuser Configuration'), findsOneWidget);
+      expect(find.text('Focuser configuration'), findsOneWidget);
       expect(
         handle.container.read(appSettingsProvider).requireValue.tempCoefficient,
         before,
@@ -242,7 +242,7 @@ void main() {
       await tester.enterText(coeffField(), 'Infinity');
       await _tapSave(tester);
 
-      expect(find.text('Focuser Configuration'), findsOneWidget);
+      expect(find.text('Focuser configuration'), findsOneWidget);
     });
 
     testWidgets('out-of-range backlash (10001) is rejected and stays open',
@@ -258,7 +258,7 @@ void main() {
       await tester.enterText(backlashField(), '10001');
       await _tapSave(tester);
 
-      expect(find.text('Focuser Configuration'), findsOneWidget);
+      expect(find.text('Focuser configuration'), findsOneWidget);
       expect(
         handle.container
             .read(appSettingsProvider)
@@ -276,9 +276,9 @@ void main() {
       await tester.enterText(coeffField(), '0');
       await tester.enterText(backlashField(), '10000');
       await _tapSave(tester);
-      await _waitForDialogToClose(tester, 'Focuser Configuration');
+      await _waitForDialogToClose(tester, 'Focuser configuration');
 
-      expect(find.text('Focuser Configuration'), findsNothing);
+      expect(find.text('Focuser configuration'), findsNothing);
       final state = handle.container.read(appSettingsProvider).requireValue;
       expect(state.tempCoefficient, 0);
       expect(state.backlashCompensation, 10000);

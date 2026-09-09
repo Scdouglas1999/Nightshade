@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _prefKey = 'fujifilm_disclaimer_acknowledged';
@@ -28,25 +29,35 @@ Future<bool> showFujifilmDisclaimerIfNeeded(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      title: const Text('Fujifilm Camera Control SDK Notice'),
-      content: const Text(
-        'According to Fujifilm\'s SDK license agreement, using third-party '
-        'software to control your Fujifilm camera may void its limited product '
-        'warranty. By proceeding, you acknowledge this risk.\n\n'
-        'This notice will not be shown again.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+    builder: (context) {
+      final colors = NightshadeColors.of(context);
+      return NightshadeDialog(
+        title: 'Fujifilm camera control SDK notice',
+        width: NightshadeDialog.widthConfirm,
+        showCloseButton: false,
+        actions: [
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          NightshadeButton(
+            label: 'I understand',
+            variant: ButtonVariant.primary,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+        child: Text(
+          "According to Fujifilm's SDK license agreement, using third-party "
+          'software to control your Fujifilm camera may void its limited '
+          'product warranty. By proceeding, you accept that risk.\n\n'
+          'This notice is not shown again.',
+          style: NightshadeTypography.bodySm.copyWith(
+            color: colors.textSecondary,
+          ),
         ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('I Understand'),
-        ),
-      ],
-    ),
+      );
+    },
   );
 
   if (result == true) {

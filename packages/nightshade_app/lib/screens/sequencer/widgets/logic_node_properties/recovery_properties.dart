@@ -23,7 +23,7 @@ class RecoveryProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Trigger Type',
+          label: 'Trigger type',
           child: NodeDropdown<TriggerType?>(
             colors: colors,
             value: node.triggerType,
@@ -85,7 +85,7 @@ class RecoveryProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Recovery Action',
+          label: 'Recovery action',
           child: NodeDropdown<RecoveryActionType>(
             colors: colors,
             value: node.recoveryAction,
@@ -125,7 +125,7 @@ class RecoveryProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Additional Retries',
+          label: 'Additional retries',
           helpText: 'Retries after the first attempt. Total executions are '
               '1 + additional retries.',
           child: NodeNumberInput(
@@ -178,7 +178,7 @@ class RecoveryProperties extends ConsumerWidget {
           ),
           NodePropertyField(
             colors: colors,
-            label: 'Consecutive Frames',
+            label: 'Consecutive frames',
             child: NodeNumberInput(
               colors: colors,
               value: node.hfrConsecutiveFrames.toDouble(),
@@ -197,7 +197,7 @@ class RecoveryProperties extends ConsumerWidget {
         if (node.triggerType == TriggerType.altitudeLimit)
           NodePropertyField(
             colors: colors,
-            label: 'Min Altitude',
+            label: 'Min altitude',
             child: NodeNumberInput(
               colors: colors,
               value: node.triggerThreshold ?? 30,
@@ -216,7 +216,7 @@ class RecoveryProperties extends ConsumerWidget {
         if (node.triggerType == TriggerType.humidityThreshold)
           NodePropertyField(
             colors: colors,
-            label: 'Max Humidity',
+            label: 'Max humidity',
             child: NodeNumberInput(
               colors: colors,
               value: node.triggerThreshold ?? 85,
@@ -326,7 +326,7 @@ class RecoveryProperties extends ConsumerWidget {
         if (node.triggerType == TriggerType.temperatureShift)
           NodePropertyField(
             colors: colors,
-            label: 'Temperature Change',
+            label: 'Temperature change',
             child: NodeNumberInput(
               colors: colors,
               value: node.triggerThreshold ?? 2.0,
@@ -381,7 +381,7 @@ class RecoveryProperties extends ConsumerWidget {
         if (node.triggerType == TriggerType.driftLimit)
           NodePropertyField(
             colors: colors,
-            label: 'Max Drift',
+            label: 'Max drift',
             child: NodeNumberInput(
               colors: colors,
               value: node.triggerThreshold ?? 30,

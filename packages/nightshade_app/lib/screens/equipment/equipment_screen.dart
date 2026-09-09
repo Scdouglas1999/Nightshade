@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -140,7 +139,12 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         ? profiles.where((p) => p.id == selectedProfileId).firstOrNull
         : null;
 
-    final tabIndex = firstRun ? 0 : ref.watch(equipmentTabIndexProvider);
+    // NOT clamped to 0 during first run: Profiles and Optical train are
+    // reachable before a profile exists, which is when someone most wants to
+    // look at them.
+    final tabIndex = ref.watch(equipmentTabIndexProvider);
+    // Drives whether "Disconnect all" exists at all (see the header actions).
+    final anythingConnected = equipmentConnectedCount(ref) > 0;
     // Below DESKTOP width, not the shell breakpoint: this header seats a
     // title, three tabs, a chip and two actions, and measured at 800 px the
     // labelled buttons overflow the row by 7.7 px — which shows up as a
@@ -161,9 +165,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             tabs: AdaptiveTabBar(
               horizontalPadding: 0,
               selectedIndex: tabIndex,
-              onSelected: (index) => ref
-                  .read(equipmentTabIndexProvider.notifier)
-                  .state = firstRun ? 0 : index,
+              onSelected: (index) =>
+                  ref.read(equipmentTabIndexProvider.notifier).state = index,
               tabs: [
                 const AdaptiveTab(label: 'Devices'),
                 AdaptiveTab(
@@ -190,20 +193,24 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
               // own "Scan all" (the same code path), and "Disconnect all" is in
               // the profile menu.
               if (!phoneHeader) ...[
-                if (narrowHeader)
-                  NightshadeIconButton(
-                    icon: LucideIcons.unplug,
-                    tooltip: 'Disconnect all',
-                    onPressed: _disconnectAllDevices,
-                  )
-                else
-                  NightshadeButton(
-                    label: 'Disconnect all',
-                    icon: LucideIcons.unplug,
-                    variant: ButtonVariant.secondary,
-                    size: ButtonSize.small,
-                    onPressed: _disconnectAllDevices,
-                  ),
+                // Only when there IS something to disconnect. On a fresh
+                // profile this offered to disconnect nothing, which reads as a
+                // broken control rather than an empty rig.
+                if (anythingConnected)
+                  if (narrowHeader)
+                    NightshadeIconButton(
+                      icon: LucideIcons.unplug,
+                      tooltip: 'Disconnect all',
+                      onPressed: _disconnectAllDevices,
+                    )
+                  else
+                    NightshadeButton(
+                      label: 'Disconnect all',
+                      icon: LucideIcons.unplug,
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      onPressed: _disconnectAllDevices,
+                    ),
                 if (narrowHeader)
                   NightshadeIconButton(
                     icon: LucideIcons.search,
@@ -224,40 +231,53 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             ],
           ),
           Expanded(
-            child: firstRun
-                ? _FirstTimeOnboarding(
-                    colors: colors,
-                    onStartSetup: () => _showCreateProfileWizard(context),
-                    onManualSetup: _createEmptyProfile,
-                  )
-                : switch (tabIndex) {
-                    1 => _ProfilesTab(
-                        selectedProfileId: selectedProfileId,
-                        onProfileSelected: (id) => ref
-                            .read(selectedEquipmentProfileIdProvider.notifier)
-                            .state = id,
-                        onCreateProfile: () =>
-                            _showProfileEditor(context, null),
-                        onEditProfile: (profile) =>
-                            _showProfileEditor(context, profile),
-                        onConnectAll: _connectAllDevices,
-                        onDisconnectAll: _disconnectAllDevices,
-                        onSetDefault: _setDefaultProfile,
-                        onActivateProfile: _activateProfile,
-                        onDuplicateProfile: _duplicateProfile,
-                        onDeleteProfile: _deleteProfile,
-                        onReorderProfiles: _reorderProfiles,
-                      ),
-                    2 => const _OpticalTrainTab(),
-                    _ => _EquipmentMainColumn(
-                        selectedProfile: selectedProfile,
-                        onSettings: () => _showSettings(context),
-                        onConnectAll: _connectAllDevices,
-                        onEditProfile: (profile) =>
-                            _showProfileEditor(context, profile),
-                        onDisconnectAll: _disconnectAllDevices,
-                      ),
-                  },
+            child: switch (tabIndex) {
+              1 => _ProfilesTab(
+                  selectedProfileId: selectedProfileId,
+                  onProfileSelected: (id) => ref
+                      .read(selectedEquipmentProfileIdProvider.notifier)
+                      .state = id,
+                  onCreateProfile: () => _showProfileEditor(context, null),
+                  onEditProfile: (profile) =>
+                      _showProfileEditor(context, profile),
+                  onConnectAll: _connectAllDevices,
+                  onDisconnectAll: _disconnectAllDevices,
+                  onSetDefault: _setDefaultProfile,
+                  onActivateProfile: _activateProfile,
+                  onDuplicateProfile: _duplicateProfile,
+                  onDeleteProfile: _deleteProfile,
+                  onReorderProfiles: _reorderProfiles,
+                ),
+              2 => const _OpticalTrainTab(),
+              // First run owns the Devices tab only. The discovery drawer
+              // is mounted BENEATH the empty state so the header's "Scan
+              // for devices" has something to expand: before this it
+              // bumped a provider no mounted widget was listening to, and
+              // the primary action of the first screen did nothing at all.
+              _ => firstRun
+                  ? Column(
+                      children: [
+                        Expanded(
+                          child: _FirstTimeOnboarding(
+                            colors: colors,
+                            onStartSetup: () => ref
+                                .read(discoveryScanRequestProvider.notifier)
+                                .state++,
+                            onManualSetup: _createEmptyProfile,
+                          ),
+                        ),
+                        const DiscoveryPanel(),
+                      ],
+                    )
+                  : _EquipmentMainColumn(
+                      selectedProfile: selectedProfile,
+                      onSettings: () => _showSettings(context),
+                      onConnectAll: _connectAllDevices,
+                      onEditProfile: (profile) =>
+                          _showProfileEditor(context, profile),
+                      onDisconnectAll: _disconnectAllDevices,
+                    ),
+            },
           ),
         ],
       ),
@@ -296,18 +316,6 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             .text('equipmentCreateProfileFailed', params: {'error': '$e'}),
       );
     }
-  }
-
-  void _showCreateProfileWizard(BuildContext context) {
-    // Onboarding & First-Light IA (C13): the empty-state "Start Setup" now
-    // routes to the single onboarding spine rather than opening a bespoke
-    // in-screen wizard dialog. The `/onboarding` route owns the full
-    // Scan → Select → Save flow, persists the first profile, and hands off
-    // to first light on completion — keeping a single linear first-run path
-    // instead of two competing setup experiences. The manual fallback
-    // (`_createEmptyProfile`) is unchanged for users who'd rather build a
-    // profile by hand.
-    context.go('/onboarding');
   }
 
   /// Point the app at [profile] for this session without touching which

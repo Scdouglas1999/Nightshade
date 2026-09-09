@@ -227,7 +227,7 @@ class QuickStartDialog extends ConsumerWidget {
           // Session details grid
           _SessionDetailRow(
             icon: LucideIcons.settings2,
-            label: 'Equipment Profile',
+            label: 'Equipment profile',
             value: profileDisplay,
             colors: colors,
             theme: theme,
@@ -407,7 +407,7 @@ class QuickStartDialog extends ConsumerWidget {
             children: [
               Expanded(
                 child: NightshadeButton(
-                  label: 'Start Fresh',
+                  label: 'Start fresh',
                   icon: LucideIcons.refreshCw,
                   variant: ButtonVariant.outline,
                   size: ButtonSize.large,
@@ -417,7 +417,7 @@ class QuickStartDialog extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceMd),
               Expanded(
                 child: NightshadeButton(
-                  label: 'Resume Progress',
+                  label: 'Resume progress',
                   icon: LucideIcons.play,
                   variant: ButtonVariant.primary,
                   size: ButtonSize.large,

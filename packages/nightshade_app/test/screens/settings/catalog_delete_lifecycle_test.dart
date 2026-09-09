@@ -15,14 +15,14 @@ Future<void> _waitForDeleteButton(WidgetTester tester) async {
     );
     await tester.pump();
     if (find
-        .widgetWithText(NightshadeButton, 'Delete Catalogs')
+        .widgetWithText(NightshadeButton, 'Delete catalogs')
         .evaluate()
         .isNotEmpty) {
       return;
     }
   }
   expect(
-    find.widgetWithText(NightshadeButton, 'Delete Catalogs'),
+    find.widgetWithText(NightshadeButton, 'Delete catalogs'),
     findsOneWidget,
   );
 }
@@ -71,7 +71,7 @@ void main() {
     await _waitForDeleteButton(tester);
 
     final deleteButton =
-        find.widgetWithText(NightshadeButton, 'Delete Catalogs');
+        find.widgetWithText(NightshadeButton, 'Delete catalogs');
     await tester.ensureVisible(deleteButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -87,7 +87,7 @@ void main() {
     expect(find.text('Star and deep-sky catalogs deleted'), findsNothing);
     expect(find.textContaining('Importing:'), findsNothing);
     final button = tester.widget<NightshadeButton>(
-      find.widgetWithText(NightshadeButton, 'Delete Catalogs'),
+      find.widgetWithText(NightshadeButton, 'Delete catalogs'),
     );
     expect(button.onPressed, isNotNull);
     expect(button.isLoading, isFalse);

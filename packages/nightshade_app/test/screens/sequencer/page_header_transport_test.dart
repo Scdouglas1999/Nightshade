@@ -81,8 +81,7 @@ void main() {
     expect(find.text('Stop'), findsOneWidget);
   });
 
-  testWidgets('an idle sequence offers Start and nothing else',
-      (tester) async {
+  testWidgets('an idle sequence offers Start and nothing else', (tester) async {
     await pumpAt(tester, SequenceExecutionState.idle);
     expect(find.text('Start'), findsOneWidget);
     expect(find.text('Stop'), findsNothing);

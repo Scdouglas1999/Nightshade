@@ -120,7 +120,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
               ),
               _LayerChip(
                 legendKey: 'clip_high',
-                label: 'Clip High',
+                label: 'Clip high',
                 active: overlayState.showClipHighMap,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =
@@ -131,7 +131,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
               ),
               _LayerChip(
                 legendKey: 'clip_low',
-                label: 'Clip Low',
+                label: 'Clip low',
                 active: overlayState.showClipLowMap,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =
@@ -153,7 +153,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
               ),
               _LayerChip(
                 legendKey: 'moving',
-                label: 'Moving Tracks',
+                label: 'Moving tracks',
                 active: overlayState.showMovingObjectTracks,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =

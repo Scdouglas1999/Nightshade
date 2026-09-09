@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
+import 'red_night_filter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
@@ -197,25 +199,31 @@ class FrameThumbnail extends ConsumerWidget {
         }
         final bytes = snapshot.data;
         if (bytes != null && bytes.isNotEmpty) {
-          return Image.memory(
-            bytes,
-            fit: fit,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(),
+          // A thumbnail is image DATA, so red night re-emits its luminance on
+          // the red axis instead of putting a full-colour frame on screen.
+          return RedNightImage(
+            child: Image.memory(
+              bytes,
+              fit: fit,
+              width: double.infinity,
+              height: double.infinity,
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => _placeholder(),
+            ),
           );
         }
         // No backend thumbnail. `Image.file` handles a missing file through its
         // own errorBuilder, so there is no need to stat it from a sync build.
         if (!isRemoteMode && isDisplayableImagePath(fallbackFilePath)) {
-          return Image.file(
-            File(fallbackFilePath),
-            fit: fit,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(),
+          return RedNightImage(
+            child: Image.file(
+              File(fallbackFilePath),
+              fit: fit,
+              width: double.infinity,
+              height: double.infinity,
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => _placeholder(),
+            ),
           );
         }
         return _placeholder();

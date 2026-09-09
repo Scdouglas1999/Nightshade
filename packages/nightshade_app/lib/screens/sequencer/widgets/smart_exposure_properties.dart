@@ -109,7 +109,7 @@ class SmartExposureProperties extends ConsumerWidget {
           const SizedBox(height: 16),
           NodePropertyField(
             colors: colors,
-            label: 'Rotate Filters',
+            label: 'Rotate filters',
             child: NodeToggleSwitch(
               colors: colors,
               value: node.rotateFilters,
@@ -587,7 +587,7 @@ class _PlanRow extends StatelessWidget {
                 Expanded(
                   child: NodePropertyField(
                     colors: colors,
-                    label: 'Dither Every',
+                    label: 'Dither every',
                     child: NodeNumberInput(
                       colors: colors,
                       value: (plan.ditherEvery ?? 0).toDouble(),

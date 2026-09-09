@@ -88,7 +88,7 @@ class FovPresetsPanel extends ConsumerWidget {
           ],
           const SizedBox(height: 12),
           NightshadeButton(
-            label: 'Add Rig',
+            label: 'Add rig',
             icon: NightshadeIcons.add,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,

@@ -373,7 +373,7 @@ class _NarratorFeedSheet extends ConsumerWidget {
                   ),
                   const SizedBox(width: NightshadeTokens.spaceMd),
                   Text(
-                    'Night Narrator',
+                    'Night narrator',
                     style: NightshadeTypography.labelStrong
                         .copyWith(color: colors.textPrimary),
                   ),

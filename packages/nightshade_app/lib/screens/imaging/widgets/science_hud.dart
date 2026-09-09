@@ -323,7 +323,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
               ),
               _OverlayChip(
                 colors: colors,
-                label: 'Residual Vectors',
+                label: 'Residual vectors',
                 active: overlayState.showResidualVectors,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =
@@ -334,7 +334,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
               ),
               _OverlayChip(
                 colors: colors,
-                label: 'Object Tracks',
+                label: 'Object tracks',
                 active: overlayState.showMovingObjectTracks,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =
@@ -357,7 +357,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
               ),
               _OverlayChip(
                 colors: colors,
-                label: 'Clip High',
+                label: 'Clip high',
                 active: overlayState.showClipHighMap,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =
@@ -368,7 +368,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
               ),
               _OverlayChip(
                 colors: colors,
-                label: 'Clip Low',
+                label: 'Clip low',
                 active: overlayState.showClipLowMap,
                 onTap: () {
                   ref.read(scienceOverlayStateProvider.notifier).state =
@@ -436,7 +436,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
                             ),
                           );
                         },
-                  label: 'Set Target',
+                  label: 'Set target',
                   variant: ButtonVariant.outline,
                   size: ButtonSize.small,
                 ),
@@ -466,7 +466,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
                             ),
                           );
                         },
-                  label: 'Toggle Comp',
+                  label: 'Toggle comp',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
                 ),
@@ -490,7 +490,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
                                   .setTarget(null),
                             ),
                           ),
-                  label: 'Clear Target',
+                  label: 'Clear target',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
                 ),
@@ -510,7 +510,7 @@ class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
                                   .clearComparisons(),
                             ),
                           ),
-                  label: 'Clear Comps',
+                  label: 'Clear comps',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
                 ),

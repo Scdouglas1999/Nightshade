@@ -251,7 +251,7 @@ void main() {
     expect(find.textContaining('L'), findsWidgets);
     expect(find.textContaining('Ha'), findsWidgets);
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Create Sequence'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Create sequence'));
     await tester.pump(const Duration(milliseconds: 500));
 
     final sequence = editor.state;
@@ -476,7 +476,7 @@ void main() {
 
       final createButton = find.widgetWithText(
         NightshadeButton,
-        'Create Sequence',
+        'Create sequence',
       );
       await tester.ensureVisible(createButton);
       await tester.tap(createButton);
@@ -551,7 +551,7 @@ void main() {
 
     final createButton = find.widgetWithText(
       NightshadeButton,
-      'Create Sequence',
+      'Create sequence',
     );
     await tester.ensureVisible(createButton);
     await tester.tap(createButton);

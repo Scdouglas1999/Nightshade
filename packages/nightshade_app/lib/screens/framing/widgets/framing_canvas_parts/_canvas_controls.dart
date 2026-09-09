@@ -193,6 +193,30 @@ class _CanvasControls extends StatelessWidget {
 /// `layers` glyph so it reads as part of the chip strip, wired straight to
 /// [FramingNotifier.setSurveySource]. Selecting a source refetches the survey
 /// imagery for that band (the refetch lives in the notifier).
+/// The tight width the survey select needs for its widest option.
+///
+/// Measured with [NightshadeDropdown.labelStyle] (the style the closed control
+/// actually paints its value in) and added to
+/// [NightshadeDropdown.chromeWidth] (the padding, chevron, gap and ring the
+/// control spends on everything that is not the label), so this cannot drift
+/// out of step with the kit the way a literal did.
+double _surveySelectorWidth(BuildContext context) {
+  final scale = MediaQuery.textScalerOf(context);
+  var widest = 0.0;
+  for (final source in SurveySource.values) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: source.displayName,
+        style: NightshadeDropdown.labelStyle,
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: scale,
+    )..layout();
+    if (painter.width > widest) widest = painter.width;
+  }
+  return widest + NightshadeDropdown.chromeWidth;
+}
+
 class _SurveySourceSelector extends StatelessWidget {
   final NightshadeColors colors;
   final SurveySource source;
@@ -229,20 +253,25 @@ class _SurveySourceSelector extends StatelessWidget {
             color: colors.textSecondary,
           ),
           const SizedBox(width: NightshadeTokens.spaceXs),
-          // A TIGHT width (not just a minimum) for the widest survey label
-          // ('WISE 12μm' / 'DSS2 Blue' / 'SDSS Color') plus the dropdown's own
-          // 12px horizontal padding and its chevron.
+          // A TIGHT width (not just a minimum), MEASURED rather than guessed.
           //
-          // Two things depend on this. First: left to size itself inside the
-          // toolbar's [Wrap], the button was squeezed against the neighbouring
-          // chrome and lost the first character of the selection ('DSS2 Red'
+          // Two things depend on it. First: left to size itself in the
+          // toolbar, the button is squeezed against the neighbouring chrome
+          // and loses the first character of the selection ('DSS2 Red'
           // rendered as ')SS2 Red', '2MASS J' as '?MASS J') — the control
-          // misreporting which survey was on screen. Second: `isExpanded` uses
-          // an internal Expanded, which asserts on the unbounded width a Wrap
-          // hands its children, so the box must be tight rather than a
+          // misreporting which survey is on screen. Second: `isExpanded` uses
+          // an internal Expanded, which asserts on the unbounded width the
+          // toolbar hands its children, so the box must be tight rather than a
           // ConstrainedBox(minWidth:).
+          //
+          // It used to be a hard-coded 148, which went stale the moment the
+          // kit's select started counting the gap before its chevron: the
+          // label then wanted 112 px inside a box that offered 104.5. So the
+          // width now comes from the widest ACTUAL option, laid out in the
+          // style the control paints it in, plus the control's own published
+          // chrome allowance — both of which the kit exposes for exactly this.
           SizedBox(
-            width: 148,
+            width: _surveySelectorWidth(context),
             child: NightshadeDropdown(
               value: source.name,
               isDense: true,

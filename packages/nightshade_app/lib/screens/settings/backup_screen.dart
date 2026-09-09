@@ -26,7 +26,7 @@ Future<XFile?> _pickBackupImport() {
   return openFile(
     acceptedTypeGroups: const [
       XTypeGroup(
-        label: 'Nightshade Backup',
+        label: 'Nightshade backup',
         extensions: ['nsbackup', 'json'],
       ),
     ],
@@ -59,7 +59,7 @@ final backupDownloadSavePickerProvider =
         suggestedName: suggestedName,
         acceptedTypeGroups: const [
           XTypeGroup(
-            label: 'Nightshade Backup',
+            label: 'Nightshade backup',
             extensions: ['nsbackup', 'json'],
           ),
         ],

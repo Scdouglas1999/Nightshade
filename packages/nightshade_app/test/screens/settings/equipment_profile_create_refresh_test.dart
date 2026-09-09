@@ -55,7 +55,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      await tester.tap(find.text('New Profile'));
+      await tester.tap(find.text('New profile'));
       await tester.pumpAndSettle();
 
       // Blank submission stays in the dialog and explains what is missing.

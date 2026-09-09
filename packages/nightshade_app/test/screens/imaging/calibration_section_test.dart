@@ -59,7 +59,7 @@ void main() {
 
       await tester.pump();
 
-      expect(find.text('Image Calibration'), findsOneWidget);
+      expect(find.text('Image calibration'), findsOneWidget);
 
       // Status block surfaces the disabled-reason copy.
       expect(

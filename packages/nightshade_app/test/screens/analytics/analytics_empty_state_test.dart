@@ -156,7 +156,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(
-        find.text('Optical Train Diagnostics'),
+        find.text('Optical train diagnostics'),
         findsNothing,
         reason: 'the tab strip two rows above already names this tab, and no '
             'sibling tab prints an H1',
@@ -179,7 +179,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Optical Train Diagnostics'), findsOneWidget);
+      expect(find.text('Optical train diagnostics'), findsOneWidget);
     });
   });
 }

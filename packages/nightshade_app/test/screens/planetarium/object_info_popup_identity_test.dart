@@ -125,7 +125,7 @@ void main() {
     expect(_altAzOf(_lowDso).$1, lessThan(-5.0));
 
     expect(find.text(_altLabel(_highStar)), findsOneWidget);
-    expect(find.textContaining('Below Horizon'), findsNothing);
+    expect(find.textContaining('Below horizon'), findsNothing);
 
     // Now select the OTHER object from a different surface, exactly as the
     // search panel does. Rebuild before the dismissal is acted on: this frame

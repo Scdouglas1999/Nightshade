@@ -25,7 +25,7 @@ void main() {
       // Stand in for the dialog / AppBar chrome the real hosts provide.
       const Column(
         children: [
-          Text('Equipment Settings'),
+          Text('Equipment settings'),
           Expanded(child: EquipmentSettingsTab()),
         ],
       ),
@@ -37,7 +37,7 @@ void main() {
     }
 
     // Exactly one: the host's. The body contributes none.
-    expect(find.text('Equipment Settings'), findsOneWidget);
+    expect(find.text('Equipment settings'), findsOneWidget);
     // The sections themselves are untouched.
     expect(find.text('Camera Settings'), findsOneWidget);
   });

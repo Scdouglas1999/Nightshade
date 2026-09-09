@@ -23,7 +23,7 @@ class WaitTimeProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Wait For',
+          label: 'Wait for',
           child: NodeDropdown<String>(
             colors: colors,
             value: node.waitForTwilight != null ? 'twilight' : 'time',
@@ -47,7 +47,7 @@ class WaitTimeProperties extends ConsumerWidget {
         if (node.waitForTwilight != null) ...[
           NodePropertyField(
             colors: colors,
-            label: 'Twilight Type',
+            label: 'Twilight type',
             child: NodeDropdown<TwilightType>(
               colors: colors,
               value: node.waitForTwilight!,
@@ -73,7 +73,7 @@ class WaitTimeProperties extends ConsumerWidget {
         if (node.waitForTwilight == null) ...[
           NodePropertyField(
             colors: colors,
-            label: 'Wait Until',
+            label: 'Wait until',
             child: GestureDetector(
               onTap: () async {
                 final time = await showTimePicker(

@@ -13,10 +13,6 @@ final Map<String, Map<String, String>> _localizedValues = {
     'collapse': 'Collapse',
     'connect': 'Connect',
     'diagnose': 'Diagnose',
-    'dashboardTitle': 'Dashboard',
-    'dashboardTourDescription':
-        'Learn about the dashboard controls and status displays.',
-    'dashboardTourTitle': 'Dashboard Tour',
     'disconnectedBanner': 'Error: not connected to server',
     'generalAutoConnect': 'Auto-connect equipment',
     'generalAutoConnectDesc':
@@ -48,7 +44,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'mobileHowToConnect': 'How to Connect',
     'mobileHowToConnectSteps':
         '1. Make sure Nightshade is running on your imaging PC (desktop or headless server)\n2. Ensure both devices are on the same network\n3. Discovery starts automatically; if nothing is found, tap "Search for Server" to scan again or enter the address manually\n4. After connecting, the full Nightshade app opens with the same screens as desktop',
-    'mobileNotConnected': 'Not Connected',
+    'mobileNotConnected': 'Not connected',
     'mobileRetry': 'Retry',
     'mobileScanQr': 'Scan QR',
     'mobileSearchingForServer': 'Searching for server...',
@@ -144,7 +140,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     // whole answer.
     'navTonight': 'Tonight',
     'navEquipment': 'Equipment',
-    'navFlatWizard': 'Flat Wizard',
+    'navFlatWizard': 'Flat wizard',
     'navFraming': 'Framing',
     'navGuiding': 'Guiding',
     'navImaging': 'Imaging',
@@ -205,14 +201,14 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsDesc': 'Preferences & profiles',
     'settingsTourDescription':
         'Learn how to configure your Nightshade preferences.',
-    'settingsTourTitle': 'Settings Tour',
+    'settingsTourTitle': 'Settings tour',
     'settingsWeatherSafety': 'Weather safety',
     'share': 'Share',
-    'analyticsAllTargets': 'All Targets',
+    'analyticsAllTargets': 'All targets',
     'analyticsAllTime': 'All Time',
     'analyticsAvgHfr': 'Avg HFR',
     'analyticsAvgRms': 'Avg RMS',
-    'analyticsCapturedImages': 'Captured Images',
+    'analyticsCapturedImages': 'Captured images',
     'analyticsClearGoal': 'Clear Goal',
     'analyticsComplete': 'Complete',
     'analyticsCurrentSession': 'Current Session',
@@ -278,10 +274,10 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsStatistics': 'Statistics',
     'analyticsThisMonth': 'This Month',
     'analyticsThisYear': 'This Year',
-    'analyticsTotalExposures': 'Total Exposures',
+    'analyticsTotalExposures': 'Total exposures',
     'analyticsTourDescription':
         'Learn how to analyze your imaging data and session statistics.',
-    'analyticsTourTitle': 'Analytics Tour',
+    'analyticsTourTitle': 'Analytics tour',
     'analyticsUnnamedSession': 'Unnamed Session',
     'weatherSafetyActions': 'Safety Actions',
     'weatherSafetyAlertDistance': 'Alert distance',
@@ -309,7 +305,7 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Pause when sensor humidity exceeds this value',
     'weatherSafetyMaxWind': 'Max wind speed',
     'weatherSafetyMaxWindDesc': 'Pause when wind exceeds this speed',
-    'weatherSafetyTitle': 'Weather Safety',
+    'weatherSafetyTitle': 'Weather safety',
     'mount': 'Mount',
     'ra': 'RA',
     'dec': 'Dec',
@@ -334,9 +330,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'darkIn': 'Dark in {time}',
     'darkLeft': 'Dark {time} left',
     'sunsetAt': 'Sunset {time}',
-    'livePreview': 'Live Preview',
+    'livePreview': 'Live preview',
     'noImage': 'No Image',
-    'noCameraConnected': 'No Camera Connected',
+    'noCameraConnected': 'No camera connected',
     'takeSnapshotOrStartSequence': 'Take a snapshot or start a sequence',
     'connectCameraInEquipment': 'Connect a camera in Equipment',
     'guiding': 'Guiding',
@@ -357,18 +353,18 @@ final Map<String, Map<String, String>> _localizedValues = {
     'tracking': 'Tracking',
     'pos': 'Pos',
     'noData': 'No data',
-    'remoteAccessTitle': 'Remote Access',
+    'remoteAccessTitle': 'Remote access',
     'remoteAccessDescription':
         'Configure the web dashboard and remote control server.',
     'remoteAccessWebServer': 'Web Server',
-    'remoteAccessEnableTitle': 'Enable Remote Access',
+    'remoteAccessEnableTitle': 'Enable remote access',
     'remoteAccessEnableDesc':
         'Serve the dashboard and control API for authenticated LAN access.',
-    'remoteAccessPortTitle': 'Server Port',
+    'remoteAccessPortTitle': 'Server port',
     'remoteAccessPortDesc':
         'Port for the remote-access server. Changes rebind the server automatically.',
     'remoteAccessStatusTitle': 'Status',
-    'remoteAccessServerStatus': 'Server Status',
+    'remoteAccessServerStatus': 'Server status',
     'remoteAccessRunning': 'Running',
     'remoteAccessStopped': 'Stopped',
     'remoteAccessAuth': 'Authentication',
@@ -385,9 +381,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'remoteAccessLocalUrl': 'Local URL',
     'remoteAccessLanUrl': 'LAN URL',
     'remoteAccessActiveViewers': 'Active Viewers',
-    'remoteAccessLastError': 'Last Error',
+    'remoteAccessLastError': 'Last error',
     'remoteAccessNoErrors': 'None',
-    'remoteAccessPairTitle': 'Pair Remote Browsers',
+    'remoteAccessPairTitle': 'Pair remote browsers',
     'remoteAccessPairDesc':
         'Generate a short-lived pairing code and review paired devices.',
     'remoteAccessManagePairing': 'Manage Pairing',
@@ -482,9 +478,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingErrorRevokeAll':
         'Nightshade could not revoke access for every device. Check the list — some devices may still be paired.',
     'pairingErrorDelete': 'Nightshade could not delete that paired device.',
-    'plannerTitle': 'Plan Tonight',
+    'plannerTitle': 'Plan tonight',
     'plannerLoading': 'Analyzing tonight\'s conditions...',
-    'plannerCreateSequence': 'Create Sequence',
+    'plannerCreateSequence': 'Create sequence',
     'plannerReviewInSequencer': 'Review in Sequencer',
     'plannerReviewHint':
         'Nightshade will create a draft sequence and take you to Sequencer so you can review exposure, filters, and safety checks before running it.',
@@ -505,7 +501,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerPlanFailedTitle': 'Failed to generate plan',
     'plannerPlanFailedBody':
         'Nightshade could not generate tonight\'s plan. Try again or review your observing settings and saved targets.',
-    'plannerOpenSettings': 'Open Settings',
+    'plannerOpenSettings': 'Open settings',
     'plannerRetry': 'Retry',
     'plannerNoTargetsTitle': 'No targets for tonight',
     'plannerNoTargetsBody':
@@ -532,7 +528,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerMoon': 'Moon {value}\u00B0',
     'plannerExposure': '{value}s exp',
     'plannerEstimatedIntegration': 'Estimated integration: {value}',
-    'diagnosticsTitle': 'Optical Train Diagnostics',
+    'diagnosticsTitle': 'Optical train diagnostics',
     'diagnosticsLoadSessionsFailed': 'Could not load sessions',
     'diagnosticsNoSessions': 'No sessions available',
     'diagnosticsSelectSession': 'Select session',
@@ -565,20 +561,20 @@ final Map<String, Map<String, String>> _localizedValues = {
     'commonRename': 'Rename',
     'commonDuplicate': 'Duplicate',
     // First-night wizard chrome (replay-only walkthrough).
-    'firstNightWizardTitle': 'First Night Walkthrough',
+    'firstNightWizardTitle': 'First night walkthrough',
     'firstNightWizardSkipForever': 'Skip forever',
     'firstNightWizardShowNextLaunch': 'Show on next launch',
     'firstNightWizardStepLabel': 'Step {current} of {total}',
     'firstNightWizardShowMeOnScreen': 'Show me on the {screen} screen',
     // Tour prompts.
-    'equipmentTourTitle': 'Equipment Tour',
+    'equipmentTourTitle': 'Equipment tour',
     'equipmentTourDescription':
         'Learn how to connect and manage your astrophotography equipment.',
-    'sequencerTourTitle': 'Sequencer Tour',
+    'sequencerTourTitle': 'Sequencer tour',
     'sequencerTourDescription':
         'Learn how to create and run automated imaging sequences.',
     // Equipment screen profile management (snackbars + dialogs).
-    'equipmentSettingsTitle': 'Equipment Settings',
+    'equipmentSettingsTitle': 'Equipment settings',
     'equipmentDefaultProfileSet': 'Default profile set',
     'equipmentProfileDuplicated': 'Profile duplicated',
     'equipmentProfileRestored': 'Profile restored',
@@ -594,8 +590,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     // Planner (Plan Tonight) sub-tab labels.
     'plannerTabRecommendation': 'Recommendation',
     'plannerTabProjects': 'Projects',
-    'plannerTabTargetQueue': 'Target Queue',
-    'plannerTabThisWeek': 'This Week',
+    'plannerTabTargetQueue': 'Target queue',
+    'plannerTabThisWeek': 'This week',
     'plannerTabProgress': 'Progress',
     'plannerTabSchedule': 'Schedule',
     'plannerTabFraming': 'Framing',
@@ -616,7 +612,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     // the bar an operator watches all night was the last part of that chrome
     // still hard-coded in English. Reuses the existing short-word vocabulary
     // (`mount`, `focus`, `guiding`, `disconnected`, `idle`, `sequenceRunning`,
-    // `sequencePaused`, `dashboardTitle`) wherever the English matches exactly.
+    // `sequencePaused`) wherever the English matches exactly.
     'statusCamera': 'Camera',
     'statusGuider': 'Guider',
     'statusConnected': 'Connected',
@@ -676,7 +672,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbBriefingOverline': "TONIGHT'S BRIEFING",
     'dbNoRunActive': 'No run active',
     'dbImageTonight': 'Image tonight',
-    'dbPlanTonight': 'Plan Tonight',
+    'dbPlanTonight': 'Plan tonight',
     'dbPlanTonightTooltip':
         'Build a plan you can see and edit — pick the target and exposures '
             'yourself with the Smart Night wizard',
@@ -910,7 +906,7 @@ final Map<String, Map<String, String>> _localizedValues = {
             'longitude to start.',
     'plannerNoSiteAction': 'Open settings',
     'plannerNoCatalogTitle': 'Install the object catalog',
-    'plannerNoCatalogBody': 'OpenNGC lets the planner score 13 000 targets.',
+    'plannerNoCatalogBody': 'OpenNGC lets the planner score 13000 targets.',
     'plannerNoCatalogAction': 'Open catalog settings',
     'plannerNoMatchesTitle': 'No targets match these filters',
     'plannerNoMatchesBody':
@@ -939,11 +935,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'closeNightshadeTitle': '\u00BFCerrar Nightshade?',
     'collapse': 'Contraer',
     'connect': 'Conectar',
-    'dashboardTitle': 'Panel',
     'diagnose': 'Diagnosticar',
-    'dashboardTourDescription':
-        'Aprende los controles y estados del panel principal.',
-    'dashboardTourTitle': 'Tour del panel',
     'disconnectedBanner': 'Error: sin conexi\u00F3n al servidor',
     'generalAutoConnect': 'Conectar equipo autom\u00E1ticamente',
     'generalAutoConnectDesc':
@@ -1839,7 +1831,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerNoSiteAction': 'Abrir ajustes',
     'plannerNoCatalogTitle': 'Instala el catálogo de objetos',
     'plannerNoCatalogBody':
-        'OpenNGC permite al planificador puntuar 13 000 objetivos.',
+        'OpenNGC permite al planificador puntuar 13000 objetivos.',
     'plannerNoCatalogAction': 'Abrir ajustes del catálogo',
     'plannerNoMatchesTitle': 'Ningún objetivo coincide con estos filtros',
     'plannerNoMatchesBody':

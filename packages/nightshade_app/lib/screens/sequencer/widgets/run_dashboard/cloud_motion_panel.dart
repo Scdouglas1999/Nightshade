@@ -79,14 +79,14 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           _row(
             colors,
-            label: 'Current Cover',
+            label: 'Current cover',
             value: cover == null ? 'No data' : '${cover.toStringAsFixed(0)} %',
             highlight: coverColor,
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           _row(
             colors,
-            label: 'Cloud Arrival',
+            label: 'Cloud arrival',
             value: arrivalMins == null ? 'No prediction' : '$arrivalMins min',
             highlight: arrivalMins != null && arrivalMins <= 15
                 ? colors.error
@@ -117,7 +117,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceXs),
             _row(
               colors,
-              label: 'Nearest Cloud',
+              label: 'Nearest cloud',
               value: '${motion!.distanceKm.toStringAsFixed(0)} km',
               highlight: colors.textPrimary,
             ),

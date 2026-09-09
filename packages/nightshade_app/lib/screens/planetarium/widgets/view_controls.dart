@@ -810,6 +810,7 @@ class _ViewControlButtonState extends State<ViewControlButton> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final button = MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -821,19 +822,20 @@ class _ViewControlButtonState extends State<ViewControlButton> {
           height: 28,
           decoration: BoxDecoration(
             color: widget.isActive
-                ? const Color(0xFF00E676).withValues(alpha: 0.3)
+                ? colors.primary
+                    .withValues(alpha: NightshadeTokens.opacityAccentTintHover)
                 : (_isHovered
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.transparent),
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             border: widget.isActive
-                ? Border.all(color: const Color(0xFF00E676), width: 1)
+                ? Border.all(color: colors.primary, width: 1)
                 : null,
           ),
           child: Icon(
             widget.icon,
             size: 14,
-            color: widget.isActive ? const Color(0xFF00E676) : Colors.white70,
+            color: widget.isActive ? colors.primary : Colors.white70,
           ),
         ),
       ),

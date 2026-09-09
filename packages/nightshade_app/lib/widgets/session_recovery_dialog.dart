@@ -92,7 +92,7 @@ class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
         // auto-open).
         NightshadeButton(
           onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
-          label: 'Decide Later',
+          label: 'Decide later',
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
         ),
@@ -100,7 +100,7 @@ class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
           onPressed:
               _isBusy || _sessions.isEmpty ? null : _confirmAndDiscardAll,
           isLoading: _discardingAll,
-          label: 'Discard All',
+          label: 'Discard all',
           variant: ButtonVariant.destructive,
           size: ButtonSize.small,
         ),

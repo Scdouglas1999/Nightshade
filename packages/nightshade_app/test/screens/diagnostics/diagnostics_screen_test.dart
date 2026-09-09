@@ -121,7 +121,7 @@ void main() {
     await _drainAsyncFrames(tester);
 
     // Default English localization fallback in NightshadeLocalizations.
-    expect(find.text('Optical Train Diagnostics'), findsOneWidget,
+    expect(find.text('Optical train diagnostics'), findsOneWidget,
         reason:
             'Header title from `diagnosticsTitle` localization must render. '
             'A missing match means either the localization key has drifted '

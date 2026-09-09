@@ -162,32 +162,28 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       color: NightshadeColors.of(context).error,
                     )),
               ),
+              // Counts are measurements, so they are Readouts (05 §3): the
+              // uppercase label comes from the Readout itself, which is why
+              // these read "DARK FRAMES" without being written that way.
               data: (stats) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                padding: NightshadeTokens.paddingLg,
+                child: ReadoutRow(
                   children: [
-                    _StatCard(
-                      label: 'Dark Frames',
+                    Readout(
+                      label: 'Dark frames',
                       value: '${stats.darkCount}',
-                      icon: LucideIcons.moon,
                     ),
-                    const SizedBox(width: 12),
-                    _StatCard(
-                      label: 'Bias Frames',
+                    Readout(
+                      label: 'Bias frames',
                       value: '${stats.biasCount}',
-                      icon: LucideIcons.zap,
                     ),
-                    const SizedBox(width: 12),
-                    _StatCard(
-                      label: 'Master Darks',
+                    Readout(
+                      label: 'Master darks',
                       value: '${stats.masterCount}',
-                      icon: LucideIcons.layers,
                     ),
-                    const SizedBox(width: 12),
-                    _StatCard(
+                    Readout(
                       label: 'Total',
                       value: '${stats.totalEntries}',
-                      icon: LucideIcons.database,
                     ),
                   ],
                 ),
@@ -285,7 +281,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 children: [
                   _ActionButton(
                     icon: LucideIcons.scan,
-                    label: 'Clean Orphans',
+                    label: 'Clean orphans',
                     tooltip:
                         'Remove entries whose files no longer exist on disk',
                     onPressed: uiState.isBusy
@@ -298,7 +294,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   ),
                   _ActionButton(
                     icon: LucideIcons.trash2,
-                    label: 'Clear Library',
+                    label: 'Clear library',
                     tooltip: 'Remove all entries from the library',
                     onPressed:
                         uiState.isBusy ? null : () => _showClearDialog(context),
@@ -451,7 +447,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Clear Dark Library'),
+          title: const Text('Clear dark library'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

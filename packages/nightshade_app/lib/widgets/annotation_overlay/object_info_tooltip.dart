@@ -200,7 +200,7 @@ class ObjectInfoTooltip extends ConsumerWidget {
               width: double.infinity,
               child: NightshadeButton(
                 onPressed: onMoreInfo,
-                label: 'More Info',
+                label: 'More info',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
               ),

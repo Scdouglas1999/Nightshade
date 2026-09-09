@@ -259,7 +259,7 @@ void main() {
 
     // The sheet hosts the shared NarratorFeed; both events render in it.
     expect(find.byType(NarratorFeed), findsOneWidget);
-    expect(find.text('Night Narrator'), findsOneWidget);
+    expect(find.text('Night narrator'), findsOneWidget);
     expect(find.text('Feed-only headline'), findsWidgets);
   });
 }

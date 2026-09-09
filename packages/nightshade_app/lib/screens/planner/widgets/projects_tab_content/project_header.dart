@@ -94,7 +94,7 @@ class _ProjectHeaderBar extends StatelessWidget {
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
-            label: 'Plan Tonight',
+            label: 'Plan tonight',
             icon: LucideIcons.sparkles,
             variant: ButtonVariant.secondary,
             size: ButtonSize.small,
@@ -103,7 +103,7 @@ class _ProjectHeaderBar extends StatelessWidget {
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
-            label: 'New Project',
+            label: 'New project',
             icon: LucideIcons.folderPlus,
             variant: ButtonVariant.primary,
             size: ButtonSize.small,

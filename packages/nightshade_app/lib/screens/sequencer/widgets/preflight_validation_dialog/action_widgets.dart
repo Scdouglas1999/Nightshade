@@ -1,170 +1,59 @@
 part of '../preflight_validation_dialog.dart';
 
-class _CountBadge extends StatelessWidget {
-  final int count;
-  final Color color;
-  final IconData icon;
-
-  const _CountBadge({
-    required this.count,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        bordered: false,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Custom start sequence button with solid fill styling
-class _StartSequenceButton extends StatefulWidget {
+/// The dialog's ONE primary: a [NightshadeButton] on the `start` face.
+///
+/// It is a real button rather than a hand-rolled box, so the fill, the radius,
+/// the disabled dimming, the focus ring and keyboard activation all come from
+/// the design system. What stays local is the REFUSAL:
+///
+///  * the reason travels into the accessible NAME via [GatedAction.announce],
+///    because a disabled control whose name reads exactly like the enabled one
+///    is indistinguishable from it in a tree dump — the blocked dialog probed
+///    as a plain `button: Start sequence` beside its live siblings;
+///  * it travels onto the pointer as a tooltip;
+///  * and the button's own label node is excluded so the name is published
+///    once. Left to merge, the annotation and the visible label concatenate
+///    and the node announces itself twice.
+class _StartSequenceButton extends StatelessWidget {
   final bool canStart;
   final bool hasWarningsOnly;
-  final NightshadeColors colors;
   final VoidCallback? onPressed;
 
-  /// Why the run cannot start, or null when it can. Travels into the
-  /// accessible NAME via [GatedAction.announce] so a blocked primary cannot
-  /// read like a live one.
+  /// Why the run cannot start, or null when it can.
   final String? blockedReason;
 
   const _StartSequenceButton({
     required this.canStart,
     required this.hasWarningsOnly,
-    required this.colors,
     this.blockedReason,
     this.onPressed,
   });
 
   @override
-  State<_StartSequenceButton> createState() => _StartSequenceButtonState();
-}
-
-class _StartSequenceButtonState extends State<_StartSequenceButton> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final isEnabled = widget.onPressed != null;
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-    final baseColor = widget.canStart
-        ? widget.colors.success
-        : widget.hasWarningsOnly
-            ? widget.colors.warning
-            : widget.colors.textMuted;
-    final buttonColors = NightshadeDecorations.filledButtonColors(
-      baseColor,
-      isHovered: _isHovered,
-      isDisabled: !isEnabled,
+    final label = hasWarningsOnly ? 'Start anyway' : 'Start sequence';
+    final reason = blockedReason;
+
+    final Widget button = NightshadeButton(
+      label: label,
+      icon: canStart ? NightshadeIcons.play : NightshadeIcons.warning,
+      variant: ButtonVariant.start,
+      onPressed: onPressed,
+      semanticsHint: reason,
     );
 
-    final label = widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence';
-
-    // This is the green primary of the whole pre-flight dialog. A bare
-    // GestureDetector publishes no role and no state — a `panel:` beside its
-    // own `button: Re-check` and `button: Cancel` siblings — and cannot be
-    // reached from the keyboard. Declaring the role + enabled state and routing
-    // Enter/Space through an ActivateIntent puts it on the same footing as
-    // every NightshadeButton.
-    //
-    // The refusal REASON travels in the NAME: without it an AT-SPI probe of
-    // the blocked dialog reads `Start Sequence` with `sensitive` and no
-    // `enabled`, indistinguishable from the live button beside it. That is the
-    // discriminator `GatedAction` provides everywhere else.
     return Semantics(
       button: true,
-      enabled: isEnabled,
-      label: GatedAction.announce(label, widget.blockedReason),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        cursor:
-            isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
-        child: FocusableActionDetector(
-          enabled: isEnabled,
-          actions: <Type, Action<Intent>>{
-            ActivateIntent: CallbackAction<ActivateIntent>(
-              onInvoke: (_) {
-                widget.onPressed?.call();
-                return null;
-              },
-            ),
-            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
-              onInvoke: (_) {
-                widget.onPressed?.call();
-                return null;
-              },
-            ),
-          },
-          child: GestureDetector(
-            onTap: widget.onPressed,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: buttonColors.background,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(color: buttonColors.border),
-              ),
-              // The visible label is excluded so it cannot be appended to the
-              // annotated name: without this the node announced itself twice
-              // ("Start Anyway\nStart Anyway"), and with a blocked reason it
-              // would have read the reason and then contradicted it with the
-              // bare label.
-              child: ExcludeSemantics(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      widget.canStart
-                          ? LucideIcons.play
-                          : LucideIcons.alertTriangle,
-                      size: 16,
-                      color: onPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: NightshadeTypography.labelStrong
-                          .copyWith(color: onPrimary),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      enabled: onPressed != null,
+      label: GatedAction.announce(label, reason),
+      // Null when blocked, so the node advertises no tap action: a disabled
+      // primary that still offers one reads as live to the platform bridge.
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: reason == null
+            ? button
+            : NightshadeTooltip(message: reason, child: button),
       ),
     );
   }
 }
-
-// Pre-flight category section
-//
-// Compact collapsible-style group for the new pre-flight categories.
-// Renders an icon + title + (optional) trailing action button (e.g.
-// "Capture missing darks") and the issue cards beneath.

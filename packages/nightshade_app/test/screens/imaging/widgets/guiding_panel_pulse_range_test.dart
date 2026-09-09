@@ -154,7 +154,7 @@ void main() {
     final notifier =
         await _pumpAndExpand(tester, _caps(minPulse: 75, maxPulse: 900));
 
-    await _setAndApply(tester, 'Max Pulse', '1200');
+    await _setAndApply(tester, 'Max pulse', '1200');
 
     expect(
       find.text('Max pulse 1200 ms exceeds the mount maximum of 900 ms'),
@@ -170,7 +170,7 @@ void main() {
     final notifier =
         await _pumpAndExpand(tester, _caps(minPulse: 75, maxPulse: 900));
 
-    await _setAndApply(tester, 'Min Pulse', '40');
+    await _setAndApply(tester, 'Min pulse', '40');
 
     expect(
       find.text('Min pulse 40 ms is below the mount minimum of 75 ms'),
@@ -186,7 +186,7 @@ void main() {
     final notifier =
         await _pumpAndExpand(tester, _caps(minPulse: 75, maxPulse: 900));
 
-    await _setAndApply(tester, 'Max Pulse', '600');
+    await _setAndApply(tester, 'Max pulse', '600');
 
     expect(find.textContaining('exceeds the mount maximum'), findsNothing,
         reason: 'An in-range max pulse must not surface the range error.');
@@ -204,13 +204,13 @@ void main() {
     final notifier = await _pumpAndExpand(tester, null);
 
     // 1200 sits on the inclusive ceiling of the 75..1200 default window.
-    await _setAndApply(tester, 'Max Pulse', '1200');
+    await _setAndApply(tester, 'Max pulse', '1200');
     expect(notifier.pushed, hasLength(1),
         reason: 'With null caps the default ceiling is 1200, so 1200 passes.');
     expect(notifier.pushed.single.maxPulseMs, 1200.0);
 
     // 1201 is past the default ceiling and must be rejected.
-    await _setAndApply(tester, 'Max Pulse', '1201');
+    await _setAndApply(tester, 'Max pulse', '1201');
     expect(
       find.text('Max pulse 1201 ms exceeds the mount maximum of 1200 ms'),
       findsOneWidget,

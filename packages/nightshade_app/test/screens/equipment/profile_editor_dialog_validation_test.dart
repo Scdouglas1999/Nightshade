@@ -91,7 +91,7 @@ void main() {
 
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    expect(find.text('New Profile'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
 
     return () => completed ? result : null;
   }
@@ -112,7 +112,7 @@ void main() {
 
     // Editor stays open, an inline/summary error is shown, and nothing was
     // persisted.
-    expect(find.text('New Profile'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
     expect(find.text('Profile name is required'), findsWidgets);
     expect(resultOf(), isNull);
     expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
@@ -163,7 +163,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('New Profile'), findsOneWidget,
+    expect(find.text('New profile'), findsOneWidget,
         reason: 'the editor must stay open on rejection');
     expect(resultOf(), isNull);
     expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
@@ -187,7 +187,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('New Profile'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
     expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
   });
 
@@ -253,7 +253,7 @@ void main() {
     // First attempt fails: editor stays open, nothing persisted.
     await tester.tap(_saveButton);
     await tester.pumpAndSettle();
-    expect(find.text('New Profile'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
     expect(resultOf(), isNull);
     expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
 

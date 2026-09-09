@@ -91,7 +91,7 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.text('Add Trigger'));
+      await tester.tap(find.text('Add trigger'));
       await tester.pump();
       await tester.tap(find.text('Save'));
       await tester.pump();

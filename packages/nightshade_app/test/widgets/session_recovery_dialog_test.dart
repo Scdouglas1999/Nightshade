@@ -62,7 +62,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Discard All'));
+    await tester.tap(find.text('Discard all'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Discard').last);
     await tester.pump();
@@ -91,8 +91,8 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<PopScope>(find.byType(PopScope)).canPop, isFalse);
-    await tester.tap(find.text('Decide Later'));
-    await tester.tap(find.text('Discard All'));
+    await tester.tap(find.text('Decide later'));
+    await tester.tap(find.text('Discard all'));
     await tester.binding.handlePopRoute();
     await tester.pump();
     expect(find.byType(SessionRecoveryDialog), findsOneWidget);

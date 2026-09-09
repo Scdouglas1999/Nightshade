@@ -55,7 +55,7 @@ Future<void> _pumpAndCheck(WidgetTester tester, Size size) async {
     reason: 'DiagnosticsScreen must not overflow at '
         '${size.width}x${size.height}',
   );
-  expect(find.text('Optical Train Diagnostics'), findsOneWidget,
+  expect(find.text('Optical train diagnostics'), findsOneWidget,
       reason: 'Diagnostics header title must render at '
           '${size.width}x${size.height}');
 }

@@ -108,11 +108,11 @@ class PostSessionStatsDialog extends StatelessWidget {
                               value: dateFormat.format(endedAt!)),
                         _StatRow(
                             colors: colors,
-                            label: 'Wall Clock',
+                            label: 'Wall clock',
                             value: stats.formatDuration(stats.wallClockSecs)),
                         _StatRow(
                             colors: colors,
-                            label: 'Integration Time',
+                            label: 'Integration time',
                             value: stats.formatDuration(stats.integrationSecs)),
                         _StatRow(
                             colors: colors,
@@ -165,11 +165,11 @@ class PostSessionStatsDialog extends StatelessWidget {
                       children: [
                         _StatRow(
                             colors: colors,
-                            label: 'Autofocus Runs',
+                            label: 'Autofocus runs',
                             value: '${stats.autofocusRuns}'),
                         _StatRow(
                             colors: colors,
-                            label: 'Meridian Flips',
+                            label: 'Meridian flips',
                             value: '${stats.meridianFlips}'),
                         _StatRow(
                             colors: colors,
@@ -177,7 +177,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                             value: '${stats.ditherCount}'),
                         _StatRow(
                             colors: colors,
-                            label: 'Trigger Fires',
+                            label: 'Trigger fires',
                             value: '${stats.triggerFires}'),
                       ],
                     ),
@@ -187,7 +187,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                       const SizedBox(height: 20),
                       _Section(
                         colors: colors,
-                        title: 'Target Breakdown',
+                        title: 'Target breakdown',
                         icon: LucideIcons.target,
                         children: [
                           for (final te in stats.targetBreakdown.entries) ...[

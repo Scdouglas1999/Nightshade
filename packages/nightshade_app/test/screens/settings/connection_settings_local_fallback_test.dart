@@ -137,7 +137,7 @@ void main() {
 
     expect(find.text('Disconnected'), findsOneWidget);
 
-    final workLocally = find.widgetWithText(NightshadeButton, 'Work Locally');
+    final workLocally = find.widgetWithText(NightshadeButton, 'Work locally');
     expect(workLocally, findsOneWidget);
     await tester.ensureVisible(workLocally);
     await tester.tap(workLocally);

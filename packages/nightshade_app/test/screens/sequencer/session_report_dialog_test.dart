@@ -198,7 +198,7 @@ void main() {
     await _pump(tester, _fakeReport());
 
     // Headline.
-    expect(find.text('Session Report'), findsOneWidget);
+    expect(find.text('Session report'), findsOneWidget);
     expect(find.textContaining('M42 night 1'), findsOneWidget);
 
     // Overview tiles.
@@ -231,7 +231,7 @@ void main() {
     );
 
     expect(find.text('Review on imaging host'), findsOneWidget);
-    expect(find.text('Review & Integrate'), findsNothing);
+    expect(find.text('Review & integrate'), findsNothing);
   });
 
   testWidgets('Copy as Markdown writes to the clipboard', (tester) async {

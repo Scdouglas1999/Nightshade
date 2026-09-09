@@ -69,7 +69,7 @@ class TargetGroupProperties extends ConsumerWidget {
           const SizedBox(height: 12),
           NodePropertyField(
             colors: colors,
-            label: 'Target Name',
+            label: 'Target name',
             child: NodeTextInput(
               colors: colors,
               value: node.targetName,
@@ -213,7 +213,7 @@ class TargetGroupProperties extends ConsumerWidget {
               Expanded(
                 child: NodePropertyField(
                   colors: colors,
-                  label: 'Min Altitude',
+                  label: 'Min altitude',
                   child: NodeNumberInput(
                     colors: colors,
                     value: node.minAltitude ?? 30,
@@ -233,7 +233,7 @@ class TargetGroupProperties extends ConsumerWidget {
               Expanded(
                 child: NodePropertyField(
                   colors: colors,
-                  label: 'Max Altitude',
+                  label: 'Max altitude',
                   child: NodeNumberInput(
                     colors: colors,
                     value: node.maxAltitude ?? 90,

@@ -94,7 +94,7 @@ void main() {
       find.byKey(const ValueKey('indi-host-field')),
       '192.0.2.77',
     );
-    await tester.tap(find.text('Test Connection'));
+    await tester.tap(find.text('Test connection'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Connected.'), findsNothing,
@@ -120,7 +120,7 @@ void main() {
           _StubIndiDeviceService(ref, backend, devices: [_indiCamera()]),
     );
 
-    await tester.tap(find.text('Test Connection'));
+    await tester.tap(find.text('Test connection'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Connected. Found 1 device.'), findsOneWidget);
@@ -144,7 +144,7 @@ void main() {
       find.byKey(const ValueKey('indi-port-field')),
       '7777',
     );
-    await tester.tap(find.text('Test Connection'));
+    await tester.tap(find.text('Test connection'));
     await tester.pumpAndSettle();
 
     expect(

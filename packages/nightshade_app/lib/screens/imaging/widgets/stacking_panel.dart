@@ -569,7 +569,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
           // Status and controls
           PanelSection(
-            title: 'Live Stacking',
+            title: 'Live stacking',
             colors: widget.colors,
             child: Column(
               children: [
@@ -687,13 +687,13 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   isFirst: true,
                 ),
                 _StatRow(
-                  label: 'Stacked Frames',
+                  label: 'Stacked frames',
                   value: _frames(stats.stackedFrameCount),
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
-                  label: 'Total Attempted',
+                  label: 'Total attempted',
                   value: _frames(stats.totalFramesAttempted),
                   colors: widget.colors,
                 ),
@@ -777,7 +777,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
               stackState.previewWidth > 0 &&
               stackState.previewHeight > 0)
             PanelSection(
-              title: 'Stacked Preview',
+              title: 'Stacked preview',
               colors: widget.colors,
               child: _StackedPreview(
                 previewData: stackState.previewData!,
@@ -793,7 +793,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
           // Sigma Clipping config
           PanelSection(
-            title: 'Sigma Clipping',
+            title: 'Sigma clipping',
             colors: widget.colors,
             child: Column(
               children: [
@@ -848,12 +848,12 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
           // Star Matching config
           PanelSection(
-            title: 'Star Matching',
+            title: 'Star matching',
             colors: widget.colors,
             child: Column(
               children: [
                 InputRowEditable(
-                  label: 'Max Stars',
+                  label: 'Max stars',
                   value: config.maxMatchStars.toString(),
                   colors: widget.colors,
                   onChanged: (value) {
@@ -867,7 +867,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 12),
                 SliderRowInteractive(
-                  label: 'Match Radius',
+                  label: 'Match radius',
                   value: config.matchRadiusPx,
                   min: 5.0,
                   max: 200.0,
@@ -881,7 +881,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 12),
                 SliderRowInteractive(
-                  label: 'Flux Tolerance',
+                  label: 'Flux tolerance',
                   value: config.matchFluxTolerance,
                   min: 0.1,
                   max: 1.0,
@@ -895,7 +895,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 12),
                 InputRowEditable(
-                  label: 'Min Pairs',
+                  label: 'Min pairs',
                   value: config.minMatchedPairs.toString(),
                   colors: widget.colors,
                   onChanged: (value) {
