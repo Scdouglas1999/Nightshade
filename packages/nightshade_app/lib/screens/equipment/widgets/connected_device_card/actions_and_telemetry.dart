@@ -4,59 +4,45 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   Widget _buildActionsRow(NightshadeColors colors) {
     final settingsAction = _resolveSettingsAction();
 
-    final trailingButtons = Row(
-      mainAxisSize: MainAxisSize.min,
+    // Wrap so the quick actions and the trailing icon buttons flow to a second
+    // line on a narrow panel instead of overflowing the row.
+    return Wrap(
+      spacing: _deviceActionGap,
+      runSpacing: _deviceActionGap,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        // Settings button — only shown for device types that have real
-        // settings reachable from this card (or when an external onSettings
-        // callback has been injected by the parent). Device types with nothing
-        // to configure get no gear icon rather than an inert one.
+        // Device-specific quick actions. Wrap handles the spacing, so the
+        // inter-button SizedBox spacers are dropped.
+        ..._buildDeviceActions(colors).where((w) => w is! SizedBox),
+
+        // Settings — only for device types with real settings reachable from
+        // this panel (or when the parent injected an onSettings callback).
+        // Device types with nothing to configure get no gear rather than an
+        // inert one.
         if (settingsAction != null)
-          IconButton(
-            onPressed: _anyCommandInFlight ? null : settingsAction,
-            icon: const Icon(LucideIcons.settings2, size: 16),
+          NightshadeIconButton(
+            icon: LucideIcons.settings2,
             tooltip: 'Settings',
-            style: IconButton.styleFrom(
-              foregroundColor: colors.textMuted,
-            ),
+            size: IconButtonSize.sm,
+            onPressed: _anyCommandInFlight ? null : settingsAction,
           ),
 
-        // Disconnect button
-        IconButton(
+        NightshadeIconButton(
+          icon: _isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+          tooltip: _isExpanded ? 'Hide details' : 'Show details',
+          size: IconButtonSize.sm,
+          selected: _isExpanded,
+          onPressed: _toggleExpanded,
+        ),
+
+        NightshadeIconButton(
+          icon: LucideIcons.unplug,
+          tooltip: 'Disconnect',
+          size: IconButtonSize.sm,
           onPressed: _anyCommandInFlight
               ? null
               : widget.onDisconnect ?? () => _handleDisconnect(),
-          icon: const Icon(LucideIcons.unplug, size: 16),
-          tooltip: 'Disconnect',
-          style: IconButton.styleFrom(
-            foregroundColor: colors.textMuted,
-          ),
         ),
-      ],
-    );
-
-    // Wrap so the quick-action chips and the trailing settings/disconnect
-    // controls flow to a second line on a narrow phone card (or a narrow
-    // landscape sheet panel) instead of overflowing the row. The trailing
-    // buttons are pushed to the line's end via [Spacer] only when there is
-    // room on the same line.
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        // Device-specific quick actions, grouped so they wrap as a unit.
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: _buildDeviceActions(colors)
-              // Drop the inter-button SizedBox spacers; [Wrap] handles spacing.
-              .where((w) => w is! SizedBox)
-              .toList(),
-        ),
-        trailingButtons,
       ],
     );
   }
@@ -488,301 +474,187 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
   Widget _buildExpandedContent(NightshadeColors colors) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
       child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.background,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Additional Info',
-              style: NightshadeTypography.labelStrongSm
-                  .copyWith(color: colors.textMuted),
-            ),
-            const SizedBox(height: 8),
-            ..._buildExpandedTelemetry(colors),
-          ],
-        ),
+        padding: NightshadeTokens.paddingMd,
+        decoration: NightshadeDecorations.well(colors),
+        child: KeyValueList(rows: _buildExpandedTelemetry(colors)),
       ),
     );
   }
 
-  List<Widget> _buildExpandedTelemetry(NightshadeColors colors) {
+  List<(String, String)> _buildExpandedTelemetry(NightshadeColors colors) {
     switch (widget.type) {
       case ConnectedDeviceType.camera:
         final state = ref.watch(cameraStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-              label: 'Gain',
-              value: state.gain?.toString() ?? '---',
-              colors: colors),
-          _TelemetryRow(
-              label: 'Offset',
-              value: state.offset?.toString() ?? '---',
-              colors: colors),
-          _TelemetryRow(
-              label: 'Binning', value: state.binning ?? '---', colors: colors),
-          _TelemetryRow(
-              label: 'Cooling',
-              value: state.isCooling ? 'Active' : 'Off',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Target Temp',
-            value: formatCelsius(state.targetTemp),
-            colors: colors,
-          ),
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Gain', state.gain?.toString() ?? kReadoutUnknown),
+          ('Offset', state.offset?.toString() ?? kReadoutUnknown),
+          ('Binning', state.binning ?? kReadoutUnknown),
+          ('Cooling', state.isCooling ? 'Active' : 'Off'),
+          ('Target Temp', formatCelsius(state.targetTemp)),
         ];
 
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'RA',
-            value: state.ra?.toStringAsFixed(4) ?? '---',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Dec',
-            value: state.dec?.toStringAsFixed(4) ?? '---',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Altitude',
-            value: state.altitude != null
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('RA', state.ra?.toStringAsFixed(4) ?? kReadoutUnknown),
+          ('Dec', state.dec?.toStringAsFixed(4) ?? kReadoutUnknown),
+          (
+            'Altitude',
+            state.altitude != null
                 ? state.altitude!.toStringAsFixed(2)
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Azimuth',
-            value: state.azimuth != null
+          (
+            'Azimuth',
+            state.azimuth != null
                 ? state.azimuth!.toStringAsFixed(2)
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Side of Pier',
-            value: state.sideOfPier ?? 'Unknown',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Tracking Rate',
-            value: state.trackingRate.name.toUpperCase(),
-            colors: colors,
-          ),
+          ('Side of Pier', state.sideOfPier ?? 'Unknown'),
+          ('Tracking Rate', state.trackingRate.name.toUpperCase()),
         ];
 
       case ConnectedDeviceType.focuser:
         final state = ref.watch(focuserStateProvider);
         final reportedMax = state.maxPosition;
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Max Position',
-            value: reportedMax != null && reportedMax > 0
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          (
+            'Max Position',
+            reportedMax != null && reportedMax > 0
                 ? reportedMax.toString()
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
         ];
 
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Filters',
-            value: state.filterNames.join(', '),
-            colors: colors,
-          ),
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Filters', state.filterNames.join(', ')),
         ];
 
       case ConnectedDeviceType.guider:
         final state = ref.watch(guiderStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'RA RMS',
-            value: state.rmsRa != null
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          (
+            'RA RMS',
+            state.rmsRa != null
                 ? '${state.rmsRa!.toStringAsFixed(3)}"'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Dec RMS',
-            value: state.rmsDec != null
+          (
+            'Dec RMS',
+            state.rmsDec != null
                 ? '${state.rmsDec!.toStringAsFixed(3)}"'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Calibrating',
-            value: state.isCalibrating ? 'Yes' : 'No',
-            colors: colors,
-          ),
+          ('Calibrating', state.isCalibrating ? 'Yes' : 'No'),
         ];
 
       case ConnectedDeviceType.rotator:
         final state = ref.watch(rotatorStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Mechanical Position',
-            value: state.mechanicalPosition != null
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          (
+            'Mechanical Position',
+            state.mechanicalPosition != null
                 ? state.mechanicalPosition!.toStringAsFixed(2)
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Reversed',
-            value: state.isReversed ? 'Yes' : 'No',
-            colors: colors,
-          ),
+          ('Reversed', state.isReversed ? 'Yes' : 'No'),
         ];
 
       case ConnectedDeviceType.dome:
         final state = ref.watch(domeStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Azimuth',
-            value: state.azimuth != null
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          (
+            'Azimuth',
+            state.azimuth != null
                 ? '${state.azimuth!.toStringAsFixed(2)}\u00B0'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Shutter',
-            value: _shutterStatusLabel(state.shutterStatus),
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Parked',
-            value: state.isParked ? 'Yes' : 'No',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'At Home',
-            value: state.isAtHome ? 'Yes' : 'No',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Slaved',
-            value: state.isSlaved ? 'Yes' : 'No',
-            colors: colors,
-          ),
+          ('Shutter', _shutterStatusLabel(state.shutterStatus)),
+          ('Parked', state.isParked ? 'Yes' : 'No'),
+          ('At Home', state.isAtHome ? 'Yes' : 'No'),
+          ('Slaved', state.isSlaved ? 'Yes' : 'No'),
         ];
 
       case ConnectedDeviceType.weather:
         final state = ref.watch(weatherStateProvider);
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Temperature',
-            value: state.temperature != null
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          (
+            'Temperature',
+            state.temperature != null
                 ? '${state.temperature!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Humidity',
-            value: state.humidity != null
+          (
+            'Humidity',
+            state.humidity != null
                 ? '${state.humidity!.toStringAsFixed(1)}%'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Dew Point',
-            value: state.dewPoint != null
+          (
+            'Dew Point',
+            state.dewPoint != null
                 ? '${state.dewPoint!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Pressure',
-            value: state.pressure != null
+          (
+            'Pressure',
+            state.pressure != null
                 ? '${state.pressure!.toStringAsFixed(1)} hPa'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Wind Speed',
-            value: state.windSpeed != null
+          (
+            'Wind Speed',
+            state.windSpeed != null
                 ? '${state.windSpeed!.toStringAsFixed(1)} km/h'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Wind Direction',
-            value: state.windDirection != null
+          (
+            'Wind Direction',
+            state.windDirection != null
                 ? '${state.windDirection!.toStringAsFixed(0)}\u00B0'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Cloud Cover',
-            value: state.cloudCover != null
+          (
+            'Cloud Cover',
+            state.cloudCover != null
                 ? '${state.cloudCover!.toStringAsFixed(0)}%'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Sky Quality',
-            value: state.skyQuality != null
+          (
+            'Sky Quality',
+            state.skyQuality != null
                 ? '${state.skyQuality!.toStringAsFixed(2)} mag/arcsec\u00B2'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Sky Temp',
-            value: state.skyTemperature != null
+          (
+            'Sky Temp',
+            state.skyTemperature != null
                 ? '${state.skyTemperature!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
-          _TelemetryRow(
-            label: 'Rain Rate',
-            value: state.rainRate != null
+          (
+            'Rain Rate',
+            state.rainRate != null
                 ? '${state.rainRate!.toStringAsFixed(1)} mm/h'
-                : '---',
-            colors: colors,
+                : kReadoutUnknown
           ),
           if (state.lastUpdated != null)
-            _TelemetryRow(
-              label: 'Last Updated',
-              value: '${_formatAge(_tickNow().difference(state.lastUpdated!))} '
-                  'ago',
-              colors: colors,
+            (
+              'Last Updated',
+              '${_formatAge(_tickNow().difference(state.lastUpdated!))} '
+                  'ago'
             ),
         ];
 
@@ -793,28 +665,18 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             lastChecked == null ? null : _tickNow().difference(lastChecked);
         final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
-          _TelemetryRow(
-            label: 'Is Safe',
-            // Never answer Yes/No from a reading we can no longer vouch for.
-            value: lastChecked == null
+          ('Device ID', state.deviceId ?? 'Unknown'),
+          (
+            'Is Safe',
+            lastChecked == null
                 ? 'Unknown — not read yet'
                 : isStale
                     ? 'Unknown — reading is stale'
                     : state.isSafe
                         ? 'Yes'
-                        : 'No',
-            colors: colors,
+                        : 'No'
           ),
-          if (age != null)
-            _TelemetryRow(
-              label: 'Last Checked',
-              value: '${_formatAge(age)} ago',
-              colors: colors,
-            ),
+          if (age != null) ('Last Checked', '${_formatAge(age)} ago'),
         ];
 
       case ConnectedDeviceType.coverCalibrator:
@@ -825,51 +687,36 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         final snapshot = capabilities.valueOrNull;
         if (snapshot == null) {
           return [
-            _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors,
-            ),
-            _TelemetryRow(
-              label: 'Capabilities',
-              value: capabilities.hasError ? 'Unavailable' : 'Loading...',
-              colors: colors,
+            ('Device ID', state.deviceId ?? 'Unknown'),
+            (
+              'Capabilities',
+              capabilities.hasError ? 'Unavailable' : 'Loading...'
             ),
           ];
         }
         return [
-          _TelemetryRow(
-              label: 'Device ID',
-              value: state.deviceId ?? 'Unknown',
-              colors: colors),
+          ('Device ID', state.deviceId ?? 'Unknown'),
           if (snapshot.coverPresent)
-            _TelemetryRow(
-              label: 'Cover Status',
-              value: _coverStatusLabel(
+            (
+              'Cover Status',
+              _coverStatusLabel(
                 snapshot.coverStatus ?? CoverStatus.unknown,
-              ),
-              colors: colors,
+              )
             ),
           if (snapshot.calibratorPresent) ...[
-            _TelemetryRow(
-              label: 'Calibrator',
-              value: _calibratorStatusLabel(snapshot.calibratorStatus),
-              colors: colors,
-            ),
-            _TelemetryRow(
-              label: 'Brightness',
-              value: '${snapshot.brightness ?? 0} / '
-                  '${snapshot.maxBrightness}',
-              colors: colors,
+            ('Calibrator', _calibratorStatusLabel(snapshot.calibratorStatus)),
+            (
+              'Brightness',
+              '${snapshot.brightness ?? 0} / '
+                  '${snapshot.maxBrightness}'
             ),
           ],
           if (!snapshot.coverPresent && !snapshot.calibratorPresent)
-            _TelemetryRow(
-              label: 'Capabilities',
-              value: 'No cover or calibrator reported',
-              colors: colors,
-            ),
+            ('Capabilities', 'No cover or calibrator reported'),
         ];
     }
   }
 }
+
+/// Gap between a device panel's action controls (mockup: 6).
+const double _deviceActionGap = 6.0;

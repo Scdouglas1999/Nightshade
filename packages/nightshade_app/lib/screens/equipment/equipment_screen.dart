@@ -16,6 +16,8 @@ import 'dialogs/profile_editor_dialog.dart';
 import 'tabs/settings_tab.dart';
 import 'utils/connect_all_action.dart';
 import 'utils/equipment_disconnect.dart';
+import 'utils/profile_mutation_epoch.dart';
+import 'utils/session_device_save.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/cooled_camera_guard.dart';
 import '../../utils/snackbar_helper.dart';
@@ -36,12 +38,16 @@ final selectedEquipmentProfileIdProvider = StateProvider<int?>((ref) {
   return activeProfile?.id;
 });
 
+/// Which page-header tab the Equipment screen is showing: 0 Devices,
+/// 1 Profiles, 2 Optical train.
+final equipmentTabIndexProvider = StateProvider<int>((ref) => 0);
+
 /// Whether the profile sidebar is collapsed (icon-only mode)
 final equipmentSidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 
-/// Whether the right-hand status rail (System Health + Ready-to-image) is
-/// collapsed to an icon strip. Desktop-only; the rail itself is suppressed
-/// below [_railBreakpoint] in favor of stacked collapsed bars.
+/// Whether the right-hand side panel (profile, readiness, system health) is
+/// collapsed. Desktop-only; below [ShellChromeMetrics.shellLayoutBreakpoint]
+/// its content scrolls under the device grid instead.
 final equipmentStatusRailCollapsedProvider =
     StateProvider<bool>((ref) => false);
 
@@ -52,22 +58,11 @@ final equipmentStatusRailCollapsedProvider =
 final dismissedMismatchSignatureProvider =
     StateProvider<String?>((ref) => null);
 
-// Constants for sidebar dimensions
-
-const double _sidebarExpandedWidth = 240.0;
-const double _sidebarMinWidth = 200.0;
-const double _sidebarMaxWidth = 350.0;
-const double _sidebarCollapsedWidth = 48.0;
-
-/// Width of the status rail and its collapsed icon strip.
-const double _statusRailWidth = 320.0;
-const double _statusRailCollapsedWidth = 44.0;
-
-/// Minimum *main-column* width (sidebar already excluded) at which the status
-/// rail is shown side-by-side with the device cards. Below this the supporting
-/// panels fall back to stacked collapsed bars so the cards never get pinched
-/// between two side panels.
-const double _railBreakpoint = 900.0;
+/// Body gutters, from the mockup: 20 px top/bottom, 24 px sides.
+const EdgeInsets _bodyPadding = EdgeInsets.symmetric(
+  horizontal: NightshadeTokens.space2xl,
+  vertical: NightshadeTokens.spaceXl,
+);
 
 // Equipment screen
 
@@ -150,81 +145,78 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         ? profiles.where((p) => p.id == selectedProfileId).firstOrNull
         : null;
 
-    final sidebarCollapsed = ref.watch(equipmentSidebarCollapsedProvider);
+    final tabIndex = ref.watch(equipmentTabIndexProvider);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Structure decision is device-class, not viewport width: a phone
-        // held in landscape reports a tablet-ish width (~932 px) but is still
-        // a phone and must take the stacked mobile layout — the desktop
-        // profile sidebar + rail would overflow its short height. On desktop
-        // `Responsive.isPhone` falls back to live width, so narrowing a
-        // window still collapses to the mobile column as before. Genuine
-        // tablets keep the desktop split.
-        final isMobile = Responsive.isPhone(context) ||
-            constraints.maxWidth < NightshadeTokens.breakpointTablet;
-
-        final profileSidebar = ProfileSidebar(
-          // Spotlight target for the Equipment Setup tour's first step.
-          key: EquipmentTutorialKeys.profileSelector,
-          selectedProfileId: selectedProfileId,
-          onProfileSelected: (id) {
-            ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
-          },
-          onCreateProfile: () => _showProfileEditor(context, null),
-          onEditProfile: (profile) => _showProfileEditor(context, profile),
-          onConnectAll: _connectAllDevices,
-          onDisconnectAll: _disconnectAllDevices,
-          onSetDefault: _setDefaultProfile,
-          onActivateProfile: _activateProfile,
-          onDuplicateProfile: _duplicateProfile,
-          onDeleteProfile: _deleteProfile,
-          onReorderProfiles: _reorderProfiles,
-          onCollapse: isMobile
-              ? null
-              : () {
-                  ref.read(equipmentSidebarCollapsedProvider.notifier).state =
-                      true;
-                },
-        );
-
-        final mainColumn = _EquipmentMainColumn(
-          selectedProfile: selectedProfile,
-          // Rail is desktop-only. On mobile the supporting panels stack as
-          // collapsed bars instead of competing with a second side panel.
-          allowRail: !isMobile,
-          onSettings: () => _showSettings(context),
-          onProfileTap: isMobile
-              ? () => _showProfilePickerSheet(context, profileSidebar)
-              : null,
-          onConnectAll: _connectAllDevices,
-          onEditProfile: (profile) => _showProfileEditor(context, profile),
-        );
-
-        if (isMobile) {
-          return FocusTraversalGroup(
-            policy: ReadingOrderTraversalPolicy(),
-            child: mainColumn,
-          );
-        }
-
-        return FocusTraversalGroup(
-          policy: ReadingOrderTraversalPolicy(),
-          child: Row(
-            children: [
-              _CollapsibleSidebar(
-                isCollapsed: sidebarCollapsed,
-                onToggle: () {
-                  ref.read(equipmentSidebarCollapsedProvider.notifier).state =
-                      !sidebarCollapsed;
-                },
-                child: profileSidebar,
+    return FocusTraversalGroup(
+      policy: ReadingOrderTraversalPolicy(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PageHeader(
+            title: 'Equipment',
+            icon: LucideIcons.plug,
+            tabs: AdaptiveTabBar(
+              horizontalPadding: 0,
+              selectedIndex: tabIndex,
+              onSelected: (index) =>
+                  ref.read(equipmentTabIndexProvider.notifier).state = index,
+              tabs: [
+                const AdaptiveTab(label: 'Devices'),
+                AdaptiveTab(
+                  label: 'Profiles',
+                  count: profiles.isEmpty ? null : '${profiles.length}',
+                ),
+                const AdaptiveTab(label: 'Optical train'),
+              ],
+            ),
+            actions: [
+              const _ConnectionStatusSummary(),
+              NightshadeButton(
+                label: 'Disconnect all',
+                icon: LucideIcons.unplug,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: _disconnectAllDevices,
               ),
-              Expanded(child: mainColumn),
+              NightshadeButton(
+                label: 'Scan for devices',
+                icon: LucideIcons.search,
+                size: ButtonSize.small,
+                onPressed: () =>
+                    ref.read(discoveryScanRequestProvider.notifier).state++,
+              ),
             ],
           ),
-        );
-      },
+          Expanded(
+            child: switch (tabIndex) {
+              1 => _ProfilesTab(
+                  selectedProfileId: selectedProfileId,
+                  onProfileSelected: (id) => ref
+                      .read(selectedEquipmentProfileIdProvider.notifier)
+                      .state = id,
+                  onCreateProfile: () => _showProfileEditor(context, null),
+                  onEditProfile: (profile) =>
+                      _showProfileEditor(context, profile),
+                  onConnectAll: _connectAllDevices,
+                  onDisconnectAll: _disconnectAllDevices,
+                  onSetDefault: _setDefaultProfile,
+                  onActivateProfile: _activateProfile,
+                  onDuplicateProfile: _duplicateProfile,
+                  onDeleteProfile: _deleteProfile,
+                  onReorderProfiles: _reorderProfiles,
+                ),
+              2 => const _OpticalTrainTab(),
+              _ => _EquipmentMainColumn(
+                  selectedProfile: selectedProfile,
+                  onSettings: () => _showSettings(context),
+                  onConnectAll: _connectAllDevices,
+                  onEditProfile: (profile) =>
+                      _showProfileEditor(context, profile),
+                ),
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -232,44 +224,6 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     ref.invalidate(allProfilesProvider);
     ref.invalidate(activeProfileProvider);
     ref.invalidate(equipmentProfilesProvider);
-  }
-
-  void _showProfilePickerSheet(BuildContext context, Widget profileSidebar) {
-    final colors = NightshadeColors.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => DraggableScrollableSheet(
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.92,
-        expand: false,
-        builder: (_, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(NightshadeTokens.radiusLg)),
-            border: Border.all(color: colors.border),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.textMuted.withValues(alpha: 0.4),
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline2),
-                ),
-              ),
-              Expanded(child: profileSidebar),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   // Profile operations
@@ -589,8 +543,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             appBar: AppBar(
               backgroundColor: colors.surface,
               title: Text(modalContext.l10n.text('equipmentSettingsTitle')),
-              leading: IconButton(
-                icon: const Icon(LucideIcons.x),
+              leading: NightshadeIconButton(
+                icon: LucideIcons.x,
                 tooltip: modalContext.l10n.text('commonClose'),
                 onPressed: () => Navigator.of(modalContext).pop(),
               ),
@@ -619,6 +573,98 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   }
 }
 
+/// The Profiles tab: the profile list that used to be a permanent left column,
+/// now a page of its own so the Devices tab keeps the full width for cards.
+class _ProfilesTab extends StatelessWidget {
+  final int? selectedProfileId;
+  final ValueChanged<int?> onProfileSelected;
+  final VoidCallback onCreateProfile;
+  final void Function(EquipmentProfileModel) onEditProfile;
+  final void Function(EquipmentProfileModel) onConnectAll;
+  final VoidCallback onDisconnectAll;
+  final void Function(EquipmentProfileModel) onSetDefault;
+  final void Function(EquipmentProfileModel) onActivateProfile;
+  final void Function(int) onDuplicateProfile;
+  final void Function(int) onDeleteProfile;
+  final void Function(int, int) onReorderProfiles;
+
+  const _ProfilesTab({
+    required this.selectedProfileId,
+    required this.onProfileSelected,
+    required this.onCreateProfile,
+    required this.onEditProfile,
+    required this.onConnectAll,
+    required this.onDisconnectAll,
+    required this.onSetDefault,
+    required this.onActivateProfile,
+    required this.onDuplicateProfile,
+    required this.onDeleteProfile,
+    required this.onReorderProfiles,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: _profilesColumnWidth,
+        child: ProfileSidebar(
+          // Spotlight target for the Equipment Setup tour's first step.
+          key: EquipmentTutorialKeys.profileSelector,
+          selectedProfileId: selectedProfileId,
+          onProfileSelected: onProfileSelected,
+          onCreateProfile: onCreateProfile,
+          onEditProfile: onEditProfile,
+          onConnectAll: onConnectAll,
+          onDisconnectAll: onDisconnectAll,
+          onSetDefault: onSetDefault,
+          onActivateProfile: onActivateProfile,
+          onDuplicateProfile: onDuplicateProfile,
+          onDeleteProfile: onDeleteProfile,
+          onReorderProfiles: onReorderProfiles,
+        ),
+      ),
+    );
+  }
+}
+
+/// Width the profile list keeps as a tab body. Wider than the old 240 px
+/// sidebar because it no longer has to share the row with the device grid.
+const double _profilesColumnWidth = 360.0;
+
+/// The Optical train tab: the profile editor's optical-train section, hosted
+/// as a page instead of a dialog section.
+class _OpticalTrainTab extends ConsumerWidget {
+  const _OpticalTrainTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(activeEquipmentProfileProvider);
+    if (profile == null) {
+      return Center(
+        child: EmptyState(
+          icon: LucideIcons.aperture,
+          title: 'No profile is active',
+          body: 'Activate a profile in the Profiles tab to edit its telescope, '
+              'focal length and aperture.',
+          action: NightshadeButton(
+            label: 'Open Profiles',
+            variant: ButtonVariant.secondary,
+            size: ButtonSize.small,
+            onPressed: () =>
+                ref.read(equipmentTabIndexProvider.notifier).state = 1,
+          ),
+        ),
+      );
+    }
+    return ProfileEditorDialog(
+      key: ValueKey<int?>(profile.id),
+      profile: profile,
+      mode: ProfileEditorMode.opticalTrainPage,
+    );
+  }
+}
+
 class _EquipmentProfilesUnavailable extends StatelessWidget {
   final Object error;
   final VoidCallback onRetry;
@@ -640,7 +686,7 @@ class _EquipmentProfilesUnavailable extends StatelessWidget {
         action: NightshadeButton(
           label: 'Retry',
           icon: LucideIcons.refreshCw,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: onRetry,
         ),

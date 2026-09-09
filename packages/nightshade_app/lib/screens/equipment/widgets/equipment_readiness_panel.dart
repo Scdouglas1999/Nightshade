@@ -1,88 +1,104 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/readiness/readiness_panel.dart';
+import 'equipment_blocker_row.dart';
 
-/// Full-width "ready to image" panel for the Equipment screen.
+/// The Readiness block of the Equipment side panel: a [SectionTitle] with the
+/// outstanding count, then one row per item that still needs action.
 ///
-/// Replaces the vague setup guidance with the concrete, actionable readiness
-/// checklist: a [SectionHeader] summarizing the overall state, wrapped in a
-/// [SectionWell] containing the itemized [ReadinessPanel]. Each not-ready row
-/// carries a **Fix** action that deep-links to the relevant screen.
-///
-/// The panel's own header banner is suppressed ([ReadinessPanel.showHeader]
-/// is false) because this widget supplies an equivalent summary through the
-/// [SectionHeader], keeping the equipment screen visually consistent with its
-/// other sections.
-///
-/// Mounted in `screens/equipment/equipment_screen.dart` above the device
-/// dashboard, so the readiness checklist leads the Equipment screen.
+/// Only OUTSTANDING items are listed. A green row per already-satisfied check
+/// is the app congratulating itself; the count in the title carries "all
+/// clear" in one word, and the checklist on Tonight is where first-light setup
+/// is represented in full.
 class EquipmentReadinessPanel extends ConsumerWidget {
   const EquipmentReadinessPanel({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final report = ref.watch(readinessReportProvider);
 
-    // The header must count what the checklist below actually SHOWS. Blocked
-    // rows cannot be hidden at all, so only caution rows can go missing — and
-    // those are subtracted here and reported as dismissed.
+    // The title must count what the list below actually SHOWS. Blocked rows
+    // cannot be hidden at all, so only caution rows can go missing — those are
+    // subtracted here and reported as dismissed.
     final dismissed = ref.watch(dismissedReadinessItemsProvider);
+    final items = [
+      for (final item in [...report.blockedItems, ...report.cautionItems])
+        if (!dismissed.contains(item.id)) item,
+    ];
     final hiddenCaution =
         report.cautionItems.where((item) => dismissed.contains(item.id)).length;
-    final outstanding =
-        report.blockedItems.length + report.cautionItems.length - hiddenCaution;
+    final blockers =
+        items.where((item) => item.level == ReadinessLevel.blocked).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SectionHeader(
-          title: 'Ready to image',
-          subtitle: _subtitle(report, outstanding, hiddenCaution),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceSm),
-        const SectionWell(
-          // Outstanding-only keeps the inline checklist compact: it lists the
-          // items that still need action (with their Fix deep-links) and shows
-          // a single "ready" confirmation when nothing remains, rather than
-          // repeating every already-green check. maxItems caps the inline rows
-          // so the panel cannot overflow the (non-scrolling) equipment column
-          // on a short phone screen; any surplus collapses into a "View all"
-          // button that opens the full itemized dialog.
-          child: ReadinessPanel(
-            showHeader: false,
-            outstandingOnly: true,
-            maxItems: 3,
-            // Equipment-screen inline panel: let the user ✕ a row (plate
-            // solver, dark library, …) for the session so an item they've
-            // consciously deferred stops nagging until next launch.
-            dismissible: true,
+        SectionTitle(
+          icon: LucideIcons.listChecks,
+          title: 'Readiness',
+          trailing: NightshadeChip(
+            label: _countLabel(items.length, blockers),
+            tone: blockers > 0
+                ? ChipTone.error
+                : items.isEmpty
+                    ? ChipTone.success
+                    : ChipTone.warning,
           ),
         ),
+        if (items.isEmpty)
+          EquipmentBlockerRow(
+            toneColor: colors.success,
+            title: 'Ready for first light',
+            detail: hiddenCaution > 0
+                ? '$hiddenCaution ${hiddenCaution == 1 ? 'item is' : 'items are'} '
+                    'dismissed for this session.'
+                : 'Everything first light needs is in place.',
+            showDivider: false,
+          )
+        else
+          for (var i = 0; i < items.length; i++)
+            EquipmentBlockerRow(
+              toneColor: readinessLevelColor(items[i].level, colors),
+              title: items[i].title,
+              detail: items[i].detail,
+              showDivider: i < items.length - 1,
+              action: items[i].hasFix
+                  ? NightshadeButton(
+                      label: items[i].fixLabel!,
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      onPressed: () => context.go(items[i].fixRoute!),
+                    )
+                  : null,
+              trailing: items[i].level == ReadinessLevel.caution
+                  ? NightshadeIconButton(
+                      icon: LucideIcons.x,
+                      tooltip: 'Dismiss for this session',
+                      size: IconButtonSize.sm,
+                      onPressed: () {
+                        final notifier =
+                            ref.read(dismissedReadinessItemsProvider.notifier);
+                        notifier.state = {...notifier.state, items[i].id};
+                      },
+                    )
+                  : null,
+            ),
       ],
     );
   }
 
-  String _subtitle(ReadinessReport report, int outstanding, int hiddenCaution) {
-    final dismissedNote =
-        hiddenCaution > 0 ? ' ($hiddenCaution dismissed)' : '';
-    switch (report.overall) {
-      case ReadinessLevel.ready:
-        return 'Everything required for first light is in place.';
-      case ReadinessLevel.caution:
-        if (outstanding == 0) {
-          return '$hiddenCaution ${hiddenCaution == 1 ? 'item' : 'items'} to '
-              'review, dismissed for this session.';
-        }
-        return '$outstanding ${outstanding == 1 ? 'item' : 'items'} to '
-            'review before imaging$dismissedNote.';
-      case ReadinessLevel.blocked:
-        final blocked = report.blockedItems.length;
-        return '$blocked ${blocked == 1 ? 'item is' : 'items are'} blocking '
-            'first light$dismissedNote.';
+  static String _countLabel(int outstanding, int blockers) {
+    if (outstanding == 0) return 'All clear';
+    if (blockers > 0) {
+      return '$blockers ${blockers == 1 ? 'blocker' : 'blockers'}';
     }
+    return '$outstanding to review';
   }
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +29,11 @@ class AssignAction {
 // stale "last scan: 6 hours ago" strings from a previous session.
 final lastScanTimeProvider =
     StateProvider.autoDispose<DateTime?>((ref) => null);
+
+/// Bumped by the page header's "Scan for devices" primary. The drawer listens,
+/// expands and runs the SAME scan its own button runs — the screen has one
+/// primary action and one scan code path, not two that can drift.
+final discoveryScanRequestProvider = StateProvider<int>((ref) => 0);
 
 /// A collapsible panel at the bottom of the equipment screen for discovering devices.
 /// Shows available backends, discovered devices grouped by type, and connection controls.
@@ -278,351 +282,56 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 
   @override
   Widget build(BuildContext context) {
+    // The page header's "Scan for devices" is this screen's single primary, so
+    // it drives the same scan this drawer runs — one code path, two entries.
+    ref.listen<int>(discoveryScanRequestProvider, (previous, next) {
+      if (previous == null || previous == next) return;
+      if (!_isExpanded) _toggleExpanded();
+      unawaited(_scanForDevices());
+    });
+
     final colors = NightshadeColors.of(context);
     final discoveryState = ref.watch(unifiedDiscoveryProvider);
     final lastScanTime = ref.watch(lastScanTimeProvider);
-    final groupedDevices = discoveryState.groupedDevices;
+    final devices = discoveryState.groupedDevices;
     final isDiscovering = discoveryState.isDiscovering || _isScanning;
     final discoveryCompletedAt = discoveryState.lastDiscoveryCompletedAt;
 
-    // Count discovered devices by type
-    final cameras =
-        groupedDevices.where((d) => d.type == DeviceType.camera).toList();
-    final mounts =
-        groupedDevices.where((d) => d.type == DeviceType.mount).toList();
-    final focusers =
-        groupedDevices.where((d) => d.type == DeviceType.focuser).toList();
-    final filterWheels =
-        groupedDevices.where((d) => d.type == DeviceType.filterWheel).toList();
-    final guiders =
-        groupedDevices.where((d) => d.type == DeviceType.guider).toList();
-    final rotators =
-        groupedDevices.where((d) => d.type == DeviceType.rotator).toList();
-    final domes =
-        groupedDevices.where((d) => d.type == DeviceType.dome).toList();
-    final weatherStations =
-        groupedDevices.where((d) => d.type == DeviceType.weather).toList();
-    final safetyMonitors = groupedDevices
-        .where((d) => d.type == DeviceType.safetyMonitor)
-        .toList();
-    final coverCalibrators = groupedDevices
-        .where((d) => d.type == DeviceType.coverCalibrator)
-        .toList();
-    // Switches (power boxes, dew-heater controllers) were the only first-class
-    // device type with NO discovery section, so the profile editor was the sole
-    // way to reach one — even though the backend runs a Switch discovery pass and
-    // reports it identically to cover calibrators, which DID get an empty state.
-    final switches =
-        groupedDevices.where((d) => d.type == DeviceType.switch_).toList();
-
-    final totalDevices = groupedDevices.length;
     final lastScanText = _formatLastScanTime(
       lastScanTime ?? discoveryCompletedAt,
     );
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.background,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header bar - always visible
-          InkWell(
-            onTap: _toggleExpanded,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact =
-                      constraints.maxWidth < BreakpointTokens.breakpointPhone;
-
-                  final summary = Text(
-                    '$totalDevices device${totalDevices == 1 ? '' : 's'} found  \u2022  Last scan: $lastScanText',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  );
-
-                  final scanButton = NightshadeButton(
-                    label: compact
-                        ? ''
-                        : (isDiscovering ? 'Scanning...' : 'Scan All'),
-                    icon: LucideIcons.search,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    isLoading: isDiscovering,
-                    onPressed: (isDiscovering || _isRescanning)
-                        ? null
-                        : _scanForDevices,
-                  );
-
-                  // "Rescan equipment" — triggers the Rust hot-plug diff
-                  // pass for USB/native/ASCOM devices. Distinct from
-                  // "Scan All" (which runs the full Dart-side unified
-                  // discovery including Alpaca broadcast and INDI polls).
-                  // Lives next to Scan All as an icon-only button so the
-                  // header stays compact on phone widths.
-                  final rescanButton = IconButton(
-                    onPressed: (_isRescanning || isDiscovering)
-                        ? null
-                        : _rescanEquipment,
-                    icon: _isRescanning
-                        ? SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              color: colors.textSecondary,
-                            ),
-                          )
-                        : Icon(
-                            LucideIcons.refreshCw,
-                            size: 14,
-                            color: colors.textSecondary,
-                          ),
-                    tooltip: _isRescanning
-                        ? 'Rescanning equipment...'
-                        : 'Rescan equipment (USB / native / ASCOM)',
-                    style: IconButton.styleFrom(
-                      foregroundColor: colors.textSecondary,
-                      padding: const EdgeInsets.all(8),
-                      minimumSize: const Size(32, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  );
-
-                  final expandControl = InkWell(
-                    onTap: _toggleExpanded,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: compact ? 8 : 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceAlt,
-                        borderRadius:
-                            BorderRadius.circular(NightshadeTokens.radiusMd),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!compact) ...[
-                            Text(
-                              _isExpanded ? 'Collapse' : 'Expand',
-                              style: NightshadeTypography.labelQuiet
-                                  .copyWith(color: colors.textSecondary),
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          AnimatedRotation(
-                            turns: _isExpanded ? 0 : 0.5,
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              LucideIcons.chevronDown,
-                              size: 14,
-                              color: colors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-
-                  if (compact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              LucideIcons.radar,
-                              size: 18,
-                              color: colors.primary,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'DISCOVERY',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize12,
-                                fontWeight: FontWeight.w600,
-                                color: colors.textPrimary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const Spacer(),
-                            rescanButton,
-                            const SizedBox(width: 4),
-                            scanButton,
-                            const SizedBox(width: 8),
-                            expandControl,
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        summary,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Icon(
-                        LucideIcons.radar,
-                        size: 18,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'DISCOVERY',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(child: summary),
-                      const SizedBox(width: 12),
-                      rescanButton,
-                      const SizedBox(width: 4),
-                      scanButton,
-                      const SizedBox(width: 8),
-                      expandControl,
-                    ],
-                  );
-                },
-              ),
-            ),
+          _buildHeadRow(
+            colors,
+            found: devices.length,
+            lastScanText: lastScanText,
+            isDiscovering: isDiscovering,
           ),
-
-          // Expanded content. Flexible(loose): under a tight parent (phone
-          // column with the readiness checklist expanded) this section takes
-          // the remaining height and scrolls inside, instead of insisting on
-          // its intrinsic size and overflowing the panel by hundreds of px.
+          // Flexible(loose): under a tight parent this section takes the
+          // remaining height and scrolls inside, instead of insisting on its
+          // intrinsic size and overflowing the drawer.
           Flexible(
             child: SizeTransition(
               sizeFactor: _expandAnimation,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: colors.border)),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  NightshadeTokens.space2xl,
+                  0,
+                  NightshadeTokens.space2xl,
+                  NightshadeTokens.spaceMd,
                 ),
-                constraints: const BoxConstraints(maxHeight: 500),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Server configuration hint
-                      if (!Platform.isWindows) _buildINDIServerHint(colors),
-
-                      // Device lists by type (always show, even if empty for that type)
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'CAMERAS',
-                        DeviceType.camera,
-                        LucideIcons.camera,
-                        cameras,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'MOUNTS',
-                        DeviceType.mount,
-                        LucideIcons.compass,
-                        mounts,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'FOCUSERS',
-                        DeviceType.focuser,
-                        LucideIcons.focus,
-                        focusers,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'FILTER WHEELS',
-                        DeviceType.filterWheel,
-                        LucideIcons.disc,
-                        filterWheels,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'GUIDERS',
-                        DeviceType.guider,
-                        LucideIcons.crosshair,
-                        guiders,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'ROTATORS',
-                        DeviceType.rotator,
-                        LucideIcons.rotateCw,
-                        rotators,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'DOMES',
-                        DeviceType.dome,
-                        LucideIcons.home,
-                        domes,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'WEATHER',
-                        DeviceType.weather,
-                        LucideIcons.cloud,
-                        weatherStations,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'SAFETY MONITORS',
-                        DeviceType.safetyMonitor,
-                        LucideIcons.shieldAlert,
-                        safetyMonitors,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'COVER / CALIBRATORS',
-                        DeviceType.coverCalibrator,
-                        LucideIcons.sunMedium,
-                        coverCalibrators,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDeviceGroupSection(
-                        context,
-                        colors,
-                        'SWITCHES',
-                        DeviceType.switch_,
-                        LucideIcons.toggleRight,
-                        switches,
-                      ),
-                    ],
-                  ),
-                ),
+                child: devices.isEmpty
+                    ? _buildNothingFound(colors, isDiscovering)
+                    : _buildDeviceColumns(devices),
               ),
             ),
           ),
@@ -631,106 +340,117 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     );
   }
 
-  Widget _buildDeviceGroupSection(
-    BuildContext context,
-    NightshadeColors colors,
-    String title,
-    DeviceType deviceType,
-    IconData icon,
-    List<UnifiedDevice> devices,
-  ) {
-    // Zero-result classes get the SAME chrome as every other class: the count,
-    // which backends were asked, and a route to adding one. The section that
-    // says nothing was found is exactly where the reason for that belongs.
-    final isEmpty = devices.isEmpty;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Group header
-          Padding(
-            padding: EdgeInsets.only(
-              left: 12,
-              right: isEmpty ? 4 : 12,
-              top: 8,
-              bottom: 8,
+  /// `[radio] [DISCOVERED DEVICES] [11 found · scanned 2 min ago] … [Rescan] [v]`
+  Widget _buildHeadRow(
+    NightshadeColors colors, {
+    required int found,
+    required String lastScanText,
+    required bool isDiscovering,
+  }) {
+    return SizedBox(
+      height: _discoveryHeadHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.space2xl,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.radio,
+              size: SectionTitle.iconSize,
+              color: colors.textMuted,
             ),
-            child: Row(
-              children: [
-                Icon(icon, size: 14, color: colors.textMuted),
-                const SizedBox(width: 8),
-                // Expanded rather than a bare Text + Spacer: the empty-class
-                // variant adds a rescan IconButton to this row, and on a 360dp
-                // phone the longest class names ("Cover Calibrators") plus the
-                // count plus that button overflowed the header by 24px. Taking
-                // the slack here lets the title ellipsize instead, and the
-                // rendered layout is unchanged wherever it already fitted.
-                Expanded(
-                  child: Text(
-                    title,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${devices.length} found',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textMuted,
-                  ),
-                ),
-                if (isEmpty)
-                  IconButton(
-                    onPressed: _scanForDevices,
-                    icon: const Icon(LucideIcons.refreshCw, size: 14),
-                    tooltip: 'Scan for ${title.toLowerCase()}',
-                    visualDensity: VisualDensity.compact,
-                    style: IconButton.styleFrom(
-                      foregroundColor: colors.textMuted,
-                      padding: const EdgeInsets.all(6),
-                    ),
-                  ),
-              ],
+            const SizedBox(width: NightshadeTokens.spaceSm + 2),
+            Text(
+              'Discovered devices'.toUpperCase(),
+              style: NightshadeTypography.eyebrow.copyWith(
+                color: colors.textMuted,
+              ),
             ),
-          ),
-          // Divider
-          Divider(height: 1, color: colors.border.withValues(alpha: 0.5)),
-          if (isEmpty)
-            _buildEmptyClassBody(context, colors, title)
-          else
-            // Device list
-            ...devices.map((device) => _DeviceRowItem(
-                  device: device,
-                  deviceType: deviceType,
-                  onConnect: () => _connectDevice(device),
-                  onDisconnect: () => _disconnectDevice(device),
-                  onAssignDevice: widget.onAssignDevice,
-                )),
-        ],
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Flexible(
+              child: Text(
+                '$found found · $lastScanText',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Spacer(),
+            NightshadeButton(
+              label: 'Rescan',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              isLoading: _isRescanning,
+              onPressed:
+                  (_isRescanning || isDiscovering) ? null : _rescanEquipment,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceXs),
+            NightshadeButton(
+              label: isDiscovering ? 'Scanning' : 'Scan all',
+              icon: LucideIcons.search,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              isLoading: isDiscovering,
+              onPressed:
+                  (isDiscovering || _isRescanning) ? null : _scanForDevices,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceXs),
+            NightshadeIconButton(
+              icon:
+                  _isExpanded ? LucideIcons.chevronDown : LucideIcons.chevronUp,
+              tooltip: _isExpanded ? 'Collapse' : 'Expand',
+              size: IconButtonSize.sm,
+              onPressed: _toggleExpanded,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  /// What a zero-result class says: which backends were actually asked, which
-  /// of them failed, and where to configure a remote server — the three things
-  /// the operator needs and the bare "No switches found" line withheld.
-  Widget _buildEmptyClassBody(
-    BuildContext context,
-    NightshadeColors colors,
-    String title,
-  ) {
+  /// The discovered devices in two columns, per 06 §Equipment.
+  Widget _buildDeviceColumns(List<UnifiedDevice> devices) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns =
+            constraints.maxWidth >= _discoveryTwoColumnWidth ? 2 : 1;
+        final perColumn = (devices.length / columns).ceil();
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var column = 0; column < columns; column++) ...[
+              if (column > 0) const SizedBox(width: _discoveryColumnGap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = column * perColumn;
+                        i < (column + 1) * perColumn && i < devices.length;
+                        i++)
+                      _DeviceRowItem(
+                        device: devices[i],
+                        deviceType: devices[i].type,
+                        onConnect: () => _connectDevice(devices[i]),
+                        onDisconnect: () => _disconnectDevice(devices[i]),
+                        onAssignDevice: widget.onAssignDevice,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// ONE empty state, carrying the thing the bare "No devices found" withheld:
+  /// which backends were asked and which of them failed.
+  Widget _buildNothingFound(NightshadeColors colors, bool isDiscovering) {
     final discoveryState = ref.watch(unifiedDiscoveryProvider);
     final searched = discoveryState.backendStates.keys.toList()
       ..sort((a, b) => a.index.compareTo(b.index));
@@ -738,65 +458,27 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 
     final String detail;
     if (searched.isEmpty) {
-      detail = 'Not searched yet — run a scan.';
+      detail = 'Nothing has been searched yet.';
     } else {
       final names = searched.map((b) {
         final label = b.displayName;
         return failed.contains(b) ? '$label (failed)' : label;
       }).join(', ');
-      detail = 'Searched: $names';
+      detail = 'Searched: $names.';
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            detail,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: failed.isEmpty ? colors.textMuted : colors.warning,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Devices on another machine are reached over Alpaca or INDI — set '
-            'the server address in Settings → Connection.',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildINDIServerHint(NightshadeColors colors) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: NightshadeDecorations.emphasisSurface(
-          colors.info,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        ),
-        child: Row(
-          children: [
-            Icon(LucideIcons.info, size: 16, color: colors.info),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Configure INDI servers in Settings to discover remote devices.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
+    return EmptyState(
+      icon: LucideIcons.radio,
+      title: isDiscovering ? 'Scanning' : 'No devices found',
+      body: '$detail Devices on another machine are reached over Alpaca or '
+          'INDI — set the server address in Settings.',
+      action: NightshadeButton(
+        label: 'Scan all',
+        icon: LucideIcons.search,
+        variant: ButtonVariant.secondary,
+        size: ButtonSize.small,
+        isLoading: isDiscovering,
+        onPressed: isDiscovering ? null : _scanForDevices,
       ),
     );
   }
@@ -934,3 +616,12 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     }
   }
 }
+
+/// The drawer's head row height, per 06 §Equipment.
+const double _discoveryHeadHeight = 44.0;
+
+/// Gap between the drawer's two device columns (mockup: 32).
+const double _discoveryColumnGap = NightshadeTokens.space3xl;
+
+/// Below this the drawer drops to a single column.
+const double _discoveryTwoColumnWidth = 760.0;

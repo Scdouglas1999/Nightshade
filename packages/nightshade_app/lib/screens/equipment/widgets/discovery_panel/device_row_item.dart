@@ -253,9 +253,20 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
     return items;
   }
 
-  Color _getDriverTypeColor(DriverType driverType, NightshadeColors colors) {
-    return BackendProtocolColors.forBackend(driverType, colors);
-  }
+  /// The row's leading glyph, keyed off the device class.
+  IconData get _typeIcon => switch (widget.deviceType) {
+        DeviceType.camera => LucideIcons.camera,
+        DeviceType.mount => LucideIcons.compass,
+        DeviceType.focuser => LucideIcons.focus,
+        DeviceType.filterWheel => LucideIcons.disc,
+        DeviceType.guider => LucideIcons.crosshair,
+        DeviceType.rotator => LucideIcons.rotateCw,
+        DeviceType.dome => LucideIcons.home,
+        DeviceType.weather => LucideIcons.cloudSun,
+        DeviceType.safetyMonitor => LucideIcons.shieldCheck,
+        DeviceType.coverCalibrator => LucideIcons.lamp,
+        DeviceType.switch_ => LucideIcons.toggleRight,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -282,122 +293,52 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
     final isConnected = _isDeviceConnected();
     final activeBackend = widget.device.activeBackend;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
       child: Row(
         children: [
-          // Connection indicator
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isConnected
-                  ? colors.success
-                  : colors.textMuted.withValues(alpha: 0.5),
-            ),
+          Icon(
+            _typeIcon,
+            size: _discoveryRowIconSize,
+            color: isConnected ? colors.success : colors.textMuted,
           ),
-          const SizedBox(width: 12),
-
-          // Device name
-          Expanded(
+          const SizedBox(width: 10),
+          Flexible(
             child: Text(
               widget.device.displayName,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textPrimary,
               ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          // Driver type badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: NightshadeDecorations.statusChip(
-              _getDriverTypeColor(activeBackend, colors),
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline4),
-            ),
-            child: Text(
-              activeBackend.shortLabel.toLowerCase(),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: _getDriverTypeColor(activeBackend, colors),
-                fontWeight: FontWeight.w500,
-              ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          // The protocol, as a quiet mono tag: "sim", "ascom", "indi".
+          Text(
+            activeBackend.shortLabel.toLowerCase(),
+            style: NightshadeTypography.monoCaption.copyWith(
+              color: colors.textMuted,
             ),
           ),
-
-          const SizedBox(width: 12),
-
-          // Assign dropdown
-          PopupMenuButton<AssignAction>(
-            enabled: !_isAssigning,
-            onSelected: _handleAssign,
-            offset: const Offset(0, 30),
-            shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8)),
-            color: colors.surface,
-            itemBuilder: (context) => _buildAssignMenuItems(colors),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _isAssigning ? 'Assigning' : 'Assign',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  if (_isAssigning)
-                    SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
-                        color: colors.primary,
-                      ),
-                    )
-                  else
-                    Icon(
-                      LucideIcons.chevronDown,
-                      size: 12,
-                      color: colors.textMuted,
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Connect/Disconnect button.
-          //
-          // "Assign" persists the device to a profile; "Connect" does not — it
-          // is a session-only connection that is silently gone after a restart.
-          // The two sat side by side with nothing saying so, so the difference is
-          // spelled out in the tooltip here and marked on the resulting card.
+          const Spacer(),
+          // "Add to profile" persists the device; "Connect" does not — it is a
+          // session-only connection that is silently gone after a restart. The
+          // two sat side by side with nothing saying so, so the difference is
+          // spelled out in the tooltip here and marked on the resulting panel.
           Tooltip(
             message: isConnected
                 ? 'Disconnect this device now.'
                 : 'Connect for this session only. It is NOT saved to a '
                     'profile and will not reconnect on the next launch — use '
-                    'Assign for that.',
+                    '"Add to profile" for that.',
             child: NightshadeButton(
               label: isConnected ? 'Disconnect' : 'Connect',
-              variant:
-                  isConnected ? ButtonVariant.ghost : ButtonVariant.outline,
+              variant: ButtonVariant.ghost,
               size: ButtonSize.small,
               isLoading: _isConnecting,
               onPressed: _isConnecting
@@ -405,8 +346,85 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
                   : (isConnected ? widget.onDisconnect : _handleConnect),
             ),
           ),
+          const SizedBox(width: _discoveryRowActionGap),
+          _AddToProfileButton(
+            enabled: !_isAssigning,
+            isBusy: _isAssigning,
+            itemBuilder: () => _buildAssignMenuItems(colors),
+            onSelected: _handleAssign,
+          ),
         ],
       ),
     );
   }
 }
+
+/// The row's "Add to profile" control: a `secondary sm` button that opens the
+/// profile picker itself, so the sheet's button is the control rather than a
+/// bare `PopupMenuButton` child.
+class _AddToProfileButton extends StatefulWidget {
+  final bool enabled;
+  final bool isBusy;
+  final List<PopupMenuEntry<AssignAction>> Function() itemBuilder;
+  final ValueChanged<AssignAction> onSelected;
+
+  const _AddToProfileButton({
+    required this.enabled,
+    required this.isBusy,
+    required this.itemBuilder,
+    required this.onSelected,
+  });
+
+  @override
+  State<_AddToProfileButton> createState() => _AddToProfileButtonState();
+}
+
+class _AddToProfileButtonState extends State<_AddToProfileButton> {
+  final GlobalKey _anchorKey = GlobalKey();
+
+  Future<void> _open() async {
+    final anchor = _anchorKey.currentContext;
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (anchor == null || overlay is! RenderBox) return;
+    final box = anchor.findRenderObject();
+    if (box is! RenderBox) return;
+    final topLeft = box.localToGlobal(
+      Offset(0, box.size.height),
+      ancestor: overlay,
+    );
+    final bottomRight = box.localToGlobal(
+      box.size.bottomRight(Offset.zero),
+      ancestor: overlay,
+    );
+    final action = await showMenu<AssignAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        topLeft.dx,
+        topLeft.dy,
+        overlay.size.width - bottomRight.dx,
+        overlay.size.height - bottomRight.dy,
+      ),
+      items: widget.itemBuilder(),
+    );
+    if (!mounted || action == null) return;
+    widget.onSelected(action);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeButton(
+      key: _anchorKey,
+      label: 'Add to profile',
+      variant: ButtonVariant.secondary,
+      size: ButtonSize.small,
+      isLoading: widget.isBusy,
+      onPressed: widget.enabled ? _open : null,
+    );
+  }
+}
+
+/// The discovery row's leading glyph size.
+const double _discoveryRowIconSize = 15.0;
+
+/// Gap between the row's two actions (mockup: 6).
+const double _discoveryRowActionGap = 6.0;

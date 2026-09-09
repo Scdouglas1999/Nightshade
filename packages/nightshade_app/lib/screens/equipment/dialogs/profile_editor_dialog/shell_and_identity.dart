@@ -131,16 +131,17 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          NightshadeButton(
-            onPressed:
-                _isSaving ? null : () => Navigator.of(context).pop(false),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-          ),
-          const SizedBox(width: 12),
+          if (widget.mode == ProfileEditorMode.full)
+            NightshadeButton(
+              onPressed:
+                  _isSaving ? null : () => Navigator.of(context).pop(false),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+            ),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           NightshadeButton(
             onPressed: _isSaving ? null : _save,
-            label: 'Save Changes',
+            label: 'Save changes',
             icon: LucideIcons.check,
             variant: ButtonVariant.primary,
             isLoading: _isSaving,

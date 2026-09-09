@@ -1,307 +1,43 @@
-// Dashboard header, main responsive layout, status rail, and readiness summary.
+// Devices-tab layout: the device column, the discovery drawer and the
+// right-hand side panel (profile, readiness, system health).
 part of '../equipment_screen.dart';
 
-// Dashboard header widget
-
-class _DashboardHeader extends StatelessWidget {
-  final String? profileName;
-  final VoidCallback onSettings;
-  final VoidCallback? onProfileTap;
-
-  const _DashboardHeader({
-    required this.profileName,
-    required this.onSettings,
-    this.onProfileTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    final isMobile = onProfileTap != null;
-    final horizontalPadding = isMobile ? 12.0 : 20.0;
-
-    Widget profileTitle;
-    if (profileName != null) {
-      profileTitle = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.layers, size: 16, color: colors.textMuted),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              profileName!,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-            ),
-          ),
-          if (isMobile) ...[
-            const SizedBox(width: 4),
-            Icon(LucideIcons.chevronDown, size: 16, color: colors.textMuted),
-          ],
-        ],
-      );
-    } else {
-      profileTitle = Text(
-        'Select a profile',
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize16,
-          color: colors.textMuted,
-        ),
-      );
-    }
-
-    if (onProfileTap != null) {
-      profileTitle = Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onProfileTap,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: profileTitle,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding:
-          EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: profileTitle),
-          const SizedBox(width: 8),
-          // The run state is the instrument bar's, and only the instrument
-          // bar's (04-shell §5 and §8: exactly one element on any screen is
-          // named "Idle", "Ready" or "Running"). This header said "Idle" 40 px
-          // above a bar already saying it, and two statements of one fact are
-          // two things that can disagree.
-          //
-          // The LED itself is unchanged and still lives in the instrument bar;
-          // what is gone is this screen's second copy of its label.
-          // Connection status summary
-          _ConnectionStatusSummary(),
-          const SizedBox(width: 12),
-          IconButton(
-            onPressed: onSettings,
-            icon: const Icon(LucideIcons.settings, size: 18),
-            tooltip: 'Equipment Settings',
-            color: colors.textMuted,
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Polar alignment entry (Equipment discoverability)
-
-/// Compact shortcut so pre-flight hints that mention Equipment can point
-/// somewhere real. Shown when the active profile has a mount assigned.
-class _PolarAlignmentShortcut extends ConsumerWidget {
-  const _PolarAlignmentShortcut();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
-    final profile = ref.watch(activeProfileProvider).valueOrNull;
-    final hasMount = profile?.mountId != null && profile!.mountId!.isNotEmpty;
-    if (!hasMount) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: NightshadeCard(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Icon(LucideIcons.compass, color: colors.warning, size: 22),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Polar Alignment',
-                      style: NightshadeTypography.labelStrong
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Three-point or all-sky alignment with plate solving.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              NightshadeButton(
-                label: 'Open',
-                icon: LucideIcons.arrowRight,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () => context.push('/polar-alignment'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FlatWizardShortcut extends ConsumerWidget {
-  const _FlatWizardShortcut();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
-    final profile = ref.watch(activeProfileProvider).valueOrNull;
-    final hasCamera =
-        profile?.cameraId != null && profile!.cameraId!.isNotEmpty;
-    if (!hasCamera) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: NightshadeCard(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Icon(LucideIcons.sun, color: colors.primary, size: 22),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Flat Wizard',
-                      style: NightshadeTypography.labelStrong
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Capture and validate flat frames per filter.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              NightshadeButton(
-                label: 'Open',
-                icon: LucideIcons.arrowRight,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () => context.push('/flat-wizard'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Main column (shared by desktop + mobile)
-
-/// Height the device cards must keep before the Discovery scanner is allowed
-/// to pin itself to the bottom of the region.
+/// Height the device grid keeps before the discovery drawer is allowed to sit
+/// under it as a sibling rather than scrolling with the cards.
 const double _minPinnedDashboardHeight = 200.0;
 
-/// Working estimate of the COLLAPSED Discovery scanner's natural height. Used
-/// only to decide whether pinning fits; the pinned cap itself is derived from
-/// [_minPinnedDashboardHeight] so the scanner is never squeezed under its own
-/// content.
-const double _discoveryPeekHeight = 140.0;
+/// Working estimate of the COLLAPSED discovery drawer's height (its 44 px head
+/// row plus the hairline and padding). Used only to decide whether the drawer
+/// fits as a sibling.
+const double _discoveryPeekHeight = 60.0;
 
-class _EquipmentMainColumn extends StatelessWidget {
+/// The drawer never takes more than 44% of the device column, per 06 §Equipment.
+const double _discoveryMaxFraction = 0.44;
+
+// Devices tab body
+
+class _EquipmentMainColumn extends ConsumerWidget {
   final EquipmentProfileModel? selectedProfile;
-
-  /// When true (desktop), wide layouts move System Health + Ready-to-image into
-  /// a right-hand status rail. When false, or when the available width is below
-  /// [_railBreakpoint], they stack above the cards as collapsed bars instead.
-  final bool allowRail;
   final VoidCallback onSettings;
-  final VoidCallback? onProfileTap;
   final void Function(EquipmentProfileModel) onConnectAll;
   final void Function(EquipmentProfileModel) onEditProfile;
 
   const _EquipmentMainColumn({
     required this.selectedProfile,
-    required this.allowRail,
     required this.onSettings,
     required this.onConnectAll,
     required this.onEditProfile,
-    this.onProfileTap,
   });
 
-  /// The always-present top chrome: recovery banner, header, dismissable
-  /// mismatch banner, and the connect-all progress strip.
-  Widget _topChrome() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const RunDashboardRecoveryBanner(),
-        _DashboardHeader(
-          profileName: selectedProfile?.name,
-          onSettings: onSettings,
-          onProfileTap: onProfileTap,
-        ),
-        const _ProfileMismatchBanner(),
-        const _ConnectAllProgressStrip(),
-      ],
-    );
-  }
-
-  /// The device dashboard (dominant scroll area) plus the Discovery scanner
-  /// pinned to the bottom. Shared by both the rail and stacked layouts so the
-  /// cards always own the vertical space between the chrome and the scanner.
+  /// The device grid with the discovery drawer beneath it, in ONE column.
   ///
-  /// [header] is prepended INSIDE the dashboard's scroll view (phone only) so
-  /// the supporting panels scroll with the cards instead of pinning above them.
+  /// The drawer is a plain (non-flex) child so the grid's [Expanded] absorbs
+  /// every remaining pixel: the drawer PUSHES the grid up and can never overlay
+  /// it. On a viewport too short to seat both, the drawer scrolls with the
+  /// cards instead — always reachable, never overflowing.
   Widget _cardsAndDiscovery({Widget? header}) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Discovery must size to its CONTENT and hand every remaining pixel to
-        // the cards, so it is NOT a `Flexible`: that defaults to `flex: 1`, the
-        // same flex as the dashboard's `Expanded`, and splits the region 50/50.
-        // A non-flex child is laid out at its natural height first and the
-        // dashboard's `Expanded` absorbs all the slack.
-        //
-        // Pinning the scanner is only affordable when the region can seat BOTH
-        // — a 360x640dp phone leaves this region ~132dp, less than the
-        // collapsed scanner alone. Below the threshold the scanner stops being
-        // chrome and scrolls with the cards, which is always reachable and can
-        // never overflow. The cap for the pinned case is "whatever is left
-        // after the cards keep [_minPinnedDashboardHeight]", never a fraction,
-        // so it can never fall under the peek height; it also keeps the
-        // incoming height bounded so DiscoveryPanel's own internal `Flexible`
-        // has a bounded parent.
         final canPin = !constraints.hasBoundedHeight ||
             constraints.maxHeight >=
                 _minPinnedDashboardHeight + _discoveryPeekHeight;
@@ -316,8 +52,8 @@ class _EquipmentMainColumn extends StatelessWidget {
           );
         }
 
-        final discoveryCap = constraints.hasBoundedHeight
-            ? constraints.maxHeight - _minPinnedDashboardHeight
+        final drawerCap = constraints.hasBoundedHeight
+            ? constraints.maxHeight * _discoveryMaxFraction
             : double.infinity;
         return Column(
           children: [
@@ -330,7 +66,7 @@ class _EquipmentMainColumn extends StatelessWidget {
               ),
             ),
             ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: discoveryCap),
+              constraints: BoxConstraints(maxHeight: drawerCap),
               child: const DiscoveryPanel(),
             ),
           ],
@@ -340,289 +76,337 @@ class _EquipmentMainColumn extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final showRail = allowRail && constraints.maxWidth >= _railBreakpoint;
+        final wide =
+            constraints.maxWidth >= ShellChromeMetrics.shellLayoutBreakpoint;
 
-        if (showRail) {
-          // Wide desktop: cards in the center, supporting panels in the rail.
-          return Column(
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _topChrome(),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(child: _cardsAndDiscovery()),
-                    const _EquipmentStatusRail(),
-                  ],
-                ),
+              Expanded(child: _cardsAndDiscovery()),
+              _EquipmentSidePanel(
+                selectedProfile: selectedProfile,
+                onSettings: onSettings,
+                onEditProfile: onEditProfile,
               ),
             ],
           );
         }
 
-        // Narrow / mobile: no rail. The supporting panels ride INSIDE the
-        // dashboard's scroll view (as its header) rather than pinned above it.
-        //
-        // As plain Column siblings they are fixed chrome: on a 411x914dp phone
-        // the collapsed bars plus the two shortcut cards pin ~330dp above the
-        // card list, and expanding the readiness checklist overflows the column
-        // and evicts the device cards and the scanner off-screen with no way to
-        // scroll to them. Scrolling them with the cards mirrors what the desktop
-        // rail does for the same widgets (see _EquipmentStatusRail).
-        return Column(
-          children: [
-            _topChrome(),
-            Expanded(
-              child: _cardsAndDiscovery(
-                header: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    EquipmentHealthPanel(),
-                    _ReadinessSummaryBar(),
-                    _PolarAlignmentShortcut(),
-                    _FlatWizardShortcut(),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        // Narrow: no second column. The side panel's content rides INSIDE the
+        // device column's scroll view so the cards keep the full width and the
+        // readiness list can never pin itself above them.
+        return _cardsAndDiscovery(
+          header: _SidePanelContent(
+            selectedProfile: selectedProfile,
+            onSettings: onSettings,
+            onEditProfile: onEditProfile,
+            padding: _bodyPadding,
+          ),
         );
       },
     );
   }
 }
 
-// Status rail (desktop, wide screens)
+// Side panel (desktop, wide screens)
 
-/// Right-hand rail holding the supporting panels: System Health,
-/// Ready-to-image, and the Polar Alignment shortcut. Collapses to a thin icon
-/// strip (mirroring the left profile sidebar) so an operator who wants every
-/// pixel for cards can tuck it away.
-class _EquipmentStatusRail extends ConsumerWidget {
-  const _EquipmentStatusRail();
+/// The 320 px right column: the profile block, the readiness blockers and
+/// system health. No icon strip — 05 §15: a side panel with a single content
+/// stream has no strip.
+class _EquipmentSidePanel extends ConsumerWidget {
+  final EquipmentProfileModel? selectedProfile;
+  final VoidCallback onSettings;
+  final void Function(EquipmentProfileModel) onEditProfile;
+
+  const _EquipmentSidePanel({
+    required this.selectedProfile,
+    required this.onSettings,
+    required this.onEditProfile,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final collapsed = ref.watch(equipmentStatusRailCollapsedProvider);
-
-    if (collapsed) {
-      return Container(
-        width: _statusRailCollapsedWidth,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(left: BorderSide(color: colors.border)),
+    return SidePanel(
+      collapsed: collapsed,
+      child: SingleChildScrollView(
+        child: _SidePanelContent(
+          selectedProfile: selectedProfile,
+          onSettings: onSettings,
+          onEditProfile: onEditProfile,
         ),
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-            Tooltip(
-              message: 'Show status panels',
-              child: IconButton(
-                icon: Icon(LucideIcons.panelRightOpen,
-                    size: 18, color: colors.textSecondary),
-                onPressed: () => ref
-                    .read(equipmentStatusRailCollapsedProvider.notifier)
-                    .state = false,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Icon(LucideIcons.heartPulse, size: 16, color: colors.textMuted),
-            const SizedBox(height: 12),
-            Icon(LucideIcons.listChecks, size: 16, color: colors.textMuted),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      width: _statusRailWidth,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(left: BorderSide(color: colors.border)),
       ),
+    );
+  }
+}
+
+/// The side panel's content, shared by the desktop column and the narrow
+/// layout where it scrolls above the device grid.
+class _SidePanelContent extends ConsumerWidget {
+  final EquipmentProfileModel? selectedProfile;
+  final VoidCallback onSettings;
+  final void Function(EquipmentProfileModel) onEditProfile;
+  final EdgeInsets padding;
+
+  const _SidePanelContent({
+    required this.selectedProfile,
+    required this.onSettings,
+    required this.onEditProfile,
+    this.padding = EdgeInsets.zero,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Rail header with collapse control.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-            child: Row(
-              children: [
-                Icon(LucideIcons.activity, size: 16, color: colors.textMuted),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'STATUS',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                Tooltip(
-                  message: 'Hide status panels',
-                  child: IconButton(
-                    icon: Icon(LucideIcons.panelRightClose,
-                        size: 18, color: colors.textMuted),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => ref
-                        .read(equipmentStatusRailCollapsedProvider.notifier)
-                        .state = true,
-                  ),
-                ),
-              ],
-            ),
+          _ProfileBlock(
+            profile: selectedProfile,
+            onSettings: onSettings,
+            onEditProfile: onEditProfile,
           ),
-          Divider(height: 1, color: colors.border),
-          // Scrollable body: the supporting panels, in priority order.
-          const Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  EquipmentHealthPanel(),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: EquipmentReadinessPanel(),
-                  ),
-                  _PolarAlignmentShortcut(),
-                  _FlatWizardShortcut(),
-                ],
-              ),
-            ),
-          ),
+          const _SaveSessionDevicesButton(),
+          const SizedBox(height: SidePanel.sectionGap),
+          const EquipmentReadinessPanel(),
+          const SizedBox(height: SidePanel.sectionGap),
+          const EquipmentHealthPanel(),
         ],
       ),
     );
   }
 }
 
-// Readiness summary bar (narrow / mobile collapsed presentation)
+/// `[36 px primary-tinted icon square] [name 14/600 + muted meta] [⋮]`.
+class _ProfileBlock extends ConsumerWidget {
+  final EquipmentProfileModel? profile;
+  final VoidCallback onSettings;
+  final void Function(EquipmentProfileModel) onEditProfile;
 
-/// Whether the narrow-layout readiness bar is expanded. Defaults to collapsed
-/// so the checklist stops consuming vertical space above the cards until the
-/// operator opens it.
-final _readinessBarExpandedProvider = StateProvider<bool>((ref) => false);
+  const _ProfileBlock({
+    required this.profile,
+    required this.onSettings,
+    required this.onEditProfile,
+  });
 
-/// One-line, tappable summary of the readiness report for narrow / mobile
-/// layouts. Mirrors [EquipmentHealthPanel]'s collapsed-header pattern: a header
-/// row showing the overall state and an outstanding-item count, expanding to
-/// the full [EquipmentReadinessPanel] on tap.
-class _ReadinessSummaryBar extends ConsumerWidget {
-  const _ReadinessSummaryBar();
+  /// Side of the profile's icon square.
+  static const double squareSize = 36.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final report = ref.watch(readinessReportProvider);
-    final expanded = ref.watch(_readinessBarExpandedProvider);
-    final outstanding = report.blockedItems.length + report.cautionItems.length;
+    final model = profile;
+    final assigned = ref.watch(assignedProfileDeviceSlotsProvider).length;
+    final unsaved = ref.watch(sessionOnlyConnectedSlotsProvider).length;
 
-    final (dotColor, label) = switch (report.overall) {
-      ReadinessLevel.ready => (colors.success, 'Ready to image'),
-      ReadinessLevel.caution => (colors.warning, 'Ready to image'),
-      ReadinessLevel.blocked => (colors.error, 'Not ready'),
-    };
+    final meta = <String>[
+      if (model?.isDefault ?? false) 'Default profile',
+      '$assigned ${assigned == 1 ? 'device' : 'devices'}',
+      if (unsaved > 0) '$unsaved unsaved',
+    ].join(' · ');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () => ref
-                .read(_readinessBarExpandedProvider.notifier)
-                .state = !expanded,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.listChecks,
-                      size: 16, color: colors.textMuted),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration:
-                        BoxDecoration(shape: BoxShape.circle, color: dotColor),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (outstanding > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1),
-                      decoration: NightshadeDecorations.tintedBadge(
-                        dotColor,
-                        borderRadius: BorderRadius.circular(
-                            NightshadeTokens.radiusInline8),
-                      ),
-                      child: Text(
-                        '$outstanding ${outstanding == 1 ? 'item' : 'items'}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          fontWeight: FontWeight.w600,
-                          color: dotColor,
-                        ),
-                      ),
-                    ),
-                  const Spacer(),
-                  Icon(
-                    expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-                    size: 16,
-                    color: colors.textMuted,
-                  ),
-                ],
-              ),
+    return Row(
+      children: [
+        Container(
+          width: squareSize,
+          height: squareSize,
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(
+              alpha: NightshadeTokens.opacityAccentTint,
             ),
+            borderRadius: NightshadeTokens.borderRadiusLg,
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            // Cap the expanded checklist at just under half the screen and
-            // scroll inside. At full intrinsic height it starved the
-            // Expanded(cards + discovery) below it in the phone column —
-            // the discovery panel rendered a live "BoxConstraints has a
-            // negative minimum height" error strip on screen.
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  // 0.42, not 0.45: with the discovery panel ALSO expanded,
-                  // 45% left the discovery header/subtitle 21px short.
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.42,
+          child: Icon(
+            LucideIcons.aperture,
+            size: NightshadeTokens.iconSm,
+            color: colors.primary,
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceMd),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                model?.name ?? 'No profile selected',
+                style: NightshadeTypography.bodyStrong.copyWith(
+                  color: colors.textPrimary,
                 ),
-                child: const SingleChildScrollView(
-                  child: EquipmentReadinessPanel(),
-                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            crossFadeState:
-                expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
+              Text(
+                meta,
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        _ProfileMenuButton(
+          profile: model,
+          onSettings: onSettings,
+          onEditProfile: onEditProfile,
+        ),
+      ],
     );
   }
 }
 
-// Connect-All per-device progress strip
+enum _ProfileMenuAction { edit, profiles, settings }
+
+/// The `⋮` beside the profile name. A [NightshadeIconButton] that opens the
+/// menu itself rather than a `PopupMenuButton`, so the control is the sheet's
+/// icon button and not Material's.
+class _ProfileMenuButton extends ConsumerStatefulWidget {
+  final EquipmentProfileModel? profile;
+  final VoidCallback onSettings;
+  final void Function(EquipmentProfileModel) onEditProfile;
+
+  const _ProfileMenuButton({
+    required this.profile,
+    required this.onSettings,
+    required this.onEditProfile,
+  });
+
+  @override
+  ConsumerState<_ProfileMenuButton> createState() => _ProfileMenuButtonState();
+}
+
+class _ProfileMenuButtonState extends ConsumerState<_ProfileMenuButton> {
+  final GlobalKey _anchorKey = GlobalKey();
+
+  Future<void> _openMenu() async {
+    final anchor = _anchorKey.currentContext;
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (anchor == null || overlay is! RenderBox) return;
+    final box = anchor.findRenderObject();
+    if (box is! RenderBox) return;
+    final topLeft = box.localToGlobal(
+      Offset(0, box.size.height),
+      ancestor: overlay,
+    );
+    final bottomRight = box.localToGlobal(
+      box.size.bottomRight(Offset.zero),
+      ancestor: overlay,
+    );
+    final model = widget.profile;
+    final action = await showMenu<_ProfileMenuAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        topLeft.dx,
+        topLeft.dy,
+        overlay.size.width - bottomRight.dx,
+        overlay.size.height - bottomRight.dy,
+      ),
+      items: <PopupMenuEntry<_ProfileMenuAction>>[
+        PopupMenuItem<_ProfileMenuAction>(
+          value: _ProfileMenuAction.edit,
+          enabled: model != null,
+          child: const Text('Edit profile'),
+        ),
+        const PopupMenuItem<_ProfileMenuAction>(
+          value: _ProfileMenuAction.profiles,
+          child: Text('All profiles'),
+        ),
+        const PopupMenuItem<_ProfileMenuAction>(
+          value: _ProfileMenuAction.settings,
+          child: Text('Equipment settings'),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _ProfileMenuAction.edit:
+        if (model != null) widget.onEditProfile(model);
+      case _ProfileMenuAction.profiles:
+        ref.read(equipmentTabIndexProvider.notifier).state = 1;
+      case _ProfileMenuAction.settings:
+        widget.onSettings();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeIconButton(
+      key: _anchorKey,
+      icon: LucideIcons.moreVertical,
+      tooltip: 'Profile actions',
+      onPressed: _openMenu,
+    );
+  }
+}
+
+/// "Save N devices to profile" — writes the ad-hoc connections into the active
+/// profile so they come back on the next launch. Absent when nothing is unsaved.
+class _SaveSessionDevicesButton extends ConsumerStatefulWidget {
+  const _SaveSessionDevicesButton();
+
+  @override
+  ConsumerState<_SaveSessionDevicesButton> createState() =>
+      _SaveSessionDevicesButtonState();
+}
+
+class _SaveSessionDevicesButtonState
+    extends ConsumerState<_SaveSessionDevicesButton> {
+  bool _saving = false;
+
+  Future<void> _save(int profileId, Set<ProfileDeviceSlot> slots) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final saved = await saveSessionDevicesToProfile(
+        ref,
+        profileId: profileId,
+        slots: slots,
+      );
+      if (!mounted) return;
+      ref.read(profileMutationEpochProvider.notifier).state++;
+      context.showSuccessSnackBar(
+        saved.isEmpty
+            ? 'Nothing to save.'
+            : 'Saved ${saved.length} ${saved.length == 1 ? 'device' : 'devices'} '
+                'to the profile.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Could not save to the profile: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = ref.watch(activeEquipmentProfileProvider);
+    final slots = ref.watch(sessionOnlyConnectedSlotsProvider);
+    final profileId = profile?.id;
+    if (profileId == null || slots.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: NightshadeButton(
+          label: 'Save ${slots.length} '
+              '${slots.length == 1 ? 'device' : 'devices'} to profile',
+          icon: LucideIcons.save,
+          variant: ButtonVariant.secondary,
+          size: ButtonSize.small,
+          isLoading: _saving,
+          onPressed: _saving ? null : () => _save(profileId, slots),
+        ),
+      ),
+    );
+  }
+}

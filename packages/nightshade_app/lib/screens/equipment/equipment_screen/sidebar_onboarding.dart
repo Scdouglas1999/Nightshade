@@ -1,134 +1,8 @@
-// Collapsible sidebar, first-time onboarding, setup steps, and mismatch banner.
+// First-run onboarding and the profile-mismatch banner.
 part of '../equipment_screen.dart';
 
-// Collapsible sidebar widget
-
-class _CollapsibleSidebar extends StatefulWidget {
-  final bool isCollapsed;
-  final VoidCallback onToggle;
-  final Widget child;
-
-  const _CollapsibleSidebar({
-    required this.isCollapsed,
-    required this.onToggle,
-    required this.child,
-  });
-
-  @override
-  State<_CollapsibleSidebar> createState() => _CollapsibleSidebarState();
-}
-
-class _CollapsibleSidebarState extends State<_CollapsibleSidebar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _widthAnimation;
-  double _currentExpandedWidth = _sidebarExpandedWidth;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _updateAnimation();
-    if (!widget.isCollapsed) {
-      _animationController.value = 1.0;
-    }
-  }
-
-  void _updateAnimation() {
-    _widthAnimation = Tween<double>(
-      begin: _sidebarCollapsedWidth,
-      end: _currentExpandedWidth,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-  }
-
-  @override
-  void didUpdateWidget(_CollapsibleSidebar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isCollapsed != widget.isCollapsed) {
-      if (widget.isCollapsed) {
-        _animationController.reverse();
-      } else {
-        _updateAnimation();
-        _animationController.forward();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
-    return AnimatedBuilder(
-      animation: _widthAnimation,
-      builder: (context, child) {
-        final width = _widthAnimation.value;
-        final isEffectivelyCollapsed = width < _sidebarCollapsedWidth + 20;
-
-        if (isEffectivelyCollapsed) {
-          // Collapsed state - show icon button strip
-          return Container(
-            width: _sidebarCollapsedWidth,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(
-                right: BorderSide(color: colors.border),
-              ),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Tooltip(
-                  message: 'Show Profiles',
-                  child: IconButton(
-                    icon: Icon(
-                      LucideIcons.layers,
-                      size: 20,
-                      color: colors.textSecondary,
-                    ),
-                    onPressed: widget.onToggle,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Expanded state - show resizable panel with content
-        return SizedBox(
-          width: width,
-          child: ResizablePanel(
-            initialWidth: width,
-            minWidth: _sidebarMinWidth,
-            maxWidth: _sidebarMaxWidth,
-            side: ResizeSide.right,
-            onWidthChanged: (newWidth) {
-              setState(() {
-                _currentExpandedWidth = newWidth;
-                _updateAnimation();
-              });
-            },
-            child: widget.child,
-          ),
-        );
-      },
-    );
-  }
-}
-
-// First-time user onboarding
-
+/// The first-run state: no profile exists yet, so the screen is one centred
+/// column with the setup checklist and a single primary action.
 class _FirstTimeOnboarding extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onStartSetup;
@@ -140,114 +14,76 @@ class _FirstTimeOnboarding extends StatelessWidget {
     required this.onManualSetup,
   });
 
+  /// Width of the centred first-run column.
+  static const double columnWidth = 480.0;
+
   @override
   Widget build(BuildContext context) {
-    // Tighter padding on a phone, and the whole panel scrolls so the welcome
-    // steps + both CTAs never overflow a short phone viewport (e.g. 360x640 or
-    // a phone in landscape, where the content is taller than the screen).
-    //
-    // Scrolling alone is not enough: at 360x640 the desktop rhythm below makes
-    // this column 705dp tall, which pushes the secondary "I'll do it manually"
-    // CTA below the fold and clips its 48dp button to a 7dp tap target. The
-    // phone tier therefore uses its own vertical rhythm (roughly two-thirds of
-    // desktop's) so the whole first-run panel fits a 640dp viewport with both
-    // CTAs on screen. Desktop keeps the airy spacing.
-    final isPhone = Responsive.isPhone(context);
-    final pad = isPhone ? 16.0 : 48.0;
-    final gapAfterIcon =
-        isPhone ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg;
-    final gapBeforeSteps = isPhone ? 24.0 : 40.0;
-    final stepGap = isPhone ? 12.0 : 16.0;
-    final cardPad = isPhone ? 16.0 : 24.0;
-    final gapBeforeCtas = isPhone ? 20.0 : 32.0;
     return SafeArea(
       child: Center(
         child: SingleChildScrollView(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 480),
-            padding: EdgeInsets.all(pad),
+          padding: _bodyPadding,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: columnWidth),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  LucideIcons.moon,
-                  size: NightshadeTokens.iconXl,
-                  color: colors.primary,
-                ),
-
-                SizedBox(height: gapAfterIcon),
-
                 Text(
-                  'Welcome to Nightshade',
-                  style: NightshadeTypography.h2.copyWith(
+                  'Set up your first rig',
+                  textAlign: TextAlign.center,
+                  style: NightshadeTypography.pageTitle.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
-
-                const SizedBox(height: NightshadeTokens.spaceSm),
-
-                Text(
-                  "Let's set up your first equipment profile",
-                  style: NightshadeTypography.body.copyWith(
-                    color: colors.textSecondary,
+                const SizedBox(height: NightshadeTokens.spaceXl),
+                NightshadePanel(
+                  head: const PanelHead(
+                    label: 'Equipment setup',
+                    icon: LucideIcons.listChecks,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-
-                SizedBox(height: gapBeforeSteps),
-
-                // Setup steps
-                NightshadeCard(
-                  variant: CardVariant.standard,
-                  borderRadius: NightshadeTokens.radiusInline8,
-                  padding: EdgeInsets.all(cardPad),
-                  child: Column(
-                    children: [
-                      _SetupStep(
-                        number: '1',
-                        text: "We'll scan for connected equipment",
-                        colors: colors,
+                  child: Checklist(
+                    steps: [
+                      ChecklistStep(
+                        title: 'Scan for connected equipment',
+                        detail: 'Nightshade looks for native, ASCOM, Alpaca '
+                            'and INDI devices.',
+                        state: ChecklistStepState.next,
+                        action: NightshadeButton(
+                          label: 'Start setup',
+                          variant: ButtonVariant.secondary,
+                          size: ButtonSize.small,
+                          onPressed: onStartSetup,
+                        ),
                       ),
-                      SizedBox(height: stepGap),
-                      _SetupStep(
-                        number: '2',
-                        text: 'Select the devices you want to use',
-                        colors: colors,
+                      const ChecklistStep(
+                        title: 'Choose the devices you want to use',
+                        detail: 'Camera, mount, focuser, filter wheel, guider.',
                       ),
-                      SizedBox(height: stepGap),
-                      _SetupStep(
-                        number: '3',
-                        text: 'Save as a profile for one-click connection',
-                        colors: colors,
+                      const ChecklistStep(
+                        title: 'Save them as a profile',
+                        detail: 'One profile reconnects the whole rig next '
+                            'launch.',
                       ),
                     ],
                   ),
                 ),
-
-                SizedBox(height: gapBeforeCtas),
-
-                // Action buttons
-                SizedBox(
-                  width: double.infinity,
-                  child: NightshadeButton(
-                    label: 'Start Setup',
-                    icon: LucideIcons.arrowRight,
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.large,
-                    onPressed: onStartSetup,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: NightshadeButton(
-                    onPressed: onManualSetup,
-                    label: "I'll do it manually",
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.medium,
-                  ),
+                const SizedBox(height: NightshadeTokens.spaceXl),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    NightshadeButton(
+                      label: 'Build a profile by hand',
+                      variant: ButtonVariant.ghost,
+                      onPressed: onManualSetup,
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    NightshadeButton(
+                      label: 'Start setup',
+                      icon: LucideIcons.arrowRight,
+                      onPressed: onStartSetup,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -258,51 +94,8 @@ class _FirstTimeOnboarding extends StatelessWidget {
   }
 }
 
-class _SetupStep extends StatelessWidget {
-  final String number;
-  final String text;
-  final NightshadeColors colors;
-
-  const _SetupStep({
-    required this.number,
-    required this.text,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: NightshadeDecorations.kpiBadge(
-            colors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: NightshadeTypography.labelStrong
-                  .copyWith(color: colors.primary),
-            ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              color: colors.textPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+/// The ONE banner this screen shows: the connected devices do not match what
+/// the active profile assigns.
 class _ProfileMismatchBanner extends ConsumerWidget {
   const _ProfileMismatchBanner();
 
@@ -329,38 +122,17 @@ class _ProfileMismatchBanner extends ConsumerWidget {
     final dismissedSignature = ref.watch(dismissedMismatchSignatureProvider);
     if (dismissedSignature == signature) return const SizedBox.shrink();
 
-    final colors = NightshadeColors.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
-      color: colors.warning.withValues(alpha: 0.15),
-      child: Row(
-        children: [
-          Icon(LucideIcons.alertTriangle, color: colors.warning, size: 16),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Device Mismatch: The connected ${mismatches.join(", ")} '
-              '${mismatches.length == 1 ? 'does' : 'do'} not match the '
-              'assignments in the active profile "${activeProfile.name}".',
-              style:
-                  NightshadeTypography.labelSm.copyWith(color: colors.warning),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () => ref
-                .read(dismissedMismatchSignatureProvider.notifier)
-                .state = signature,
-            icon: const Icon(LucideIcons.x, size: 14),
-            color: colors.warning,
-            tooltip: 'Dismiss for this session',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
+      child: NightshadeBanner(
+        tone: BannerTone.warning,
+        title: 'Connected devices do not match the profile.',
+        message: 'The ${mismatches.join(", ")} '
+            '${mismatches.length == 1 ? 'is' : 'are'} not what '
+            '"${activeProfile.name}" assigns.',
+        onDismiss: () => ref
+            .read(dismissedMismatchSignatureProvider.notifier)
+            .state = signature,
       ),
     );
   }
