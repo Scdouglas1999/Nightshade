@@ -7,14 +7,12 @@ import 'package:flutter/services.dart'
     show LogicalKeyboardKey, SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/startup_surface_coordinator.dart';
-import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/command_palette/command_palette.dart';
 import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
@@ -77,7 +75,6 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   bool _fallbackSideNavExpanded = true;
-  bool _hasCheckedCatalogs = false;
   Future<AppStartupCheckpointOutcome>? _checkpointCheck;
   String? _lastImmersiveLocation;
   bool? _lastImmersiveEnabled;
@@ -101,7 +98,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   Future<void> _runStartupChecks() {
     return runAppStartupChecks(
       checkCheckpoint: _checkCheckpointIfNeeded,
-      checkCatalogs: _checkCatalogsIfNeeded,
+      // Catalog setup is checklist step 4 on Tonight; no launch-time modal.
+      checkCatalogs: () async {},
     );
   }
 
@@ -225,50 +223,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.dispose();
   }
 
-  Future<void> _checkCatalogsIfNeeded() async {
-    if (_hasCheckedCatalogs) return;
-    _hasCheckedCatalogs = true;
-
-    try {
-      // Onboarding is the single first-run spine. The persistent catalog
-      // banner remains available after setup, so do not overlay its route with
-      // a separate catalog modal.
-      if (await ref.read(shouldRunEquipmentOnboardingProvider.future)) return;
-
-      final settingsDao = ref.read(settingsDaoProvider);
-      if (catalogSetupWasSkipped(
-        await settingsDao.getSetting(kCatalogSetupSkippedSettingKey),
-      )) {
-        return;
-      }
-
-      final starStatus = await CatalogManager.instance.getStarCatalogStatus();
-      final dsoStatus = await CatalogManager.instance.getDsoCatalogStatus();
-
-      // If neither catalog is installed, show setup dialog
-      if (!starStatus.isInstalled && !dsoStatus.isInstalled) {
-        if (mounted) {
-          final result = await ref
-              .read(startupSurfaceCoordinatorProvider)
-              .run<bool?>(() async {
-            if (!mounted) return null;
-            return CatalogSetupDialog.show(context);
-          });
-          if (result == false) {
-            await settingsDao.setSetting(
-              kCatalogSetupSkippedSettingKey,
-              'true',
-            );
-          }
-        }
-      }
-    } catch (e) {
-      ref.read(loggingServiceProvider).warning(
-          '[AppShell] Error checking catalog status: $e',
-          source: 'AppShell',
-          fields: {'error': e.toString()});
-    }
-  }
 
   Future<AppStartupCheckpointOutcome> _checkCheckpointIfNeeded() {
     return _checkpointCheck ??= _performCheckpointCheck();
