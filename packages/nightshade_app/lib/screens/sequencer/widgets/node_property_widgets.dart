@@ -614,15 +614,23 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
               ),
             ),
           ),
-          // Show profile indicator when using a profile default
+          // Show profile indicator when using a profile default. Flexible,
+          // because the properties pane animates from 48 px up to its width
+          // and a fixed suffix overflowed the row by a few px on the frames
+          // in between (caught by the public-screenshot capture).
           if (widget.isProfileDefault && widget.hintText != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(
-                'profile',
-                style: NightshadeTypography.caption.copyWith(
-                  color: widget.colors.textMuted,
-                  fontStyle: FontStyle.italic,
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(
+                  'profile',
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  softWrap: false,
+                  style: NightshadeTypography.caption.copyWith(
+                    color: widget.colors.textMuted,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ),
