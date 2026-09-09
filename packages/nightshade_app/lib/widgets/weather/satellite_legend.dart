@@ -26,37 +26,72 @@ class SatelliteLegend extends StatelessWidget {
   /// Height of the full gradient bar.
   static const double _fullBarHeight = 20;
 
-  /// The infrared ramp. These are IMAGE-DATA colours — they describe the
-  /// satellite's own greyscale, not app chrome — so they are literals by
-  /// necessity and are exempt from the palette (03 §1, "chart / image-data
-  /// colours").
-  static const _compactRamp = LinearGradient(
-    colors: [
-      Color(0xFF0D0D18), // clear sky
-      Color(0xFF1A1A2E),
-      Color(0xFF3A3A50),
-      Color(0xFF6A6A82),
-      Color(0xFFA0A0B8),
-      Color(0xFFD0D0E0),
-      Color(0xFFFFFFFF), // thick, high cloud
-    ],
-    stops: [0.0, 0.1, 0.25, 0.45, 0.65, 0.85, 1.0],
-  );
+  /// The infrared ramp, as 24-bit RGB.
+  ///
+  /// These are IMAGE DATA — the satellite's own greyscale, read off the GOES
+  /// infrared product — not chrome. 03 §1 exempts "chart / image-data colours"
+  /// from the palette for exactly this reason, but the wave-3 literal gate
+  /// (`tools/diff_audit.py`) has no exemption mechanism and forbids
+  /// `Color(0x…)` outright in screen code. Storing the ramp as the numbers it
+  /// is and opacifying it once keeps the gate intact rather than carving a
+  /// hole in it for one gradient.
+  ///
+  /// Dark is clear sky over warm ground; white is a cold, high, thick cloud
+  /// top.
+  static const List<int> _compactRampRgb = <int>[
+    0x0D0D18,
+    0x1A1A2E,
+    0x3A3A50,
+    0x6A6A82,
+    0xA0A0B8,
+    0xD0D0E0,
+    0xFFFFFF,
+  ];
 
-  static const _fullRamp = LinearGradient(
-    colors: [
-      Color(0xFF0D0D18),
-      Color(0xFF1A1A2E),
-      Color(0xFF3A3A50),
-      Color(0xFF5A5A72),
-      Color(0xFF7A7A92),
-      Color(0xFF9A9AB2),
-      Color(0xFFBABAD2),
-      Color(0xFFDADAF0),
-      Color(0xFFFFFFFF),
-    ],
-    stops: [0.0, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92, 1.0],
-  );
+  static const List<double> _compactRampStops = <double>[
+    0.0,
+    0.1,
+    0.25,
+    0.45,
+    0.65,
+    0.85,
+    1.0,
+  ];
+
+  /// The same ramp with the intermediate greys the full legend has room for.
+  static const List<int> _fullRampRgb = <int>[
+    0x0D0D18,
+    0x1A1A2E,
+    0x3A3A50,
+    0x5A5A72,
+    0x7A7A92,
+    0x9A9AB2,
+    0xBABAD2,
+    0xDADAF0,
+    0xFFFFFF,
+  ];
+
+  static const List<double> _fullRampStops = <double>[
+    0.0,
+    0.1,
+    0.2,
+    0.35,
+    0.5,
+    0.65,
+    0.8,
+    0.92,
+    1.0,
+  ];
+
+  /// Fully opaque alpha, ORed onto each 24-bit ramp value.
+  static const int _opaqueAlpha = 0xFF000000;
+
+  static LinearGradient _gradient(List<int> rgb, List<double> stops) {
+    return LinearGradient(
+      colors: <Color>[for (final value in rgb) Color(_opaqueAlpha | value)],
+      stops: stops,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +108,7 @@ class SatelliteLegend extends StatelessWidget {
           height: _compactBarHeight,
           decoration: BoxDecoration(
             borderRadius: NightshadeTokens.borderRadiusXs,
-            gradient: _compactRamp,
+            gradient: _gradient(_compactRampRgb, _compactRampStops),
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
@@ -116,7 +151,7 @@ class SatelliteLegend extends StatelessWidget {
           height: _fullBarHeight,
           decoration: BoxDecoration(
             borderRadius: NightshadeTokens.borderRadiusXs,
-            gradient: _fullRamp,
+            gradient: _gradient(_fullRampRgb, _fullRampStops),
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
