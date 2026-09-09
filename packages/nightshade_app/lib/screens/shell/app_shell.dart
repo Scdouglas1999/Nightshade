@@ -3,8 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'
-    show LogicalKeyboardKey, SystemNavigator;
+import 'package:flutter/services.dart' show LogicalKeyboardKey, SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -31,8 +30,6 @@ import 'widgets/status_bar.dart';
 import 'widgets/side_navigation.dart';
 import 'shell_chrome.dart';
 import 'shell_navigation.dart';
-import 'immersive_chrome.dart';
-import 'widgets/immersive_bottom_chrome.dart';
 import 'widgets/nightshade_bottom_navigation.dart';
 
 // Conditional import for window_manager (desktop only)
@@ -76,8 +73,6 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   bool _fallbackSideNavExpanded = true;
   Future<AppStartupCheckpointOutcome>? _checkpointCheck;
-  String? _lastImmersiveLocation;
-  bool? _lastImmersiveEnabled;
 
   @override
   void initState() {
@@ -222,7 +217,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
     super.dispose();
   }
-
 
   Future<AppStartupCheckpointOutcome> _checkCheckpointIfNeeded() {
     return _checkpointCheck ??= _performCheckpointCheck();
@@ -407,30 +401,6 @@ class _AppShellState extends ConsumerState<AppShell> {
         // chrome and restore it unchanged when the IME closes.
         final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
-        // Phone "immersive" chrome: the bottom nav + status bar auto-hide when
-        // idle so content gets the (very short, on a foldable cover) height,
-        // and reappear on any interaction or a swipe up from the grabber.
-        // Pinned visible on desktop/tablet (enabled = false → no timer).
-        final chromeVisible = ref.watch(immersiveChromeProvider);
-        final immersive = ref.read(immersiveChromeProvider.notifier);
-        // Only schedule the sync when it has something to do. Both calls below
-        // are no-ops when nothing changed, so an unconditional post-frame
-        // callback cost one closure allocation per shell rebuild to reach two
-        // early returns.
-        final routeChanged =
-            useBottomNav && currentLocation != _lastImmersiveLocation;
-        if (_lastImmersiveEnabled != useBottomNav || routeChanged) {
-          _lastImmersiveEnabled = useBottomNav;
-          if (routeChanged) _lastImmersiveLocation = currentLocation;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            immersive.enabled = useBottomNav;
-            // Reveal the chrome (and re-arm the one-shot idle auto-hide)
-            // whenever the operator navigates to a different screen.
-            if (routeChanged) immersive.onRouteChanged();
-          });
-        }
-
         // The first-launch tour is replay-only: OnboardingTourReplayLauncher
         // watches firstLaunchTourStatusProvider and overlays OnboardingOverlay on
         // top of the whole shell when the user re-runs it from Settings → Help.
@@ -447,8 +417,8 @@ class _AppShellState extends ConsumerState<AppShell> {
               bindings: {
                 const SingleActivator(LogicalKeyboardKey.keyK, control: true):
                     () => showCommandPalette(context),
-                const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () =>
-                    showCommandPalette(context),
+                const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+                    () => showCommandPalette(context),
               },
               child: Scaffold(
                 backgroundColor: colors.background,
@@ -602,27 +572,31 @@ class _AppShellState extends ConsumerState<AppShell> {
                     // of a 640px-tall phone restating what the device pills on
                     // Tonight already said, and pushed the bar the operator
                     // navigates with further from their thumb.
+                    //
+                    // The nav does NOT hide. It used to sit under an
+                    // always-visible grabber handle that collapsed it behind a
+                    // "Menu" pill, on every narrow screen — 04 §3.3 gives the
+                    // narrow shell a bottom nav, and a sheet's grabber belongs
+                    // to the sheet (Imaging's controls), not to the shell.
+                    // Below 768px the nav IS the navigation, and an affordance
+                    // that takes it away is one an operator can only lose by.
                     if (useBottomNav && !keyboardVisible)
-                      ImmersiveBottomChrome(
-                        visible: chromeVisible,
-                        onToggle: immersive.toggle,
-                        child: NightshadeBottomNavigation(
-                          currentRoute: currentLocation,
-                          onRouteSelected: (route) {
-                            try {
-                              context.go(route);
-                            } catch (e, stack) {
-                              developer.log(
-                                '[AppShell] Bottom nav could not navigate '
-                                'to $route: $e',
-                                name: 'AppShell',
-                                level: 900,
-                                error: e,
-                                stackTrace: stack,
-                              );
-                            }
-                          },
-                        ),
+                      NightshadeBottomNavigation(
+                        currentRoute: currentLocation,
+                        onRouteSelected: (route) {
+                          try {
+                            context.go(route);
+                          } catch (e, stack) {
+                            developer.log(
+                              '[AppShell] Bottom nav could not navigate '
+                              'to $route: $e',
+                              name: 'AppShell',
+                              level: 900,
+                              error: e,
+                              stackTrace: stack,
+                            );
+                          }
+                        },
                       )
                     else if (!useBottomNav)
                       const StatusBar(),
