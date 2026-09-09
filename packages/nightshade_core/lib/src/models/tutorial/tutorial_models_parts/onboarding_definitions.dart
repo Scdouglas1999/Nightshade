@@ -218,7 +218,7 @@ const List<TutorialStep> _firstLight = [
   ),
   TutorialStep(
     id: 'fl_connect_camera',
-    title: 'Connect Your Camera',
+    title: 'Connect your camera',
     description:
         'Select your camera from the dropdown and click the Connect button. Once connected, the status indicator will turn green.',
     targetKey: 'camera_connect_button',
@@ -232,7 +232,7 @@ const List<TutorialStep> _firstLight = [
   ),
   TutorialStep(
     id: 'fl_take_snapshot',
-    title: 'Take a Snapshot',
+    title: 'Take a snapshot',
     description:
         'Navigate to the Imaging tab and click the Snapshot button to capture a single frame. Adjust exposure time if needed before capturing.',
     targetKey: 'snapshot_button',
@@ -264,7 +264,7 @@ const List<TutorialStep> _firstLight = [
 const List<TutorialStep> _equipmentSetup = [
   TutorialStep(
     id: 'eq_profiles_overview',
-    title: 'Equipment Profiles',
+    title: 'Equipment profiles',
     description:
         'The Profiles panel lists your equipment configurations. A profile saves one telescope, camera and accessory combination, so you can switch rigs without re-entering anything.',
     targetKey: 'equipment_profile_selector',
@@ -276,7 +276,7 @@ const List<TutorialStep> _equipmentSetup = [
   ),
   TutorialStep(
     id: 'eq_create_profile',
-    title: 'Create a Profile',
+    title: 'Create a profile',
     description:
         'The + button at the top of the Profiles panel opens a new configuration. Enter focal length, aperture and your camera details — those are what the field-of-view and pixel-scale figures are computed from.',
     targetKey: 'equipment_create_profile_btn',
@@ -290,7 +290,7 @@ const List<TutorialStep> _equipmentSetup = [
   ),
   TutorialStep(
     id: 'eq_connect_devices',
-    title: 'Connect Devices',
+    title: 'Connect devices',
     description:
         'Connect All brings up every device in the selected profile. Use ASCOM COM only on Windows, Alpaca for ASCOM network devices, INDI through a reachable server, and Native only where the release includes the needed SDK.',
     targetKey: 'equipment_quick_connect_bar',
@@ -304,7 +304,7 @@ const List<TutorialStep> _equipmentSetup = [
   ),
   TutorialStep(
     id: 'eq_verify_status',
-    title: 'Verify Connections',
+    title: 'Verify connections',
     description:
         'Each connected device gets a card here. Green means connected and ready; a device that failed to connect reports the error on the card instead.',
     targetKey: 'equipment_camera_card',
@@ -335,7 +335,7 @@ const List<TutorialStep> _targetPlanning = [
   ),
   TutorialStep(
     id: 'tp_search',
-    title: 'Search for Objects',
+    title: 'Search for objects',
     description:
         'Click the search bar and type an object name (like M31, NGC 7000, or Vega). Select from the results to center the planetarium on that object.',
     targetKey: 'planetarium_search',
@@ -349,7 +349,7 @@ const List<TutorialStep> _targetPlanning = [
   ),
   TutorialStep(
     id: 'tp_slew',
-    title: 'Slew to Target',
+    title: 'Slew to target',
     description:
         'Right-click the object and select "Slew Here" to point your mount at the target. Ensure your mount is connected before slewing.',
     targetKey: 'slew_button',
@@ -363,7 +363,7 @@ const List<TutorialStep> _targetPlanning = [
   ),
   TutorialStep(
     id: 'tp_framing',
-    title: 'Frame Your Shot',
+    title: 'Frame your shot',
     description:
         'Navigate to the Framing tab to compose your image. Drag and rotate the field-of-view rectangle to find the perfect composition before imaging.',
     targetKey: 'nav_framing',
@@ -396,7 +396,7 @@ const List<TutorialStep> _automatedImaging = [
   ),
   TutorialStep(
     id: 'ai_add_blocks',
-    title: 'Add Sequence Blocks',
+    title: 'Add sequence blocks',
     description:
         'Drag blocks from the left palette onto the canvas. Start with a Target Group block, then add Capture blocks for your exposures. Each block configures one part of your workflow.',
     targetKey: 'sequence_palette',
@@ -408,7 +408,7 @@ const List<TutorialStep> _automatedImaging = [
   ),
   TutorialStep(
     id: 'ai_configure',
-    title: 'Configure Capture Settings',
+    title: 'Configure capture settings',
     description:
         'Click a Capture block to configure it. Set the filter, exposure time, gain, and number of frames. Add multiple Capture blocks for different filters (LRGB, narrowband).',
     targetKey: 'capture_block_config',
@@ -422,7 +422,7 @@ const List<TutorialStep> _automatedImaging = [
   ),
   TutorialStep(
     id: 'ai_run',
-    title: 'Run the Sequence',
+    title: 'Run the sequence',
     description:
         'Click the Play button to start your sequence. Nightshade will execute each block in order, automatically handling equipment control and image saving.',
     targetKey: 'sequence_play_button',
@@ -436,7 +436,7 @@ const List<TutorialStep> _automatedImaging = [
   ),
   TutorialStep(
     id: 'ai_monitor',
-    title: 'Monitor Progress',
+    title: 'Monitor progress',
     description:
         'Watch the progress panel as your sequence runs. Green checkmarks indicate completed blocks. Click Pause to interrupt, or Stop to end the session. Images save automatically.',
     targetKey: 'sequence_progress_panel',
@@ -453,7 +453,7 @@ const List<TutorialStep> _automatedImaging = [
 const List<TutorialStep> _calibrationFrames = [
   TutorialStep(
     id: 'cf_what_are_flats',
-    title: 'What Are Flat Frames?',
+    title: 'What are flat frames?',
     description:
         'Flat frames correct for vignetting and dust spots in your optical system. Navigate to the Flat Wizard tab to capture them easily.',
     targetKey: 'nav_flat_wizard',
@@ -467,7 +467,7 @@ const List<TutorialStep> _calibrationFrames = [
   ),
   TutorialStep(
     id: 'cf_wizard_setup',
-    title: 'Configure the Wizard',
+    title: 'Configure the wizard',
     description:
         'Select your flat source (sky flats, light panel, or EL panel). Set the target ADU level (typically 50% of your camera\'s well depth). The wizard will calculate exposure times automatically.',
     targetKey: 'flat_wizard_config',
@@ -479,7 +479,7 @@ const List<TutorialStep> _calibrationFrames = [
   ),
   TutorialStep(
     id: 'cf_capture_flats',
-    title: 'Capture Flat Frames',
+    title: 'Capture flat frames',
     description:
         'Click Start to begin capturing. The wizard takes test exposures, adjusts timing, then captures your specified number of flats per filter. Watch the ADU histogram to verify exposure.',
     targetKey: 'flat_wizard_start',
@@ -512,7 +512,7 @@ const List<TutorialStep> _advancedFeatures = [
   ),
   TutorialStep(
     id: 'af_weather',
-    title: 'Weather Integration',
+    title: 'Weather integration',
     description:
         'Check the weather widget on the Dashboard for current conditions. Configure alerts in Settings to pause imaging when clouds approach or humidity rises.',
     targetKey: 'weather_widget',
@@ -524,7 +524,7 @@ const List<TutorialStep> _advancedFeatures = [
   ),
   TutorialStep(
     id: 'af_history',
-    title: 'Session History',
+    title: 'Session history',
     description:
         'Click the History tab in Analytics to browse past sessions. Review captured frames, total integration time, and conditions for each imaging night.',
     targetKey: 'history_tab',
@@ -538,7 +538,7 @@ const List<TutorialStep> _advancedFeatures = [
   ),
   TutorialStep(
     id: 'af_settings',
-    title: 'Customize Settings',
+    title: 'Customize settings',
     description:
         'Click the Settings icon in the title bar to configure your location, file paths, plate solving, and other preferences. Set your coordinates for accurate sky calculations.',
     targetKey: 'settings_button',

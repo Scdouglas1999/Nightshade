@@ -116,9 +116,10 @@ void main() {
       (tester) async {
     await _pumpPanel(tester, const FocuserState());
 
-    expect(find.text('---'), findsOneWidget);
+    // Absent values read as an em dash (05 §3), never the old '---'.
+    expect(find.text('\u2014'), findsWidgets);
+    expect(find.text('---'), findsNothing);
     expect(find.textContaining('50000'), findsNothing);
-    expect(find.textContaining('—'), findsNothing);
   });
 
   const referenceSizes = <(String, Size)>[
