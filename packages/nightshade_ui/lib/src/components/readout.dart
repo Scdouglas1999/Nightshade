@@ -36,7 +36,7 @@ class Readout extends StatelessWidget {
   const Readout({
     super.key,
     required this.value,
-    required this.label,
+    this.label,
     this.unit,
     this.size = ReadoutSize.md,
     this.valueColor,
@@ -46,7 +46,14 @@ class Readout extends StatelessWidget {
   final String? value;
 
   /// The label beneath the value. Rendered uppercase.
-  final String label;
+  ///
+  /// Null means there is no label AND no row reserved for one — the value is
+  /// the whole widget. That is the case where the value already has a label
+  /// beside it: the number at the centre of Tonight's progress ring, a value
+  /// inside a `FormRow` whose label column has already named it. Without this
+  /// those call sites reached for a bare `readoutMd` `Text` and lost the
+  /// tabular figures and the muted unit with it.
+  final String? label;
 
   /// An optional unit attached to the value at 60% size in `textMuted`.
   final String? unit;
@@ -109,15 +116,17 @@ class Readout extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: labelGap),
-        Text(
-          label.toUpperCase(),
-          style: NightshadeTypography.readoutLabel.copyWith(
-            color: colors.textMuted,
+        if (label != null) ...<Widget>[
+          const SizedBox(height: labelGap),
+          Text(
+            label!.toUpperCase(),
+            style: NightshadeTypography.readoutLabel.copyWith(
+              color: colors.textMuted,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        ],
       ],
     );
   }

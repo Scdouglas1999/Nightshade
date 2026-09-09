@@ -99,12 +99,44 @@ abstract final class NightshadeDecorations {
   /// colour at full strength. A null [tone] is the neutral chip and takes a
   /// solid `surfaceHover` fill with `textSecondary` text. A chip has NO border
   /// — the fill is the boundary.
-  static BoxDecoration chip(NightshadeColors colors, {Color? tone}) {
+  /// [radius] overrides the chip radius for the handful of call sites that
+  /// draw a chip-toned SQUARE — a score badge, a 44px count tile. It exists so
+  /// those can leave the deprecated `tintedBadge` / `statusChip`, which took
+  /// a whole `BorderRadius` and were the only reason those two survived.
+  static BoxDecoration chip(
+    NightshadeColors colors, {
+    Color? tone,
+    double? radius,
+  }) {
     return BoxDecoration(
       color: tone == null
           ? colors.surfaceHover
           : tone.withValues(alpha: NightshadeTokens.opacityStatusFill),
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+      borderRadius: BorderRadius.circular(radius ?? NightshadeTokens.radiusXs),
+    );
+  }
+
+  /// A panel that carries a TONE: the same face as [panel] with a status or
+  /// accent tint instead of the `surface` fill.
+  ///
+  /// The successor to the deprecated `emphasisSurface`, which took a bare
+  /// `Color` and could not reach the palette, so it invented its own fill and
+  /// border opacities. This one takes the palette and the tone separately, so
+  /// the tint is on the token scale ([NightshadeTokens.opacityStatusFill]) and
+  /// the ring is the selected-ring one every other tinted surface uses.
+  ///
+  /// Rare by design: 02 rule 4 says one panel style. Reach for it only where
+  /// the tone IS the message — a warning block, a "session only" surface.
+  static BoxDecoration panelTinted(
+    NightshadeColors colors, {
+    required Color tone,
+  }) {
+    return BoxDecoration(
+      color: tone.withValues(alpha: NightshadeTokens.opacityStatusFill),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+      border: Border.all(
+        color: tone.withValues(alpha: NightshadeTokens.opacitySelectedRing),
+      ),
     );
   }
 
