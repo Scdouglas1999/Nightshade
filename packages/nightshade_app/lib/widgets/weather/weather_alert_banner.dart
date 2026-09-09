@@ -55,8 +55,12 @@ class _WeatherAlertBannerState extends ConsumerState<WeatherAlertBanner>
     final alertLevel = safetyState.currentAlertLevel;
     final status = safetyState.status;
 
-    // Only show banner for warning or critical levels when not snoozed
-    final shouldShow = (alertLevel == AlertLevel.warning ||
+    // Only show the banner for warning or critical levels when not snoozed,
+    // and only while weather safety is actually monitoring: with the switch
+    // off there is no verdict to raise a global alert with (the Weather
+    // screen's own chip already says "Not monitored").
+    final shouldShow = safetyState.monitoringEnabled &&
+        (alertLevel == AlertLevel.warning ||
             alertLevel == AlertLevel.critical) &&
         status != WeatherSafetyStatus.snoozed;
 
