@@ -321,9 +321,15 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                 ? () => FullscreenImageViewer.show(context, currentImage)
                 : null,
             child: Container(
-              // The canvas is a photo backdrop, so it stays on the dark
-              // ladder in every theme, exactly like the glass over it.
-              color: NightshadeColors.dark.background,
+              // The canvas is a photo backdrop, so it stays on the dark ladder
+              // in every theme EXCEPT red night, where the wavelength rule
+              // outranks the image-anchoring one (05 §14, and the same
+              // exception NightshadeDecorations.glass makes). The dark
+              // background is #0B0D12 — G and B differ, so leaving it here put
+              // 515,307 off-axis pixels on a red-night Imaging screen.
+              color: colors.isRedNight
+                  ? colors.background
+                  : NightshadeColors.dark.background,
               child: Stack(
                 children: [
                   // Image display or empty state
