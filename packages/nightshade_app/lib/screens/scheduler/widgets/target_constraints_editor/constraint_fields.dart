@@ -82,10 +82,17 @@ class _TimeWindowField extends StatelessWidget {
         ),
         if (window.endMinutes < window.startMinutes) ...[
           const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            '(crosses midnight)',
-            style:
-                NightshadeTypography.caption.copyWith(color: colors.textMuted),
+          // Flexible: the two time buttons and the word "to" have first claim
+          // on the row, and the note about midnight is the part that can wrap
+          // away. The Observatory scale raised `body` from 13 to 14, which is
+          // what pushed this row 11px over its box.
+          Flexible(
+            child: Text(
+              '(crosses midnight)',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ],

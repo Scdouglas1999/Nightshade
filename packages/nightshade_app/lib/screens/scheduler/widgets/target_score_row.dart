@@ -183,18 +183,32 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The chip's own fill IS its boundary in this language (05 §10), so this
+    // uses the shared chip decoration rather than a hand-rolled tint + border.
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: color.withValues(alpha: 0.40)),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: 3,
       ),
-      child: Text(
-        label,
-        style: NightshadeTypography.eyebrow.copyWith(color: color),
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
+      decoration: NightshadeDecorations.chip(
+        NightshadeColors.of(context),
+        tone: color,
+      ),
+      // Flexible, not a bare Text: `eyebrow` carries +0.7 tracking, which is
+      // enough to push some labels past the 130px column the row gives this
+      // slot. Ellipsising is the row's job, not an overflow stripe's.
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              style: NightshadeTypography.eyebrow.copyWith(color: color),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

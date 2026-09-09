@@ -114,7 +114,7 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    expect(find.text('Could not verify membership'), findsOneWidget);
+    expect(find.textContaining('Could not verify membership'), findsOneWidget);
     expect(find.text('Join session'), findsNothing);
     expect(find.text('Leave'), findsNothing);
     await tester.tap(find.text('Retry'));

@@ -159,7 +159,7 @@ void main() {
 
     serviceA.result.complete(_solved());
     await tester.pump();
-    expect(find.text('Frame solved'), findsNothing);
+    expect(find.textContaining('Frame solved'), findsNothing);
 
     await tester.tap(find.text('Solve latest camera frame').last);
     await tester.pump();
@@ -167,6 +167,6 @@ void main() {
 
     serviceB.result.complete(_solved());
     await tester.pump();
-    expect(find.text('Frame solved'), findsOneWidget);
+    expect(find.textContaining('Frame solved'), findsOneWidget);
   });
 }

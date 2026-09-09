@@ -311,10 +311,16 @@ class _Countdown extends StatelessWidget {
         Icon(LucideIcons.timer,
             size: NightshadeTokens.iconSm, color: colors.textSecondary),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: NightshadeTypography.caption
-              .copyWith(color: colors.textSecondary),
+        // Flexible: the countdown grows a character at 10 minutes and again at
+        // an hour, and the panel this sits in is only ~311px wide when the
+        // scheduler is embedded in the Plan tab.
+        Flexible(
+          child: Text(
+            label,
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
