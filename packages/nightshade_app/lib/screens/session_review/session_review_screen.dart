@@ -250,9 +250,9 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
           bottom: false,
           child: Column(
             children: [
-              ScreenHeader(
-                title: 'Session Review',
-                subtitle: 'Host-only processing',
+              PageHeader(
+                title: 'Session review',
+                context: 'Host-only processing',
                 icon: NightshadeIcons.image,
               ),
               Expanded(
@@ -321,78 +321,93 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
         bottom: false,
         child: Column(
           children: [
-            ScreenHeader(
-              title: state.title,
-              subtitle: state.loading
-                  ? 'Loading…'
-                  : '${state.acceptedCount} accepted · ${state.rejectedCount} rejected',
+            PageHeader(
+              title: 'Session review',
+              // The night, as the header's one qualifying fact. It used to BE
+              // the title, which left the screen unable to say which screen it
+              // was, and the accepted / rejected counts sat under it as a
+              // subtitle — a measurement in prose. They are Readouts on the
+              // cull rail now, beside the subs they count.
+              context: state.title,
               icon: NightshadeIcons.image,
-              trailing: Wrap(
-                spacing: NightshadeTokens.spaceSm,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  // The manual half of the dawn autopilot. Reaching it here is
-                  // deliberate: this is the screen an operator is already on
-                  // when they decide tonight is worth drafting now rather than
-                  // at dawn. The whole screen is host-only — the role arm above
-                  // returns before this — so the pass only ever runs on the
-                  // machine that owns the masters it reads.
-                  Tooltip(
-                    message: sessionId == null
-                        ? 'This review spans a target rather than one night. '
-                            'Open a single session to process it.'
-                        : passIsLive
-                            ? 'A Darkroom pass over this night is already '
-                                'under way. Stop it before starting another.'
-                            : 'Draft tonight\'s masters in the Darkroom now, '
-                                'without waiting for dawn',
-                    child: NightshadeButton(
-                      key: const ValueKey('session_review_process_now'),
-                      label: 'Process now',
-                      icon: NightshadeIcons.sliders,
-                      variant: ButtonVariant.secondary,
-                      size: ButtonSize.small,
-                      isLoading: _darkroomRunning,
-                      // Disabled on the DURABLE answer, so a screen that was
-                      // popped and re-pushed over a session already being
-                      // processed does not offer to process it again.
-                      onPressed: (sessionId == null || passIsLive)
-                          ? null
-                          : () => _processTonightNow(sessionId),
-                    ),
+              // The narrative / workbench switch was a second header row of
+              // pill chips under the first. One tab style, in the page header
+              // (05 §4).
+              tabs: AdaptiveTabBar(
+                tabs: const [
+                  AdaptiveTab(
+                    label: 'Narrative',
+                    icon: NightshadeIcons.image,
+                    buttonKey: ValueKey('session_review_tab_narrative'),
                   ),
-                  // The way out of a pass that is already under way. Present
-                  // only while one is: a Stop that is always on the header
-                  // would be a control with nothing to stop.
-                  if (passIsLive && sessionId != null)
-                    Tooltip(
-                      message: 'Stop the Darkroom pass. The master being '
-                          'rendered finishes; nothing after it starts.',
-                      child: NightshadeButton(
-                        key: const ValueKey('session_review_stop_pass'),
-                        label: _stopRequested ? 'Stopping…' : 'Stop',
-                        icon: NightshadeIcons.stop,
-                        variant: ButtonVariant.destructive,
-                        size: ButtonSize.small,
-                        onPressed: _stopRequested
-                            ? null
-                            : () => _stopTonightsPass(sessionId),
-                      ),
-                    ),
-                  NightshadeButton(
-                    label: 'Refresh',
-                    icon: NightshadeIcons.refresh,
-                    variant: ButtonVariant.secondary,
-                    size: ButtonSize.small,
-                    onPressed: () => _controller.refresh(),
+                  AdaptiveTab(
+                    label: 'Workbench',
+                    icon: NightshadeIcons.sliders,
+                    buttonKey: ValueKey('session_review_tab_workbench'),
                   ),
                 ],
+                selectedIndex: isNarrative ? 0 : 1,
+                onSelected: (index) => _controller.setViewMode(
+                  index == 0
+                      ? SessionReviewViewMode.narrative
+                      : SessionReviewViewMode.workbench,
+                ),
               ),
-            ),
-            // Narrative ↔ workbench toggle: one tap, two renderings of one model.
-            SessionReviewViewToggleBar(
-              mode: state.viewMode,
-              onChanged: (m) => _controller.setViewMode(m),
+              actions: [
+                // The manual half of the dawn autopilot. Reaching it here is
+                // deliberate: this is the screen an operator is already on
+                // when they decide tonight is worth drafting now rather than
+                // at dawn. The whole screen is host-only — the role arm above
+                // returns before this — so the pass only ever runs on the
+                // machine that owns the masters it reads.
+                Tooltip(
+                  message: sessionId == null
+                      ? 'This review spans a target rather than one night. '
+                          'Open a single session to process it.'
+                      : passIsLive
+                          ? 'A Darkroom pass over this night is already '
+                              'under way. Stop it before starting another.'
+                          : 'Draft tonight\'s masters in the Darkroom now, '
+                              'without waiting for dawn',
+                  child: NightshadeButton(
+                    key: const ValueKey('session_review_process_now'),
+                    label: 'Process now',
+                    icon: NightshadeIcons.sliders,
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    isLoading: _darkroomRunning,
+                    // Disabled on the DURABLE answer, so a screen that was
+                    // popped and re-pushed over a session already being
+                    // processed does not offer to process it again.
+                    onPressed: (sessionId == null || passIsLive)
+                        ? null
+                        : () => _processTonightNow(sessionId),
+                  ),
+                ),
+                // The way out of a pass that is already under way. Present
+                // only while one is: a Stop that is always on the header
+                // would be a control with nothing to stop.
+                if (passIsLive && sessionId != null)
+                  Tooltip(
+                    message: 'Stop the Darkroom pass. The master being '
+                        'rendered finishes; nothing after it starts.',
+                    child: NightshadeButton(
+                      key: const ValueKey('session_review_stop_pass'),
+                      label: _stopRequested ? 'Stopping…' : 'Stop',
+                      icon: NightshadeIcons.stop,
+                      variant: ButtonVariant.destructive,
+                      size: ButtonSize.small,
+                      onPressed: _stopRequested
+                          ? null
+                          : () => _stopTonightsPass(sessionId),
+                    ),
+                  ),
+                NightshadeIconButton(
+                  icon: NightshadeIcons.refresh,
+                  tooltip: 'Re-read this night\'s subs and masters',
+                  onPressed: () => _controller.refresh(),
+                ),
+              ],
             ),
             // Live integration progress (phase + fraction). Only present while a
             // long-running run is reporting progress.
@@ -408,108 +423,6 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                       : WorkbenchView(scope: widget.scope),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The narrative ↔ workbench segmented toggle that sits under the header. One
-/// tap switches which rendering of the single controller state is shown.
-class SessionReviewViewToggleBar extends StatelessWidget {
-  final SessionReviewViewMode mode;
-  final ValueChanged<SessionReviewViewMode> onChanged;
-
-  const SessionReviewViewToggleBar({
-    super.key,
-    required this.mode,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      child: Row(
-        children: [
-          _ToggleChip(
-            label: 'Narrative',
-            icon: NightshadeIcons.image,
-            selected: mode == SessionReviewViewMode.narrative,
-            onTap: () => onChanged(SessionReviewViewMode.narrative),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          _ToggleChip(
-            label: 'Workbench',
-            icon: NightshadeIcons.sliders,
-            selected: mode == SessionReviewViewMode.workbench,
-            onTap: () => onChanged(SessionReviewViewMode.workbench),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ToggleChip({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    final fg = selected ? colors.onPrimary : colors.textSecondary;
-    return Semantics(
-      button: true,
-      enabled: true,
-      selected: selected,
-      child: Material(
-        color: selected ? colors.primary : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
-          // The app theme's hoverColor is an OPAQUE surface tone, so the
-          // pointer left resting on a chip after the click that selected it
-          // repainted the primary fill grey — the selected tab looked disabled
-          // and the unselected one looked live. A tint of the chip's own
-          // foreground sits on the fill instead of replacing it.
-          hoverColor: fg.withValues(alpha: 0.08),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceMd,
-              vertical: NightshadeTokens.spaceSm,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: NightshadeTokens.iconSm, color: fg),
-                const SizedBox(width: NightshadeTokens.spaceXs),
-                Text(
-                  label,
-                  style: NightshadeTypography.button.copyWith(color: fg),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

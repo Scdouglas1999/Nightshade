@@ -385,7 +385,7 @@ class _PresetChips extends StatelessWidget {
           ),
           selected: selected,
           selectedColor: colors.primary.withValues(alpha: 0.2),
-          backgroundColor: colors.surfaceAlt,
+          backgroundColor: colors.well,
           side: BorderSide(color: selected ? colors.primary : colors.border),
           onSelected: (_) => onSelected(preset),
           visualDensity: VisualDensity.compact,

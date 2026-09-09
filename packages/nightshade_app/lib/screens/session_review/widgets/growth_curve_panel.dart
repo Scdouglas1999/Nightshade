@@ -217,7 +217,7 @@ class GrowthCurvePanel extends StatelessWidget {
             children: [
               Text(
                 'Project growth',
-                style: NightshadeTypography.h5.copyWith(
+                style: NightshadeTypography.sectionTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

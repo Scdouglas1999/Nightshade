@@ -440,7 +440,7 @@ class _FinishingActions extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Finishing (non-destructive previews)',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -585,7 +585,7 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
               Expanded(
                 child: Text(
                   'PSF field map',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -726,7 +726,7 @@ class _NarrowbandCompositeCard extends StatelessWidget {
                     children: [
                       Text(
                         '${c.palette.toUpperCase()} composite',
-                        style: NightshadeTypography.h5
+                        style: NightshadeTypography.sectionTitle
                             .copyWith(color: colors.textPrimary),
                       ),
                       const SizedBox(height: NightshadeTokens.spaceXs),

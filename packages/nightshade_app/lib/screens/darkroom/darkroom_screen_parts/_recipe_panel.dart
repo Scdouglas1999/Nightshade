@@ -44,14 +44,16 @@ const int kDarkroomDraftNoteCollapsedChars = 100;
 class _DarkroomCollapsibleAlert extends StatefulWidget {
   const _DarkroomCollapsibleAlert({
     required this.message,
-    required this.severity,
+    required this.tone,
     required this.disclosureObject,
-    this.title,
+    required this.title,
   });
 
-  final String? title;
+  /// NightshadeBanner puts the title and the message on ONE line, so the title
+  /// is required: a banner with no title starts mid-sentence.
+  final String title;
   final String message;
-  final NightshadeAlertSeverity severity;
+  final BannerTone tone;
 
   /// What the expander opens, named as an object: "the draft's omissions".
   final String disclosureObject;
@@ -126,7 +128,7 @@ class _DarkroomCollapsibleAlertState extends State<_DarkroomCollapsibleAlert> {
     final showing =
         (collapsed == null || _expanded) ? widget.message : collapsed;
     return NightshadeBanner(
-      tone: widget.severity,
+      tone: widget.tone,
       title: widget.title,
       message: showing,
       action: collapsed == null
@@ -398,7 +400,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
       ],
       if (notes.isNotEmpty) ...[
         _DarkroomCollapsibleAlert(
-          severity: NightshadeAlertSeverity.info,
+          tone: BannerTone.info,
           title: _draftNotesTitle(notes),
           disclosureObject: "the draft's omissions",
           message: [
@@ -561,7 +563,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
       if (warnings.isNotEmpty) ...[
         const SizedBox(height: NightshadeTokens.spaceSm),
         _DarkroomCollapsibleAlert(
-          severity: NightshadeAlertSeverity.warning,
+          tone: BannerTone.warning,
           title: warnings.length == 1
               ? 'The integration recorded a calibration warning'
               : 'The integration recorded ${warnings.length} calibration '
@@ -661,7 +663,7 @@ class _DarkroomRecipePanelState extends State<_DarkroomRecipePanel> {
         // nothing.
         children.add(
           _DarkroomCollapsibleAlert(
-            severity: NightshadeAlertSeverity.error,
+            tone: BannerTone.error,
             title: 'The render did not finish',
             disclosureObject: 'why the render did not finish',
             message: error,

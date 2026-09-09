@@ -31,10 +31,11 @@ class SessionInterruptionBanner extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
-      child: NightshadeInlineBanner(
+      child: NightshadeBanner(
         key: const ValueKey('session_review_interruption_banner'),
+        title: 'This session was interrupted',
         message: sentence,
-        severity: NightshadeAlertSeverity.warning,
+        tone: BannerTone.warning,
       ),
     );
   }

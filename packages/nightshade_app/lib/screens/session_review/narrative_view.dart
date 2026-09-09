@@ -358,7 +358,7 @@ class _ActionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -556,8 +556,9 @@ String? gradedSubsDisagreementMessage({
   // Only a *clean graded* verdict can be contradicted. An ungraded night
   // already says it could not judge, and a night that lists findings is not
   // claiming there is nothing wrong.
-  if (report == null || !report.graded || report.findings.isNotEmpty)
+  if (report == null || !report.graded || report.findings.isNotEmpty) {
     return null;
+  }
   if (subs.isEmpty) return null;
 
   const assessor = FrameQualityAssessmentService();

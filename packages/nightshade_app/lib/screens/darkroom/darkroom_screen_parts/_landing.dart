@@ -12,10 +12,10 @@ enum _DarkroomLandingTab {
   masters;
 
   String get label => switch (this) {
-    _DarkroomLandingTab.recipes => 'Recipes',
-    _DarkroomLandingTab.sessions => 'Sessions',
-    _DarkroomLandingTab.masters => 'Masters',
-  };
+        _DarkroomLandingTab.recipes => 'Recipes',
+        _DarkroomLandingTab.sessions => 'Sessions',
+        _DarkroomLandingTab.masters => 'Masters',
+      };
 }
 
 /// One master, with the recipes written over it.
@@ -63,7 +63,8 @@ class _DarkroomLandingData {
 /// masters list the session review's own library panel reads, and
 /// `listForMaster` is what the editor calls when it resolves a master to its
 /// newest recipe.
-final _darkroomLandingProvider = FutureProvider.autoDispose<_DarkroomLandingData>((
+final _darkroomLandingProvider =
+    FutureProvider.autoDispose<_DarkroomLandingData>((
   ref,
 ) async {
   final masters = await ref.watch(integratedMastersDaoProvider).getAll();
@@ -162,7 +163,8 @@ class _DarkroomLandingViewState extends ConsumerState<_DarkroomLandingView> {
     // The one loading, error and empty pattern (07, wave 3 checklist): a
     // centred spinner, ONE EmptyState with one button, never a stack of cards.
     return data.when(
-      loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (error, _) => Center(
         child: EmptyState(
           icon: NightshadeIcons.imageOff,
@@ -214,8 +216,7 @@ class _DarkroomLandingViewState extends ConsumerState<_DarkroomLandingView> {
             icon: NightshadeIcons.layers,
             variant: ButtonVariant.secondary,
             size: ButtonSize.small,
-            onPressed: () =>
-                setState(() => _tab = _DarkroomLandingTab.masters),
+            onPressed: () => setState(() => _tab = _DarkroomLandingTab.masters),
           ),
         ),
       );

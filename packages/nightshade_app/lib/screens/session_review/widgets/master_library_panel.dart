@@ -180,7 +180,7 @@ class _MasterCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         master.name,
-                        style: NightshadeTypography.h6.copyWith(
+                        style: NightshadeTypography.sectionTitle.copyWith(
                           color: colors.textPrimary,
                         ),
                         maxLines: 1,
@@ -327,15 +327,23 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: NightshadeDecorations.tintedBadge(
-        color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
+      height: NightshadeChip.height,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeChip.horizontalPadding,
       ),
+      // The chip decoration, not a pill: 02 allows four radii (4 / 6 / 8 / 12)
+      // and `radiusFull` is not one of them. The tone supplies the fill at
+      // `opacityStatusFill` and the ink.
+      decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
-        style: NightshadeTypography.labelStrongSm.copyWith(color: color),
+        style: NightshadeTypography.caption.copyWith(
+          color: color,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -411,7 +419,7 @@ class _MiniButton extends StatelessWidget {
               vertical: NightshadeTokens.spaceXs,
             ),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               border: Border.all(color: colors.border),
             ),

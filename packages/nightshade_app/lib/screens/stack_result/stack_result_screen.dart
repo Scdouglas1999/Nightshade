@@ -150,17 +150,17 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
       durableRgba,
     );
 
-    final subtitle = '${result.framesStacked} frame'
-        '${result.framesStacked == 1 ? '' : 's'} · '
-        '${formatHms(result.integrationSecs)} integration';
-
     return Column(
       children: [
-        ScreenHeader(
-          title: result.targetName ?? 'Stacked Result',
-          subtitle: subtitle,
+        PageHeader(
+          title: 'Stack result',
+          // The target qualifies the title. The frame count and the
+          // integration used to be a subtitle sentence here; they are Readouts
+          // in the side panel now, where every other number about this stack
+          // already lived.
+          context: result.targetName,
           icon: NightshadeIcons.image,
-          trailing: _buildActions(context, colors, result, rgba),
+          actions: [_buildActions(context, colors, result, rgba)],
         ),
         Expanded(
           // [Responsive.isMobile] is device-class aware: on a mobile OS it keys
@@ -476,48 +476,50 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SectionHeader(title: 'Display'),
-        const SizedBox(height: NightshadeTokens.spaceSm),
+        const SectionTitle(
+          icon: NightshadeIcons.image,
+          title: 'Display',
+        ),
         _buildStretchControl(colors, mono),
         const SizedBox(height: NightshadeTokens.space2xl),
-        const SectionHeader(title: 'Integration'),
-        const SizedBox(height: NightshadeTokens.spaceSm),
-        _StatRow(
-          label: 'Integration',
-          value: formatHms(result.integrationSecs),
-        ),
-        _StatRow(
-          label: 'Frames stacked',
-          value: '${result.framesStacked}',
-        ),
-        _StatRow(
-          label: 'Rejected',
-          value: '${result.framesRejected}',
-        ),
-        _StatRow(
-          label: 'Avg residual',
-          value: '${result.avgAlignmentResidual.toStringAsFixed(2)} px',
-        ),
-        if (result.avgHfr != null)
-          _StatRow(
-            label: 'Avg HFR',
-            value: '${result.avgHfr!.toStringAsFixed(2)} px',
+        SectionTitle(
+          icon: NightshadeIcons.layers,
+          title: 'Integration',
+          trailing: NightshadeChip(
+            label: '${result.framesAttempted} attempted',
+            icon: NightshadeIcons.layers,
           ),
-        if (result.filter != null)
-          _StatRow(label: 'Filter', value: result.filter!),
-        _StatRow(
-          label: 'Dimensions',
-          value: '${result.width} × ${result.height}',
         ),
-        const SizedBox(height: NightshadeTokens.spaceMd),
-        Row(
+        // The three numbers this screen exists to report, loud (05 §3). The
+        // rest are reference and stay in the key/value list below.
+        ReadoutRow(
+          gap: NightshadeTokens.spaceLg,
           children: [
-            StatusPill(
-              icon: NightshadeIcons.layers,
-              label: 'Attempted',
-              value: '${result.framesAttempted}',
-              status: StatusPillStatus.inactive,
+            Readout(
+              value: formatHms(result.integrationSecs),
+              label: 'Integrated',
             ),
+            Readout(value: '${result.framesStacked}', label: 'Stacked'),
+            Readout(value: '${result.framesRejected}', label: 'Rejected'),
+          ],
+        ),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+        KeyValueList(
+          rows: [
+            (
+              'Avg residual',
+              '${result.avgAlignmentResidual.toStringAsFixed(2)} px',
+            ),
+            // Unknown renders as an em dash, never as a row that is simply
+            // absent: a missing HFR and an HFR of zero are different facts.
+            (
+              'Avg HFR',
+              result.avgHfr == null
+                  ? '—'
+                  : '${result.avgHfr!.toStringAsFixed(2)} px'
+            ),
+            ('Filter', result.filter ?? '—'),
+            ('Dimensions', '${result.width} × ${result.height}'),
           ],
         ),
       ],

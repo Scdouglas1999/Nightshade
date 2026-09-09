@@ -248,7 +248,7 @@ class ImprovementCurvePanel extends StatelessWidget {
             children: [
               Text(
                 'Integration improvement',
-                style: NightshadeTypography.h5.copyWith(
+                style: NightshadeTypography.sectionTitle.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

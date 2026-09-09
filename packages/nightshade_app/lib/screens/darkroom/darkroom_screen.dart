@@ -302,15 +302,15 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     final render = _headerAction(state);
     return [
       _backControl(savePending: state.savePending),
-        // The same boundary the Back control carries, for the same reason. The
-        // `CallbackShortcuts` above publishes one focusable node over the whole
-        // screen, and every unbounded fragment under it merges in — so in a
-        // layout whose BODY offers no competing action, this one's tap and role
-        // landed on the node holding the header's own words: the start offer
-        // reached AT-SPI as a single button named "Darkroom / No recipe yet /
-        // Reload", with the screen's title readable only as part of a control's
-        // name. The editor layout escaped it purely because its body has
-        // actions of its own to be incompatible with.
+      // The same boundary the Back control carries, for the same reason. The
+      // `CallbackShortcuts` above publishes one focusable node over the whole
+      // screen, and every unbounded fragment under it merges in — so in a
+      // layout whose BODY offers no competing action, this one's tap and role
+      // landed on the node holding the header's own words: the start offer
+      // reached AT-SPI as a single button named "Darkroom / No recipe yet /
+      // Reload", with the screen's title readable only as part of a control's
+      // name. The editor layout escaped it purely because its body has
+      // actions of its own to be incompatible with.
       if (render != null) Semantics(container: true, child: render),
     ];
   }
@@ -564,7 +564,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
           vertical: NightshadeTokens.spaceSm,
         ),
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.surface,
           border: Border(bottom: BorderSide(color: colors.border)),
         ),
         child: Column(

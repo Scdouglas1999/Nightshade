@@ -121,7 +121,7 @@ class _AbComparePanelState extends State<AbComparePanel> {
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Text(
                   'A / B recipe compare',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.sectionTitle
                       .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
@@ -369,7 +369,7 @@ class _Chip extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
@@ -513,13 +513,13 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: NightshadeTypography.statValue
+          style: NightshadeTypography.readoutMd
               .copyWith(color: colors.textPrimary),
         ),
         Text(
           label.toUpperCase(),
-          style:
-              NightshadeTypography.statLabel.copyWith(color: colors.textMuted),
+          style: NightshadeTypography.readoutLabel
+              .copyWith(color: colors.textMuted),
         ),
       ],
     );

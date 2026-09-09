@@ -1128,9 +1128,8 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
           width: double.infinity,
           padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+            color: colors.well,
             borderRadius: NightshadeTokens.borderRadiusSm,
-            border: Border.all(color: colors.border),
           ),
           child: Text(
             effective == null ? 'no value stored' : '$effective',

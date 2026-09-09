@@ -41,11 +41,10 @@ class MosaicProjectsListScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _BackBar(colors: colors),
-              const ScreenHeader(
+              PageHeader(
                 icon: NightshadeIcons.grid,
                 title: 'Mosaic projects',
-                subtitle: 'Multi-panel mosaics: capture, integrate, stitch',
+                actions: [_MosaicBackAction()],
               ),
               const Expanded(
                 child: EmptyState(
@@ -70,17 +69,22 @@ class MosaicProjectsListScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _BackBar(colors: colors),
-            ScreenHeader(
+            PageHeader(
               icon: NightshadeIcons.grid,
+              // No subtitle. "Multi-panel mosaics: capture, integrate, stitch"
+              // described the screen to someone who has already opened it;
+              // 02's fifth rule sends that to the help popover.
               title: 'Mosaic projects',
-              subtitle: 'Multi-panel mosaics: capture, integrate, stitch',
-              trailing: NightshadeButton(
-                label: 'New mosaic',
-                icon: NightshadeIcons.add,
-                size: ButtonSize.small,
-                onPressed: () => _newMosaic(context, ref),
-              ),
+              actions: [
+                const _MosaicBackAction(),
+                // The page's ONE primary (02, rule 4).
+                NightshadeButton(
+                  label: 'New mosaic',
+                  icon: NightshadeIcons.add,
+                  size: ButtonSize.small,
+                  onPressed: () => _newMosaic(context, ref),
+                ),
+              ],
             ),
             Expanded(
               child: RefreshIndicator(
@@ -153,65 +157,28 @@ class MosaicProjectsListScreen extends ConsumerWidget {
 /// operator who opened it had no control that led anywhere except into a
 /// project. Mirrors the bar the project screen and the collaborative mosaic
 /// detail screen already carry.
-class _BackBar extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _BackBar({required this.colors});
+/// The way out, in the page header.
+///
+/// This was a full-width "< Back" bar ABOVE the header — a second header row
+/// on a screen 04-shell §4 gives one. The affordance stays (the mosaic routes
+/// are pushed, and the rail highlights Darkroom while they are up); it is a
+/// header action now, the same shape the Darkroom editor uses.
+class _MosaicBackAction extends StatelessWidget {
+  const _MosaicBackAction();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceSm,
-        vertical: NightshadeTokens.spaceXs,
-      ),
-      alignment: Alignment.centerLeft,
-      // ONE tap target for the whole "< Back" affordance: a label outside the
-      // IconButton leaves the word — the part that reads as the control —
-      // unpressable.
-      child: Tooltip(
-        message: 'Back',
-        // A bare InkWell publishes a tap action but no role, so a screen
-        // reader read "Back" as static text. The button role is what tells
-        // the operator the row can be activated.
-        child: Semantics(
-          button: true,
-          enabled: true,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-            onTap: () => _leave(context),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: NightshadeTokens.spaceSm,
-                vertical: NightshadeTokens.spaceSm,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    NightshadeIcons.chevronLeft,
-                    size: NightshadeTokens.iconMd,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceXs),
-                  Text(
-                    'Back',
-                    style: NightshadeTypography.bodySm
-                        .copyWith(color: colors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return NightshadeIconButton(
+      icon: NightshadeIcons.arrowLeft,
+      tooltip: 'Back to where the mosaic list was opened from',
+      onPressed: () => _leave(context),
     );
   }
 
   /// Pop when this screen sits on a stack (the normal case). A deep link that
   /// left nothing beneath it falls back to Analytics, where the entry point
   /// lives, so the control is never inert.
-  void _leave(BuildContext context) {
+  static void _leave(BuildContext context) {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();

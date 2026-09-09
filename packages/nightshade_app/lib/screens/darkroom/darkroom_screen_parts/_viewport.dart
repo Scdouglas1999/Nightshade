@@ -677,26 +677,9 @@ class _DarkroomTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceSm,
-          vertical: 2,
-        ),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: NightshadeTokens.borderRadiusSm,
-          border: Border.all(color: colors.border),
-        ),
-        child: Text(
-          label,
-          style: NightshadeTypography.captionSm.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-      ),
-    );
+    // A chip is a chip (05 §10): 22 px, solid `surfaceHover`, `radiusXs`, no
+    // border. It was a hand-rolled bordered box with its own padding and text
+    // size, which is the "second style of something" 02's fourth rule forbids.
+    return Tooltip(message: tooltip, child: NightshadeChip(label: label));
   }
 }

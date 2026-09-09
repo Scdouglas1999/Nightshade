@@ -60,14 +60,14 @@ class DarkroomPassBanner extends StatelessWidget {
     final pass = job;
     if (pass == null) return const SizedBox.shrink();
     final String lead;
-    final NightshadeAlertSeverity severity;
+    final BannerTone tone;
     switch (pass.state) {
       case DarkroomJobState.failed:
         lead = 'The Darkroom pass for this night failed.';
-        severity = NightshadeAlertSeverity.error;
+        tone = BannerTone.error;
       case DarkroomJobState.cancelled:
         lead = 'The Darkroom pass for this night was stopped.';
-        severity = NightshadeAlertSeverity.warning;
+        tone = BannerTone.warning;
       case DarkroomJobState.queued:
         return _QueuedPass(pass: pass);
       case DarkroomJobState.done:
@@ -95,12 +95,13 @@ class DarkroomPassBanner extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
-      child: NightshadeInlineBanner(
+      child: NightshadeBanner(
         key: const ValueKey('session_review_darkroom_pass_banner'),
+        title: 'The Darkroom pass did not finish',
         message: '$lead $why$stage '
             'The subs and any masters already integrated are untouched — '
             'press Process now to run the pass again.',
-        severity: severity,
+        tone: tone,
       ),
     );
   }
@@ -215,15 +216,14 @@ class _QueuedPass extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
-      child: NightshadeInlineBanner(
+      child: NightshadeBanner(
         key: const ValueKey('session_review_darkroom_pass_banner'),
-        message:
-            'The Darkroom pass for this night is queued and has not run yet, '
-            'so the drafts, the night report, the delivery and the morning '
+        title: 'The Darkroom pass is still queued',
+        message: 'The drafts, the night report, the delivery and the morning '
             'message it owes have not happened.$why$history '
             'It runs on its own when the Darkroom queue is drained; press '
             'Process now to run it here.',
-        severity: NightshadeAlertSeverity.warning,
+        tone: BannerTone.warning,
       ),
     );
   }

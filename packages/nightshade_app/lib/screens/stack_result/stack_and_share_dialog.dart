@@ -106,7 +106,7 @@ StackShareFailure describeStackShareFailure(String raw) {
 /// live [NightshadeProgressBar] with the current phase and frame counters. On
 /// success it auto-pops and navigates to the result viewer
 /// (`/stack-result?id=<resultId>`); on failure it surfaces the error inline as a
-/// [NightshadeAlert].
+/// [NightshadeBanner].
 ///
 /// Show it with [StackAndShareDialog.show], which wires the dialog into a
 /// [NightshadeDialog] scaffold via `showDialog`.
@@ -534,8 +534,8 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
         if (detected != null) ...[
           // Live colour camera detected: surface the auto-detection read-only,
           // with the manual override behind an expander.
-          NightshadeInlineBanner(
-            severity: NightshadeAlertSeverity.info,
+          NightshadeBanner(
+            title: 'Colour camera detected',
             message: 'Auto-detected: OSC $detected',
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
@@ -597,7 +597,8 @@ class _SelectionSummary extends StatelessWidget {
         children: [
           Text(
             selection.targetName ?? 'Stacked result',
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           if (filterEntries.isNotEmpty) ...[

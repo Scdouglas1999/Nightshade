@@ -1,126 +1,96 @@
-// On Session Review the SELECTED tab must not render as a grey chip with dimmed
-// text while the unselected one keeps bright text — inverted against every other
-// tab strip in the app.
+// On Session Review the SELECTED tab must not read as the dim one, and the
+// tab strip must say which view is live to assistive tech as well as in pixels.
 //
-// The app theme sets an OPAQUE `hoverColor`, and the pointer rests on whichever
-// chip was just clicked, so the selected chip paints #212630 (surfaceHover) over
-// its #5B9EC4 primary fill. That is why the dim one is always the open one.
+// This used to guard a pair of pill chips under the header. The Observatory
+// overhaul (05 §4) allows ONE tab style — the underline strip in the page
+// header — so the pills are gone and the assertions moved onto `AdaptiveTabBar`.
+// The DEFECTS the old test pinned are still the ones worth pinning:
 //
-// The same nodes must not expose to assistive tech as `panel: Workbench` with no
-// selected state either, or neither the pixels nor the tree says which tab is
-// live.
+//  * the app theme's `hoverColor` is opaque, and the pointer rests on whichever
+//    tab was just clicked, so a selection painted as a FILL was repainted grey
+//    by its own hover and the open tab looked disabled. The underline style has
+//    no fill to erase, and the selected label must stay `textPrimary` with the
+//    pointer parked on it;
+//  * a tab that exposes no selected state leaves neither the pixels nor the
+//    tree saying which view is live.
 
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsFlag;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_app/screens/session_review/session_review_controller.dart';
-import 'package:nightshade_app/screens/session_review/session_review_screen.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-Widget _bar(
-    SessionReviewViewMode mode, void Function(SessionReviewViewMode) f) {
-  return ProviderScope(
-    child: MaterialApp(
-      theme: NightshadeTheme.dark,
-      home: Scaffold(
-        body: SessionReviewViewToggleBar(mode: mode, onChanged: f),
+/// The tab strip as Session Review builds it: Narrative, then Workbench.
+Widget _tabs(int selected, ValueChanged<int> onSelected) {
+  return MaterialApp(
+    theme: NightshadeTheme.dark,
+    home: Scaffold(
+      body: AdaptiveTabBar(
+        tabs: const [
+          AdaptiveTab(label: 'Narrative', icon: NightshadeIcons.image),
+          AdaptiveTab(label: 'Workbench', icon: NightshadeIcons.sliders),
+        ],
+        selectedIndex: selected,
+        onSelected: onSelected,
       ),
     ),
   );
 }
 
-/// The Material that paints the chip carrying [label].
-Material _chipMaterial(WidgetTester tester, String label) {
-  return tester.widget<Material>(
-    find.ancestor(of: find.text(label), matching: find.byType(Material)).first,
-  );
-}
+/// The colour the label [text] is painted in.
+Color? _labelColor(WidgetTester tester, String text) =>
+    tester.widget<Text>(find.text(text)).style?.color;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('hovering the selected tab cannot repaint it as unselected',
-      (tester) async {
-    await tester.pumpWidget(
-      _bar(SessionReviewViewMode.workbench, (_) {}),
-    );
+  testWidgets('hovering the selected tab cannot repaint it as unselected', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_tabs(1, (_) {}));
     await tester.pump();
 
-    final selected = _chipMaterial(tester, 'Workbench');
-    expect(selected.color, NightshadeColors.dark.primary);
+    expect(_labelColor(tester, 'Workbench'), NightshadeColors.dark.textPrimary);
 
-    // Park the pointer on the selected chip, exactly as a click leaves it.
+    // Park the pointer on the selected tab, exactly as a click leaves it.
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);
     await mouse.moveTo(tester.getCenter(find.text('Workbench')));
     await tester.pumpAndSettle();
 
-    final inkWell = tester.widget<InkWell>(
-      find
-          .ancestor(of: find.text('Workbench'), matching: find.byType(InkWell))
-          .first,
-    );
-    final hover = inkWell.hoverColor;
     expect(
-      hover,
-      isNotNull,
-      reason: 'the app theme hoverColor is opaque and would erase the fill',
+      _labelColor(tester, 'Workbench'),
+      NightshadeColors.dark.textPrimary,
+      reason: 'the hover must not dim the tab that is open',
     );
     expect(
-      hover!.a,
-      lessThan(1.0),
-      reason: 'a hover tint must sit ON the selection, not replace it',
+      _labelColor(tester, 'Narrative'),
+      isNot(NightshadeColors.dark.textPrimary),
+      reason: 'the unselected tab must stay quieter than the selected one',
     );
-    expect(_chipMaterial(tester, 'Workbench').color,
-        NightshadeColors.dark.primary);
   });
 
-  testWidgets('each tab announces its role and whether it is selected',
-      (tester) async {
+  testWidgets('each tab announces whether it is selected', (tester) async {
     final handle = tester.ensureSemantics();
-    await tester.pumpWidget(_bar(SessionReviewViewMode.workbench, (_) {}));
+    await tester.pumpWidget(_tabs(1, (_) {}));
     await tester.pump();
 
-    expect(
-      tester.getSemantics(find.text('Workbench')),
-      matchesSemantics(
-        label: 'Workbench',
-        isButton: true,
-        isSelected: true,
-        hasSelectedState: true,
-        isEnabled: true,
-        isFocusable: true,
-        hasEnabledState: true,
-        hasTapAction: true,
-        hasFocusAction: true,
-      ),
-    );
-    expect(
-      tester.getSemantics(find.text('Narrative')),
-      matchesSemantics(
-        label: 'Narrative',
-        isButton: true,
-        isSelected: false,
-        hasSelectedState: true,
-        isEnabled: true,
-        isFocusable: true,
-        hasEnabledState: true,
-        hasTapAction: true,
-        hasFocusAction: true,
-      ),
-    );
+    final workbench = tester.getSemantics(find.text('Workbench'));
+    expect(workbench.hasFlag(SemanticsFlag.hasSelectedState), isTrue);
+    expect(workbench.hasFlag(SemanticsFlag.isSelected), isTrue);
+
+    final narrative = tester.getSemantics(find.text('Narrative'));
+    expect(narrative.hasFlag(SemanticsFlag.hasSelectedState), isTrue);
+    expect(narrative.hasFlag(SemanticsFlag.isSelected), isFalse);
     handle.dispose();
   });
 
   testWidgets('tapping an unselected tab still switches view', (tester) async {
-    SessionReviewViewMode? picked;
-    await tester.pumpWidget(
-      _bar(SessionReviewViewMode.workbench, (m) => picked = m),
-    );
+    int? picked;
+    await tester.pumpWidget(_tabs(1, (index) => picked = index));
     await tester.tap(find.text('Narrative'));
     await tester.pump();
-    expect(picked, SessionReviewViewMode.narrative);
+    expect(picked, 0);
   });
 }
