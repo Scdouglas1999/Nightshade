@@ -230,7 +230,6 @@ class _OnboardingOpticalTrainStepState
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
     final imageScale = draft.imageScaleArcsecPerPixel;
     final effectiveFocal = draft.effectiveFocalLengthMm;
@@ -274,17 +273,14 @@ class _OnboardingOpticalTrainStepState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Tell us about your optics',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
+          const SectionTitle(
+            icon: LucideIcons.ruler,
+            title: 'Tell us about your optics',
           ),
-          const SizedBox(height: NightshadeTokens.spaceXs + 2),
           Text(
-            'Image scale and field of view are computed from these numbers, so accurate values matter.',
-            style: theme.textTheme.bodyMedium?.copyWith(
+            'Image scale and field of view are computed from these numbers, '
+            'so accurate values matter.',
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -304,7 +300,7 @@ class _OnboardingOpticalTrainStepState
                   // (equipment_profiles_screen, framing optical config panel).
                   icon: NightshadeIcons.aperture,
                   label: 'Choose from telescope library',
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: _pickFromLibrary,
                 ),
@@ -333,11 +329,10 @@ class _OnboardingOpticalTrainStepState
                               matchesLibrary
                                   ? draft.telescopeName!
                                   : '${draft.telescopeName!} — edited',
-                              style: theme.textTheme.bodySmall?.copyWith(
+                              style: NightshadeTypography.bodyStrong.copyWith(
                                 color: matchesLibrary
                                     ? colors.textPrimary
                                     : colors.textSecondary,
-                                fontWeight: FontWeight.w600,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -403,47 +398,52 @@ class _OnboardingOpticalTrainStepState
           // user's camera, and it drives image scale, plate-solve field of
           // view and the FITS header — so it has to be attributable and
           // overridable, not silently correct-looking.
-          ...?_pixelSizeProvenance(theme, colors, draft),
+          ...?_pixelSizeProvenance(colors, draft),
           const SizedBox(height: NightshadeTokens.spaceXl),
-          // Live preview of derived values. Renders with placeholder "--"
-          // when inputs are missing rather than fabricating a value.
-          NightshadeCard(
-            variant: CardVariant.subtle,
+          // Live preview of derived values. A value whose inputs are missing
+          // or implausible renders as "—", never as a number the optics do not
+          // support; the field that is out of bounds says so itself.
+          Container(
+            decoration: NightshadeDecorations.well(colors),
+            padding: NightshadeTokens.paddingMd,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Computed values',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                  'Computed'.toUpperCase(),
+                  style: NightshadeTypography.eyebrow.copyWith(
+                    color: colors.textMuted,
                   ),
                 ),
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                _row(
-                  theme,
-                  colors,
-                  'Effective focal length',
-                  effectiveFocal != null
-                      ? '${effectiveFocal.toStringAsFixed(1)} mm'
-                      : null,
-                  inputs: [focalOk, reducerOk],
-                ),
-                _row(
-                  theme,
-                  colors,
-                  'Focal ratio',
-                  fRatio != null ? 'f/${fRatio.toStringAsFixed(2)}' : null,
-                  inputs: [focalOk, apertureOk, reducerOk, fRatioOk],
-                ),
-                _row(
-                  theme,
-                  colors,
-                  'Image scale',
-                  imageScale != null
-                      ? '${imageScale.toStringAsFixed(2)} arcsec/px'
-                      : null,
-                  inputs: [focalOk, reducerOk, pixelOk],
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                ReadoutRow(
+                  children: [
+                    Readout(
+                      value: _derived(
+                        effectiveFocal?.toStringAsFixed(1),
+                        [focalOk, reducerOk],
+                      ),
+                      unit: 'mm',
+                      label: 'Effective focal length',
+                    ),
+                    Readout(
+                      value: _derived(
+                        fRatio == null
+                            ? null
+                            : 'f/${fRatio.toStringAsFixed(2)}',
+                        [focalOk, apertureOk, reducerOk, fRatioOk],
+                      ),
+                      label: 'Focal ratio',
+                    ),
+                    Readout(
+                      value: _derived(
+                        imageScale?.toStringAsFixed(2),
+                        [focalOk, reducerOk, pixelOk],
+                      ),
+                      unit: '\u2033/px',
+                      label: 'Image scale',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -453,60 +453,15 @@ class _OnboardingOpticalTrainStepState
     );
   }
 
-  /// One derived readout.
+  /// The value to show for a derived quantity, or null for "—".
   ///
-  /// [inputs] are the per-input plausibility flags this row depends on (see
-  /// [_plausible]): null = not entered yet, false = entered but out of bounds.
-  /// Any false input suppresses the number in favour of an explicit rejection,
-  /// so the panel never presents an implausible result as a computed value.
-  Widget _row(
-    ThemeData theme,
-    NightshadeColors colors,
-    String label,
-    String? value, {
-    required List<bool?> inputs,
-  }) {
-    final rejected = inputs.contains(false);
-    final hasValue = value != null && !rejected;
-    final placeholder = rejected ? 'Check your inputs' : 'Awaiting inputs…';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Icon(LucideIcons.calculator,
-              size: NightshadeTokens.iconXs, color: colors.textSecondary),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          // The label yields, not the number: in a narrow wizard body this row
-          // overflowed horizontally, and truncating a computed quantity is
-          // worse than truncating the word for it.
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            hasValue ? value : placeholder,
-            // Numeric readouts use the mono type ramp so the digits line up
-            // and the value reads as a computed quantity, not prose.
-            style: hasValue
-                ? NightshadeTypography.monoSm.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  )
-                : theme.textTheme.bodySmall?.copyWith(
-                    color: rejected ? colors.warning : colors.textMuted,
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
+  /// [inputs] are the per-input plausibility flags the quantity depends on
+  /// (see [_plausible]): null = not entered yet, false = entered but out of
+  /// bounds. Any false input withholds the number, so the panel never presents
+  /// an implausible result as a computed value — the offending field carries
+  /// the reason.
+  String? _derived(String? value, List<bool?> inputs) =>
+      inputs.contains(false) ? null : value;
 
   /// True when the optics on screen still describe the telescope the badge
   /// names.
@@ -522,7 +477,6 @@ class _OnboardingOpticalTrainStepState
   /// Returns null when nothing was prefilled, or when the user has since typed
   /// a different number — the note must never outlive the value it describes.
   List<Widget>? _pixelSizeProvenance(
-    ThemeData theme,
     NightshadeColors colors,
     OnboardingDraft draft,
   ) {
@@ -538,14 +492,18 @@ class _OnboardingOpticalTrainStepState
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(NightshadeIcons.info, size: 14, color: colors.textSecondary),
+          Icon(
+            NightshadeIcons.info,
+            size: NightshadeTokens.iconXs,
+            color: colors.textMuted,
+          ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
               'Filled in from ${preset.displayName} in the camera library '
               '(${preset.sensorName}). Edit it if your camera differs.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
               ),
             ),
           ),
@@ -557,10 +515,11 @@ class _OnboardingOpticalTrainStepState
 
 enum _OpticalField { focalLength, aperture, reducer, pixelSize }
 
-/// A labelled numeric input with an inline [FieldHelpLabel]. Mirrors the
-/// onboarding wizard's existing field styling (dense outlined [TextField] on a
-/// [NightshadeColors.surface] fill) so the optical-train step stays visually
-/// consistent with the camera-defaults step and the rest of the flow.
+/// A labelled numeric input with an inline [FieldHelpLabel].
+///
+/// The label sits above rather than in a [FormRow] because it carries the
+/// help affordance; the field itself is the design system's
+/// [NightshadeTextField] in its mono numeric mode.
 class _NumericField extends StatelessWidget {
   const _NumericField({
     required this.controller,
@@ -582,45 +541,21 @@ class _NumericField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FieldHelpLabel(label: label, help: help),
-        const SizedBox(height: NightshadeTokens.spaceXs + 2),
-        TextField(
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        NightshadeTextField(
           controller: controller,
+          hint: hint,
+          suffix: suffix,
+          errorText: errorText,
+          mono: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
           ],
-          style: TextStyle(color: colors.textPrimary),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hint,
-            hintStyle: TextStyle(color: colors.textMuted),
-            suffixText: suffix,
-            suffixStyle: TextStyle(color: colors.textSecondary),
-            errorText: errorText,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              borderSide: BorderSide(color: colors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              borderSide: BorderSide(color: colors.primary),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              borderSide: BorderSide(color: colors.error),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              borderSide: BorderSide(color: colors.error),
-            ),
-            filled: true,
-            fillColor: colors.surface,
-          ),
           onChanged: (_) => onChanged(),
         ),
       ],

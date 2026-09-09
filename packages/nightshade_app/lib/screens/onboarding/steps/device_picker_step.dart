@@ -88,7 +88,6 @@ class _OnboardingDevicePickerBodyState
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
     final discovery = ref.watch(unifiedDiscoveryProvider);
     final draft = ref.watch(onboardingDraftProvider);
@@ -135,7 +134,6 @@ class _OnboardingDevicePickerBodyState
             child: _buildBody(
               context,
               colors: colors,
-              theme: theme,
               devices: devices,
               selectedDrivers: selectedDrivers,
               discovery: discovery,
@@ -150,7 +148,6 @@ class _OnboardingDevicePickerBodyState
   Widget _buildBody(
     BuildContext context, {
     required NightshadeColors colors,
-    required ThemeData theme,
     required List<UnifiedDevice> devices,
     required Set<DriverType> selectedDrivers,
     required UnifiedDiscoveryState discovery,
@@ -160,27 +157,14 @@ class _OnboardingDevicePickerBodyState
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(widget.icon, color: colors.primary, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              widget.title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
+        SectionTitle(icon: widget.icon, title: widget.title),
         Text(
           widget.subtitle,
-          style: theme.textTheme.bodyMedium?.copyWith(
+          style: NightshadeTypography.bodySm.copyWith(
             color: colors.textSecondary,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         // Scan controls
         Row(
@@ -188,11 +172,11 @@ class _OnboardingDevicePickerBodyState
             NightshadeButton(
               icon: NightshadeIcons.refresh,
               label: isDiscovering ? 'Scanning...' : 'Scan again',
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed: isDiscovering ? null : _runDiscovery,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             if (widget.selectedDeviceId != null)
               NightshadeButton(
                 icon: NightshadeIcons.close,
@@ -203,7 +187,7 @@ class _OnboardingDevicePickerBodyState
               ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         // Per-backend status (so the user understands why some lists are
         // empty — e.g. INDI server unreachable).
@@ -213,7 +197,7 @@ class _OnboardingDevicePickerBodyState
           deviceType: widget.deviceType,
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: NightshadeTokens.spaceMd),
 
         // Device list. A minimum, not a slot: the surrounding box is a fixed
         // height that the chrome above can eat into, and a list laid out at
@@ -229,16 +213,22 @@ class _OnboardingDevicePickerBodyState
         ),
 
         if (widget.allowSkip) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: NightshadeTokens.spaceMd),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(NightshadeIcons.info, size: 14, color: colors.textSecondary),
-              const SizedBox(width: 8),
+              Icon(
+                NightshadeIcons.info,
+                size: NightshadeTokens.iconXs,
+                color: colors.textMuted,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: Text(
-                  'No matching device? You can skip this step and add it later from the Equipment screen.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
+                  'No matching device? You can skip this step and add it '
+                  'later from the Equipment screen.',
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
                   ),
                 ),
               ),
@@ -330,7 +320,6 @@ class _BackendStatusRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
     final entries =
         drivers.map((d) => MapEntry(d, discovery.backendStates[d])).toList();
@@ -340,7 +329,7 @@ class _BackendStatusRow extends StatelessWidget {
       final driver = entry.key;
       final state = entry.value;
       IconData icon;
-      Color color;
+      ChipTone tone;
       String label = driver.shortLabel;
       // What a screen reader is told. A chip that publishes only its driver
       // name is indistinguishable from every other chip to assistive tech, so
@@ -349,23 +338,23 @@ class _BackendStatusRow extends StatelessWidget {
 
       if (state == null) {
         icon = NightshadeIcons.circle;
-        color = colors.textMuted;
+        tone = ChipTone.neutral;
         description = '${driver.shortLabel}: not scanned yet';
       } else {
         switch (state.status) {
           case DiscoveryStatus.idle:
             icon = NightshadeIcons.circle;
-            color = colors.textMuted;
+            tone = ChipTone.neutral;
             description = '${driver.shortLabel}: not scanned yet';
             break;
           case DiscoveryStatus.discovering:
             icon = LucideIcons.loader;
-            color = colors.primary;
+            tone = ChipTone.primary;
             description = '${driver.shortLabel}: scanning';
             break;
           case DiscoveryStatus.completed:
             icon = LucideIcons.checkCircle2;
-            color = colors.success;
+            tone = ChipTone.success;
             final matchingCount = state.devices
                 .where((device) => device.deviceType == deviceType)
                 .length;
@@ -375,7 +364,7 @@ class _BackendStatusRow extends StatelessWidget {
             break;
           case DiscoveryStatus.error:
             icon = NightshadeIcons.warning;
-            color = colors.error;
+            tone = ChipTone.error;
             label = '${driver.shortLabel} (0)';
             description = '${driver.shortLabel}: nothing answered — '
                 '${describeBackendFailure(state.error)}';
@@ -388,26 +377,9 @@ class _BackendStatusRow extends StatelessWidget {
         container: true,
         label: description,
         excludeSemantics: true,
-        child: Tooltip(
+        child: NightshadeTooltip(
           message: description,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: NightshadeDecorations.statusChip(
-              color,
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 12, color: color),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: theme.textTheme.bodySmall?.copyWith(color: color),
-                ),
-              ],
-            ),
-          ),
+          child: NightshadeChip(label: label, icon: icon, tone: tone),
         ),
       );
     }).toList();
@@ -415,15 +387,19 @@ class _BackendStatusRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(spacing: 6, runSpacing: 4, children: chips),
+        Wrap(
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: NightshadeTokens.spaceXs,
+          children: chips,
+        ),
         // A red chip whose only explanation is a hover tooltip is an unexplained
         // alarm on the first run of a paid product. Say what happened where the
         // user is already looking.
         if (failures.isNotEmpty) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             failures.join('\n'),
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+            style: NightshadeTypography.bodySm.copyWith(color: colors.error),
           ),
         ],
       ],
@@ -446,9 +422,6 @@ class _DeviceList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
-
     if (devices.isEmpty) {
       // Centred when there is room, scrollable when there is not. As a bare
       // Center this overflowed its Expanded slot wherever the picker is given a
@@ -463,30 +436,17 @@ class _DeviceList extends StatelessWidget {
                   constraints.maxHeight.isFinite ? constraints.maxHeight : 0,
             ),
             child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isDiscovering
-                          ? LucideIcons.loader
-                          : NightshadeIcons.searchEmpty,
-                      color: colors.textMuted,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      isDiscovering
-                          ? 'Scanning for devices...'
-                          : 'No devices found. Make sure your device is connected and powered on, then try Scan again.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+              child: EmptyState.compact(
+                icon: isDiscovering
+                    ? LucideIcons.loader
+                    : NightshadeIcons.searchEmpty,
+                title: isDiscovering
+                    ? 'Scanning for devices'
+                    : 'No devices found',
+                body: isDiscovering
+                    ? null
+                    : 'Make sure the device is connected and powered on, then '
+                        'scan again.',
               ),
             ),
           ),
@@ -500,7 +460,8 @@ class _DeviceList extends StatelessWidget {
       // fight the outer one for the same drag.
       physics: const NeverScrollableScrollPhysics(),
       itemCount: devices.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, __) =>
+          const SizedBox(height: NightshadeTokens.spaceSm),
       itemBuilder: (context, index) {
         final device = devices[index];
         // Selection match is done on activeDeviceId (the id of the
@@ -574,7 +535,6 @@ class _DeviceTileState extends State<_DeviceTile> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final device = widget.device;
     final isSelected = widget.isSelected;
 
@@ -616,51 +576,51 @@ class _DeviceTileState extends State<_DeviceTile> {
           if (_focused == value) return;
           setState(() => _focused = value);
         },
-        borderRadius: NightshadeTokens.borderRadiusLg,
+        borderRadius: NightshadeTokens.borderRadiusSm,
         child: Container(
           foregroundDecoration: _focused
               ? BoxDecoration(
-                  borderRadius: NightshadeTokens.borderRadiusLg,
+                  borderRadius: NightshadeTokens.borderRadiusSm,
                   border: Border.all(color: colors.primary, width: 2),
                 )
               : null,
-          padding: const EdgeInsets.all(12),
-          decoration: isSelected
-              ? NightshadeDecorations.selectedSurface(
-                  colors.primary,
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                  fillAlpha: 0.08,
-                )
-              : BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                  border: Border.all(color: colors.border),
-                ),
+          padding: NightshadeTokens.paddingMd,
+          // A `well` row inside the step panel; the selection is a `primary`
+          // ring, not a second fill (05 §9).
+          decoration: BoxDecoration(
+            color: colors.well,
+            borderRadius: NightshadeTokens.borderRadiusSm,
+            border: Border.all(
+              color: isSelected
+                  ? colors.primary.withValues(
+                      alpha: NightshadeTokens.opacitySelectedRing,
+                    )
+                  : Colors.transparent,
+            ),
+          ),
           child: Row(
             children: [
               Icon(
                 isSelected ? LucideIcons.checkCircle2 : NightshadeIcons.circle,
                 color: isSelected ? colors.primary : colors.textMuted,
-                size: 18,
+                size: NightshadeTokens.iconSm,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: NightshadeTokens.spaceMd),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       device.displayName,
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: NightshadeTypography.bodyStrong.copyWith(
                         color: colors.textPrimary,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       device.availableBackends.keys
                           .map((b) => b.shortLabel)
                           .join(' / '),
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),

@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_app/utils/confirm_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -48,6 +49,9 @@ class _OnboardingFilterWheelStepState
   // (connect failed AND the draft carries no prior names). The happy path
   // reads the actual slot count + names from the connected driver.
   static const int _fallbackSlots = 5;
+
+  /// Width of the slot-number gutter beside each filter field.
+  static const double _slotNumberWidth = 32;
 
   /// Upper bound used ONLY when the wheel's real position count is unknown.
   /// A connected wheel caps the editor at what it actually reports.
@@ -195,32 +199,17 @@ class _OnboardingFilterWheelStepState
     final isLast = index == _controllers.length - 1;
     if (!isLast) {
       final name = _controllers[index].text.trim();
-      final confirmed = await showDialog<bool>(
+      final confirmed = await ConfirmDialog.show(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Remove this slot?'),
-          content: Text(
+        title: 'Remove this slot?',
+        message:
             'Removing slot ${index + 1}${name.isEmpty ? '' : ' ($name)'} moves '
             'every slot below it up one position, so the filters after it will '
             'no longer sit on the positions you gave them.',
-          ),
-          actions: [
-            NightshadeButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-            ),
-            NightshadeButton(
-              label: 'Remove slot',
-              variant: ButtonVariant.destructive,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-            ),
-          ],
-        ),
+        confirmLabel: 'Remove slot',
+        isDestructive: true,
       );
-      if (confirmed != true || !mounted) return;
+      if (!confirmed || !mounted) return;
     }
     setState(() {
       _controllers[index].dispose();
@@ -262,7 +251,6 @@ class _OnboardingFilterWheelStepState
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final hasWheel = draft.filterWheelId != null;
 
     // The wheel's own position count is the cap. Inventing slot 8 on a
@@ -276,20 +264,23 @@ class _OnboardingFilterWheelStepState
 
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final pickerHeight = hasWheel
-        ? clampPanelWidth(
+        ? panelWidthFromFraction(
             viewportHeight,
             fraction: 0.28,
             min: 180,
             max: 240,
           )
-        : clampPanelWidth(
+        : panelWidthFromFraction(
             viewportHeight,
             fraction: 0.45,
             min: 240,
             max: 380,
           );
 
-    return Column(
+    // Scrollable: a 12-slot wheel plus the picker exceeds the panel in a short
+    // window, and as a bare Column the surplus overflowed instead of scrolling.
+    return SingleChildScrollView(
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
@@ -323,33 +314,29 @@ class _OnboardingFilterWheelStepState
           ),
         ),
         if (hasWheel) ...[
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Text(
-                'Filters',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          SectionTitle(
+            icon: NightshadeIcons.filterWheel,
+            title: 'Filters',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               if (_loadingSlots) ...[
                 SizedBox(
-                  width: 14,
-                  height: 14,
+                  width: NightshadeTokens.iconXs,
+                  height: NightshadeTokens.iconXs,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: colors.primary,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: NightshadeTokens.spaceSm),
                 Text(
                   'Reading wheel…',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: colors.textMuted),
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textMuted),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: NightshadeTokens.spaceSm),
               ],
               // At the cap there is no button at all.
               //
@@ -363,88 +350,72 @@ class _OnboardingFilterWheelStepState
                   reportedSlots != null
                       ? 'Wheel is full'
                       : 'Filter limit reached',
-                  style: theme.textTheme.bodySmall?.copyWith(
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textMuted,
                   ),
                 )
               else
-                Tooltip(
-                  message: 'Add another filter slot',
-                  child: NightshadeButton(
-                    icon: NightshadeIcons.add,
-                    label: 'Add slot',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: _loadingSlots ? null : _addSlot,
-                  ),
+                NightshadeButton(
+                  icon: NightshadeIcons.add,
+                  label: 'Add slot',
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: _loadingSlots ? null : _addSlot,
                 ),
-            ],
+              ],
+            ),
           ),
           if (atSlotCap || reportedSlots != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              _slotCountCaption(
-                draft: draft,
-                reportedSlots: reportedSlots,
-                atSlotCap: atSlotCap,
+            Padding(
+              padding: const EdgeInsets.only(
+                bottom: NightshadeTokens.spaceSm,
               ),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.textMuted,
+              child: Text(
+                _slotCountCaption(
+                  draft: draft,
+                  reportedSlots: reportedSlots,
+                  atSlotCap: atSlotCap,
+                ),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
               ),
             ),
           ],
-          const SizedBox(height: 8),
           // List of editable filter slots. We deliberately render inline
           // (not in a separate Drift table) so the user sees their
           // changes saved on Next without needing to confirm a sub-form.
           ...List.generate(_controllers.length, (i) {
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                vertical: NightshadeTokens.spaceXs,
+              ),
               child: Row(
                 children: [
                   SizedBox(
-                    width: 32,
+                    width: _slotNumberWidth,
                     child: Text(
                       '${i + 1}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
+                      style: NightshadeTypography.readoutSm.copyWith(
+                        color: colors.textMuted,
                       ),
                     ),
                   ),
                   Expanded(
-                    child: TextField(
+                    child: NightshadeTextField(
                       controller: _controllers[i],
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
-                        hintText: 'L / R / G / B / Ha …',
-                        hintStyle: TextStyle(color: colors.textMuted),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.primary),
-                        ),
-                        filled: true,
-                        fillColor: colors.surface,
-                      ),
+                      hint: 'L / R / G / B / Ha …',
                       onChanged: (_) => _commitFilters(),
                     ),
                   ),
-                  IconButton(
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  NightshadeIconButton(
+                    icon: NightshadeIcons.delete,
+                    tooltip: 'Remove slot ${i + 1}',
+                    size: IconButtonSize.sm,
+                    color: colors.error,
                     onPressed:
                         _controllers.length > 1 ? () => _removeSlot(i) : null,
-                    icon: Icon(
-                      NightshadeIcons.delete,
-                      size: 16,
-                      color: _controllers.length > 1
-                          ? colors.error
-                          : colors.textMuted,
-                    ),
                   ),
                 ],
               ),
@@ -452,6 +423,7 @@ class _OnboardingFilterWheelStepState
           }),
         ],
       ],
+      ),
     );
   }
 }
