@@ -235,6 +235,9 @@ class _RadarControlBar extends StatelessWidget {
 }
 
 /// One labelled slider inside the control bar.
+///
+/// The label sits to the LEFT in a [FormRow] (05 §8), not above the control,
+/// and the value reads out on the right so the slider itself keeps the width.
 class _RadarSliderRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -254,11 +257,14 @@ class _RadarSliderRow extends StatelessWidget {
     required this.onChanged,
   });
 
-  /// Label column, wide enough for "Contrast" at `bodySm`.
-  static const double _labelWidth = 68;
-
-  /// Value column, wide enough for "100%" and "Medium".
+  /// Wide enough for "Medium" and "100%" at `readoutSm`.
   static const double _valueWidth = 56;
+
+  /// The icon plus its gap, taken out of the `FormRow` label column so the
+  /// slider tracks line up with each other.
+  static const double _labelWidth = FormRow.defaultLabelWidth -
+      NightshadeTokens.iconSm -
+      NightshadeTokens.spaceSm;
 
   @override
   Widget build(BuildContext context) {
@@ -267,31 +273,32 @@ class _RadarSliderRow extends StatelessWidget {
       children: [
         Icon(icon, size: NightshadeTokens.iconSm, color: colors.textMuted),
         const SizedBox(width: NightshadeTokens.spaceSm),
-        SizedBox(
-          width: _labelWidth,
-          child: Text(
-            label,
-            style: NightshadeTypography.bodySm.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-        ),
         Expanded(
-          child: NightshadeSlider(
-            value: value,
-            min: min,
-            max: max,
-            onChanged: onChanged,
-          ),
-        ),
-        const SizedBox(width: NightshadeTokens.spaceSm),
-        SizedBox(
-          width: _valueWidth,
-          child: Text(
-            displayValue,
-            textAlign: TextAlign.end,
-            style: NightshadeTypography.readoutSm.copyWith(
-              color: colors.textPrimary,
+          child: FormRow(
+            label: label,
+            labelWidth: _labelWidth,
+            child: Row(
+              children: [
+                Expanded(
+                  child: NightshadeSlider(
+                    value: value,
+                    min: min,
+                    max: max,
+                    onChanged: onChanged,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                SizedBox(
+                  width: _valueWidth,
+                  child: Text(
+                    displayValue,
+                    textAlign: TextAlign.end,
+                    style: NightshadeTypography.readoutSm.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
