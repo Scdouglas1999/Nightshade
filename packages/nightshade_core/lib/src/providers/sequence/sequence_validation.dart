@@ -13,6 +13,7 @@ import 'rules/equipment_rules.dart';
 import 'rules/exposure_rules.dart';
 import 'rules/filter_rules.dart';
 import 'rules/logic_node_rules.dart';
+import 'rules/plate_solver_rules.dart';
 import 'rules/plugin_node_rules.dart';
 // Pre-flight checks (darks + equipment health + optical train).
 import 'rules/preflight_rules.dart';
@@ -348,6 +349,8 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
       // Something else may already own the mount.
       AutopilotArmedRule(),
       EquipmentConnectionRule(),
+      // The executor refuses a centring sequence with no solver; say so first.
+      PlateSolverForCenteringRule(),
       RotatorRotationConflictRule(),
       FilterInWheelRule(),
       // Same check against the equipment profile for the daylight case, when
