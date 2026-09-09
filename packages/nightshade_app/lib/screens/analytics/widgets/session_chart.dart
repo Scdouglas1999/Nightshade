@@ -271,6 +271,10 @@ class SessionChart extends StatelessWidget {
   }
 }
 
+/// The narrowest a chart panel can be and still hold its title and its four
+/// summary readouts on one line.
+const double _chartHeaderInlineWidth = 420;
+
 /// Card, title and axis caption shared by the populated and empty states so the
 /// two never differ in height or padding.
 class _ChartShell extends StatelessWidget {
@@ -295,28 +299,48 @@ class _ChartShell extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final titleBlock = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: NightshadeTypography.bodyStrong
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                  Text(
+                    yAxisLabel,
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+              );
+              if (summary == null) return titleBlock;
+
+              // Side by side only when the panel can hold both. Below that the
+              // summary takes its own line rather than wrapping the title one
+              // character at a time.
+              if (constraints.maxWidth < _chartHeaderInlineWidth) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      style: NightshadeTypography.bodyStrong
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                    Text(
-                      yAxisLabel,
-                      style: NightshadeTypography.caption
-                          .copyWith(color: colors.textMuted),
-                    ),
+                    titleBlock,
+                    const SizedBox(height: NightshadeTokens.spaceMd),
+                    summary!,
                   ],
-                ),
-              ),
-              if (summary != null) summary!,
-            ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: titleBlock),
+                  summary!,
+                ],
+              );
+            },
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           // The well around the plot is painted by AdaptiveChartContainer,

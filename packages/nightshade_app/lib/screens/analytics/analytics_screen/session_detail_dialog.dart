@@ -618,7 +618,8 @@ class _SessionDetailDialogState extends ConsumerState<_SessionDetailDialog> {
             _buildStat(
               l10n.text('analyticsAvgRms'),
               session.avgGuidingRms?.toStringAsFixed(2),
-              unit: '\u2033',
+              // ASCII, not U+2033: the bundled fonts have no prime glyph.
+              unit: '"',
             ),
           ],
         ),

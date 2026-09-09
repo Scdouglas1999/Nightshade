@@ -205,7 +205,9 @@ class _EquipmentStatsTab extends ConsumerWidget {
                   readouts: [
                     Readout(
                       label: 'Avg RMS',
-                      unit: '\u2033',
+                      // ASCII double quote, not U+2033: the bundled fonts
+                      // have no prime glyphs and render them as tofu.
+                      unit: '"',
                       value: _formatAvg(rmss, (v) => v.toStringAsFixed(2)),
                       size: ReadoutSize.sm,
                     ),

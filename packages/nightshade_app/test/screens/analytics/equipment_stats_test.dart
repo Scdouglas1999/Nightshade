@@ -140,7 +140,7 @@ void main() {
     expect(_readout(tester, 'Avg HFR achieved').value, '2.00');
     final rms = _readout(tester, 'Avg RMS');
     expect(rms.value, '0.80');
-    expect(rms.unit, '\u2033');
+    expect(rms.unit, '"');
     expect(_readout(tester, 'Autofocus runs').value, '5');
   });
 
