@@ -68,7 +68,7 @@ void main() {
     await _pumpPairing(tester, notifier);
     expect(find.text('Dashboard'), findsOneWidget);
 
-    await tester.tap(find.text('Revoke All'));
+    await tester.tap(find.text('Revoke all'));
     await tester.pumpAndSettle();
 
     // Destructive and irreversible for every device at once, so it asks first
@@ -76,7 +76,7 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.textContaining('3'), findsWidgets);
 
-    await tester.tap(find.text('Revoke All Access'));
+    await tester.tap(find.text('Revoke all access'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsNothing);
@@ -99,7 +99,7 @@ void main() {
 
     await _pumpPairing(tester, notifier);
 
-    await tester.tap(find.text('Revoke All'));
+    await tester.tap(find.text('Revoke all'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -117,7 +117,7 @@ void main() {
 
     await _pumpPairing(tester, notifier);
 
-    expect(find.text('Revoke All'), findsNothing,
+    expect(find.text('Revoke all'), findsNothing,
         reason: 'An enabled-looking control with nothing to act on is the '
             'silent-no-op class.');
   });
