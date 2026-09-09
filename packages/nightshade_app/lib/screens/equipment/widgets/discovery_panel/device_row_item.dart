@@ -318,7 +318,12 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             color: isConnected ? colors.success : colors.textMuted,
           ),
           const SizedBox(width: 10),
-          Flexible(
+          // Expanded, not Flexible-beside-a-Spacer: sharing the row's slack
+          // with a Spacer gave the name half of it and truncated
+          // "Simulated Filter Wheel" to "Simulated Filter W…". The name is the
+          // one thing the row exists to say, so it takes ALL the slack and the
+          // actions sit at the end.
+          Expanded(
             child: Text(
               widget.device.displayName,
               style: NightshadeTypography.bodySm.copyWith(
@@ -335,7 +340,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
               color: colors.textMuted,
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           // "Add to profile" persists the device; "Connect" does not — it is a
           // session-only connection that is silently gone after a restart. The
           // two sat side by side with nothing saying so, so the difference is

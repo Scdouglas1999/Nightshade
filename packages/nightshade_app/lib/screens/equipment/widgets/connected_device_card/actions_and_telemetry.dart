@@ -6,40 +6,82 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
     final actions =
         _buildDeviceActions(colors).where((w) => w is! SizedBox).toList();
 
-    // A ROW, never a Wrap. A wrapped action row left a lone icon stranded on a
-    // second line and made two panels in the same grid row different heights.
-    // At most two buttons stay inline; everything else — the remaining device
-    // actions, the details toggle and Disconnect — goes behind one
-    // `more-vertical` menu.
-    final inline = actions.take(_maxInlineActions).toList();
-    final overflowed = actions.skip(_maxInlineActions).toList();
+    // A ROW, never a Wrap, and the buttons are NOT flexible: a wrapped action
+    // row left a lone icon stranded on a second line, and flexible buttons
+    // split the slack with the Spacer and ellipsised "Cool to -10.0 °C" to
+    // "Cool t…". The row measures instead: buttons keep their natural width
+    // and stop being inline the moment the next one would not fit, with
+    // everything else behind one `more-vertical` menu.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trailing = <Widget>[
+          if (settingsAction != null)
+            NightshadeIconButton(
+              icon: LucideIcons.settings2,
+              tooltip: 'Settings',
+              size: IconButtonSize.sm,
+              onPressed: _anyCommandInFlight ? null : settingsAction,
+            ),
+        ];
+        // The overflow button and the gap before it are always present.
+        var budget = constraints.maxWidth -
+            NightshadeTokens.iconButtonSizeSm -
+            trailing.length *
+                (NightshadeTokens.iconButtonSizeSm + _deviceActionGap);
 
-    return Row(
-      children: [
-        for (var i = 0; i < inline.length; i++) ...[
-          if (i > 0) const SizedBox(width: _deviceActionGap),
-          Flexible(child: inline[i]),
-        ],
-        const Spacer(),
-        if (settingsAction != null) ...[
-          NightshadeIconButton(
-            icon: LucideIcons.settings2,
-            tooltip: 'Settings',
-            size: IconButtonSize.sm,
-            onPressed: _anyCommandInFlight ? null : settingsAction,
-          ),
-          const SizedBox(width: _deviceActionGap),
-        ],
-        _DeviceOverflowMenu(
-          extraActions: overflowed,
-          isExpanded: _isExpanded,
-          onToggleDetails: _toggleExpanded,
-          onDisconnect: _anyCommandInFlight
-              ? null
-              : widget.onDisconnect ?? () => _handleDisconnect(),
-        ),
-      ],
+        final inline = <Widget>[];
+        for (final action in actions) {
+          if (inline.length >= _maxInlineActions) break;
+          final width = _actionWidth(action);
+          final needed = width + (inline.isEmpty ? 0 : _deviceActionGap);
+          if (needed > budget) break;
+          budget -= needed;
+          inline.add(action);
+        }
+        final overflowed = actions.sublist(inline.length);
+
+        return Row(
+          children: [
+            for (var i = 0; i < inline.length; i++) ...[
+              if (i > 0) const SizedBox(width: _deviceActionGap),
+              inline[i],
+            ],
+            const Spacer(),
+            for (final widget in trailing) ...[
+              widget,
+              const SizedBox(width: _deviceActionGap),
+            ],
+            _DeviceOverflowMenu(
+              extraActions: overflowed,
+              isExpanded: _isExpanded,
+              onToggleDetails: _toggleExpanded,
+              onDisconnect: _anyCommandInFlight
+                  ? null
+                  : widget.onDisconnect ?? () => _handleDisconnect(),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  /// Width [action] needs at its natural size. Measured from the real label,
+  /// not guessed: a device action's label carries live values ("Cool to
+  /// -10.0 °C") whose width changes with the reading.
+  double _actionWidth(Widget action) {
+    if (action is _FilterDropdown) return _FilterDropdown.width;
+    if (action is! _ActionButton) return _unmeasurableActionWidth;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: action.label,
+        style: NightshadeTypography.buttonSm,
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width + _actionButtonPadding;
   }
 
   /// Returns the settings action for the current device type, or `null` if
@@ -718,6 +760,14 @@ const double _deviceActionGap = 6.0;
 
 /// How many device actions stay inline before the rest go behind the menu.
 const int _maxInlineActions = 2;
+
+/// A small button's horizontal padding plus its border, added to the measured
+/// label width (05 §6: small = 28 high, 10 padding a side).
+const double _actionButtonPadding = 22.0;
+
+/// Width assumed for an action this row cannot measure, so an unmeasurable
+/// control is never assumed free.
+const double _unmeasurableActionWidth = 120.0;
 
 /// The `⋮` at the end of a device panel's action row: the actions that did not
 /// fit inline, the details toggle, and Disconnect.

@@ -461,7 +461,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(focuserStateProvider);
         return [
           _DeviceMetric(
-            value: state.position?.toString(),
+            value: _groupThousands(state.position),
             label: 'Position',
           ),
           _DeviceMetric(
@@ -843,3 +843,16 @@ const double _deviceReadoutGap = NightshadeTokens.spaceXl;
 /// The dense gap the readout row falls back to when the panel cannot seat the
 /// 20 px scale.
 const double _deviceReadoutGapDense = NightshadeTokens.spaceMd;
+
+/// A step count with thin spaces between thousands ("25 000"), per the copy
+/// rules. Null in, null out, so the readout still shows the em dash.
+String? _groupThousands(int? value) {
+  if (value == null) return null;
+  final digits = value.abs().toString();
+  final buffer = StringBuffer(value.isNegative ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('\u2009');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
