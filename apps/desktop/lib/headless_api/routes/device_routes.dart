@@ -71,6 +71,15 @@ List<HeadlessRoute> buildDeviceRoutes(DeviceHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.post, '/api/mount/slew', h.handleMountSlew),
   HeadlessRoute(HttpMethod.post, '/api/mount/sync', h.handleMountSync),
   HeadlessRoute(HttpMethod.post, '/api/mount/park', h.handleMountPark),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/mount/site-capabilities',
+    h.handleMountSiteCapabilities,
+  ),
+  HeadlessRoute(HttpMethod.get, '/api/mount/site', h.handleMountGetSite),
+  HeadlessRoute(HttpMethod.post, '/api/mount/site', h.handleMountSetSite),
+  HeadlessRoute(HttpMethod.get, '/api/mount/time', h.handleMountGetTime),
+  HeadlessRoute(HttpMethod.post, '/api/mount/time', h.handleMountSetTime),
   HeadlessRoute(HttpMethod.post, '/api/mount/unpark', h.handleMountUnpark),
   HeadlessRoute(
     HttpMethod.post,

@@ -84,6 +84,11 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/mount/move-axis',
     'POST /api/mount/slew-alt-az',
     'POST /api/mount/find-home',
+    'GET /api/mount/site-capabilities',
+    'GET /api/mount/site',
+    'POST /api/mount/site',
+    'GET /api/mount/time',
+    'POST /api/mount/time',
     // Focuser
     'POST /api/focuser/move-to',
     'POST /api/focuser/move-relative',

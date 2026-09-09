@@ -1,3 +1,4 @@
+import 'widgets/mount/mount_site_reconciliation_card.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -192,10 +193,18 @@ class NightshadeApp extends ConsumerWidget {
                 // Tutorials. Collapsing them here means a first-run user follows
                 // one linear path (recovery → equipment onboarding → first light)
                 // instead of racing overlapping auto-launching dialogs.
+                // The site/time card sits INSIDE the startup gates: it is
+                // raised by connecting a mount, which cannot happen until the
+                // user is past onboarding, and it must never outrank the
+                // "your data was reset" dialog.
                 Widget result = ScaledConfigProvider(
                   child: AutoIntegrationLauncher(
                     child: DatabaseRecoveryLauncher(
-                      child: EquipmentOnboardingLauncher(child: scaledChild),
+                      child: EquipmentOnboardingLauncher(
+                        child: MountSiteReconciliationListener(
+                          child: scaledChild,
+                        ),
+                      ),
                     ),
                   ),
                 );

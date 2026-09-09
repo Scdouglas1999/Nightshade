@@ -57,6 +57,7 @@ export 'src/database/daos/sequence_runs_dao.dart';
 export 'src/models/equipment/equipment_models.dart';
 export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
+export 'src/models/mount_site_reconciliation.dart';
 export 'src/models/equipment_profile.dart';
 export 'src/models/equipment_profile_remote_mapping.dart';
 export 'src/models/equipment_profile_validation.dart';
@@ -168,6 +169,7 @@ export 'src/models/scheduler/scheduler_status.dart';
 export 'src/models/scheduler/scheduler_readiness.dart';
 export 'src/models/scheduler/target_progress.dart';
 export 'src/services/scheduler/target_progress_service.dart';
+export 'src/providers/mount_site_provider.dart';
 export 'src/providers/target_progress_provider.dart';
 export 'src/services/catalog_target_resolver.dart';
 export 'src/services/target_library_service.dart'

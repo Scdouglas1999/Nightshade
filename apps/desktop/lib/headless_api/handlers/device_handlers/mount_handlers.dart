@@ -125,6 +125,93 @@ extension MountDeviceHandlers on DeviceHandlers {
     return jsonOk({'status': 'aborted'});
   }
 
+  /// GET `/api/mount/site-capabilities` — which directions this driver can
+  /// honour, so a remote client can grey out what will not work rather than
+  /// offering it and reporting a failure afterwards.
+  Future<Response> handleMountSiteCapabilities(Request request) async {
+    _logInfo('[API] GET /api/mount/site-capabilities');
+    final backend = container.read(deviceBackendProvider);
+    final deviceId = _requireQueryDeviceId(request);
+    final caps = await backend.mountSiteCapabilities(deviceId);
+    return jsonOk({
+      'canReadSite': caps.canReadSite,
+      'canWriteSite': caps.canWriteSite,
+      'canReadTime': caps.canReadTime,
+      'canWriteTime': caps.canWriteTime,
+    });
+  }
+
+  /// GET `/api/mount/site` — the site the mount itself holds. Longitude is
+  /// EAST-positive, matching every other coordinate this API carries.
+  Future<Response> handleMountGetSite(Request request) async {
+    _logInfo('[API] GET /api/mount/site');
+    final backend = container.read(deviceBackendProvider);
+    final deviceId = _requireQueryDeviceId(request);
+    final site = await backend.mountGetSite(deviceId);
+    return jsonOk({
+      'latitudeDeg': site.latitudeDeg,
+      'longitudeDeg': site.longitudeDeg,
+      'elevationM': site.elevationM,
+    });
+  }
+
+  /// POST `/api/mount/site` — write a site into the mount.
+  Future<Response> handleMountSetSite(Request request) async {
+    _logInfo('[API] POST /api/mount/site');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final latitudeDeg =
+        requireDouble(payload, 'latitudeDeg', min: -90, max: 90);
+    final longitudeDeg =
+        requireDouble(payload, 'longitudeDeg', min: -180, max: 180);
+    final elevationM =
+        optionalDouble(payload, 'elevationM', min: -500, max: 9000);
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSetSite(deviceId, latitudeDeg, longitudeDeg, elevationM);
+    return jsonOk({'status': 'ok'});
+  }
+
+  /// GET `/api/mount/time` — the mount's own clock.
+  Future<Response> handleMountGetTime(Request request) async {
+    _logInfo('[API] GET /api/mount/time');
+    final backend = container.read(deviceBackendProvider);
+    final deviceId = _requireQueryDeviceId(request);
+    final time = await backend.mountGetTime(deviceId);
+    return jsonOk({
+      'utcUnixSeconds': time.utcUnixSeconds,
+      'utcOffsetHours': time.utcOffsetHours,
+    });
+  }
+
+  /// POST `/api/mount/time` — write a clock into the mount. `utcOffsetHours`
+  /// is east of UTC in the ordinary sense: US Eastern Standard is -5.
+  Future<Response> handleMountSetTime(Request request) async {
+    _logInfo('[API] POST /api/mount/time');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final utcUnixSeconds = requireInt(payload, 'utcUnixSeconds');
+    final utcOffsetHours =
+        requireDouble(payload, 'utcOffsetHours', min: -14, max: 14);
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSetTime(deviceId, utcUnixSeconds, utcOffsetHours);
+    return jsonOk({'status': 'ok'});
+  }
+
+  /// The `deviceId` query parameter, or a 400 naming it.
+  String _requireQueryDeviceId(Request request) {
+    final deviceId = (request.url.queryParameters['deviceId'] ?? '').trim();
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+    return deviceId;
+  }
+
   Future<Response> handleMountGetStatus(Request request) async {
     final backend = container.read(deviceBackendProvider);
 
