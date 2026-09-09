@@ -12,6 +12,7 @@ import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
 import '../utils/device_error_subtitle.dart';
+import 'device_tile_width.dart';
 import '../utils/profile_mutation_epoch.dart';
 import '../utils/session_device_save.dart';
 

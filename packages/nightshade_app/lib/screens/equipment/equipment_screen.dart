@@ -8,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'widgets/profile_sidebar.dart';
 import 'widgets/connected_device_card.dart';
+import 'widgets/device_tile_width.dart';
 import 'widgets/discovery_panel.dart';
 import 'widgets/equipment_health_panel.dart';
 import 'widgets/equipment_readiness_panel.dart';

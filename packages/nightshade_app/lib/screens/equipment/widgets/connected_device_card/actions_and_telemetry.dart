@@ -12,56 +12,59 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
     // "Cool t…". The row measures instead: buttons keep their natural width
     // and stop being inline the moment the next one would not fit, with
     // everything else behind one `more-vertical` menu.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final trailing = <Widget>[
-          if (settingsAction != null)
-            NightshadeIconButton(
-              icon: LucideIcons.settings2,
-              tooltip: 'Settings',
-              size: IconButtonSize.sm,
-              onPressed: _anyCommandInFlight ? null : settingsAction,
-            ),
-        ];
-        // The overflow button and the gap before it are always present.
-        var budget = constraints.maxWidth -
+    //
+    // The width comes from [DeviceTileWidth], not a LayoutBuilder — see the
+    // note there.
+    final trailing = <Widget>[
+      if (settingsAction != null)
+        NightshadeIconButton(
+          icon: LucideIcons.settings2,
+          tooltip: 'Settings',
+          size: IconButtonSize.sm,
+          onPressed: _anyCommandInFlight ? null : settingsAction,
+        ),
+    ];
+
+    final tile = DeviceTileWidth.maybeOf(context);
+    var budget = tile == null
+        ? double.infinity
+        : tile -
+            NightshadeTokens.spaceLg * 2 -
             NightshadeTokens.iconButtonSizeSm -
             trailing.length *
                 (NightshadeTokens.iconButtonSizeSm + _deviceActionGap);
 
-        final inline = <Widget>[];
-        for (final action in actions) {
-          if (inline.length >= _maxInlineActions) break;
-          final width = _actionWidth(action);
-          final needed = width + (inline.isEmpty ? 0 : _deviceActionGap);
-          if (needed > budget) break;
-          budget -= needed;
-          inline.add(action);
-        }
-        final overflowed = actions.sublist(inline.length);
+    final inline = <Widget>[];
+    for (final action in actions) {
+      if (inline.length >= _maxInlineActions) break;
+      final needed =
+          _actionWidth(action) + (inline.isEmpty ? 0 : _deviceActionGap);
+      if (needed > budget) break;
+      budget -= needed;
+      inline.add(action);
+    }
+    final overflowed = actions.sublist(inline.length);
 
-        return Row(
-          children: [
-            for (var i = 0; i < inline.length; i++) ...[
-              if (i > 0) const SizedBox(width: _deviceActionGap),
-              inline[i],
-            ],
-            const Spacer(),
-            for (final widget in trailing) ...[
-              widget,
-              const SizedBox(width: _deviceActionGap),
-            ],
-            _DeviceOverflowMenu(
-              extraActions: overflowed,
-              isExpanded: _isExpanded,
-              onToggleDetails: _toggleExpanded,
-              onDisconnect: _anyCommandInFlight
-                  ? null
-                  : widget.onDisconnect ?? () => _handleDisconnect(),
-            ),
-          ],
-        );
-      },
+    return Row(
+      children: [
+        for (var i = 0; i < inline.length; i++) ...[
+          if (i > 0) const SizedBox(width: _deviceActionGap),
+          inline[i],
+        ],
+        const Spacer(),
+        for (final control in trailing) ...[
+          control,
+          const SizedBox(width: _deviceActionGap),
+        ],
+        _DeviceOverflowMenu(
+          extraActions: overflowed,
+          isExpanded: _isExpanded,
+          onToggleDetails: _toggleExpanded,
+          onDisconnect: _anyCommandInFlight
+              ? null
+              : widget.onDisconnect ?? () => _handleDisconnect(),
+        ),
+      ],
     );
   }
 

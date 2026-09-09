@@ -344,36 +344,38 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     // reading, it is a different one. When the widest value cannot fit the
     // panel at 20 px, the whole row steps down to 14 px together (so the row
     // still reads as one scale) and the gap tightens with it.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = _deviceReadoutGap;
-        final available = constraints.hasBoundedWidth
-            ? constraints.maxWidth - gap * (metrics.length - 1)
-            : double.infinity;
-        final needed = metrics.fold<double>(
-          0,
-          (widest, metric) => widest > _readoutWidth(metric, ReadoutSize.md)
-              ? widest
-              : _readoutWidth(metric, ReadoutSize.md),
-        );
-        final fits =
-            available.isInfinite || needed * metrics.length <= available;
-        final size = fits ? ReadoutSize.md : ReadoutSize.sm;
-
-        return ReadoutRow(
-          gap: fits ? gap : _deviceReadoutGapDense,
-          children: [
-            for (final metric in metrics)
-              Readout(
-                value: metric.value,
-                unit: metric.unit,
-                label: metric.label,
-                size: size,
-                valueColor: metric.valueColor,
-              ),
-          ],
-        );
+    //
+    // The width comes from [DeviceTileWidth], NOT a LayoutBuilder: the grid
+    // lays its rows out inside an IntrinsicHeight, and a LayoutBuilder has no
+    // intrinsic height — which collapsed the panel to its header and painted
+    // the actions outside it.
+    final tile = DeviceTileWidth.maybeOf(context);
+    final available = tile == null
+        ? double.infinity
+        : tile -
+            NightshadeTokens.spaceLg * 2 -
+            _deviceReadoutGap * (metrics.length - 1);
+    final widest = metrics.fold<double>(
+      0,
+      (best, metric) {
+        final width = _readoutWidth(metric, ReadoutSize.md);
+        return width > best ? width : best;
       },
+    );
+    final fits = available.isInfinite || widest * metrics.length <= available;
+
+    return ReadoutRow(
+      gap: fits ? _deviceReadoutGap : _deviceReadoutGapDense,
+      children: [
+        for (final metric in metrics)
+          Readout(
+            value: metric.value,
+            unit: metric.unit,
+            label: metric.label,
+            size: fits ? ReadoutSize.md : ReadoutSize.sm,
+            valueColor: metric.valueColor,
+          ),
+      ],
     );
   }
 

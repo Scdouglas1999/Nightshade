@@ -506,6 +506,12 @@ class _DeviceGrid extends StatelessWidget {
             .floor()
             .clamp(1, maxColumns);
 
+        // The cell width the panels are told about. They must not measure it
+        // themselves: a LayoutBuilder has no intrinsic height, and these rows
+        // are laid out inside an IntrinsicHeight so a row's panels share a
+        // height.
+        final tileWidth = (available - spacing * (columns - 1)) / columns;
+
         final cells = <Widget>[...cards, const _EmptySlotPanel()];
         final rows = <Widget>[];
         for (var start = 0; start < cells.length; start += columns) {
@@ -521,7 +527,10 @@ class _DeviceGrid extends StatelessWidget {
                     if (i > 0) const SizedBox(width: spacing),
                     Expanded(
                       child: i < rowCells.length
-                          ? rowCells[i]
+                          ? DeviceTileWidth(
+                              width: tileWidth,
+                              child: rowCells[i],
+                            )
                           : const SizedBox.shrink(),
                     ),
                   ],
