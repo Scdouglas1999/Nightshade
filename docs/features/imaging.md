@@ -13,9 +13,10 @@ The Imaging screen is organized into five tabs:
 
 ### Screen Layout
 
-Each tab features:
-- **Left side (70%)**: Main content area (image preview, graphs, etc.)
-- **Right side (30%)**: Control sidebar with settings and actions
+- **The frame** fills everything left of the side panel, edge to edge under one 44 px toolbar.
+  Readouts and the capture bar float over it in glass panels rather than taking height from it.
+- **The side panel** is a fixed 320 px column on the right with a 44 px vertical icon strip that
+  selects its section. Toggle it from the icon button in the page header.
 
 ## Capture Tab
 

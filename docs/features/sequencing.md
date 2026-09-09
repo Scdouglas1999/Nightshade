@@ -11,7 +11,7 @@ The Sequencer uses a **behavior tree** architecture where you build your imaging
 
 ## Sequencer Screen
 
-Navigate to **Sequencer** in the sidebar to access three tabs:
+Navigate to **Sequencer** in the rail to access three tabs:
 - **Builder**: Visual sequence editor
 - **Targets**: Target library and planning
 - **Templates**: Pre-built sequence templates

@@ -55,7 +55,7 @@ setup:
 ### Step 1: Navigate to Equipment
 
 1. Launch Nightshade
-2. Click **Equipment** in the left sidebar (plug icon)
+2. Click **Equipment** in the rail (plug icon, under Prepare)
 3. The Equipment screen will open
 
 ### Step 2: Select Your Protocol
@@ -134,7 +134,7 @@ Once connected:
 
 1. The camera status indicator should be green
 2. Camera information should appear (name, sensor size, cooling status if applicable)
-3. Navigate to the **Imaging** screen from the sidebar
+3. Navigate to the **Imaging** screen from the rail
 4. Select the **Camera** tab
 5. You should see:
    - Current camera temperature (if cooled)

@@ -32,12 +32,12 @@ The Guiding screen provides:
 
 ## PHD2 Connection
 
-### Status Bar
+### Where guiding state is shown
 
-The top status bar shows:
-- Connection indicator (green/red dot with glow)
-- PHD2 state pill (Stopped, Looping, Calibrating, Guiding, Paused, Settling, Lost Lock)
-- Real-time RMS display (RA/Dec/Total) with color coding
+The page header carries one chip with the PHD2 state (Stopped, Looping, Calibrating, Guiding,
+Paused, Settling, Lost Lock). RMS (RA / Dec / Total) reads out above the guide graph, and the
+guider's connection dot sits in the instrument bar at the bottom of the window, where it is
+visible from every screen. The state is not repeated anywhere else.
 
 ### Connecting to PHD2
 
