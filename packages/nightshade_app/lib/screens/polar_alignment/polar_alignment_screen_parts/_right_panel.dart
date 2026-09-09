@@ -103,7 +103,7 @@ extension _RightPanel on _PolarAlignmentScreenState {
                             size: 12, color: colors.textMuted),
                         const SizedBox(width: 6),
                         Text(
-                          'Error Trend',
+                          'Error trend',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize10,
                             fontWeight: FontWeight.w600,
@@ -223,65 +223,39 @@ extension _RightPanel on _PolarAlignmentScreenState {
     );
   }
 
+  /// Azimuth / altitude / total polar error, as Readouts.
+  ///
+  /// These were label-above-value tiles printing "--" before the first solve.
+  /// A Readout is value-loud, label-quiet (02 rule 3), and renders an unknown
+  /// as an em dash from a null value — never a pair of hyphens.
   Widget _buildErrorValues(
       NightshadeColors colors, PolarAlignmentError? error) {
-    if (error == null) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Expanded(
-            child: _ErrorValue(
-              colors: colors,
-              label: 'Azimuth',
-              value: '--',
-            ),
-          ),
-          Expanded(
-            child: _ErrorValue(
-              colors: colors,
-              label: 'Altitude',
-              value: '--',
-            ),
-          ),
-          Expanded(
-            child: _ErrorValue(
-              colors: colors,
-              label: 'Total',
-              value: '--',
-              isPrimary: true,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Expanded(
-          child: _ErrorValue(
-            colors: colors,
-            label: 'Azimuth',
-            value: formatPolarError(error.azimuthError),
-            color: _getErrorColor(colors, error.azimuthError.abs()),
-          ),
+    return ReadoutRow(
+      gap: NightshadeTokens.spaceLg,
+      children: <Readout>[
+        Readout(
+          label: 'Azimuth',
+          value: error == null ? null : formatPolarError(error.azimuthError),
+          size: ReadoutSize.sm,
+          valueColor: error == null
+              ? null
+              : _getErrorColor(colors, error.azimuthError.abs()),
         ),
-        Expanded(
-          child: _ErrorValue(
-            colors: colors,
-            label: 'Altitude',
-            value: formatPolarError(error.altitudeError),
-            color: _getErrorColor(colors, error.altitudeError.abs()),
-          ),
+        Readout(
+          label: 'Altitude',
+          value: error == null ? null : formatPolarError(error.altitudeError),
+          size: ReadoutSize.sm,
+          valueColor: error == null
+              ? null
+              : _getErrorColor(colors, error.altitudeError.abs()),
         ),
-        Expanded(
-          child: _ErrorValue(
-            colors: colors,
-            label: 'Total',
-            value: formatPolarError(error.totalError),
-            color: _getErrorColor(colors, error.totalError),
-            isPrimary: true,
-          ),
+        // The total is the number the operator is driving to zero, so it is
+        // the loud one.
+        Readout(
+          label: 'Total',
+          value: error == null ? null : formatPolarError(error.totalError),
+          valueColor:
+              error == null ? null : _getErrorColor(colors, error.totalError),
         ),
       ],
     );

@@ -1,3 +1,5 @@
+import 'package:nightshade_ui/nightshade_ui.dart';
+
 /// Renders a polar-axis error for a human turning altitude/azimuth bolts.
 ///
 ///  * under one arcminute → arcseconds with a decimal (`42.6"`);
@@ -6,9 +8,10 @@
 ///
 /// The sign is preserved (the right-rail az/alt tiles are signed quantities);
 /// pass an already-`abs()`-ed value where a separate direction word carries it.
-/// A non-finite value renders as `--` rather than `NaN"`.
+/// A non-finite value renders as an em dash (the kit's unknown marker)
+/// rather than `NaN"`.
 String formatPolarError(double arcsec) {
-  if (!arcsec.isFinite) return '--';
+  if (!arcsec.isFinite) return kReadoutUnknown;
   final sign = arcsec < 0 ? '-' : '';
   final magnitude = arcsec.abs();
 

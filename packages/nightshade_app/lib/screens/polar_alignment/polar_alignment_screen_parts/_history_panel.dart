@@ -215,7 +215,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               Icon(NightshadeIcons.history, size: 14, color: colors.textMuted),
               const SizedBox(width: 8),
               Text(
-                'Alignment History',
+                'Alignment history',
                 style:
                     NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),

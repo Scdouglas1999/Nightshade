@@ -3,175 +3,154 @@
 part of '../polar_alignment_screen.dart';
 
 extension _ScreenShell on _PolarAlignmentScreenState {
+  /// The page header: identity, the method switch, and the ONE primary.
+  ///
+  /// This was a bespoke `surface` bar carrying an h4 title with a subtitle
+  /// under it, a Material `SegmentedButton` and two red device chips, and the
+  /// primary action lived in a footer at the other end of the screen with the
+  /// blocker sentence beside it. 04 §4 gives the screen one 56px header, and
+  /// 02 rule 4 puts its single primary in that header.
   Widget _buildHeader(NightshadeColors colors, bool isRunning) {
     final ui = ref.watch(polarAlignmentUiStateProvider);
     final uiNotifier = ref.read(polarAlignmentUiStateProvider.notifier);
 
-    final modeSelector = PolarAlignmentSegmentedButton<PolarAlignmentMode>(
-      segments: const [
-        ButtonSegment(
-          value: PolarAlignmentMode.threePoint,
-          label: Text('TPPA'),
-          icon: Icon(NightshadeIcons.target, size: 14),
-        ),
-        ButtonSegment(
-          value: PolarAlignmentMode.allSky,
-          label: Text('All-Sky'),
-          icon: Icon(NightshadeIcons.globe, size: 14),
-        ),
-      ],
-      selected: {ui.mode},
-      showSelectedIcon: false,
-      onSelectionChanged:
-          isRunning ? null : (selection) => uiNotifier.setMode(selection.first),
+    final modeSelector = SegmentedControl(
+      segments: const ['TPPA', 'All-sky'],
+      selectedIndex: ui.mode == PolarAlignmentMode.threePoint ? 0 : 1,
+      onSelected: isRunning
+          ? (_) {}
+          : (index) => uiNotifier.setMode(
+                index == 0
+                    ? PolarAlignmentMode.threePoint
+                    : PolarAlignmentMode.allSky,
+              ),
     );
 
-    final historyButton = Tooltip(
-      message: ui.showHistoryPanel
-          ? 'Hide past alignment runs'
-          : 'Show past alignment runs below the settings',
-      child: NightshadeButton(
-        label: 'History',
-        icon: NightshadeIcons.history,
-        variant:
-            ui.showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
-        size: ButtonSize.small,
-        onPressed: () => uiNotifier.toggleHistoryPanel(),
+    // The header row has to hold the title, the way back, History and the
+    // primary. On a phone that is more than 360px of controls, so History
+    // sheds its label — the tooltip still names it.
+    final narrow = MediaQuery.sizeOf(context).width <
+        ShellChromeMetrics.shellLayoutBreakpoint;
+
+    void toggleHistory() => uiNotifier.toggleHistoryPanel();
+    final historyTooltip = ui.showHistoryPanel
+        ? 'Hide past alignment runs'
+        : 'Show past alignment runs';
+
+    return PageHeader(
+      // No leading glyph on a phone: PageHeader's icon is inflexible, so at
+      // 360px it kept 28px the title block had already given away and pushed
+      // the header over by 11px.
+      icon: narrow ? null : NightshadeIcons.compass,
+      title: 'Polar alignment',
+      // The method, as the header's context line — not a subtitle sentence
+      // under the title (02 rule 5). Dropped on a phone, where the header row
+      // has no room for it and the segmented control directly below already
+      // names the method.
+      context: narrow ? null : ui.mode.displayName,
+      bottom: Container(
+        color: colors.background,
+        padding: const EdgeInsets.fromLTRB(
+          NightshadeTokens.space2xl,
+          NightshadeTokens.spaceMd,
+          NightshadeTokens.space2xl,
+          NightshadeTokens.spaceMd,
+        ),
+        // A Wrap, not a Row with a Spacer: at 360px the method switch and the
+        // two device chips do not fit on one line, and a Row overflowed by
+        // 109px rather than breaking.
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: NightshadeTokens.spaceMd,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: [
+            modeSelector,
+            _buildEquipmentIndicators(colors),
+          ],
+        ),
       ),
-    );
-
-    final backButton = IconButton(
-      icon: Icon(NightshadeIcons.arrowLeft, color: colors.textPrimary),
-      onPressed: isRunning
-          ? null
-          : () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/imaging');
-              }
-            },
-      tooltip: isRunning ? 'Stop alignment first' : 'Back',
-    );
-
-    final titleBlock = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(NightshadeIcons.compass, color: colors.primary, size: 24),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Polar Alignment',
-                overflow: TextOverflow.ellipsis,
-                style:
-                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-              ),
-              Text(
-                ui.mode.displayName,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
-                ),
-              ),
-            ],
+      actions: <Widget>[
+        // While a run is in flight the way back is refused anyway, and on a
+        // phone a disabled arrow is 40px the Stop button needs.
+        if (!(isRunning && narrow))
+          NightshadeIconButton(
+            icon: NightshadeIcons.arrowLeft,
+            tooltip: isRunning ? 'Stop alignment first' : 'Back',
+            onPressed: isRunning
+                ? null
+                : () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/imaging');
+                    }
+                  },
           ),
-        ),
+        if (narrow)
+          NightshadeIconButton(
+            icon: NightshadeIcons.history,
+            tooltip: historyTooltip,
+            selected: ui.showHistoryPanel,
+            onPressed: toggleHistory,
+          )
+        else
+          Tooltip(
+            message: historyTooltip,
+            child: NightshadeButton(
+              label: 'History',
+              icon: NightshadeIcons.history,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: toggleHistory,
+            ),
+          ),
+        ..._headerPrimary(),
       ],
-    );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final useCompactHeader = constraints.maxWidth < 960;
-
-          if (!useCompactHeader) {
-            return SizedBox(
-              height: 48,
-              child: Row(
-                children: [
-                  backButton,
-                  const SizedBox(width: 8),
-                  titleBlock,
-                  const SizedBox(width: 16),
-                  modeSelector,
-                  const Spacer(),
-                  historyButton,
-                  const SizedBox(width: 12),
-                  _buildEquipmentIndicators(colors),
-                ],
-              ),
-            );
-          }
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: 44,
-                child: Row(
-                  children: [
-                    backButton,
-                    Expanded(child: titleBlock),
-                    historyButton,
-                  ],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(child: modeSelector),
-                  const SizedBox(width: 8),
-                  _buildEquipmentIndicators(colors),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 
+  /// The camera and mount readiness chips.
+  ///
+  /// They were solid `error`-toned pills whenever a device was disconnected —
+  /// two red alarms on a screen whose whole point is that you have not started
+  /// yet. Tone follows connection state: success when connected, neutral when
+  /// not, because "not connected yet" is a state, not a fault.
   Widget _buildEquipmentIndicators(NightshadeColors colors) {
     final cameraState = ref.watch(cameraStateProvider);
     final mountState = ref.watch(mountStateProvider);
+    final cameraConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
+    final mountConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _StatusChip(
-          icon: NightshadeIcons.camera,
+        NightshadeChip(
           label: 'Camera',
-          isConnected:
-              cameraState.connectionState == DeviceConnectionState.connected,
-          colors: colors,
+          icon: NightshadeIcons.camera,
+          tone: cameraConnected ? ChipTone.success : ChipTone.neutral,
+          dot: true,
         ),
-        const SizedBox(width: 8),
-        _StatusChip(
-          icon: NightshadeIcons.move,
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        NightshadeChip(
           label: 'Mount',
-          isConnected:
-              mountState.connectionState == DeviceConnectionState.connected,
-          colors: colors,
+          icon: NightshadeIcons.move,
+          tone: mountConnected ? ChipTone.success : ChipTone.neutral,
+          dot: true,
         ),
       ],
     );
   }
 
-  Widget _buildFooter(
-    NightshadeColors colors,
-    PolarAlignmentState state,
-    bool isRunning,
-  ) {
-    // Check equipment connection state for disabling Start button
+  /// Every unmet prerequisite for starting a run, in reading order.
+  ///
+  /// Shared by the header's primary (which shows them as its disabled
+  /// tooltip) and the idle centre banner (which states them where an operator
+  /// who clicked a dead button is already looking). One computation, so the
+  /// two can never disagree.
+  List<String> _startBlockers() {
     final cameraConnected = ref.watch(cameraStateProvider
         .select((s) => s.connectionState == DeviceConnectionState.connected));
     final mountConnected = ref.watch(mountStateProvider
@@ -182,7 +161,6 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     // parked before the click.
     final mountParked = mountConnected &&
         ref.watch(mountStateProvider.select((s) => s.isParked));
-    final equipmentReady = cameraConnected && mountConnected && !mountParked;
     final detectionAsync = ref.watch(plateSolverDetectionProvider);
     final preferenceAsync = ref.watch(plateSolverPreferenceProvider);
     final solverReady = detectionAsync.valueOrNull != null &&
@@ -194,18 +172,16 @@ extension _ScreenShell on _PolarAlignmentScreenState {
         !detectionAsync.hasError &&
         !preferenceAsync.hasError;
     // The site is a prerequisite in exactly the same sense as the camera, the
-    // mount and the solver: the az/alt decomposition of a polar-axis error is a
-    // function of latitude, and the app installs a (0, 0) observer at startup,
-    // so without this the wizard measures for an observer on the equator.
-    // `_startAlignment` refuses too, but a disabled button with a reason is the
-    // shape every other prerequisite already uses here.
+    // mount and the solver: the az/alt decomposition of a polar-axis error is
+    // a function of latitude, and the app installs a (0, 0) observer at
+    // startup, so without this the wizard measures for an observer on the
+    // equator. `_startAlignment` refuses too, but a disabled button with a
+    // reason is the shape every other prerequisite already uses here.
     final settingsResolved = ref.watch(appSettingsProvider).hasValue;
     final siteReady =
         settingsResolved && ref.watch(appObserverLocationProvider) != null;
-    final canStart = equipmentReady && solverReady && siteReady;
 
-    // Report every unmet prerequisite together.
-    final blockers = <String>[
+    return <String>[
       if (!cameraConnected && !mountConnected)
         'Camera and mount not connected'
       else if (!cameraConnected)
@@ -225,72 +201,21 @@ extension _ScreenShell on _PolarAlignmentScreenState {
       else if (!solverReady)
         'Selected plate solver is not ready',
     ];
+  }
+
+  /// The header's phase action(s) — the screen's ONE primary.
+  ///
+  /// These lived in a 16px footer bar at the bottom of the screen, beside a
+  /// status line that repeated every unmet prerequisite in warning colour.
+  /// 02 rule 4 puts a page's single primary in its header, and the blocker
+  /// travels with the button it blocks, as its tooltip.
+  List<Widget> _headerPrimary() {
+    final state = ref.watch(polarAlignmentStateProvider);
+    final isRunning = state.isRunning;
+    final blockers = _startBlockers();
     final String? disabledReason =
         blockers.isEmpty ? null : blockers.join(' · ');
-
-    // A disabled Start button explains itself on HOVER, which is no
-    // explanation to the operator who clicked it: a parked mount ate the
-    // click, the footer went on reading "Ready to start polar alignment", and
-    // nothing was written to the log. The blocker is stated where the operator
-    // is already looking — the footer — for as long as it applies.
-    final String? blockedNotice =
-        state.phase == PolarAlignPhase.idle && !isRunning
-            ? disabledReason
-            : null;
-
-    final status = Row(
-      children: [
-        if (isRunning)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.primary,
-              ),
-            ),
-          ),
-        if (blockedNotice != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: Icon(
-              NightshadeIcons.warning,
-              size: 14,
-              color: colors.warning,
-            ),
-          ),
-        Expanded(
-          child: Text(
-            blockedNotice == null
-                ? state.statusMessage
-                : 'Cannot start: $blockedNotice',
-            key: blockedNotice == null ? null : startBlockedNoticeKey,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color:
-                  blockedNotice == null ? colors.textSecondary : colors.warning,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-
-    // Action buttons for the current phase. When [stretch] is true they fill
-    // the available width (phone, stacked under the status); otherwise they
-    // size to content and sit beside the status on a wider viewport.
-    //
-    // NightshadeButton sizes to its content but expands to fill a bounded
-    // parent. The stretched buttons are always laid out inside a Row, so
-    // Expanded is what makes them full-width without touching the shared
-    // component (SizedBox(width: infinity) would be an unbounded-width error
-    // inside a Row).
-    Widget wrapButton(Widget button, {required bool stretch}) {
-      if (!stretch) return button;
-      return Expanded(child: button);
-    }
+    final canStart = blockers.isEmpty;
 
     /// Stopping a run means waiting for the exposure or plate solve in flight
     /// to reach a checkpoint. The button says so for those seconds instead of
@@ -303,116 +228,74 @@ extension _ScreenShell on _PolarAlignmentScreenState {
           onPressed: _stopping ? null : _stopAlignment,
         );
 
-    List<Widget> actionButtons(bool stretch) {
-      switch (state.phase) {
-        case PolarAlignPhase.idle:
-          return [
-            wrapButton(
-              Tooltip(
-                message: disabledReason ?? '',
-                child: NightshadeButton(
-                  key: PolarAlignmentTutorialKeys.startBtn,
-                  label: 'Start Alignment',
-                  icon: NightshadeIcons.play,
-                  variant: ButtonVariant.primary,
-                  onPressed: canStart ? _startAlignment : null,
-                ),
-              ),
-              stretch: stretch,
-            ),
-          ];
-        case PolarAlignPhase.measuring:
-          return [
-            wrapButton(stopButton(), stretch: stretch),
-          ];
-        case PolarAlignPhase.adjusting:
-          final hasMeasurement =
-              state.initialError != null && state.currentError != null;
-          return [
-            wrapButton(stopButton(), stretch: stretch),
-            const SizedBox(width: 8),
-            wrapButton(
-              Tooltip(
-                message: hasMeasurement
-                    ? 'Stop and save this alignment'
-                    : 'Waiting for the first alignment measurement',
-                child: NightshadeButton(
-                  label: 'Done',
-                  icon: NightshadeIcons.check,
-                  variant: ButtonVariant.primary,
-                  onPressed: hasMeasurement ? _completeAlignment : null,
-                ),
-              ),
-              stretch: stretch,
-            ),
-          ];
-        case PolarAlignPhase.complete:
-        case PolarAlignPhase.error:
-          return [
-            wrapButton(
-              NightshadeButton(
-                label: 'Restart',
-                icon: NightshadeIcons.undo,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: _resetAlignment,
-              ),
-              stretch: stretch,
-            ),
-            const SizedBox(width: 8),
-            wrapButton(
-              NightshadeButton(
-                label: 'Done',
-                icon: NightshadeIcons.check,
-                variant: ButtonVariant.primary,
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/imaging');
-                  }
-                },
-              ),
-              stretch: stretch,
-            ),
-          ];
-      }
+    Widget doneButton({required VoidCallback? onPressed, String? tooltip}) {
+      final button = NightshadeButton(
+        label: 'Done',
+        icon: NightshadeIcons.check,
+        size: ButtonSize.small,
+        onPressed: onPressed,
+      );
+      return tooltip == null
+          ? button
+          : Tooltip(message: tooltip, child: button);
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Below ~520px a status + label-bearing button row gets tight, so
-            // stack the actions under the status and let them fill the width.
-            final stack = constraints.maxWidth < 520;
-            if (stack) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  status,
-                  const SizedBox(height: 12),
-                  Row(children: actionButtons(true)),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                Expanded(child: status),
-                const SizedBox(width: 16),
-                ...actionButtons(false),
-              ],
-            );
-          },
-        ),
-      ),
-    );
+    switch (state.phase) {
+      case PolarAlignPhase.idle:
+        return <Widget>[
+          Tooltip(
+            // The blocker sentence rides on the control it blocks. It used to
+            // be a warning line in the footer as well — one problem, two
+            // surfaces (02 rule 5).
+            message: disabledReason ?? 'Start polar alignment',
+            child: NightshadeButton(
+              key: PolarAlignmentTutorialKeys.startBtn,
+              // Just "Start" on a phone: the header already says what is
+              // being started.
+              label: MediaQuery.sizeOf(context).width <
+                      ShellChromeMetrics.shellLayoutBreakpoint
+                  ? 'Start'
+                  : 'Start alignment',
+              icon: NightshadeIcons.play,
+              size: ButtonSize.small,
+              onPressed: canStart && !isRunning ? _startAlignment : null,
+            ),
+          ),
+        ];
+      case PolarAlignPhase.measuring:
+        return <Widget>[stopButton()];
+      case PolarAlignPhase.adjusting:
+        final hasMeasurement =
+            state.initialError != null && state.currentError != null;
+        return <Widget>[
+          stopButton(),
+          doneButton(
+            onPressed: hasMeasurement ? _completeAlignment : null,
+            tooltip: hasMeasurement
+                ? 'Stop and save this alignment'
+                : 'Waiting for the first alignment measurement',
+          ),
+        ];
+      case PolarAlignPhase.complete:
+      case PolarAlignPhase.error:
+        return <Widget>[
+          NightshadeButton(
+            label: 'Restart',
+            icon: NightshadeIcons.undo,
+            variant: ButtonVariant.secondary,
+            size: ButtonSize.small,
+            onPressed: _resetAlignment,
+          ),
+          doneButton(
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/imaging');
+              }
+            },
+          ),
+        ];
+    }
   }
 }

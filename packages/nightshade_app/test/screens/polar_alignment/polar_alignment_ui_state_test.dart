@@ -67,9 +67,9 @@ void main() {
       await tester.tap(find.text('Open polar alignment'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Three-Point Polar Alignment'), findsOneWidget);
+      expect(find.text('Three-point polar alignment'), findsOneWidget);
 
-      await tester.tap(find.text('All-Sky'));
+      await tester.tap(find.text('All-sky'));
       await tester.pumpAndSettle();
 
       await handle.container
@@ -93,7 +93,7 @@ void main() {
       await tester.tap(find.text('Open polar alignment'));
       await tester.pumpAndSettle();
 
-      expect(find.text('All-Sky Polar Alignment'), findsOneWidget);
+      expect(find.text('All-sky polar alignment'), findsOneWidget);
       expect(
         handle.container.read(polarAlignmentUiStateProvider).showCommonSettings,
         isTrue,

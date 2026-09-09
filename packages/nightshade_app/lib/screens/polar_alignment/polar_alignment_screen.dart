@@ -7,7 +7,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../utils/snackbar_helper.dart';
-import '../../widgets/plate_solver_required_banner.dart';
 import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
 import 'polar_alignment_body_layout.dart';
 import 'polar_alignment_error_format.dart';
@@ -293,7 +292,10 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       backgroundColor: colors.background,
       body: Column(
         children: [
-          // Header bar
+          // The one page header. It carries the identity, the method switch,
+          // the device chips and the screen's ONE primary — the footer bar
+          // that used to hold the primary (and repeat every blocker beside it
+          // in warning colour) is gone.
           _buildHeader(colors, isRunning),
 
           // Main content — responsive layout avoids squeezing the guide
@@ -305,9 +307,6 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               rightPanel: _buildRightPanel(colors, state, config),
             ),
           ),
-
-          // Footer with actions
-          _buildFooter(colors, state, isRunning),
         ],
       ),
     );

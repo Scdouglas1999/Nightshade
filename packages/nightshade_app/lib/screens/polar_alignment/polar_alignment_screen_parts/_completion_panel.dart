@@ -63,7 +63,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         ),
         const SizedBox(height: 16),
         Text(
-          reached ? 'Alignment Complete' : 'Alignment Stopped',
+          reached ? 'Alignment complete' : 'Alignment stopped',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize20,
             fontWeight: FontWeight.bold,
@@ -140,7 +140,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                         color: chipColor),
                     const SizedBox(width: 8),
                     Text(
-                      'Alignment Summary',
+                      'Alignment summary',
                       style: NightshadeTypography.h5
                           .copyWith(color: colors.textPrimary),
                     ),
@@ -323,7 +323,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         ),
         const SizedBox(height: 16),
         Text(
-          'Error Occurred',
+          'Something went wrong',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize20,
             fontWeight: FontWeight.bold,

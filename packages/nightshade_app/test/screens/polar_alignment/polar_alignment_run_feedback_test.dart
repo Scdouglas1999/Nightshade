@@ -168,25 +168,26 @@ void main() {
     final tooltip = tester.widget<Tooltip>(
       find
           .ancestor(
-            of: find.text('Start Alignment'),
+            of: find.text('Start alignment'),
             matching: find.byType(Tooltip),
           )
           .last,
     );
     expect(tooltip.message, contains('parked'));
     expect(
-      _button(tester, 'Start Alignment').onPressed,
+      _button(tester, 'Start alignment').onPressed,
       isNull,
       reason: 'a parked mount cannot slew between the three points',
     );
   });
 
   // A disabled button with a Tooltip carrying the reason still gives the
-  // operator nothing: hover text is invisible to a click, the footer goes on
-  // reading "Ready to start polar alignment", and the log gains no line. A
-  // tooltip assertion is not an assertion that anything is legible, so these
-  // pin the visible footer line and the published disabled state instead.
-  testWidgets('a parked mount says so in the footer, not only on hover',
+  // operator nothing: hover text is invisible to a click and the log gains no
+  // line. A tooltip assertion is not an assertion that anything is legible,
+  // so these pin the VISIBLE refusal — a warning banner on the idle centre
+  // column, where wave 4 moved it from the deleted footer — and the published
+  // disabled state.
+  testWidgets('a parked mount says so on screen, not only on hover',
       (tester) async {
     final semantics = tester.ensureSemantics();
     await _pumpScreen(
@@ -201,16 +202,19 @@ void main() {
     final notice = find.byKey(startBlockedNoticeKey);
     expect(notice, findsOneWidget,
         reason: 'the refusal must be readable without hovering');
-    expect(tester.widget<Text>(notice).data, contains('parked'));
+    expect(
+      tester.widget<NightshadeBanner>(notice).message,
+      contains('parked'),
+    );
     expect(
       find.text('Ready to start polar alignment'),
       findsNothing,
-      reason: 'the footer cannot call itself ready while Start is refusing',
+      reason: 'nothing may call the screen ready while Start is refusing',
     );
 
     final node = tester.getSemantics(
       find.byWidgetPredicate(
-        (w) => w is NightshadeButton && w.label == 'Start Alignment',
+        (w) => w is NightshadeButton && w.label == 'Start alignment',
       ),
     );
     expect(
@@ -265,7 +269,7 @@ void main() {
     final tooltip = tester.widget<Tooltip>(
       find
           .ancestor(
-            of: find.text('Start Alignment'),
+            of: find.text('Start alignment'),
             matching: find.byType(Tooltip),
           )
           .last,
