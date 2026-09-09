@@ -252,9 +252,13 @@ class _DarkroomImageSurfaceState extends State<_DarkroomImageSurface> {
           maxScale: widget.maxScale,
           boundaryMargin: const EdgeInsets.all(double.infinity),
           child: Center(
-            child: CustomPaint(
-              painter: _DarkroomImagePainter(shown),
-              size: Size(shown.width.toDouble(), shown.height.toDouble()),
+            // Image DATA: red night re-emits the master's luminance on the red
+            // axis rather than lighting the room with the frame.
+            child: RedNightImage(
+              child: CustomPaint(
+                painter: _DarkroomImagePainter(shown),
+                size: Size(shown.width.toDouble(), shown.height.toDouble()),
+              ),
             ),
           ),
         );

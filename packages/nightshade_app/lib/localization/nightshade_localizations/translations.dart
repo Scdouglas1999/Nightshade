@@ -16,7 +16,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dashboardTitle': 'Dashboard',
     'dashboardTourDescription':
         'Learn about the dashboard controls and status displays.',
-    'dashboardTourTitle': 'Dashboard Tour',
+    'dashboardTourTitle': 'Dashboard tour',
     'disconnectedBanner': 'Error: not connected to server',
     'generalAutoConnect': 'Auto-connect equipment',
     'generalAutoConnectDesc':
@@ -205,7 +205,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsDesc': 'Preferences & profiles',
     'settingsTourDescription':
         'Learn how to configure your Nightshade preferences.',
-    'settingsTourTitle': 'Settings Tour',
+    'settingsTourTitle': 'Settings tour',
     'settingsWeatherSafety': 'Weather safety',
     'share': 'Share',
     'analyticsAllTargets': 'All Targets',
@@ -281,7 +281,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsTotalExposures': 'Total Exposures',
     'analyticsTourDescription':
         'Learn how to analyze your imaging data and session statistics.',
-    'analyticsTourTitle': 'Analytics Tour',
+    'analyticsTourTitle': 'Analytics tour',
     'analyticsUnnamedSession': 'Unnamed Session',
     'weatherSafetyActions': 'Safety Actions',
     'weatherSafetyAlertDistance': 'Alert distance',
@@ -309,7 +309,7 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Pause when sensor humidity exceeds this value',
     'weatherSafetyMaxWind': 'Max wind speed',
     'weatherSafetyMaxWindDesc': 'Pause when wind exceeds this speed',
-    'weatherSafetyTitle': 'Weather Safety',
+    'weatherSafetyTitle': 'Weather safety',
     'mount': 'Mount',
     'ra': 'RA',
     'dec': 'Dec',
@@ -357,14 +357,14 @@ final Map<String, Map<String, String>> _localizedValues = {
     'tracking': 'Tracking',
     'pos': 'Pos',
     'noData': 'No data',
-    'remoteAccessTitle': 'Remote Access',
+    'remoteAccessTitle': 'Remote access',
     'remoteAccessDescription':
         'Configure the web dashboard and remote control server.',
     'remoteAccessWebServer': 'Web Server',
-    'remoteAccessEnableTitle': 'Enable Remote Access',
+    'remoteAccessEnableTitle': 'Enable remote access',
     'remoteAccessEnableDesc':
         'Serve the dashboard and control API for authenticated LAN access.',
-    'remoteAccessPortTitle': 'Server Port',
+    'remoteAccessPortTitle': 'Server port',
     'remoteAccessPortDesc':
         'Port for the remote-access server. Changes rebind the server automatically.',
     'remoteAccessStatusTitle': 'Status',
@@ -387,7 +387,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'remoteAccessActiveViewers': 'Active Viewers',
     'remoteAccessLastError': 'Last Error',
     'remoteAccessNoErrors': 'None',
-    'remoteAccessPairTitle': 'Pair Remote Browsers',
+    'remoteAccessPairTitle': 'Pair remote browsers',
     'remoteAccessPairDesc':
         'Generate a short-lived pairing code and review paired devices.',
     'remoteAccessManagePairing': 'Manage Pairing',
@@ -532,7 +532,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerMoon': 'Moon {value}\u00B0',
     'plannerExposure': '{value}s exp',
     'plannerEstimatedIntegration': 'Estimated integration: {value}',
-    'diagnosticsTitle': 'Optical Train Diagnostics',
+    'diagnosticsTitle': 'Optical train diagnostics',
     'diagnosticsLoadSessionsFailed': 'Could not load sessions',
     'diagnosticsNoSessions': 'No sessions available',
     'diagnosticsSelectSession': 'Select session',
@@ -565,20 +565,20 @@ final Map<String, Map<String, String>> _localizedValues = {
     'commonRename': 'Rename',
     'commonDuplicate': 'Duplicate',
     // First-night wizard chrome (replay-only walkthrough).
-    'firstNightWizardTitle': 'First Night Walkthrough',
+    'firstNightWizardTitle': 'First night walkthrough',
     'firstNightWizardSkipForever': 'Skip forever',
     'firstNightWizardShowNextLaunch': 'Show on next launch',
     'firstNightWizardStepLabel': 'Step {current} of {total}',
     'firstNightWizardShowMeOnScreen': 'Show me on the {screen} screen',
     // Tour prompts.
-    'equipmentTourTitle': 'Equipment Tour',
+    'equipmentTourTitle': 'Equipment tour',
     'equipmentTourDescription':
         'Learn how to connect and manage your astrophotography equipment.',
-    'sequencerTourTitle': 'Sequencer Tour',
+    'sequencerTourTitle': 'Sequencer tour',
     'sequencerTourDescription':
         'Learn how to create and run automated imaging sequences.',
     // Equipment screen profile management (snackbars + dialogs).
-    'equipmentSettingsTitle': 'Equipment Settings',
+    'equipmentSettingsTitle': 'Equipment settings',
     'equipmentDefaultProfileSet': 'Default profile set',
     'equipmentProfileDuplicated': 'Profile duplicated',
     'equipmentProfileRestored': 'Profile restored',

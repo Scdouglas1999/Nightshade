@@ -312,7 +312,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
                 message: disabledReason ?? '',
                 child: NightshadeButton(
                   key: PolarAlignmentTutorialKeys.startBtn,
-                  label: 'Start alignment',
+                  label: 'Start Alignment',
                   icon: NightshadeIcons.play,
                   variant: ButtonVariant.primary,
                   onPressed: canStart ? _startAlignment : null,

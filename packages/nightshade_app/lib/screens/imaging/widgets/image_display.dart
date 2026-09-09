@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../widgets/red_night_filter.dart';
+
 class ImageDisplayWidget extends ConsumerStatefulWidget {
   final CapturedImageData imageData;
   final double zoomLevel;
@@ -135,20 +137,24 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return ClipRect(
-      child: Center(
-        child: Transform.translate(
-          offset: widget.panOffset,
-          child: Transform.scale(
-            scale: widget.zoomLevel,
-            alignment: Alignment.center,
-            child: CustomPaint(
-              painter: _DecodedImagePainter(
-                image: _decodedImage!,
-              ),
-              size: Size(
-                _decodedImage!.width.toDouble(),
-                _decodedImage!.height.toDouble(),
+    // The frame is image DATA: red night re-emits its luminance on the red
+    // axis rather than letting an arbitrary RGB astro frame light the room.
+    return RedNightImage(
+      child: ClipRect(
+        child: Center(
+          child: Transform.translate(
+            offset: widget.panOffset,
+            child: Transform.scale(
+              scale: widget.zoomLevel,
+              alignment: Alignment.center,
+              child: CustomPaint(
+                painter: _DecodedImagePainter(
+                  image: _decodedImage!,
+                ),
+                size: Size(
+                  _decodedImage!.width.toDouble(),
+                  _decodedImage!.height.toDouble(),
+                ),
               ),
             ),
           ),

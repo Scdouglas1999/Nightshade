@@ -10,6 +10,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../red_night_filter.dart';
 import 'location_marker.dart';
 import 'motion_indicator.dart';
 
@@ -235,7 +237,12 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         tileProvider: NetworkTileProvider(httpClient: _tileClient),
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {
-          return _buildEnhancedTile(tileWidget, opacity, contrast);
+          // Tiles are image DATA: under red night the enhanced tile goes
+          // through the luminance -> red filter so the cloud structure
+          // survives without emitting green or blue.
+          return RedNightImage(
+            child: _buildEnhancedTile(tileWidget, opacity, contrast),
+          );
         },
       );
     } else {
@@ -251,7 +258,12 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         tileProvider: NetworkTileProvider(httpClient: _tileClient),
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {
-          return _buildEnhancedTile(tileWidget, opacity, contrast);
+          // Tiles are image DATA: under red night the enhanced tile goes
+          // through the luminance -> red filter so the cloud structure
+          // survives without emitting green or blue.
+          return RedNightImage(
+            child: _buildEnhancedTile(tileWidget, opacity, contrast),
+          );
         },
       );
     }
@@ -330,7 +342,10 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
                 0.6,
                 0,
               ]),
-              child: tileWidget,
+              // Image DATA, so red night re-emits its luminance on the red
+              // axis. The dim above stays: it is what keeps the ground quiet
+              // under the radar.
+              child: RedNightImage(child: tileWidget),
             );
           },
         ),
@@ -365,6 +380,8 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
           userAgentPackageName: 'com.nightshade.app',
           // No retinaMode — same reason as the base layer: no {r} in the Esri
           // template means the flag can only make the labels COARSER.
+          tileBuilder: (context, tileWidget, tile) =>
+              RedNightImage(child: tileWidget),
         ),
 
         // Alert radius circle

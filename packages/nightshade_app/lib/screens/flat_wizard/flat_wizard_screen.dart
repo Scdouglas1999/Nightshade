@@ -80,7 +80,8 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                 _SkyFlatsControls(),
               ],
             ),
-            previewPanel: FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
+            previewPanel:
+                FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
           ),
         ),
       ],
@@ -170,10 +171,10 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
               animation: _tabController,
               builder: (context, _) => AdaptiveTabBar(
                 tabs: const [
-                  AdaptiveTab(label: 'Quick capture', icon: LucideIcons.zap),
+                  AdaptiveTab(label: 'Quick Capture', icon: LucideIcons.zap),
                   AdaptiveTab(
                       label: 'Multi-Filter Batch', icon: LucideIcons.layers),
-                  AdaptiveTab(label: 'Sky flats', icon: LucideIcons.sunrise),
+                  AdaptiveTab(label: 'Sky Flats', icon: LucideIcons.sunrise),
                 ],
                 selectedIndex: _tabController.index,
                 onSelected: (i) => _tabController.animateTo(i),
