@@ -638,7 +638,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MountCapabilities dco_decode_mount_capabilities(dynamic raw);
 
   @protected
+  MountSite dco_decode_mount_site(dynamic raw);
+
+  @protected
+  MountSiteCapabilities dco_decode_mount_site_capabilities(dynamic raw);
+
+  @protected
   MountStatus dco_decode_mount_status(dynamic raw);
+
+  @protected
+  MountTimeInfo dco_decode_mount_time_info(dynamic raw);
 
   @protected
   NightshadeError dco_decode_nightshade_error(dynamic raw);
@@ -1650,7 +1659,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MountCapabilities sse_decode_mount_capabilities(SseDeserializer deserializer);
 
   @protected
+  MountSite sse_decode_mount_site(SseDeserializer deserializer);
+
+  @protected
+  MountSiteCapabilities sse_decode_mount_site_capabilities(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MountStatus sse_decode_mount_status(SseDeserializer deserializer);
+
+  @protected
+  MountTimeInfo sse_decode_mount_time_info(SseDeserializer deserializer);
 
   @protected
   NightshadeError sse_decode_nightshade_error(SseDeserializer deserializer);
@@ -5079,6 +5099,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_mount_site(
+    MountSite apiObj,
+    wire_cst_mount_site wireObj,
+  ) {
+    wireObj.latitude_deg = cst_encode_f_64(apiObj.latitudeDeg);
+    wireObj.longitude_deg = cst_encode_f_64(apiObj.longitudeDeg);
+    wireObj.elevation_m = cst_encode_opt_box_autoadd_f_64(apiObj.elevationM);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_mount_site_capabilities(
+    MountSiteCapabilities apiObj,
+    wire_cst_mount_site_capabilities wireObj,
+  ) {
+    wireObj.can_read_site = cst_encode_bool(apiObj.canReadSite);
+    wireObj.can_write_site = cst_encode_bool(apiObj.canWriteSite);
+    wireObj.can_read_time = cst_encode_bool(apiObj.canReadTime);
+    wireObj.can_write_time = cst_encode_bool(apiObj.canWriteTime);
+  }
+
+  @protected
   void cst_api_fill_to_wire_mount_status(
     MountStatus apiObj,
     wire_cst_mount_status wireObj,
@@ -5109,6 +5150,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.availability = cst_encode_Map_String_field_availability_None(
       apiObj.availability,
     );
+  }
+
+  @protected
+  void cst_api_fill_to_wire_mount_time_info(
+    MountTimeInfo apiObj,
+    wire_cst_mount_time_info wireObj,
+  ) {
+    wireObj.utc_unix_seconds = cst_encode_i_64(apiObj.utcUnixSeconds);
+    wireObj.utc_offset_hours = cst_encode_f_64(apiObj.utcOffsetHours);
   }
 
   @protected
@@ -7791,7 +7841,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_mount_site(MountSite self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_mount_site_capabilities(
+    MountSiteCapabilities self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_mount_status(MountStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_mount_time_info(MountTimeInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_nightshade_error(
@@ -18744,6 +18806,30 @@ class RustLibWire implements BaseWire {
             void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
 
+  void wire__crate__api__devices__mount__mount_get_site(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__mount__mount_get_site(port_, device_id);
+  }
+
+  late final _wire__crate__api__devices__mount__mount_get_sitePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_site',
+      );
+  late final _wire__crate__api__devices__mount__mount_get_site =
+      _wire__crate__api__devices__mount__mount_get_sitePtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
   void wire__crate__api__devices__mount__mount_get_status(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -18767,6 +18853,30 @@ class RustLibWire implements BaseWire {
       );
   late final _wire__crate__api__devices__mount__mount_get_status =
       _wire__crate__api__devices__mount__mount_get_statusPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__devices__mount__mount_get_time(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__mount__mount_get_time(port_, device_id);
+  }
+
+  late final _wire__crate__api__devices__mount__mount_get_timePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_time',
+      );
+  late final _wire__crate__api__devices__mount__mount_get_time =
+      _wire__crate__api__devices__mount__mount_get_timePtr
           .asFunction<
             void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
@@ -18898,6 +19008,86 @@ class RustLibWire implements BaseWire {
             )
           >();
 
+  void wire__crate__api__devices__mount__mount_set_site(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    double latitude_deg,
+    double longitude_deg,
+    ffi.Pointer<ffi.Double> elevation_m,
+  ) {
+    return _wire__crate__api__devices__mount__mount_set_site(
+      port_,
+      device_id,
+      latitude_deg,
+      longitude_deg,
+      elevation_m,
+    );
+  }
+
+  late final _wire__crate__api__devices__mount__mount_set_sitePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Double,
+            ffi.Double,
+            ffi.Pointer<ffi.Double>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_site',
+      );
+  late final _wire__crate__api__devices__mount__mount_set_site =
+      _wire__crate__api__devices__mount__mount_set_sitePtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              double,
+              double,
+              ffi.Pointer<ffi.Double>,
+            )
+          >();
+
+  void wire__crate__api__devices__mount__mount_set_time(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int utc_unix_seconds,
+    double utc_offset_hours,
+  ) {
+    return _wire__crate__api__devices__mount__mount_set_time(
+      port_,
+      device_id,
+      utc_unix_seconds,
+      utc_offset_hours,
+    );
+  }
+
+  late final _wire__crate__api__devices__mount__mount_set_timePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Int64,
+            ffi.Double,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_time',
+      );
+  late final _wire__crate__api__devices__mount__mount_set_time =
+      _wire__crate__api__devices__mount__mount_set_timePtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              int,
+              double,
+            )
+          >();
+
   void wire__crate__api__devices__mount__mount_set_tracking(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -18956,6 +19146,33 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__devices__mount__mount_set_tracking_ratePtr
           .asFunction<
             void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)
+          >();
+
+  void wire__crate__api__devices__mount__mount_site_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__mount__mount_site_capabilities(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__devices__mount__mount_site_capabilitiesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_site_capabilities',
+      );
+  late final _wire__crate__api__devices__mount__mount_site_capabilities =
+      _wire__crate__api__devices__mount__mount_site_capabilitiesPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
 
   void wire__crate__api__devices__mount__mount_slew(
@@ -24035,6 +24252,30 @@ final class wire_cst_indi_autofocus_result_api extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> error_message;
 }
 
+final class wire_cst_mount_site extends ffi.Struct {
+  @ffi.Double()
+  external double latitude_deg;
+
+  @ffi.Double()
+  external double longitude_deg;
+
+  external ffi.Pointer<ffi.Double> elevation_m;
+}
+
+final class wire_cst_mount_site_capabilities extends ffi.Struct {
+  @ffi.Bool()
+  external bool can_read_site;
+
+  @ffi.Bool()
+  external bool can_write_site;
+
+  @ffi.Bool()
+  external bool can_read_time;
+
+  @ffi.Bool()
+  external bool can_write_time;
+}
+
 final class wire_cst_mount_status extends ffi.Struct {
   @ffi.Bool()
   external bool connected;
@@ -24083,6 +24324,14 @@ final class wire_cst_mount_status extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_record_string_field_availability>
   availability;
+}
+
+final class wire_cst_mount_time_info extends ffi.Struct {
+  @ffi.Int64()
+  external int utc_unix_seconds;
+
+  @ffi.Double()
+  external double utc_offset_hours;
 }
 
 final class wire_cst_NightshadeError_DeviceNotFound extends ffi.Struct {

@@ -659,6 +659,66 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     await _post('mount/find-home', {'deviceId': deviceId});
   }
 
+  @override
+  Future<MountSiteCapabilities> mountSiteCapabilities(
+    String deviceId,
+  ) async {
+    final json = await _get('mount/site-capabilities', {'deviceId': deviceId});
+    return MountSiteCapabilities(
+      canReadSite: json['canReadSite'] as bool? ?? false,
+      canWriteSite: json['canWriteSite'] as bool? ?? false,
+      canReadTime: json['canReadTime'] as bool? ?? false,
+      canWriteTime: json['canWriteTime'] as bool? ?? false,
+    );
+  }
+
+  @override
+  Future<MountSite> mountGetSite(String deviceId) async {
+    final json = await _get('mount/site', {'deviceId': deviceId});
+    return MountSite(
+      latitudeDeg: (json['latitudeDeg'] as num).toDouble(),
+      longitudeDeg: (json['longitudeDeg'] as num).toDouble(),
+      elevationM: (json['elevationM'] as num?)?.toDouble(),
+    );
+  }
+
+  @override
+  Future<void> mountSetSite(
+    String deviceId,
+    double latitudeDeg,
+    double longitudeDeg,
+    double? elevationM,
+  ) async {
+    await _post('mount/site', {
+      'deviceId': deviceId,
+      'latitudeDeg': latitudeDeg,
+      'longitudeDeg': longitudeDeg,
+      if (elevationM != null) 'elevationM': elevationM,
+    });
+  }
+
+  @override
+  Future<MountTimeInfo> mountGetTime(String deviceId) async {
+    final json = await _get('mount/time', {'deviceId': deviceId});
+    return MountTimeInfo(
+      utcUnixSeconds: (json['utcUnixSeconds'] as num).toInt(),
+      utcOffsetHours: (json['utcOffsetHours'] as num).toDouble(),
+    );
+  }
+
+  @override
+  Future<void> mountSetTime(
+    String deviceId,
+    int utcUnixSeconds,
+    double utcOffsetHours,
+  ) async {
+    await _post('mount/time', {
+      'deviceId': deviceId,
+      'utcUnixSeconds': utcUnixSeconds,
+      'utcOffsetHours': utcOffsetHours,
+    });
+  }
+
   // Focuser control
 
   @override

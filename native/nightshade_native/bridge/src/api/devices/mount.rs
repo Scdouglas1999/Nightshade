@@ -168,3 +168,71 @@ pub async fn mount_find_home(device_id: String) -> Result<(), NightshadeError> {
         .await
         .map_err(NightshadeError::from)
 }
+
+/// Which site/time directions this mount can honour.
+///
+/// The reconciliation card asks the operator which way to copy; asking about a
+/// direction the driver will refuse wastes their decision.
+pub async fn mount_site_capabilities(
+    device_id: String,
+) -> Result<MountSiteCapabilities, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_site_capabilities(&device_id)
+        .await
+        .map_err(NightshadeError::from)
+}
+
+/// Read the site the mount itself is configured for.
+pub async fn mount_get_site(device_id: String) -> Result<MountSite, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_get_site(&device_id)
+        .await
+        .map_err(NightshadeError::from)
+}
+
+/// Write a site into the mount. Longitude is EAST-positive.
+pub async fn mount_set_site(
+    device_id: String,
+    latitude_deg: f64,
+    longitude_deg: f64,
+    elevation_m: Option<f64>,
+) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_set_site(
+        &device_id,
+        MountSite {
+            latitude_deg,
+            longitude_deg,
+            elevation_m,
+        },
+    )
+    .await
+    .map_err(NightshadeError::from)
+}
+
+/// Read the mount's clock.
+pub async fn mount_get_time(device_id: String) -> Result<MountTimeInfo, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_get_time(&device_id)
+        .await
+        .map_err(NightshadeError::from)
+}
+
+/// Write a clock into the mount. `utc_offset_hours` is east of UTC in the
+/// ordinary sense (US Eastern Standard is -5.0).
+pub async fn mount_set_time(
+    device_id: String,
+    utc_unix_seconds: i64,
+    utc_offset_hours: f64,
+) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_set_time(
+        &device_id,
+        MountTimeInfo {
+            utc_unix_seconds,
+            utc_offset_hours,
+        },
+    )
+    .await
+    .map_err(NightshadeError::from)
+}

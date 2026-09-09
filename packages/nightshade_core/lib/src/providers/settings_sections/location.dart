@@ -37,6 +37,13 @@ extension LocationSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(timezone: value));
   }
 
+  /// What to do when a connected mount's site/time disagrees with this
+  /// computer's: `ask`, `computerToMount`, `mountToComputer` or `never`.
+  Future<void> setMountSiteSyncMode(String value) async {
+    await _saveSetting('mount_site_sync_mode', value);
+    _patchState((s) => s.copyWith(mountSiteSyncMode: value));
+  }
+
   Future<void> setUseSystemTime(bool value) async {
     await _saveSetting('use_system_time', value.toString());
     _patchState((s) => s.copyWith(useSystemTime: value));

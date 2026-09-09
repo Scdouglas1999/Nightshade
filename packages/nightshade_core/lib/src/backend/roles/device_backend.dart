@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:nightshade_bridge/nightshade_bridge.dart'
-    show CameraRecommendedSettings;
+    show
+        CameraRecommendedSettings,
+        MountSite,
+        MountSiteCapabilities,
+        MountTimeInfo;
 
 import '../../models/backend/backend_types.dart';
 import '../../models/imaging/imaging_models.dart' show FrameType;
@@ -260,6 +264,31 @@ abstract class DeviceBackend {
 
   /// Find mount home position
   Future<void> mountFindHome(String deviceId);
+
+  /// Which site/time directions this mount's driver can actually honour.
+  Future<MountSiteCapabilities> mountSiteCapabilities(String deviceId);
+
+  /// The site the mount itself is configured for. Longitude is EAST-positive.
+  Future<MountSite> mountGetSite(String deviceId);
+
+  /// Write a site into the mount. Longitude is EAST-positive.
+  Future<void> mountSetSite(
+    String deviceId,
+    double latitudeDeg,
+    double longitudeDeg,
+    double? elevationM,
+  );
+
+  /// The mount's own clock.
+  Future<MountTimeInfo> mountGetTime(String deviceId);
+
+  /// Write a clock into the mount. [utcOffsetHours] is east of UTC in the
+  /// ordinary sense: US Eastern Standard is -5.0.
+  Future<void> mountSetTime(
+    String deviceId,
+    int utcUnixSeconds,
+    double utcOffsetHours,
+  );
 
   // Focuser control
 

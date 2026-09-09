@@ -260,7 +260,12 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       afExposuresPerPoint: _parseInt(allSettings['af_exposures_per_point'], 1),
       afBacklashCompMethod:
           allSettings['af_backlash_comp_method'] ?? 'Overshoot',
-      afBacklashIn: _parseInt(allSettings['af_backlash_in'], 350),
+      // 0, matching every other backlash default: a fallback of 350 here
+      // reintroduced the shipped guess for any profile whose row is
+      // missing, which is exactly the fresh-install case.
+      afBacklashIn: _parseInt(allSettings['af_backlash_in'], 0),
+      mountSiteSyncMode:
+          allSettings['mount_site_sync_mode']?.toString() ?? 'ask',
       afBacklashOut: _parseInt(allSettings['af_backlash_out'], 0),
       afAutofocusFilterName: allSettings['af_autofocus_filter_name'] ?? '',
       afFilterSettingsJson: allSettings['af_filter_settings'] ?? '{}',
@@ -645,6 +650,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'af_exposures_per_point': s.afExposuresPerPoint.toString(),
       'af_backlash_comp_method': s.afBacklashCompMethod,
       'af_backlash_in': s.afBacklashIn.toString(),
+      'mount_site_sync_mode': s.mountSiteSyncMode,
       'af_backlash_out': s.afBacklashOut.toString(),
       'af_autofocus_filter_name': s.afAutofocusFilterName,
       'af_filter_settings': s.afFilterSettingsJson,

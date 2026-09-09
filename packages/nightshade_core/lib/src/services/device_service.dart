@@ -34,6 +34,8 @@ import 'phd2_status_poll.dart';
 import 'predictive_af_service.dart';
 import 'switch_channel_service.dart';
 import 'device_service_lifecycle.dart';
+import '../models/mount_site_reconciliation.dart';
+import '../providers/mount_site_provider.dart';
 
 // Re-export backend types so importers of this file get them too.
 export '../models/backend/device_types.dart' show DeviceType, DriverType;

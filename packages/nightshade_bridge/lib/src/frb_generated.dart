@@ -124,7 +124,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -839265060;
+  int get rustContentHash => -1858542796;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1812,7 +1812,15 @@ abstract class RustLibApi extends BaseApi {
     required String deviceId,
   });
 
+  Future<MountSite> crateApiDevicesMountMountGetSite({
+    required String deviceId,
+  });
+
   Future<MountStatus> crateApiDevicesMountMountGetStatus({
+    required String deviceId,
+  });
+
+  Future<MountTimeInfo> crateApiDevicesMountMountGetTime({
     required String deviceId,
   });
 
@@ -1834,6 +1842,19 @@ abstract class RustLibApi extends BaseApi {
     required int durationMs,
   });
 
+  Future<void> crateApiDevicesMountMountSetSite({
+    required String deviceId,
+    required double latitudeDeg,
+    required double longitudeDeg,
+    double? elevationM,
+  });
+
+  Future<void> crateApiDevicesMountMountSetTime({
+    required String deviceId,
+    required PlatformInt64 utcUnixSeconds,
+    required double utcOffsetHours,
+  });
+
   Future<void> crateApiDevicesMountMountSetTracking({
     required String deviceId,
     required int enabled,
@@ -1842,6 +1863,10 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiDevicesMountMountSetTrackingRate({
     required String deviceId,
     required int rate,
+  });
+
+  Future<MountSiteCapabilities> crateApiDevicesMountMountSiteCapabilities({
+    required String deviceId,
   });
 
   Future<void> crateApiDevicesMountMountSlew({
@@ -14440,6 +14465,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<MountSite> crateApiDevicesMountMountGetSite({
+    required String deviceId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(deviceId);
+          return wire.wire__crate__api__devices__mount__mount_get_site(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_mount_site,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDevicesMountMountGetSiteConstMeta,
+        argValues: [deviceId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDevicesMountMountGetSiteConstMeta =>
+      const TaskConstMeta(debugName: "mount_get_site", argNames: ["deviceId"]);
+
+  @override
   Future<MountStatus> crateApiDevicesMountMountGetStatus({
     required String deviceId,
   }) {
@@ -14468,6 +14520,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         debugName: "mount_get_status",
         argNames: ["deviceId"],
       );
+
+  @override
+  Future<MountTimeInfo> crateApiDevicesMountMountGetTime({
+    required String deviceId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(deviceId);
+          return wire.wire__crate__api__devices__mount__mount_get_time(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_mount_time_info,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDevicesMountMountGetTimeConstMeta,
+        argValues: [deviceId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDevicesMountMountGetTimeConstMeta =>
+      const TaskConstMeta(debugName: "mount_get_time", argNames: ["deviceId"]);
 
   @override
   Future<int> crateApiDevicesMountMountGetTrackingRate({
@@ -14594,6 +14673,81 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDevicesMountMountSetSite({
+    required String deviceId,
+    required double latitudeDeg,
+    required double longitudeDeg,
+    double? elevationM,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(deviceId);
+          var arg1 = cst_encode_f_64(latitudeDeg);
+          var arg2 = cst_encode_f_64(longitudeDeg);
+          var arg3 = cst_encode_opt_box_autoadd_f_64(elevationM);
+          return wire.wire__crate__api__devices__mount__mount_set_site(
+            port_,
+            arg0,
+            arg1,
+            arg2,
+            arg3,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDevicesMountMountSetSiteConstMeta,
+        argValues: [deviceId, latitudeDeg, longitudeDeg, elevationM],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDevicesMountMountSetSiteConstMeta =>
+      const TaskConstMeta(
+        debugName: "mount_set_site",
+        argNames: ["deviceId", "latitudeDeg", "longitudeDeg", "elevationM"],
+      );
+
+  @override
+  Future<void> crateApiDevicesMountMountSetTime({
+    required String deviceId,
+    required PlatformInt64 utcUnixSeconds,
+    required double utcOffsetHours,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(deviceId);
+          var arg1 = cst_encode_i_64(utcUnixSeconds);
+          var arg2 = cst_encode_f_64(utcOffsetHours);
+          return wire.wire__crate__api__devices__mount__mount_set_time(
+            port_,
+            arg0,
+            arg1,
+            arg2,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDevicesMountMountSetTimeConstMeta,
+        argValues: [deviceId, utcUnixSeconds, utcOffsetHours],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDevicesMountMountSetTimeConstMeta =>
+      const TaskConstMeta(
+        debugName: "mount_set_time",
+        argNames: ["deviceId", "utcUnixSeconds", "utcOffsetHours"],
+      );
+
+  @override
   Future<void> crateApiDevicesMountMountSetTracking({
     required String deviceId,
     required int enabled,
@@ -14657,6 +14811,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "mount_set_tracking_rate",
         argNames: ["deviceId", "rate"],
+      );
+
+  @override
+  Future<MountSiteCapabilities> crateApiDevicesMountMountSiteCapabilities({
+    required String deviceId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(deviceId);
+          return wire.wire__crate__api__devices__mount__mount_site_capabilities(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_mount_site_capabilities,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDevicesMountMountSiteCapabilitiesConstMeta,
+        argValues: [deviceId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDevicesMountMountSiteCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "mount_site_capabilities",
+        argNames: ["deviceId"],
       );
 
   @override
@@ -17473,6 +17657,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MountSite dco_decode_mount_site(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return MountSite(
+      latitudeDeg: dco_decode_f_64(arr[0]),
+      longitudeDeg: dco_decode_f_64(arr[1]),
+      elevationM: dco_decode_opt_box_autoadd_f_64(arr[2]),
+    );
+  }
+
+  @protected
+  MountSiteCapabilities dco_decode_mount_site_capabilities(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return MountSiteCapabilities(
+      canReadSite: dco_decode_bool(arr[0]),
+      canWriteSite: dco_decode_bool(arr[1]),
+      canReadTime: dco_decode_bool(arr[2]),
+      canWriteTime: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
   MountStatus dco_decode_mount_status(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -17497,6 +17708,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       canPulseGuide: dco_decode_bool(arr[15]),
       canSetTrackingRate: dco_decode_bool(arr[16]),
       availability: dco_decode_Map_String_field_availability_None(arr[17]),
+    );
+  }
+
+  @protected
+  MountTimeInfo dco_decode_mount_time_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return MountTimeInfo(
+      utcUnixSeconds: dco_decode_i_64(arr[0]),
+      utcOffsetHours: dco_decode_f_64(arr[1]),
     );
   }
 
@@ -21923,6 +22146,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MountSite sse_decode_mount_site(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_latitudeDeg = sse_decode_f_64(deserializer);
+    var var_longitudeDeg = sse_decode_f_64(deserializer);
+    var var_elevationM = sse_decode_opt_box_autoadd_f_64(deserializer);
+    return MountSite(
+      latitudeDeg: var_latitudeDeg,
+      longitudeDeg: var_longitudeDeg,
+      elevationM: var_elevationM,
+    );
+  }
+
+  @protected
+  MountSiteCapabilities sse_decode_mount_site_capabilities(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_canReadSite = sse_decode_bool(deserializer);
+    var var_canWriteSite = sse_decode_bool(deserializer);
+    var var_canReadTime = sse_decode_bool(deserializer);
+    var var_canWriteTime = sse_decode_bool(deserializer);
+    return MountSiteCapabilities(
+      canReadSite: var_canReadSite,
+      canWriteSite: var_canWriteSite,
+      canReadTime: var_canReadTime,
+      canWriteTime: var_canWriteTime,
+    );
+  }
+
+  @protected
   MountStatus sse_decode_mount_status(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_connected = sse_decode_bool(deserializer);
@@ -21966,6 +22219,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       canPulseGuide: var_canPulseGuide,
       canSetTrackingRate: var_canSetTrackingRate,
       availability: var_availability,
+    );
+  }
+
+  @protected
+  MountTimeInfo sse_decode_mount_time_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_utcUnixSeconds = sse_decode_i_64(deserializer);
+    var var_utcOffsetHours = sse_decode_f_64(deserializer);
+    return MountTimeInfo(
+      utcUnixSeconds: var_utcUnixSeconds,
+      utcOffsetHours: var_utcOffsetHours,
     );
   }
 
@@ -26668,6 +26932,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_mount_site(MountSite self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.latitudeDeg, serializer);
+    sse_encode_f_64(self.longitudeDeg, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.elevationM, serializer);
+  }
+
+  @protected
+  void sse_encode_mount_site_capabilities(
+    MountSiteCapabilities self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.canReadSite, serializer);
+    sse_encode_bool(self.canWriteSite, serializer);
+    sse_encode_bool(self.canReadTime, serializer);
+    sse_encode_bool(self.canWriteTime, serializer);
+  }
+
+  @protected
   void sse_encode_mount_status(MountStatus self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.connected, serializer);
@@ -26691,6 +26975,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self.availability,
       serializer,
     );
+  }
+
+  @protected
+  void sse_encode_mount_time_info(
+    MountTimeInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.utcUnixSeconds, serializer);
+    sse_encode_f_64(self.utcOffsetHours, serializer);
   }
 
   @protected

@@ -61,6 +61,51 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   }
 
   @override
+  Future<bridge.MountSiteCapabilities> mountSiteCapabilities(
+    String deviceId,
+  ) async {
+    return bridge_api.mountSiteCapabilities(deviceId: deviceId);
+  }
+
+  @override
+  Future<bridge.MountSite> mountGetSite(String deviceId) async {
+    return bridge_api.mountGetSite(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> mountSetSite(
+    String deviceId,
+    double latitudeDeg,
+    double longitudeDeg,
+    double? elevationM,
+  ) async {
+    await bridge_api.mountSetSite(
+      deviceId: deviceId,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+      elevationM: elevationM,
+    );
+  }
+
+  @override
+  Future<bridge.MountTimeInfo> mountGetTime(String deviceId) async {
+    return bridge_api.mountGetTime(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> mountSetTime(
+    String deviceId,
+    int utcUnixSeconds,
+    double utcOffsetHours,
+  ) async {
+    await bridge_api.mountSetTime(
+      deviceId: deviceId,
+      utcUnixSeconds: utcUnixSeconds,
+      utcOffsetHours: utcOffsetHours,
+    );
+  }
+
+  @override
   Future<void> mountPulseGuide({
     required String deviceId,
     required String direction,

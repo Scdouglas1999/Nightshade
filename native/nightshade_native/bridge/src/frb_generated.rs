@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -839265060;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1858542796;
 
 // Section: executor
 
@@ -9439,6 +9439,31 @@ fn wire__crate__api__devices__mount__mount_get_coordinates_impl(
         },
     )
 }
+fn wire__crate__api__devices__mount__mount_get_site_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_get_site",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::devices::mount::mount_get_site(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__devices__mount__mount_get_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
@@ -9456,6 +9481,31 @@ fn wire__crate__api__devices__mount__mount_get_status_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::devices::mount::mount_get_status(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__mount__mount_get_time_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_get_time",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::devices::mount::mount_get_time(api_device_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -9581,6 +9631,75 @@ fn wire__crate__api__devices__mount__mount_pulse_guide_impl(
         },
     )
 }
+fn wire__crate__api__devices__mount__mount_set_site_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    latitude_deg: impl CstDecode<f64>,
+    longitude_deg: impl CstDecode<f64>,
+    elevation_m: impl CstDecode<Option<f64>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_set_site",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_latitude_deg = latitude_deg.cst_decode();
+            let api_longitude_deg = longitude_deg.cst_decode();
+            let api_elevation_m = elevation_m.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::devices::mount::mount_set_site(
+                            api_device_id,
+                            api_latitude_deg,
+                            api_longitude_deg,
+                            api_elevation_m,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__mount__mount_set_time_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    utc_unix_seconds: impl CstDecode<i64>,
+    utc_offset_hours: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_set_time",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_utc_unix_seconds = utc_unix_seconds.cst_decode();
+            let api_utc_offset_hours = utc_offset_hours.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::devices::mount::mount_set_time(
+                            api_device_id,
+                            api_utc_unix_seconds,
+                            api_utc_offset_hours,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__devices__mount__mount_set_tracking_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
@@ -9633,6 +9752,32 @@ fn wire__crate__api__devices__mount__mount_set_tracking_rate_impl(
                             api_rate,
                         )
                         .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__mount__mount_site_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_site_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::devices::mount::mount_site_capabilities(api_device_id)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -13113,6 +13258,36 @@ impl SseDecode for crate::device_capabilities::types::MountCapabilities {
     }
 }
 
+impl SseDecode for crate::device::MountSite {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_latitudeDeg = <f64>::sse_decode(deserializer);
+        let mut var_longitudeDeg = <f64>::sse_decode(deserializer);
+        let mut var_elevationM = <Option<f64>>::sse_decode(deserializer);
+        return crate::device::MountSite {
+            latitude_deg: var_latitudeDeg,
+            longitude_deg: var_longitudeDeg,
+            elevation_m: var_elevationM,
+        };
+    }
+}
+
+impl SseDecode for crate::device::MountSiteCapabilities {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_canReadSite = <bool>::sse_decode(deserializer);
+        let mut var_canWriteSite = <bool>::sse_decode(deserializer);
+        let mut var_canReadTime = <bool>::sse_decode(deserializer);
+        let mut var_canWriteTime = <bool>::sse_decode(deserializer);
+        return crate::device::MountSiteCapabilities {
+            can_read_site: var_canReadSite,
+            can_write_site: var_canWriteSite,
+            can_read_time: var_canReadTime,
+            can_write_time: var_canWriteTime,
+        };
+    }
+}
+
 impl SseDecode for crate::device::MountStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13156,6 +13331,18 @@ impl SseDecode for crate::device::MountStatus {
             can_pulse_guide: var_canPulseGuide,
             can_set_tracking_rate: var_canSetTrackingRate,
             availability: var_availability,
+        };
+    }
+}
+
+impl SseDecode for crate::device::MountTimeInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_utcUnixSeconds = <i64>::sse_decode(deserializer);
+        let mut var_utcOffsetHours = <f64>::sse_decode(deserializer);
+        return crate::device::MountTimeInfo {
+            utc_unix_seconds: var_utcUnixSeconds,
+            utc_offset_hours: var_utcOffsetHours,
         };
     }
 }
@@ -17630,6 +17817,46 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::MountC
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::device::MountSite {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.latitude_deg.into_into_dart().into_dart(),
+            self.longitude_deg.into_into_dart().into_dart(),
+            self.elevation_m.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::device::MountSite {}
+impl flutter_rust_bridge::IntoIntoDart<crate::device::MountSite> for crate::device::MountSite {
+    fn into_into_dart(self) -> crate::device::MountSite {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::device::MountSiteCapabilities {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.can_read_site.into_into_dart().into_dart(),
+            self.can_write_site.into_into_dart().into_dart(),
+            self.can_read_time.into_into_dart().into_dart(),
+            self.can_write_time.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::device::MountSiteCapabilities
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::device::MountSiteCapabilities>
+    for crate::device::MountSiteCapabilities
+{
+    fn into_into_dart(self) -> crate::device::MountSiteCapabilities {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::device::MountStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -17658,6 +17885,24 @@ impl flutter_rust_bridge::IntoDart for crate::device::MountStatus {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::device::MountStatus {}
 impl flutter_rust_bridge::IntoIntoDart<crate::device::MountStatus> for crate::device::MountStatus {
     fn into_into_dart(self) -> crate::device::MountStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::device::MountTimeInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.utc_unix_seconds.into_into_dart().into_dart(),
+            self.utc_offset_hours.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::device::MountTimeInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::device::MountTimeInfo>
+    for crate::device::MountTimeInfo
+{
+    fn into_into_dart(self) -> crate::device::MountTimeInfo {
         self
     }
 }
@@ -21678,6 +21923,25 @@ impl SseEncode for crate::device_capabilities::types::MountCapabilities {
     }
 }
 
+impl SseEncode for crate::device::MountSite {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.latitude_deg, serializer);
+        <f64>::sse_encode(self.longitude_deg, serializer);
+        <Option<f64>>::sse_encode(self.elevation_m, serializer);
+    }
+}
+
+impl SseEncode for crate::device::MountSiteCapabilities {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.can_read_site, serializer);
+        <bool>::sse_encode(self.can_write_site, serializer);
+        <bool>::sse_encode(self.can_read_time, serializer);
+        <bool>::sse_encode(self.can_write_time, serializer);
+    }
+}
+
 impl SseEncode for crate::device::MountStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21702,6 +21966,14 @@ impl SseEncode for crate::device::MountStatus {
             self.availability,
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::device::MountTimeInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.utc_unix_seconds, serializer);
+        <f64>::sse_encode(self.utc_offset_hours, serializer);
     }
 }
 
@@ -25694,6 +25966,27 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::device::MountSite> for wire_cst_mount_site {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::MountSite {
+            crate::device::MountSite {
+                latitude_deg: self.latitude_deg.cst_decode(),
+                longitude_deg: self.longitude_deg.cst_decode(),
+                elevation_m: self.elevation_m.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::device::MountSiteCapabilities> for wire_cst_mount_site_capabilities {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::MountSiteCapabilities {
+            crate::device::MountSiteCapabilities {
+                can_read_site: self.can_read_site.cst_decode(),
+                can_write_site: self.can_write_site.cst_decode(),
+                can_read_time: self.can_read_time.cst_decode(),
+                can_write_time: self.can_write_time.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::device::MountStatus> for wire_cst_mount_status {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::device::MountStatus {
@@ -25716,6 +26009,15 @@ mod io {
                 can_pulse_guide: self.can_pulse_guide.cst_decode(),
                 can_set_tracking_rate: self.can_set_tracking_rate.cst_decode(),
                 availability: self.availability.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::device::MountTimeInfo> for wire_cst_mount_time_info {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::MountTimeInfo {
+            crate::device::MountTimeInfo {
+                utc_unix_seconds: self.utc_unix_seconds.cst_decode(),
+                utc_offset_hours: self.utc_offset_hours.cst_decode(),
             }
         }
     }
@@ -28104,6 +28406,35 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_mount_site {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                latitude_deg: Default::default(),
+                longitude_deg: Default::default(),
+                elevation_m: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_mount_site {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_mount_site_capabilities {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                can_read_site: Default::default(),
+                can_write_site: Default::default(),
+                can_read_time: Default::default(),
+                can_write_time: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_mount_site_capabilities {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_mount_status {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -28129,6 +28460,19 @@ mod io {
         }
     }
     impl Default for wire_cst_mount_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_mount_time_info {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                utc_unix_seconds: Default::default(),
+                utc_offset_hours: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_mount_time_info {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -32935,11 +33279,27 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_site(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__devices__mount__mount_get_site_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__devices__mount__mount_get_status_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_time(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__devices__mount__mount_get_time_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -32984,6 +33344,38 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_site(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        latitude_deg: f64,
+        longitude_deg: f64,
+        elevation_m: *mut f64,
+    ) {
+        wire__crate__api__devices__mount__mount_set_site_impl(
+            port_,
+            device_id,
+            latitude_deg,
+            longitude_deg,
+            elevation_m,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_time(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        utc_unix_seconds: i64,
+        utc_offset_hours: f64,
+    ) {
+        wire__crate__api__devices__mount__mount_set_time_impl(
+            port_,
+            device_id,
+            utc_unix_seconds,
+            utc_offset_hours,
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_tracking(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
@@ -32999,6 +33391,14 @@ mod io {
         rate: i32,
     ) {
         wire__crate__api__devices__mount__mount_set_tracking_rate_impl(port_, device_id, rate)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_site_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__devices__mount__mount_site_capabilities_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -35391,6 +35791,21 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_mount_site {
+        latitude_deg: f64,
+        longitude_deg: f64,
+        elevation_m: *mut f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_mount_site_capabilities {
+        can_read_site: bool,
+        can_write_site: bool,
+        can_read_time: bool,
+        can_write_time: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_mount_status {
         connected: bool,
         tracking: bool,
@@ -35410,6 +35825,12 @@ mod io {
         can_pulse_guide: bool,
         can_set_tracking_rate: bool,
         availability: *mut wire_cst_list_record_string_field_availability,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_mount_time_info {
+        utc_unix_seconds: i64,
+        utc_offset_hours: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

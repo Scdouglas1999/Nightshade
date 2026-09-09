@@ -270,6 +270,38 @@ pub mod mount_status_field {
 /// read are `Option<T>` and accompanied by an entry in `availability` so the
 /// UI can render "—" for `None`+`Unsupported` versus an error indicator for
 /// `None`+`Error(reason)`.
+/// The site a mount is configured for, and where that answer came from.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountSite {
+    /// Degrees north, negative south.
+    pub latitude_deg: f64,
+    /// Degrees EAST of Greenwich, negative west. Drivers whose wire format is
+    /// west-positive (LX200) convert; callers only ever see east-positive.
+    pub longitude_deg: f64,
+    /// Metres above sea level. `None` when the protocol does not carry it —
+    /// which is not the same as sea level.
+    pub elevation_m: Option<f64>,
+}
+
+/// A mount's clock.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountTimeInfo {
+    /// Seconds since the Unix epoch, UTC.
+    pub utc_unix_seconds: i64,
+    /// Hours EAST of UTC in the ordinary sense: US Eastern Standard is -5.0.
+    pub utc_offset_hours: f64,
+}
+
+/// Which directions a given mount can actually reconcile, so the UI offers a
+/// choice the driver can honour instead of one it will refuse.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountSiteCapabilities {
+    pub can_read_site: bool,
+    pub can_write_site: bool,
+    pub can_read_time: bool,
+    pub can_write_time: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MountStatus {
     pub connected: bool,

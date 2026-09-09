@@ -122,3 +122,46 @@ Future<void> mountSlewAltAz({
 /// Find mount home position
 Future<void> mountFindHome({required String deviceId}) =>
     RustLib.instance.api.crateApiDevicesMountMountFindHome(deviceId: deviceId);
+
+/// Which site/time directions this mount can honour.
+///
+/// The reconciliation card asks the operator which way to copy; asking about a
+/// direction the driver will refuse wastes their decision.
+Future<MountSiteCapabilities> mountSiteCapabilities({
+  required String deviceId,
+}) => RustLib.instance.api.crateApiDevicesMountMountSiteCapabilities(
+  deviceId: deviceId,
+);
+
+/// Read the site the mount itself is configured for.
+Future<MountSite> mountGetSite({required String deviceId}) =>
+    RustLib.instance.api.crateApiDevicesMountMountGetSite(deviceId: deviceId);
+
+/// Write a site into the mount. Longitude is EAST-positive.
+Future<void> mountSetSite({
+  required String deviceId,
+  required double latitudeDeg,
+  required double longitudeDeg,
+  double? elevationM,
+}) => RustLib.instance.api.crateApiDevicesMountMountSetSite(
+  deviceId: deviceId,
+  latitudeDeg: latitudeDeg,
+  longitudeDeg: longitudeDeg,
+  elevationM: elevationM,
+);
+
+/// Read the mount's clock.
+Future<MountTimeInfo> mountGetTime({required String deviceId}) =>
+    RustLib.instance.api.crateApiDevicesMountMountGetTime(deviceId: deviceId);
+
+/// Write a clock into the mount. `utc_offset_hours` is east of UTC in the
+/// ordinary sense (US Eastern Standard is -5.0).
+Future<void> mountSetTime({
+  required String deviceId,
+  required PlatformInt64 utcUnixSeconds,
+  required double utcOffsetHours,
+}) => RustLib.instance.api.crateApiDevicesMountMountSetTime(
+  deviceId: deviceId,
+  utcUnixSeconds: utcUnixSeconds,
+  utcOffsetHours: utcOffsetHours,
+);

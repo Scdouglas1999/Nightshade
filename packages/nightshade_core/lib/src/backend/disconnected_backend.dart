@@ -223,6 +223,40 @@ class DisconnectedBackend
   }
 
   @override
+  Future<MountSiteCapabilities> mountSiteCapabilities(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<MountSite> mountGetSite(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> mountSetSite(
+    String deviceId,
+    double latitudeDeg,
+    double longitudeDeg,
+    double? elevationM,
+  ) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<MountTimeInfo> mountGetTime(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> mountSetTime(
+    String deviceId,
+    int utcUnixSeconds,
+    double utcOffsetHours,
+  ) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> focuserMoveTo(String deviceId, int position) async {
     _throwNotConnected();
   }

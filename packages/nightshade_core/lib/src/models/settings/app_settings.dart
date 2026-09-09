@@ -434,6 +434,10 @@ abstract class AppSettings with _$AppSettings {
     /// AF backlash-in steps. DB `af_backlash_in`.
     @Default(0) int afBacklashIn,
 
+    /// What to do when a connected mount's site/time disagrees with this
+    /// computer's. DB `mount_site_sync_mode`.
+    @Default('ask') String mountSiteSyncMode,
+
     /// AF backlash-out steps. DB `af_backlash_out`.
     @Default(0) int afBacklashOut,
 

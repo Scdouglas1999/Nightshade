@@ -206,6 +206,7 @@ class AppSettingsState {
   final int afExposuresPerPoint;
   final String afBacklashCompMethod; // 'None', 'Overshoot', 'Absolute'
   final int afBacklashIn;
+  final String mountSiteSyncMode;
   final int afBacklashOut;
   final String
   afAutofocusFilterName; // designated filter for AF runs (empty = use current)
@@ -576,6 +577,7 @@ class AppSettingsState {
     this.afExposuresPerPoint = 1,
     this.afBacklashCompMethod = 'Overshoot',
     this.afBacklashIn = 0,
+    this.mountSiteSyncMode = 'ask',
     this.afBacklashOut = 0,
     this.afAutofocusFilterName = '',
     this.afFilterSettingsJson = '{}',

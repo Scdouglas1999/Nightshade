@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use tracing::warn;
 
 pub(crate) mod park;
+pub(crate) mod site;
 pub(crate) mod slew;
 pub(crate) mod status;
 pub(crate) mod tracking;

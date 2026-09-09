@@ -338,11 +338,110 @@ extension _DeviceServiceImagingChainConnections on DeviceService {
           deviceId: deviceId,
           intervalMs: 10000,
         );
+
+        // Compare the mount's idea of where and when it is against this
+        // computer's. Entirely fail-soft: a mount that cannot answer, a
+        // driver that has no site commands, or a serial hiccup must never
+        // turn a working connection into a failed one, so everything here
+        // is inside its own guard and nothing rethrows.
+        unawaited(_reconcileMountSite(deviceId, deviceName));
       } catch (e) {
         notifier.setDisconnected();
         rethrow;
       }
     });
+  }
+
+  /// Read the mount's site/time and either apply the operator's standing
+  /// preference or raise a comparison for them to decide on.
+  ///
+  /// Runs detached from the connect future: the operator should not wait on a
+  /// serial site query to see their mount come up, and a mount that never
+  /// answers must not hold the connection open.
+  Future<void> _reconcileMountSite(String deviceId, String deviceName) async {
+    try {
+      final settings = _ref.read(appSettingsProvider).valueOrNull;
+      if (settings == null) return;
+
+      final mode = settings.mountSiteSyncMode;
+      if (mode == 'never') return;
+
+      final comparison =
+          await _ref.read(mountSiteReconcilerProvider).compare(
+                deviceId: deviceId,
+                deviceName: deviceName,
+                computerLatitudeDeg: settings.latitude,
+                computerLongitudeDeg: settings.longitude,
+                computerElevationM: settings.elevation,
+              );
+
+      if (!comparison.needsAttention) return;
+
+      switch (mode) {
+        case 'computerToMount':
+          await _applyStandingPreference(
+            comparison,
+            MountSiteSyncDirection.computerToMount,
+          );
+        case 'mountToComputer':
+          await _applyStandingPreference(
+            comparison,
+            MountSiteSyncDirection.mountToComputer,
+          );
+        default:
+          _ref
+              .read(pendingMountSiteReconciliationProvider.notifier)
+              .raise(comparison);
+      }
+    } catch (e) {
+      _safeLog(
+        (l) => l.warning(
+          'Mount site/time reconciliation skipped for ($deviceId): $e',
+          source: 'DeviceService',
+        ),
+        'mount-site-reconcile-fail',
+      );
+    }
+  }
+
+  Future<void> _applyStandingPreference(
+    MountSiteReconciliation comparison,
+    MountSiteSyncDirection direction,
+  ) async {
+    if (!comparison.canApply(direction)) {
+      // The operator asked for a direction this mount cannot do. Say so once
+      // rather than silently doing nothing every single connect.
+      _safeLog(
+        (l) => l.warning(
+          'Mount ${comparison.deviceId} cannot sync '
+          '${direction.name}: ${comparison.unavailableReason(direction)}',
+          source: 'DeviceService',
+        ),
+        'mount-site-direction-unavailable',
+      );
+      return;
+    }
+
+    final failures =
+        await _ref.read(mountSiteReconcilerProvider).apply(comparison, direction);
+    if (failures.isEmpty) {
+      _safeLog(
+        (l) => l.info(
+          'Mount ${comparison.deviceId} site/time synced ${direction.name}',
+          source: 'DeviceService',
+        ),
+        'mount-site-synced',
+      );
+    } else {
+      _safeLog(
+        (l) => l.warning(
+          'Mount ${comparison.deviceId} site/time sync '
+          '${direction.name} partially failed: ${failures.join('; ')}',
+          source: 'DeviceService',
+        ),
+        'mount-site-sync-partial',
+      );
+    }
   }
 
   /// Disconnect mount
@@ -357,7 +456,11 @@ extension _DeviceServiceImagingChainConnections on DeviceService {
         throw const DeviceNotConnectedException('mount');
       }
 
-      _markUserInitiatedDisconnect(deviceId);
+// A card asking about this mount must not outlive it.
+      _ref
+          .read(pendingMountSiteReconciliationProvider.notifier)
+          .clearFor(deviceId);
+            _markUserInitiatedDisconnect(deviceId);
 
       try {
         // Stop heartbeat monitoring; fail-soft inside the router so the

@@ -1823,6 +1823,19 @@ typedef struct wire_cst_indi_autofocus_result_api {
   struct wire_cst_list_prim_u_8_strict *error_message;
 } wire_cst_indi_autofocus_result_api;
 
+typedef struct wire_cst_mount_site {
+  double latitude_deg;
+  double longitude_deg;
+  double *elevation_m;
+} wire_cst_mount_site;
+
+typedef struct wire_cst_mount_site_capabilities {
+  bool can_read_site;
+  bool can_write_site;
+  bool can_read_time;
+  bool can_write_time;
+} wire_cst_mount_site_capabilities;
+
 typedef struct wire_cst_mount_status {
   bool connected;
   bool tracking;
@@ -1843,6 +1856,11 @@ typedef struct wire_cst_mount_status {
   bool can_set_tracking_rate;
   struct wire_cst_list_record_string_field_availability *availability;
 } wire_cst_mount_status;
+
+typedef struct wire_cst_mount_time_info {
+  int64_t utc_unix_seconds;
+  double utc_offset_hours;
+} wire_cst_mount_time_info;
 
 typedef struct wire_cst_NightshadeError_DeviceNotFound {
   struct wire_cst_list_prim_u_8_strict *field0;
@@ -3702,8 +3720,14 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_find_home(
 void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_coordinates(int64_t port_,
                                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
 
+void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_site(int64_t port_,
+                                                                               struct wire_cst_list_prim_u_8_strict *device_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_status(int64_t port_,
                                                                                  struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_time(int64_t port_,
+                                                                               struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_tracking_rate(int64_t port_,
                                                                                         struct wire_cst_list_prim_u_8_strict *device_id);
@@ -3721,6 +3745,17 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_pulse_guid
                                                                                   struct wire_cst_list_prim_u_8_strict *direction,
                                                                                   uint32_t duration_ms);
 
+void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_site(int64_t port_,
+                                                                               struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                               double latitude_deg,
+                                                                               double longitude_deg,
+                                                                               double *elevation_m);
+
+void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_time(int64_t port_,
+                                                                               struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                               int64_t utc_unix_seconds,
+                                                                               double utc_offset_hours);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_tracking(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                    uint8_t enabled);
@@ -3728,6 +3763,9 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_tracki
 void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_tracking_rate(int64_t port_,
                                                                                         struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                         int32_t rate);
+
+void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_site_capabilities(int64_t port_,
+                                                                                        struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_slew(int64_t port_,
                                                                            struct wire_cst_list_prim_u_8_strict *device_id,
@@ -4149,13 +4187,18 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_can_park);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_find_home);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_coordinates);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_site);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_time);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_get_tracking_rate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_move_axis);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_park);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_pulse_guide);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_site);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_time);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_tracking);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_set_tracking_rate);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_site_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_slew);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_slew_alt_az);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__mount__mount_stop);

@@ -495,6 +495,72 @@ enum FrameType { light, dark, flat, bias, darkFlat }
 /// read are `Option<T>` and accompanied by an entry in `availability` so the
 /// UI can render "—" for `None`+`Unsupported` versus an error indicator for
 /// `None`+`Error(reason)`.
+/// The site a mount is configured for, and where that answer came from.
+class MountSite {
+  /// Degrees north, negative south.
+  final double latitudeDeg;
+
+  /// Degrees EAST of Greenwich, negative west. Drivers whose wire format is
+  /// west-positive (LX200) convert; callers only ever see east-positive.
+  final double longitudeDeg;
+
+  /// Metres above sea level. `None` when the protocol does not carry it —
+  /// which is not the same as sea level.
+  final double? elevationM;
+
+  const MountSite({
+    required this.latitudeDeg,
+    required this.longitudeDeg,
+    this.elevationM,
+  });
+
+  @override
+  int get hashCode =>
+      latitudeDeg.hashCode ^ longitudeDeg.hashCode ^ elevationM.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MountSite &&
+          runtimeType == other.runtimeType &&
+          latitudeDeg == other.latitudeDeg &&
+          longitudeDeg == other.longitudeDeg &&
+          elevationM == other.elevationM;
+}
+
+/// Which directions a given mount can actually reconcile, so the UI offers a
+/// choice the driver can honour instead of one it will refuse.
+class MountSiteCapabilities {
+  final bool canReadSite;
+  final bool canWriteSite;
+  final bool canReadTime;
+  final bool canWriteTime;
+
+  const MountSiteCapabilities({
+    required this.canReadSite,
+    required this.canWriteSite,
+    required this.canReadTime,
+    required this.canWriteTime,
+  });
+
+  @override
+  int get hashCode =>
+      canReadSite.hashCode ^
+      canWriteSite.hashCode ^
+      canReadTime.hashCode ^
+      canWriteTime.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MountSiteCapabilities &&
+          runtimeType == other.runtimeType &&
+          canReadSite == other.canReadSite &&
+          canWriteSite == other.canWriteSite &&
+          canReadTime == other.canReadTime &&
+          canWriteTime == other.canWriteTime;
+}
+
 class MountStatus {
   final bool connected;
   final bool tracking;
@@ -583,6 +649,31 @@ class MountStatus {
           canPulseGuide == other.canPulseGuide &&
           canSetTrackingRate == other.canSetTrackingRate &&
           availability == other.availability;
+}
+
+/// A mount's clock.
+class MountTimeInfo {
+  /// Seconds since the Unix epoch, UTC.
+  final PlatformInt64 utcUnixSeconds;
+
+  /// Hours EAST of UTC in the ordinary sense: US Eastern Standard is -5.0.
+  final double utcOffsetHours;
+
+  const MountTimeInfo({
+    required this.utcUnixSeconds,
+    required this.utcOffsetHours,
+  });
+
+  @override
+  int get hashCode => utcUnixSeconds.hashCode ^ utcOffsetHours.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MountTimeInfo &&
+          runtimeType == other.runtimeType &&
+          utcUnixSeconds == other.utcUnixSeconds &&
+          utcOffsetHours == other.utcOffsetHours;
 }
 
 /// Side of pier for German Equatorial mounts
