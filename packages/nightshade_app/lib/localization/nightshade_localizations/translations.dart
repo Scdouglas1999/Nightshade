@@ -13,10 +13,6 @@ final Map<String, Map<String, String>> _localizedValues = {
     'collapse': 'Collapse',
     'connect': 'Connect',
     'diagnose': 'Diagnose',
-    'dashboardTitle': 'Dashboard',
-    'dashboardTourDescription':
-        'Learn about the dashboard controls and status displays.',
-    'dashboardTourTitle': 'Dashboard tour',
     'disconnectedBanner': 'Error: not connected to server',
     'generalAutoConnect': 'Auto-connect equipment',
     'generalAutoConnectDesc':
@@ -616,7 +612,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     // the bar an operator watches all night was the last part of that chrome
     // still hard-coded in English. Reuses the existing short-word vocabulary
     // (`mount`, `focus`, `guiding`, `disconnected`, `idle`, `sequenceRunning`,
-    // `sequencePaused`, `dashboardTitle`) wherever the English matches exactly.
+    // `sequencePaused`) wherever the English matches exactly.
     'statusCamera': 'Camera',
     'statusGuider': 'Guider',
     'statusConnected': 'Connected',
@@ -939,11 +935,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'closeNightshadeTitle': '\u00BFCerrar Nightshade?',
     'collapse': 'Contraer',
     'connect': 'Conectar',
-    'dashboardTitle': 'Panel',
     'diagnose': 'Diagnosticar',
-    'dashboardTourDescription':
-        'Aprende los controles y estados del panel principal.',
-    'dashboardTourTitle': 'Tour del panel',
     'disconnectedBanner': 'Error: sin conexi\u00F3n al servidor',
     'generalAutoConnect': 'Conectar equipo autom\u00E1ticamente',
     'generalAutoConnectDesc':

@@ -396,7 +396,12 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   // Primary zone widgets (hero content)
   DashboardWidgetDefinition(
     id: DashboardWidgetId.livePreview,
-    title: 'Live preview',
+    // "(classic)" the way Guiding, Equipment and Weather already distinguish
+    // their legacy cards. Before the sentence-case sweep this tile and the
+    // Observatory "Live preview" differed ONLY by capital P, which told two
+    // rows apart by a letterform nobody reads — the sweep turned a weak
+    // distinction into no distinction, so it gets a real one.
+    title: 'Live preview (classic)',
     subtitle: 'Current image, capture status, and image stats',
     icon: LucideIcons.image,
     defaultZone: DashboardZone.primary,
