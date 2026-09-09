@@ -68,6 +68,16 @@ class _ImagingCaptureBarState extends ConsumerState<ImagingCaptureBar> {
   @override
   void dispose() {
     _scrollController.dispose();
+    // The published width outlives the bar, and the canvas uses it to decide
+    // whether its bottom-right histogram has to step up. Below the shell
+    // breakpoint there IS no capture bar — the sheet carries the shutter — so
+    // a width left over from the wide layout lifted the histogram off a corner
+    // nothing was competing for. A widget that is gone occupies nothing.
+    final container = ProviderScope.containerOf(context, listen: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (container.read(captureBarWidthProvider) == 0) return;
+      container.read(captureBarWidthProvider.notifier).state = 0;
+    });
     super.dispose();
   }
 
