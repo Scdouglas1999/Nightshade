@@ -66,15 +66,19 @@ class _FirstTimeOnboarding extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceXl),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                // A Wrap, not a Row: the two labels are 249 px wider than a
+                // 360 dp column, and a first-run screen that overflows is the
+                // worst possible first impression.
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: NightshadeTokens.spaceSm,
+                  runSpacing: NightshadeTokens.spaceSm,
                   children: [
                     NightshadeButton(
                       label: 'Build a profile by hand',
                       variant: ButtonVariant.ghost,
                       onPressed: onManualSetup,
                     ),
-                    const SizedBox(width: NightshadeTokens.spaceSm),
                     NightshadeButton(
                       label: 'Start setup',
                       icon: LucideIcons.arrowRight,

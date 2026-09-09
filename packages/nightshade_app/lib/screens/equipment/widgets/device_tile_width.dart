@@ -24,9 +24,17 @@ class DeviceTileWidth extends InheritedWidget {
   /// The cell's width in logical pixels.
   final double width;
 
-  /// The cell width in scope, or null when the panel is not inside a grid.
-  static double? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<DeviceTileWidth>()?.width;
+  /// What a panel assumes when nothing told it: the narrowest cell the grid
+  /// ever hands out. Assuming INFINITE width instead let a panel mounted on
+  /// its own (a widget test, a bottom sheet) keep two full-width buttons
+  /// inline and overflow a 320 px box.
+  static const double fallbackWidth = 300.0;
+
+  /// The cell width in scope, or [fallbackWidth] when the panel is not inside
+  /// a grid.
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DeviceTileWidth>()?.width ??
+      fallbackWidth;
 
   @override
   bool updateShouldNotify(DeviceTileWidth oldWidget) =>

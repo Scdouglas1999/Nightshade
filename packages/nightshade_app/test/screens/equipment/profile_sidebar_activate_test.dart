@@ -3,7 +3,7 @@
 //
 // Live finding: clicking a non-active profile only highlighted the row — the
 // header, connected devices and status bar stayed on the previous profile —
-// and the footer collapsed to "Edit Profile". The only route to a different
+// and the footer collapsed to "Edit profile". The only route to a different
 // active rig was right-click → "Set as Default", which ALSO rewrote which
 // profile launches at startup, so switching scopes for one night silently
 // changed every night after it. The menu itself was right-click-only with no
@@ -146,7 +146,7 @@ void main() {
 
     // Exactly one card carries the in-use marker, and it is not the selected
     // one — the whole point of the finding.
-    expect(find.text('IN USE'), findsOneWidget);
+    expect(find.text('In use'), findsOneWidget);
   });
 
   testWidgets('every profile card advertises its menu without a right-click',
@@ -171,8 +171,8 @@ void main() {
     // The menu keeps "use this profile" and "start up with this profile"
     // separate: the star must not move just because tonight's rig changed.
     // Two: the footer button on the selected row, and the menu item.
-    expect(find.text('Use This Profile'), findsNWidgets(2));
-    expect(find.text('Make Startup Default'), findsOneWidget);
+    expect(find.text('Use this profile'), findsNWidgets(2));
+    expect(find.text('Start up with this profile'), findsOneWidget);
     expect(find.text('Duplicate'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
   });

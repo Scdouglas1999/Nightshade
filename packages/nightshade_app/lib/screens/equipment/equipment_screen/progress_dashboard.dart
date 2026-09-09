@@ -46,7 +46,7 @@ class _ConnectAllProgressStrip extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
       child: NightshadePanel(
         head: PanelHead(
-          label: _stripHeadline(state),
+          label: 'Last connect sweep',
           icon: LucideIcons.plugZap,
           trailing: [
             if (!state.isSweeping)
@@ -59,13 +59,27 @@ class _ConnectAllProgressStrip extends ConsumerWidget {
               ),
           ],
         ),
-        child: Wrap(
-          spacing: NightshadeTokens.spaceSm,
-          runSpacing: NightshadeTokens.spaceSm,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        // The headline is a SENTENCE, so it is body text under the eyebrow —
+        // not the eyebrow itself, which PanelHead uppercases.
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            for (final event in entries)
-              _ConnectAllProgressChip(event: event, colors: colors),
+            Text(
+              _stripHeadline(state),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Wrap(
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final event in entries)
+                  _ConnectAllProgressChip(event: event, colors: colors),
+              ],
+            ),
           ],
         ),
       ),
@@ -627,6 +641,27 @@ class _EquipmentEmptyState extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (header != null) header!,
+              // The banners and the sweep record ride ABOVE the empty state:
+              // a sweep that connected nothing is precisely when its
+              // per-device failures are the thing to read, and hiding them
+              // with the grid left the operator an empty page and no reason.
+              const Padding(
+                padding: EdgeInsets.fromLTRB(
+                  NightshadeTokens.space2xl,
+                  NightshadeTokens.spaceXl,
+                  NightshadeTokens.space2xl,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RunDashboardRecoveryBanner(),
+                    _ProfileMismatchBanner(),
+                    _ConnectAllProgressStrip(),
+                  ],
+                ),
+              ),
               Padding(
                 padding: _bodyPadding,
                 child: ConstrainedBox(

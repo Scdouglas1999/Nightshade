@@ -141,8 +141,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         : null;
 
     final tabIndex = firstRun ? 0 : ref.watch(equipmentTabIndexProvider);
-    final narrowHeader = MediaQuery.sizeOf(context).width <
-        ShellChromeMetrics.shellLayoutBreakpoint;
+    // Below DESKTOP width, not the shell breakpoint: this header seats a
+    // title, three tabs, a chip and two actions, and measured at 800 px the
+    // labelled buttons overflow the row by 7.7 px — which shows up as a
+    // truncated screen name, or a yellow overflow stripe in a test. The verbs
+    // move into tooltips there.
+    final headerWidth = MediaQuery.sizeOf(context).width;
+    final narrowHeader = headerWidth < NightshadeTokens.breakpointDesktop;
+    final phoneHeader = headerWidth < BreakpointTokens.breakpointPhone;
 
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
@@ -168,7 +174,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
               ],
             ),
             actions: [
-              const _ConnectionStatusSummary(),
+              // The chip goes below phone width: "4 connected · 1 unsaved" is
+              // 150 px the 360 dp header does not have, and the instrument bar
+              // plus the side panel's profile block both already say it.
+              if (!phoneHeader) const _ConnectionStatusSummary(),
               // Below the shell breakpoint the two labels cost ~200 px the
               // 700 px header does not have, and the TITLE was the thing that
               // gave way ("Equi…"). The verbs move into the tooltips instead:

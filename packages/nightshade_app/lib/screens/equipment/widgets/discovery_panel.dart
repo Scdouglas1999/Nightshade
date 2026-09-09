@@ -341,6 +341,12 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   }
 
   /// `[radio] [DISCOVERED DEVICES] [11 found · scanned 2 min ago] … [Rescan] [v]`
+  ///
+  /// On a phone the eyebrow, the summary and two labelled buttons do not fit
+  /// 312 px — measured, the row overflowed by 243 px. Below
+  /// [_discoveryHeadCompactWidth] the summary drops (it is repeated in the
+  /// rows beneath) and the two scans become icon buttons with the same
+  /// tooltips.
   Widget _buildHeadRow(
     NightshadeColors colors, {
     required int found,
@@ -353,59 +359,95 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         padding: const EdgeInsets.symmetric(
           horizontal: NightshadeTokens.space2xl,
         ),
-        child: Row(
-          children: [
-            Icon(
-              LucideIcons.radio,
-              size: SectionTitle.iconSize,
-              color: colors.textMuted,
-            ),
-            const SizedBox(width: NightshadeTokens.spaceSm + 2),
-            Text(
-              'Discovered devices'.toUpperCase(),
-              style: NightshadeTypography.eyebrow.copyWith(
-                color: colors.textMuted,
-              ),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceMd),
-            Flexible(
-              child: Text(
-                '$found found · $lastScanText',
-                style: NightshadeTypography.caption.copyWith(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.hasBoundedWidth &&
+                constraints.maxWidth < _discoveryHeadCompactWidth;
+            return Row(
+              children: [
+                Icon(
+                  LucideIcons.radio,
+                  size: SectionTitle.iconSize,
                   color: colors.textMuted,
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Spacer(),
-            NightshadeButton(
-              label: 'Rescan',
-              icon: LucideIcons.refreshCw,
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              isLoading: _isRescanning,
-              onPressed:
-                  (_isRescanning || isDiscovering) ? null : _rescanEquipment,
-            ),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            NightshadeButton(
-              label: isDiscovering ? 'Scanning' : 'Scan all',
-              icon: LucideIcons.search,
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              isLoading: isDiscovering,
-              onPressed:
-                  (isDiscovering || _isRescanning) ? null : _scanForDevices,
-            ),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            NightshadeIconButton(
-              icon:
-                  _isExpanded ? LucideIcons.chevronDown : LucideIcons.chevronUp,
-              tooltip: _isExpanded ? 'Collapse' : 'Expand',
-              size: IconButtonSize.sm,
-              onPressed: _toggleExpanded,
-            ),
-          ],
+                const SizedBox(width: NightshadeTokens.spaceSm + 2),
+                Flexible(
+                  child: Text(
+                    'Discovered devices'.toUpperCase(),
+                    style: NightshadeTypography.eyebrow.copyWith(
+                      color: colors.textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (!compact) ...[
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Flexible(
+                    child: Text(
+                      '$found found · $lastScanText',
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (compact)
+                  NightshadeIconButton(
+                    icon: LucideIcons.refreshCw,
+                    tooltip: 'Rescan',
+                    size: IconButtonSize.sm,
+                    onPressed: (_isRescanning || isDiscovering)
+                        ? null
+                        : _rescanEquipment,
+                  )
+                else
+                  NightshadeButton(
+                    label: 'Rescan',
+                    icon: LucideIcons.refreshCw,
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                    isLoading: _isRescanning,
+                    onPressed: (_isRescanning || isDiscovering)
+                        ? null
+                        : _rescanEquipment,
+                  ),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                if (compact)
+                  NightshadeIconButton(
+                    icon: LucideIcons.search,
+                    tooltip: isDiscovering ? 'Scanning' : 'Scan all',
+                    size: IconButtonSize.sm,
+                    onPressed: (isDiscovering || _isRescanning)
+                        ? null
+                        : _scanForDevices,
+                  )
+                else
+                  NightshadeButton(
+                    label: isDiscovering ? 'Scanning' : 'Scan all',
+                    icon: LucideIcons.search,
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                    isLoading: isDiscovering,
+                    onPressed: (isDiscovering || _isRescanning)
+                        ? null
+                        : _scanForDevices,
+                  ),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                NightshadeIconButton(
+                  icon: _isExpanded
+                      ? LucideIcons.chevronDown
+                      : LucideIcons.chevronUp,
+                  tooltip: _isExpanded ? 'Collapse' : 'Expand',
+                  size: IconButtonSize.sm,
+                  onPressed: _toggleExpanded,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -625,3 +667,7 @@ const double _discoveryColumnGap = NightshadeTokens.space3xl;
 
 /// Below this the drawer drops to a single column.
 const double _discoveryTwoColumnWidth = 760.0;
+
+/// Below this the head row drops its summary and shrinks the two scans to
+/// icons, so a 360 dp phone does not overflow it.
+const double _discoveryHeadCompactWidth = 520.0;

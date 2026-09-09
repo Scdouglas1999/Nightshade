@@ -43,7 +43,7 @@ void main() {
     expect(find.text('Mobile Test Profile'), findsOneWidget);
   });
 
-  testWidgets('tapping profile header opens profile sheet on mobile',
+  testWidgets('the Profiles tab reaches the profile list on mobile',
       (tester) async {
     final handle = await pumpAppScreen(
       tester,
@@ -60,7 +60,9 @@ void main() {
     );
     await _drainFrames(tester);
 
-    await tester.tap(find.text('Sheet Profile'));
+    // 06 §Equipment moved the profile list out of a bottom sheet and into its
+    // own page-header tab, so that is the route being asserted.
+    await tester.tap(find.text('Profiles'));
     await _drainFrames(tester);
 
     expect(find.byType(ProfileSidebar), findsOneWidget);

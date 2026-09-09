@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'device_action_finder.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -43,7 +44,7 @@ Future<HarnessHandle> _pump(
 }
 
 Future<void> _openDialog(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('Settings'));
+  await tester.tap(nightshadeIconButton('Settings'));
   for (var i = 0; i < 4; i++) {
     await tester.pump(const Duration(milliseconds: 25));
   }

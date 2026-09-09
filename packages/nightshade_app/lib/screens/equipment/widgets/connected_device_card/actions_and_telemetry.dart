@@ -25,14 +25,11 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         ),
     ];
 
-    final tile = DeviceTileWidth.maybeOf(context);
-    var budget = tile == null
-        ? double.infinity
-        : tile -
-            NightshadeTokens.spaceLg * 2 -
-            NightshadeTokens.iconButtonSizeSm -
-            trailing.length *
-                (NightshadeTokens.iconButtonSizeSm + _deviceActionGap);
+    var budget = DeviceTileWidth.of(context) -
+        NightshadeTokens.spaceLg * 2 -
+        NightshadeTokens.iconButtonSizeSm -
+        trailing.length *
+            (NightshadeTokens.iconButtonSizeSm + _deviceActionGap);
 
     final inline = <Widget>[];
     for (final action in actions) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/discovery_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -42,7 +43,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(
-      find.byTooltip('Rescan equipment (USB / native / ASCOM)'),
+      find.widgetWithText(NightshadeButton, 'Rescan'),
     );
     await tester.pump();
     verify(() => hostA.rescanDevices()).called(1);
@@ -50,7 +51,7 @@ void main() {
     backendNotifier.switchTo(hostB);
     await tester.pump();
     expect(
-      find.byTooltip('Rescan equipment (USB / native / ASCOM)'),
+      find.widgetWithText(NightshadeButton, 'Rescan'),
       findsOneWidget,
     );
 

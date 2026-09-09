@@ -1,6 +1,6 @@
 // "Make Startup Default" must change only what launches at startup.
 //
-// The sidebar fix that gave the Equipment screen a real "Use This Profile"
+// The sidebar fix that gave the Equipment screen a real "Use this profile"
 // action also relabelled the star from "Set as Default" to "Make Startup
 // Default" — but the handler behind it still called
 // setDefaultProfile(makeActive: true), which routes through
@@ -65,6 +65,8 @@ void main() {
           _NoopProfileSettingsBackend(),
         ),
         selectedEquipmentProfileIdProvider.overrideWith((ref) => rigB),
+        // The profile list is the Profiles tab now (06 Equipment).
+        equipmentTabIndexProvider.overrideWith((ref) => 1),
       ],
     );
     await tester.pump();
@@ -73,7 +75,7 @@ void main() {
     // Open the per-profile menu on the rig that is NOT in use and star it.
     await tester.longPress(find.text('Newtonian Rig').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Make Startup Default').last);
+    await tester.tap(find.text('Start up with this profile').last);
     await tester.pumpAndSettle();
 
     expect(

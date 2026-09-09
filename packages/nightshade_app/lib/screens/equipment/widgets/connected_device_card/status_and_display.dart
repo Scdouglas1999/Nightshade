@@ -349,12 +349,9 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     // lays its rows out inside an IntrinsicHeight, and a LayoutBuilder has no
     // intrinsic height — which collapsed the panel to its header and painted
     // the actions outside it.
-    final tile = DeviceTileWidth.maybeOf(context);
-    final available = tile == null
-        ? double.infinity
-        : tile -
-            NightshadeTokens.spaceLg * 2 -
-            _deviceReadoutGap * (metrics.length - 1);
+    final available = DeviceTileWidth.of(context) -
+        NightshadeTokens.spaceLg * 2 -
+        _deviceReadoutGap * (metrics.length - 1);
     final widest = metrics.fold<double>(
       0,
       (best, metric) {
@@ -362,7 +359,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         return width > best ? width : best;
       },
     );
-    final fits = available.isInfinite || widest * metrics.length <= available;
+    final fits = widest * metrics.length <= available;
 
     return ReadoutRow(
       gap: fits ? _deviceReadoutGap : _deviceReadoutGapDense,
@@ -463,7 +460,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(focuserStateProvider);
         return [
           _DeviceMetric(
-            value: _groupThousands(state.position),
+            value: _stepCount(state.position),
             label: 'Position',
           ),
           _DeviceMetric(
@@ -499,12 +496,12 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         return [
           _DeviceMetric(
             value: state.rmsTotal?.toStringAsFixed(2),
-            unit: '″',
+            unit: '"',
             label: 'RMS total',
           ),
           _DeviceMetric(
             value: state.rmsRa?.toStringAsFixed(2),
-            unit: '″',
+            unit: '"',
             label: 'RMS RA',
           ),
           _DeviceMetric(
@@ -853,15 +850,9 @@ const double _deviceReadoutGap = NightshadeTokens.spaceXl;
 /// 20 px scale.
 const double _deviceReadoutGapDense = NightshadeTokens.spaceMd;
 
-/// A step count with thin spaces between thousands ("25 000"), per the copy
-/// rules. Null in, null out, so the readout still shows the em dash.
-String? _groupThousands(int? value) {
-  if (value == null) return null;
-  final digits = value.abs().toString();
-  final buffer = StringBuffer(value.isNegative ? '-' : '');
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('\u2009');
-    buffer.write(digits[i]);
-  }
-  return buffer.toString();
-}
+/// The focuser's step count.
+///
+/// Plain digits: the bundled fonts carry no thin space (U+2009), so a grouped
+/// "25 000" rendered as `25<tofu>000` — a separator that is not there is worse
+/// than no separator.
+String? _stepCount(int? value) => value?.toString();

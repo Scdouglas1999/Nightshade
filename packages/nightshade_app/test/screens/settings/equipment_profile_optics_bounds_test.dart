@@ -95,7 +95,7 @@ void main() {
       (tester) async {
     final notifier = await openEditor(tester);
 
-    await tester.enterText(_fieldUnder('Focal Length'), '999999999');
+    await tester.enterText(_fieldUnder('Focal length'), '999999999');
     await tester.enterText(_fieldUnder('Aperture'), '0.0001');
     await save(tester);
 
@@ -113,7 +113,7 @@ void main() {
 
     // Both numbers are individually inside their own bounds; only the ratio
     // they imply (f/20000) is impossible.
-    await tester.enterText(_fieldUnder('Focal Length'), '40000');
+    await tester.enterText(_fieldUnder('Focal length'), '40000');
     await tester.enterText(_fieldUnder('Aperture'), '2');
     await save(tester);
 
@@ -125,7 +125,7 @@ void main() {
     final notifier = await openEditor(tester);
 
     // RASA 11: 620 mm at 279 mm is f/2.2.
-    await tester.enterText(_fieldUnder('Focal Length'), '620');
+    await tester.enterText(_fieldUnder('Focal length'), '620');
     await tester.enterText(_fieldUnder('Aperture'), '279');
     await save(tester);
 

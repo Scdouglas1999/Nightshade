@@ -109,8 +109,46 @@ class EquipmentHealthPanel extends ConsumerWidget {
             detail: report.insights[i].message,
             showDivider: i < report.insights.length - 1,
           ),
+        // Per-device heartbeats. The summary rows above answer "is the rig
+        // healthy"; this answers "which device went quiet", which is the whole
+        // point of a heartbeat.
+        if (snapshots.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          KeyValueList(
+            rows: [
+              for (final snapshot in snapshots)
+                (snapshot.displayName, _heartbeatLabel(snapshot)),
+            ],
+          ),
+        ],
       ],
     );
+  }
+
+  /// What a device's heartbeat says.
+  ///
+  /// A snapshot with `lastSuccessfulTimestampMs == 0` has NO timestamp; the
+  /// age of epoch zero is 56 years, and rendering it beside a green OK dot made
+  /// the one widget whose job is to catch a quiet device untrustworthy on the
+  /// happy path. No timestamp reads as unknown.
+  static String _heartbeatLabel(DeviceHealthSnapshot snapshot) {
+    final state = snapshot.isHealthy ? 'OK' : 'Unhealthy';
+    if (snapshot.lastSuccessfulTimestampMs <= 0) {
+      return '$state - last contact unknown';
+    }
+    final age = DateTime.now().difference(
+      DateTime.fromMillisecondsSinceEpoch(snapshot.lastSuccessfulTimestampMs),
+    );
+    return '$state - ${_formatAge(age)} ago';
+  }
+
+  /// `12s` / `4m` / `2h` / `3d`.
+  static String _formatAge(Duration age) {
+    if (age.isNegative || age.inSeconds < 1) return '0s';
+    if (age.inSeconds < 60) return '${age.inSeconds}s';
+    if (age.inMinutes < 60) return '${age.inMinutes}m';
+    if (age.inHours < 24) return '${age.inHours}h';
+    return '${age.inDays}d';
   }
 
   static Color _severityColor(

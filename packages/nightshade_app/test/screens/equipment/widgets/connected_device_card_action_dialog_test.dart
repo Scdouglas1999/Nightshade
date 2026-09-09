@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'device_action_finder.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/connected_device_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -92,7 +93,7 @@ void main() {
       settle: false,
     );
 
-    await tester.tap(find.text('Move to...'));
+    await tapDeviceAction(tester, 'Move to…');
     await _pumpFrames(tester);
     expect(find.text('Move Focuser'), findsOneWidget);
 
@@ -124,7 +125,7 @@ void main() {
       settle: false,
     );
 
-    await tester.tap(find.text('Move to...'));
+    await tapDeviceAction(tester, 'Move to…');
     await _pumpFrames(tester);
     expect(find.textContaining('did not report a maximum'), findsOneWidget);
     expect(find.textContaining('50000'), findsNothing);
@@ -165,7 +166,7 @@ void main() {
       settle: false,
     );
 
-    await tester.tap(find.text('Move to...'));
+    await tapDeviceAction(tester, 'Move to…');
     await _pumpFrames(tester);
     expect(find.text('Enter target position (0 - 1000):'), findsOneWidget);
     await tester.enterText(find.byType(TextField), '1001');
@@ -195,7 +196,7 @@ void main() {
       settle: false,
     );
 
-    await tester.tap(find.text('Move to...'));
+    await tapDeviceAction(tester, 'Move to…');
     await _pumpFrames(tester);
     await tester.enterText(find.byType(TextField), '123');
     await tester.tap(find.text('Move'));
@@ -238,7 +239,7 @@ void main() {
       settle: false,
     );
 
-    await tester.tap(find.text('Rotate to...'));
+    await tapDeviceAction(tester, 'Rotate to…');
     await _pumpFrames(tester);
     await tester.enterText(find.byType(TextField), '90');
     await tester.tap(find.text('Rotate'));
@@ -279,7 +280,7 @@ void main() {
       settle: false,
     );
 
-    await tester.tap(find.text('Slew...'));
+    await tapDeviceAction(tester, 'Slew…');
     await _pumpFrames(tester);
     await tester.enterText(find.byType(TextField), 'NaN');
     await tester.tap(find.text('Slew'));
