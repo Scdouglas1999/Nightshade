@@ -72,14 +72,24 @@ class PageHeader extends StatelessWidget {
         color: colors.background,
         border: Border(bottom: BorderSide(color: colors.border, width: 1)),
       ),
+      // The tab strip gets ALL the width the title and the actions do not use.
+      //
+      // It used to be a `Flexible` followed by a `Spacer`, which made the title
+      // block, the strip and the spacer three flex children of equal weight: on
+      // a 1600px window the strip was handed ~330px of the ~1180px going spare,
+      // so Plan's six tabs became "Tonight · Projects · Schedule · Framir…"
+      // with a scroll arrow — the opposite of every screen mockup, which shows
+      // the whole strip. The title is inflexible now (it sizes to its words and
+      // ellipsises inside its own Text), the strip is `Expanded`, and the
+      // actions keep their natural width at the right edge.
       child: Row(
         children: [
-          _titleBlock(colors),
+          _titleBlock(colors, yieldToTabs: tabs != null && !narrow),
           if (tabs != null && !narrow) ...[
             const SizedBox(width: _titleToTabsGap),
-            Flexible(child: tabs!),
-          ],
-          const Spacer(),
+            Expanded(child: tabs!),
+          ] else
+            const Spacer(),
           for (var i = 0; i < actions.length; i++) ...[
             if (i > 0) const SizedBox(width: NightshadeTokens.spaceSm),
             actions[i],
@@ -110,8 +120,17 @@ class PageHeader extends StatelessWidget {
     );
   }
 
-  Widget _titleBlock(NightshadeColors colors) {
+  /// The title block.
+  ///
+  /// [yieldToTabs] makes it `flex: 0`, so it takes the width of its words and
+  /// leaves ALL the rest to the tab strip beside it — the whole point of the
+  /// fix above. Without tabs there is nothing to yield to, and the title keeps
+  /// its flex share so that a long title on a 390px window shrinks instead of
+  /// pushing the actions off the row (the design-system gallery renders exactly
+  /// that case).
+  Widget _titleBlock(NightshadeColors colors, {required bool yieldToTabs}) {
     return Flexible(
+      flex: yieldToTabs ? 0 : 1,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

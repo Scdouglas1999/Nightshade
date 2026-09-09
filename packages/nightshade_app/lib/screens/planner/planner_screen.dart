@@ -305,19 +305,6 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       // The page header owns the 24px gutter, so the strip starts flush
       // against the title block.
       horizontalPadding: 0,
-      // Labels stay, at every width.
-      //
-      // `collapseLabelsWhenTight` drops them below 480px of AVAILABLE width,
-      // which is the right rule for a strip that owns its row. Inside
-      // `PageHeader` it misfires: the header's Row gives the title block, the
-      // tab slot and the trailing `Spacer` one flex share each, so on a 1400px
-      // desktop the strip is handed ~360px and collapses six labelled tabs to
-      // six anonymous glyphs — the opposite of `mockups/png/plan.png`, which
-      // shows all six names. The strip is horizontally scrollable, so keeping
-      // the labels costs nothing at a phone width either.
-      // TODO(observatory): remove once PageHeader stops splitting its free
-      // width three ways (see reports/observatory/w3-plan/notes.md).
-      collapseLabelsWhenTight: false,
     );
 
     return Scaffold(
