@@ -69,3 +69,8 @@ export 'src/widgets/phd2/guide_star_view.dart';
 export 'src/widgets/phd2/guide_graph_advanced.dart';
 export 'src/widgets/phd2/brain_settings_panel.dart';
 export 'src/widgets/phd2/calibration_panel.dart';
+
+// Observatory wave 2
+export 'src/components/nightshade_panel.dart';
+export 'src/components/readout.dart';
+export 'src/components/nightshade_icon_button.dart';

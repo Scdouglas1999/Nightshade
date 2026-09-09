@@ -1,19 +1,83 @@
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import 'status_dot.dart';
 
-/// Tokenized chip / toggle-chip — replaces ad-hoc [InputChip], [FilterChip],
-/// and hand-rolled pill widgets.
+/// The semantic tones a chip, dot or instrument pill can take.
 ///
-/// When [onTap] is non-null the chip is interactive and reflects [selected]
-/// with the design system's accent fill. For a status indicator (icon + value
-/// with semantic color) use [StatusPill] instead.
+/// Status colours mean status. A filter, a count or a name is
+/// [ChipTone.neutral]; [ChipTone.primary] is selection, not a sixth status.
+enum ChipTone {
+  /// Solid `surfaceHover` fill, `textSecondary` text. Counts, names, filters.
+  neutral,
+
+  /// Connected, done, safe.
+  success,
+
+  /// Attention, unsaved, session-only.
+  warning,
+
+  /// Failed, disconnected, stopped.
+  error,
+
+  /// Selection and links — never a status.
+  primary;
+
+  /// The tone's colour on [colors]. Null for [neutral], which has no tone: it
+  /// takes the solid `surfaceHover` fill instead of a tint.
+  Color? resolve(NightshadeColors colors) => switch (this) {
+    ChipTone.neutral => null,
+    ChipTone.success => colors.success,
+    ChipTone.warning => colors.warning,
+    ChipTone.error => colors.error,
+    ChipTone.primary => colors.primary,
+  };
+}
+
+/// A chip: a status pill, a count, a filter tag.
+///
+/// 22px tall, `0 8` padding, `radiusXs`, 12px medium text. A neutral chip is a
+/// solid `surfaceHover` fill with `textSecondary` text; every other [tone] is
+/// that colour at [NightshadeTokens.opacityStatusFill] with the text, the icon
+/// and the [dot] all in the tone at full strength. A chip has no border — the
+/// fill is its boundary.
+///
+/// When [onTap] is non-null the chip is a toggle and reflects [selected]. For a
+/// pill in the instrument bar use `InstrumentPill`; for a control that opens a
+/// menu use [NightshadeFilterChip].
 class NightshadeChip extends StatelessWidget {
+  const NightshadeChip({
+    super.key,
+    required this.label,
+    this.icon,
+    this.tone = ChipTone.neutral,
+    this.dot = false,
+    this.selected = false,
+    this.onTap,
+    this.enabled = true,
+  });
+
+  /// The chip's text.
   final String label;
+
+  /// An optional leading icon, drawn at 12px in the tone colour.
   final IconData? icon;
+
+  /// The chip's semantic tone.
+  final ChipTone tone;
+
+  /// Draws a leading 7px dot in the tone colour — for a chip that reports a
+  /// connection or a run state rather than a count.
+  final bool dot;
+
+  /// Toggled state for an interactive chip. A selected chip takes the
+  /// [ChipTone.primary] face whatever its resting tone.
   final bool selected;
+
+  /// Non-null makes the chip a toggle button.
   final VoidCallback? onTap;
 
   /// Whether an option chip can be chosen right now.
@@ -26,54 +90,64 @@ class NightshadeChip extends StatelessWidget {
   /// to an unselected one and tells a screen reader nothing.
   final bool enabled;
 
-  const NightshadeChip({
-    super.key,
-    required this.label,
-    this.icon,
-    this.selected = false,
-    this.onTap,
-    this.enabled = true,
-  });
+  /// The chip's fixed height in logical pixels.
+  static const double height = 22;
+
+  /// Horizontal padding.
+  static const double horizontalPadding = NightshadeTokens.spaceSm;
+
+  /// Gap between the dot/icon and the label.
+  static const double innerGap = 6;
+
+  /// The chip's text style: 12px at medium weight, per `observatory.css`
+  /// `.chip`.
+  static TextStyle textStyle() =>
+      NightshadeTypography.caption.copyWith(fontWeight: FontWeight.w500);
 
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
-    final foreground = !enabled
-        ? colors.textMuted.withValues(alpha: NightshadeTokens.opacityDisabled)
-        : (selected ? colors.primary : colors.textSecondary);
+    final effectiveTone = selected ? ChipTone.primary : tone;
+    final toneColor = effectiveTone.resolve(colors);
 
-    final chip = AnimatedContainer(
-      duration: NightshadeTokens.durationQuick,
-      curve: NightshadeTokens.curveSnappy,
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: !enabled
-            ? colors.surfaceAlt.withValues(alpha: NightshadeTokens.opacityHalf)
-            : selected
-            ? colors.primary.withValues(alpha: NightshadeTokens.opacitySubtle)
-            : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(
-          color: !enabled
-              ? colors.border.withValues(alpha: NightshadeTokens.opacityHalf)
-              : selected
-              ? colors.primary.withValues(alpha: NightshadeTokens.opacityStrong)
-              : colors.border,
-        ),
-      ),
+    Color foreground = toneColor ?? colors.textSecondary;
+    if (!enabled) {
+      foreground = foreground.withValues(
+        alpha: NightshadeTokens.opacityDisabled,
+      );
+    }
+
+    final decoration = NightshadeDecorations.chip(colors, tone: toneColor);
+
+    final chip = Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
+      decoration: enabled
+          ? decoration
+          : decoration.copyWith(
+              color: decoration.color?.withValues(
+                alpha: NightshadeTokens.opacityDisabled,
+              ),
+            ),
+      alignment: Alignment.center,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: NightshadeTokens.iconXs, color: foreground),
-            const SizedBox(width: NightshadeTokens.spaceXs),
+        children: <Widget>[
+          if (dot) ...<Widget>[
+            StatusDot(color: foreground),
+            const SizedBox(width: innerGap),
           ],
-          Text(
-            label,
-            style: NightshadeTypography.labelSm.copyWith(color: foreground),
+          if (icon != null) ...<Widget>[
+            Icon(icon, size: _chipIconSize, color: foreground),
+            const SizedBox(width: innerGap),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: textStyle().copyWith(color: foreground),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -114,8 +188,124 @@ class NightshadeChip extends StatelessWidget {
       label: label,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        borderRadius: NightshadeTokens.borderRadiusXs,
         child: ExcludeSemantics(child: chip),
+      ),
+    );
+  }
+}
+
+/// Icon size inside a chip, in logical pixels (`observatory.css` `.chip .i`).
+// TODO(observatory): promote to NightshadeTokens.iconChipGlyph
+const double _chipIconSize = 12;
+
+/// Icon size inside a filter chip's trailing chevron.
+// TODO(observatory): promote to NightshadeTokens.iconChipGlyph
+const double _filterChipIconSize = 13;
+
+/// A filter chip: a CONTROL that opens a menu, not a readout.
+///
+/// 28px tall with the [NightshadeDecorations.filterChip] outline — an outline
+/// is how an unselected control says it can be pressed, which is the one thing
+/// a filled [NightshadeChip] cannot say.
+class NightshadeFilterChip extends StatefulWidget {
+  const NightshadeFilterChip({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.icon,
+    this.trailingIcon,
+  });
+
+  /// The chip's text, usually `Field: value`.
+  final String label;
+
+  /// Opens the menu. Null disables the chip.
+  final VoidCallback? onTap;
+
+  /// An optional leading icon at 13px.
+  final IconData? icon;
+
+  /// The trailing affordance. Defaults to a chevron supplied by the caller so
+  /// this package does not depend on an icon set at the API boundary.
+  final IconData? trailingIcon;
+
+  /// The chip's fixed height in logical pixels.
+  static const double height = 28;
+
+  /// Horizontal padding.
+  static const double horizontalPadding = 10;
+
+  @override
+  State<NightshadeFilterChip> createState() => _NightshadeFilterChipState();
+}
+
+class _NightshadeFilterChipState extends State<NightshadeFilterChip> {
+  bool _hovered = false;
+
+  void _setHovered(bool value) {
+    if (!mounted || _hovered == value) return;
+    setState(() => _hovered = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final disabled = widget.onTap == null;
+    final foreground = disabled
+        ? colors.textMuted.withValues(alpha: NightshadeTokens.opacityDisabled)
+        : (_hovered ? colors.textPrimary : colors.textSecondary);
+
+    final chip = Container(
+      height: NightshadeFilterChip.height,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeFilterChip.horizontalPadding,
+      ),
+      decoration: NightshadeDecorations.filterChip(
+        colors,
+      ).copyWith(color: _hovered && !disabled ? colors.surfaceHover : null),
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (widget.icon != null) ...<Widget>[
+            Icon(widget.icon, size: _filterChipIconSize, color: foreground),
+            const SizedBox(width: NightshadeChip.innerGap),
+          ],
+          Flexible(
+            child: Text(
+              widget.label,
+              style: NightshadeTypography.bodySm.copyWith(color: foreground),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (widget.trailingIcon != null) ...<Widget>[
+            const SizedBox(width: NightshadeChip.innerGap),
+            Icon(
+              widget.trailingIcon,
+              size: _filterChipIconSize,
+              color: foreground,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      label: widget.label,
+      child: MouseRegion(
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
+        cursor: disabled
+            ? SystemMouseCursors.forbidden
+            : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: ExcludeSemantics(child: chip),
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../utils/on_screen_animation_gate.dart';
 
@@ -17,7 +18,7 @@ enum StatusDotVariant {
   urgent,
 }
 
-/// Small status indicator — 8px circle by default.
+/// Small status indicator — a 7px circle.
 ///
 /// Replaces ad-hoc pulsing dots across the app with a consistent, quieter
 /// motion language: static by default, a one-shot flash on meaningful
@@ -37,15 +38,31 @@ class StatusDot extends StatefulWidget {
   /// thing.
   static const Duration urgentPulseWindow = Duration(seconds: 20);
 
+  /// The dot's diameter in logical pixels (02 vocabulary: a status dot is 7).
+  static const double defaultSize = 7.0;
+
+  /// Radius of the live halo drawn outside the dot, in logical pixels.
+  static const double liveHaloWidth = 3.0;
+
   final Color color;
   final double size;
   final StatusDotVariant variant;
 
+  /// Draws the static 3px halo in `success` at
+  /// [NightshadeTokens.opacityLiveHalo] around the dot.
+  ///
+  /// STATIC, deliberately: a live indicator is the only thing in the app
+  /// allowed to stand out at rest, and a pulse would be a continuous animation
+  /// — the class of defect that once burned 32% of a core on an idle window.
+  /// The halo says "live" without asking for a frame.
+  final bool live;
+
   const StatusDot({
     super.key,
     required this.color,
-    this.size = 8.0,
+    this.size = defaultSize,
     this.variant = StatusDotVariant.static,
+    this.live = false,
   });
 
   @override
@@ -183,12 +200,24 @@ class _StatusDotState extends State<StatusDot>
   }
 
   Widget _dot({required double opacity}) {
+    final colors = NightshadeColors.of(context);
     return Container(
       width: widget.size,
       height: widget.size,
       decoration: BoxDecoration(
         color: widget.color.withValues(alpha: opacity),
         shape: BoxShape.circle,
+        boxShadow: widget.live
+            ? <BoxShadow>[
+                // No blur and no offset: this is a ring, not a glow.
+                BoxShadow(
+                  color: colors.success.withValues(
+                    alpha: NightshadeTokens.opacityLiveHalo * opacity,
+                  ),
+                  spreadRadius: StatusDot.liveHaloWidth,
+                ),
+              ]
+            : null,
       ),
     );
   }
