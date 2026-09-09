@@ -174,19 +174,11 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
                 ),
               ],
             ),
-          const SizedBox(height: 8),
-          Text(
-            'Optical-train health across the whole session: collimation, tilt, '
-            'backfocus and field flatness. Lower scores are better.',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _DocsInfoChip(colors: colors),
-          const SizedBox(height: 16),
+          // No explainer paragraph and no "Learn more" link: 07 "What NOT to
+          // do" forbids both, and the tab's EmptyState already says what
+          // diagnostics needs. Screen-level help belongs to the top-bar help
+          // popover.
+          const SizedBox(height: NightshadeTokens.spaceLg),
 
           // Main content
           Expanded(
