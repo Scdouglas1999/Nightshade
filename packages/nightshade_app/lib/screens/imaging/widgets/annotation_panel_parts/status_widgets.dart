@@ -164,20 +164,16 @@ class AnnotationEmptyState extends ConsumerWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize13,
-              ),
+              style:
+                  NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
             ),
             if (hint != null) ...[
               const SizedBox(height: 8),
               Text(
                 hint,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textMuted.withValues(alpha: 0.7),
-                  fontSize: NightshadeTypography.fontSize11,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted.withValues(alpha: 0.7)),
               ),
             ],
           ],
@@ -301,22 +297,18 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                             ? emptyResultHeadline
                             : (annotationState.message ??
                                 _getStatusText(annotationState.status)),
-                    style: TextStyle(
-                      color: _getTextColor(presentationStatus),
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: NightshadeTypography.caption.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: _getTextColor(presentationStatus)),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (secondaryMessage != null)
                     Text(
                       secondaryMessage,
-                      style: TextStyle(
-                        color: _getTextColor(presentationStatus)
-                            .withValues(alpha: 0.7),
-                        fontSize: NightshadeTypography.fontSize10,
-                      ),
+                      style: NightshadeTypography.caption.copyWith(
+                          color: _getTextColor(presentationStatus)
+                              .withValues(alpha: 0.7)),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),

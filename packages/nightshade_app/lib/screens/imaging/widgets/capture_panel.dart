@@ -418,59 +418,30 @@ class CapturePanel extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Are you sure you want to end the current imaging session?',
-                  style: TextStyle(color: colors.textPrimary),
-                ),
-                const SizedBox(height: 16),
-                NightshadeCard(
-                  variant: CardVariant.subtle,
-                  padding: const EdgeInsets.all(12),
-                  borderRadius: NightshadeTokens.radiusInline8,
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Images Captured:',
-                              style: TextStyle(color: colors.textSecondary)),
-                          Text('${sessionState.completedExposures}',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.textPrimary)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Total Integration:',
-                              style: TextStyle(color: colors.textSecondary)),
-                          Text(
-                              formatIntegrationSeconds(
-                                  sessionState.totalIntegrationSecs),
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.textPrimary)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Duration:',
-                              style: TextStyle(color: colors.textSecondary)),
-                          Text(
-                              sessionState.duration != null
-                                  ? _formatSessionDuration(
-                                      sessionState.duration!)
-                                  : '--:--:--',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.textPrimary)),
-                        ],
-                      ),
-                    ],
+                  'This closes the session and stops counting frames into it.',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
                   ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceLg),
+                KeyValueList(
+                  rows: [
+                    ('Images captured', '${sessionState.completedExposures}'),
+                    (
+                      'Total integration',
+                      formatIntegrationSeconds(
+                        sessionState.totalIntegrationSecs,
+                      ),
+                    ),
+                    (
+                      'Duration',
+                      // A session with no measured duration renders an em
+                      // dash, never '--:--:--'.
+                      sessionState.duration != null
+                          ? _formatSessionDuration(sessionState.duration!)
+                          : '\u2014',
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Consumer(
@@ -490,12 +461,10 @@ class CapturePanel extends ConsumerWidget {
                           : null,
                       title: Text(
                         'Park mount after ending session',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          color: mountConnected
-                              ? colors.textPrimary
-                              : colors.textSecondary,
-                        ),
+                        style: NightshadeTypography.body.copyWith(
+                            color: mountConnected
+                                ? colors.textPrimary
+                                : colors.textSecondary),
                       ),
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,

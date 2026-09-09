@@ -31,10 +31,7 @@ class OverlayChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: Colors.white70,
-            ),
+            style: NightshadeTypography.caption.copyWith(color: Colors.white70),
           ),
         ],
       ),
@@ -132,11 +129,8 @@ class ExposureProgressOverlay extends StatelessWidget {
                     Center(
                       child: Text(
                         '${progress.percent.toStringAsFixed(0)}%',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize16,
-                          fontWeight: FontWeight.bold,
-                          color: colors.primary,
-                        ),
+                        style: NightshadeTypography.sectionTitle
+                            .copyWith(color: colors.primary),
                       ),
                     ),
                 ],
@@ -145,33 +139,26 @@ class ExposureProgressOverlay extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               statusText,
-              style: const TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                // absolute: status label over the live image canvas
-                color: Colors.white,
-              ),
+              style: NightshadeTypography.bodyStrong.copyWith(
+                  // absolute: status label over the live image canvas
+                  color: Colors.white),
             ),
             const SizedBox(height: 4),
             if (!isAborting && !progress.isDownloading)
               Text(
                 '${progress.remaining.toStringAsFixed(1)}s remaining',
-                style: const TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  // absolute: remaining-time label over the live image canvas
-                  color: Colors.white70,
-                ),
+                style: NightshadeTypography.caption.copyWith(
+                    // absolute: remaining-time label over the live image canvas
+                    color: Colors.white70),
               ),
             if (progress.totalFrames != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'Frame ${progress.frameNumber} of ${progress.totalFrames}',
-                  style: const TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    // absolute: frame-count label over the live image canvas
-                    color: Colors.white54,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      // absolute: frame-count label over the live image canvas
+                      color: Colors.white54),
                 ),
               ),
           ],

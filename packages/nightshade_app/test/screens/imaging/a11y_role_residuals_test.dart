@@ -50,6 +50,8 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
   await tester.pump();
 }
 
+void _noop() {}
+
 void main() {
   testWidgets('the Overlays menu announces itself as an enabled button', (
     tester,
@@ -57,12 +59,11 @@ void main() {
     final handle = tester.ensureSemantics();
     await _pump(
       tester,
-      OverlaysMenuButton(
-        colors: NightshadeColors.dark,
+      const OverlaysMenuButton(
         showCrosshair: false,
         showStarOverlay: false,
-        onToggleCrosshair: () {},
-        onToggleStarOverlay: () {},
+        onToggleCrosshair: _noop,
+        onToggleStarOverlay: _noop,
       ),
     );
 

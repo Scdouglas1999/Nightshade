@@ -137,9 +137,8 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                 Expanded(
                   child: Text(
                     'No camera connected',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: widget.colors.warning),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: widget.colors.warning),
                   ),
                 ),
               ],
@@ -158,17 +157,19 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Current',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Text(
                           isConnected && cameraState.temperature != null
                               ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
-                              : '---',
-                          style: NightshadeTypography.h4
-                              .copyWith(color: widget.colors.textPrimary),
+                              : '\u2014',
+                          style: NightshadeTypography.readoutSm.copyWith(
+                            color: isConnected
+                                ? widget.colors.textPrimary
+                                : widget.colors.textMuted,
+                          ),
                         ),
                         if (isConnected && coolingStatus.isCooling)
                           Padding(
@@ -192,17 +193,16 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Power',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
                     Text(
                       isConnected && cameraState.coolerPower != null
                           ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
-                          : '---',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textPrimary,
+                          : '\u2014',
+                      style: NightshadeTypography.readoutSm.copyWith(
+                        color: isConnected
+                            ? widget.colors.textPrimary
+                            : widget.colors.textMuted,
                       ),
                     ),
                   ],
@@ -214,15 +214,12 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Target',
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize12,
-                                color: widget.colors.textSecondary)),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: widget.colors.textSecondary)),
                         Text(
                           '${coolingStatus.targetTemp.toStringAsFixed(1)}°C',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.textSecondary),
                         ),
                       ],
                     ),
@@ -352,11 +349,9 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
             colors: widget.colors,
             child: Text(
               'Cooling not supported by this camera',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: widget.colors.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: widget.colors.textSecondary,
+                  fontStyle: FontStyle.italic),
             ),
           ),
         const SizedBox(height: 20),

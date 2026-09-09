@@ -162,17 +162,17 @@ Widget _annotationAuthorityState({
           Text(
             error == null ? 'Loading $label…' : 'Could not load $label',
             textAlign: TextAlign.center,
-            style: TextStyle(color: colors.textPrimary),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
           if (error != null) ...[
             const SizedBox(height: 6),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
             const SizedBox(height: 10),
             NightshadeButton(

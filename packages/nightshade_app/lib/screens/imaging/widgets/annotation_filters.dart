@@ -72,22 +72,18 @@ class AnnotationFilterChip extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
-                color: isSelected ? colors.primary : colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? colors.primary : colors.textSecondary),
             ),
             if (count > 0) ...[
               const SizedBox(width: 4),
               Text(
                 '($count)',
-                style: TextStyle(
-                  color: isSelected
-                      ? colors.primary.withValues(alpha: 0.7)
-                      : colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize10,
-                ),
+                style: NightshadeTypography.caption.copyWith(
+                    color: isSelected
+                        ? colors.primary.withValues(alpha: 0.7)
+                        : colors.textMuted),
               ),
             ],
           ],

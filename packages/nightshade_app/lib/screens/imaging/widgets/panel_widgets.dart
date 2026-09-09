@@ -166,11 +166,13 @@ class _BigActionButtonState extends State<BigActionButton>
               Flexible(
                 child: Text(
                   widget.label,
-                  style: TextStyle(
-                    fontSize: widget.isMobile ? 11 : 12,
+                  style: NightshadeTypography.buttonSm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: primaryForeground.withValues(
-                        alpha: widget.isEnabled ? 1.0 : 0.5),
+                      alpha: widget.isEnabled
+                          ? 1.0
+                          : NightshadeTokens.opacityDisabled,
+                    ),
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
@@ -250,10 +252,8 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
       children: [
         Text(
           widget.label,
-          style: TextStyle(
-            fontSize: NightshadeTokens.fontSizePanelCaption,
-            color: widget.colors.textMuted,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: widget.colors.textMuted),
         ),
         SizedBox(height: widget.isMobile ? 3 : 4),
         GestureDetector(
@@ -300,9 +300,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                       ? TextField(
                           controller: _controller,
                           focusNode: _focusNode,
-                          style: TextStyle(
-                            fontSize: widget.isMobile ? 12 : 13,
-                            fontWeight: FontWeight.w500,
+                          style: NightshadeTypography.buttonSm.copyWith(
                             color: widget.colors.textPrimary,
                           ),
                           decoration: const InputDecoration(
@@ -323,10 +321,8 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                 if (widget.suffix != null)
                   Text(
                     widget.suffix!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: widget.colors.textMuted),
                   ),
               ],
             ),
@@ -363,11 +359,8 @@ class PanelSection extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: NightshadeTokens.fontSizePanelLabel,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(fontWeight: FontWeight.w600, color: colors.textPrimary),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         NightshadeCard(
@@ -409,10 +402,8 @@ class InputRow extends StatelessWidget {
           child: _panelRowLabel(
             context,
             label: label,
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             helpId: helpId,
           ),
         ),
@@ -430,10 +421,8 @@ class InputRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     value ?? '',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
                 if (trailing != null) ...[
@@ -510,10 +499,8 @@ class _InputRowEditableState extends State<InputRowEditable> {
           child: _panelRowLabel(
             context,
             label: widget.label,
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             helpId: widget.helpId,
           ),
         ),
@@ -528,20 +515,16 @@ class _InputRowEditableState extends State<InputRowEditable> {
             child: TextField(
               controller: _controller,
               focusNode: _focusNode,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: InputBorder.none,
                 isDense: true,
                 suffixText: widget.suffix,
-                suffixStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted,
-                ),
+                suffixStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
               onSubmitted: widget.onChanged,
               onChanged: widget.onChanged,
@@ -600,10 +583,8 @@ class DropdownRow extends StatelessWidget {
           child: _panelRowLabel(
             context,
             label: label,
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              color: isEnabled ? colors.textSecondary : colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: isEnabled ? colors.textSecondary : colors.textMuted),
             helpId: helpId,
             excludeLabelSemantics: true,
           ),
@@ -664,10 +645,8 @@ class SliderRowInteractive extends StatelessWidget {
           child: _panelRowLabel(
             context,
             label: label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: isEnabled ? colors.textSecondary : colors.textMuted,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: isEnabled ? colors.textSecondary : colors.textMuted),
             helpId: helpId,
           ),
         ),
@@ -696,11 +675,8 @@ class SliderRowInteractive extends StatelessWidget {
           child: Text(
             '${value.toStringAsFixed(1)}$suffix',
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              color: isEnabled ? colors.textPrimary : colors.textMuted,
-            ),
+            style: NightshadeTypography.monoCaption.copyWith(
+                color: isEnabled ? colors.textPrimary : colors.textMuted),
           ),
         ),
       ],

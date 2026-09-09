@@ -64,9 +64,6 @@ class ImagingPreviewToolbar extends ConsumerStatefulWidget {
 }
 
 class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
-  /// Anchors the overflow menu to the toolbar's own box.
-  final GlobalKey _barKey = GlobalKey();
-
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
@@ -92,28 +89,17 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
       sky: latestTransparency?.qualityBucket,
     );
 
+    // No `overflow:` group. NightshadeToolbar's overflow fit lays out BOTH
+    // candidate bars and paints one, so every labelled action appears twice in
+    // the widget and semantics trees — two "Overlays" buttons to a screen
+    // reader. This bar scrolls instead (below), which puts one node per
+    // control on screen at every width.
+    //
+    // Deviation from `mockups/imaging.html`, recorded in notes.md: the mockup
+    // draws five view glyphs; Nightshade also has 1:1 zoom and the catalog
+    // overlay's magnitude settings, which exist today and have nowhere else to
+    // live, so they ride in the same groups rather than being deleted.
     final toolbar = NightshadeToolbar(
-      key: _barKey,
-      overflowIcon: LucideIcons.moreHorizontal,
-      onOverflowPressed: () => _showOverflowMenu(showAbort: showAbort),
-      overflow: <Widget>[
-        NightshadeIconButton(
-          icon: NightshadeIcons.collapse,
-          tooltip: '1:1 zoom',
-          size: IconButtonSize.sm,
-          onPressed: widget.onZoom1to1,
-        ),
-        const _CatalogOverlaySettingsButton(),
-        if (showAbort)
-          NightshadeIconButton(
-            key: ImagingTutorialKeys.abortBtn,
-            icon: NightshadeIcons.close,
-            tooltip: 'Abort capture',
-            size: IconButtonSize.sm,
-            color: colors.error,
-            onPressed: widget.onAbortCapture,
-          ),
-      ],
       groups: <List<Widget>>[
         <Widget>[
           OverlaysMenuButton(
@@ -145,6 +131,12 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
             onPressed: widget.onZoomOut,
           ),
           NightshadeIconButton(
+            icon: NightshadeIcons.collapse,
+            tooltip: '1:1 zoom',
+            size: IconButtonSize.sm,
+            onPressed: widget.onZoom1to1,
+          ),
+          NightshadeIconButton(
             icon: LucideIcons.scan,
             tooltip: 'Fit to window',
             size: IconButtonSize.sm,
@@ -156,6 +148,18 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
             size: IconButtonSize.sm,
             onPressed: widget.onFullscreen,
           ),
+        ],
+        <Widget>[
+          const _CatalogOverlaySettingsButton(),
+          if (showAbort)
+            NightshadeIconButton(
+              key: ImagingTutorialKeys.abortBtn,
+              icon: NightshadeIcons.close,
+              tooltip: 'Abort capture',
+              size: IconButtonSize.sm,
+              color: colors.error,
+              onPressed: widget.onAbortCapture,
+            ),
         ],
       ],
     );
@@ -169,76 +173,34 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceMd,
       ),
-      child: Row(
-        key: ImagingTutorialKeys.zoomControls,
-        children: <Widget>[
-          // The meta line yields its width before the actions do: a clipped
-          // zoom readout is a nuisance, an unreachable Fit button is a defect.
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: meta,
+      // ONE layout, and no width threshold — because no constant can be right
+      // here. Every child except the meta line is intrinsically sized, so
+      // whether they fit depends on runtime content: the frame's dimensions,
+      // the sky reading, the locale, the user's text scale. IntrinsicWidth
+      // asks the layout what it actually needs; ConstrainedBox(minWidth)
+      // lets the bar fill the viewport when there IS slack so the actions stay
+      // pinned trailing; and when the natural width exceeds the viewport it
+      // scrolls. Nothing is ever clipped, at any width.
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: IntrinsicWidth(
+                child: Row(
+                  key: ImagingTutorialKeys.zoomControls,
+                  children: <Widget>[
+                    meta,
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    const Spacer(),
+                    toolbar,
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          toolbar,
-        ],
-      ),
-    );
-  }
-
-  void _showOverflowMenu({required bool showAbort}) {
-    final box = _barKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-    final origin =
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
-    showMenu<VoidCallback>(
-      context: context,
-      color: context.nightshadeColors.surfaceElevated,
-      position: RelativeRect.fromLTRB(
-        origin.dx,
-        origin.dy,
-        overlay.size.width - origin.dx,
-        0,
-      ),
-      items: <PopupMenuEntry<VoidCallback>>[
-        _menuItem(
-          icon: NightshadeIcons.collapse,
-          label: '1:1 zoom',
-          onTap: widget.onZoom1to1,
-        ),
-        if (showAbort)
-          _menuItem(
-            icon: NightshadeIcons.close,
-            label: 'Abort capture',
-            onTap: widget.onAbortCapture,
-          ),
-      ],
-    );
-  }
-
-  PopupMenuItem<VoidCallback> _menuItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final colors = context.nightshadeColors;
-    return PopupMenuItem<VoidCallback>(
-      value: onTap,
-      onTap: onTap,
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: NightshadeTokens.iconSm, color: colors.textMuted),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            label,
-            style: NightshadeTypography.bodySm.copyWith(
-              color: colors.textPrimary,
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -276,17 +238,28 @@ class _ViewerMeta extends StatelessWidget {
       color: colors.textMuted,
     );
 
+    // Plain `Text` per part rather than one `Text.rich`: a rich span carries no
+    // `data`, so the zoom readout — the one thing on this bar a test and a
+    // screen reader both go looking for by its value — became unfindable.
     Widget segment(String? prefix, String? text, [String? suffix]) {
-      return Text.rich(
-        TextSpan(
-          children: <InlineSpan>[
-            if (prefix != null) TextSpan(text: '$prefix ', style: label),
-            TextSpan(text: text ?? '—', style: text == null ? muted : value),
-            if (suffix != null) TextSpan(text: ' $suffix', style: label),
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (prefix != null) ...<Widget>[
+            Text(prefix, style: label, maxLines: 1, softWrap: false),
+            const SizedBox(width: NightshadeTokens.spaceXs),
           ],
-        ),
-        maxLines: 1,
-        softWrap: false,
+          Text(
+            text ?? '\u2014',
+            style: text == null ? muted : value,
+            maxLines: 1,
+            softWrap: false,
+          ),
+          if (suffix != null) ...<Widget>[
+            const SizedBox(width: NightshadeTokens.spaceXs),
+            Text(suffix, style: label, maxLines: 1, softWrap: false),
+          ],
+        ],
       );
     }
 

@@ -160,9 +160,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   Expanded(
                     child: Text(
                       'No focuser connected',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: widget.colors.warning),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -180,25 +179,25 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Position',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Text(
-                          isConnected ? '$currentPosition' : '---',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize18,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.textPrimary,
-                            fontFeatures: const [FontFeature.tabularFigures()],
+                          // A disconnected focuser has no position, and that
+                          // is an em dash, not '---'.
+                          isConnected ? '$currentPosition' : '\u2014',
+                          style: NightshadeTypography.readoutSm.copyWith(
+                            color: isConnected
+                                ? widget.colors.textPrimary
+                                : widget.colors.textMuted,
                           ),
                         ),
                         Text(
                           positionSuffix,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: widget.colors.textMuted),
+                          style: NightshadeTypography.caption.copyWith(
+                            color: widget.colors.textMuted,
+                          ),
                         ),
                         if (isMoving)
                           Padding(
@@ -223,14 +222,12 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Temperature',
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize12,
-                                color: widget.colors.textSecondary)),
+                            style: NightshadeTypography.caption
+                                .copyWith(color: widget.colors.textSecondary)),
                         Text(
                           '${temperature.toStringAsFixed(1)}°C',
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: widget.colors.textPrimary),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.textPrimary),
                         ),
                       ],
                     ),
@@ -248,9 +245,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                 Row(
                   children: [
                     Text('Step Size:',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            color: widget.colors.textSecondary)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textSecondary)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: SingleChildScrollView(
@@ -285,15 +281,14 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                                         ),
                                   child: Text(
                                     '$step',
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize10,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      color: isSelected
-                                          ? widget.colors.primary
-                                          : widget.colors.textSecondary,
-                                    ),
+                                    style: NightshadeTypography.caption
+                                        .copyWith(
+                                            fontWeight: isSelected
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                            color: isSelected
+                                                ? widget.colors.primary
+                                                : widget.colors.textSecondary),
                                   ),
                                 ),
                               ),
@@ -325,10 +320,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       'Absolute positioning is not supported by this focuser.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: widget.colors.textMuted,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.textMuted),
                     ),
                   ),
               ],
@@ -376,10 +369,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       'Autofocus settings are still loading.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: widget.colors.textMuted,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.textMuted),
                     ),
                   ),
                 const SizedBox(height: 12),
@@ -460,11 +451,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
           // surface + border, and PanelSection would nest a second one.
           Text(
             'Temperature Compensation',
-            style: TextStyle(
-              fontSize: NightshadeTokens.fontSizePanelLabel,
-              fontWeight: FontWeight.w600,
-              color: widget.colors.textPrimary,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                fontWeight: FontWeight.w600, color: widget.colors.textPrimary),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           const FocusModelCurveCard(),
@@ -667,10 +655,8 @@ class _GoToPositionDialogState extends State<GoToPositionDialog> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   _haltError!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                    fontSize: NightshadeTypography.fontSize12,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: Theme.of(context).colorScheme.error),
                 ),
               ),
           ],

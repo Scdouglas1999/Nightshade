@@ -39,11 +39,8 @@ class _CalibratedBadge extends ConsumerWidget {
             const SizedBox(width: 4),
             Text(
               'Calibrated',
-              style: TextStyle(
-                color: colors.onPrimary,
-                fontSize: NightshadeTypography.fontSize10,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600, color: colors.onPrimary),
             ),
           ],
         ),

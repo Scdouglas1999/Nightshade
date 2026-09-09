@@ -198,34 +198,71 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
   /// The viewer tab: toolbar, edge-to-edge canvas with its glass HUD, and the
   /// controls — a side panel on the right when there is room, a bottom sheet
   /// under the canvas when there is not.
+  ///
+  /// "When there is not" is a question about HEIGHT as well as width. A phone
+  /// held in landscape reports a tablet-ish width (932) and a very short height
+  /// (430, less again with a keyboard up), and the 44 px section strip is 318
+  /// px of buttons that cannot fold. The decision is made on this pane's OWN
+  /// constraints so an embedded or remote layout reflows too.
   Widget _liveView(NightshadeColors colors, int selectedSection, bool narrow) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final short = constraints.maxHeight.isFinite &&
+            constraints.maxHeight < _shortViewportHeight;
+        return _liveViewFor(
+          colors,
+          selectedSection,
+          narrow || short,
+          short: short,
+        );
+      },
+    );
+  }
+
+  /// Below this the side-panel strip cannot fit, so the controls become a
+  /// sheet (matching the rule the pre-Observatory layout used).
+  static const double _shortViewportHeight = 500;
+
+  Widget _liveViewFor(
+    NightshadeColors colors,
+    int selectedSection,
+    bool narrow, {
+    required bool short,
+  }) {
     final viewer = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            // The shared shell can leave this pane shorter than the toolbar
-            // while a route field owns the keyboard. In that state the toolbar
-            // is not actionable; give its height to the canvas instead of
-            // letting a fixed row overflow over the focused controls pane.
-            if (constraints.maxHeight < 96) return const SizedBox.shrink();
-            return ImagingPreviewToolbar(
-              showCrosshair:
-                  ref.watch(imagingViewerStateProvider).showCrosshair,
-              showStarOverlay:
-                  ref.watch(imagingViewerStateProvider).showStarOverlay,
-              isStoppingCapture: _isStoppingCapture,
-              onZoomIn: _zoomIn,
-              onZoomOut: _zoomOut,
-              onFitToWindow: _fitToWindow,
-              onZoom1to1: _zoom1to1,
-              onAbortCapture: _abortCapture,
-              onToggleCrosshair: _viewer.toggleCrosshair,
-              onToggleStarOverlay: _viewer.toggleStarOverlay,
-              onFullscreen: _openImmersive,
-            );
-          },
-        ),
+        // Below the shell breakpoint there is no viewer toolbar at all
+        // (`mockups/png/narrow.png`): the canvas starts under the status strip
+        // and a tap on the frame opens the fullscreen viewer. Forty-four pixels
+        // of overlay toggles on a 390 px phone is chrome competing with the
+        // photons for a screen that has none to spare.
+        if (!narrow)
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              // The shared shell can leave this pane shorter than the toolbar
+              // while a route field owns the keyboard. In that state the
+              // toolbar is not actionable; give its height to the canvas
+              // instead of letting a fixed row overflow over the focused
+              // controls pane.
+              if (constraints.maxHeight < 96) return const SizedBox.shrink();
+              return ImagingPreviewToolbar(
+                showCrosshair:
+                    ref.watch(imagingViewerStateProvider).showCrosshair,
+                showStarOverlay:
+                    ref.watch(imagingViewerStateProvider).showStarOverlay,
+                isStoppingCapture: _isStoppingCapture,
+                onZoomIn: _zoomIn,
+                onZoomOut: _zoomOut,
+                onFitToWindow: _fitToWindow,
+                onZoom1to1: _zoom1to1,
+                onAbortCapture: _abortCapture,
+                onToggleCrosshair: _viewer.toggleCrosshair,
+                onToggleStarOverlay: _viewer.toggleStarOverlay,
+                onFullscreen: _openImmersive,
+              );
+            },
+          ),
         Expanded(child: _canvas(colors, narrow)),
       ],
     );
@@ -236,19 +273,28 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Expanded(child: viewer),
-          MeasuredBottomInsetReporter(
-            onHeight: _setCaptureBarHeight,
-            child: _ControlsSheet(
-              colors: colors,
-              selectedSection: selectedSection,
-              onSectionSelected: _selectSection,
-              isLooping: _isLooping,
-              isSingleCapture: _isSingleCapture,
-              isSavingCapture: _singleCapturePreviewReady,
-              isStoppingCapture: _isStoppingCapture,
-              onSnapshot: _takeSnapshot,
-              onToggleLoop: _toggleLoop,
+          // 3:2 on a tall phone — the sky keeps the larger share. On a SHORT
+          // viewport (a phone in landscape, or any window with the keyboard
+          // up) it is 1:1, because a 150 px sheet cannot show a form row and
+          // the operator is looking at the controls, not the sky. Either way
+          // the sheet is BOUNDED, so it shrinks its scrolling body instead of
+          // overflowing the column.
+          Expanded(flex: short ? 1 : 3, child: viewer),
+          Flexible(
+            flex: short ? 1 : 2,
+            child: MeasuredBottomInsetReporter(
+              onHeight: _setCaptureBarHeight,
+              child: _ControlsSheet(
+                colors: colors,
+                selectedSection: selectedSection,
+                onSectionSelected: _selectSection,
+                isLooping: _isLooping,
+                isSingleCapture: _isSingleCapture,
+                isSavingCapture: _singleCapturePreviewReady,
+                isStoppingCapture: _isStoppingCapture,
+                onSnapshot: _takeSnapshot,
+                onToggleLoop: _toggleLoop,
+              ),
             ),
           ),
         ],
@@ -356,8 +402,15 @@ class _ControlsSheet extends StatelessWidget {
   final VoidCallback onSnapshot;
   final VoidCallback onToggleLoop;
 
-  /// Fraction of the window the sheet body may claim.
-  static const double _bodyFraction = 0.34;
+  /// Below this the section chip strip stands down: 40 px of navigation in a
+  /// sheet this short is 40 px the field being typed into does not have.
+  static const double _stripFloor = 140;
+
+  /// Below this even the two capture buttons stand down. The only thing that
+  /// squeezes a sheet this far is a keyboard, and an operator with a keyboard
+  /// up is typing a number, not firing the shutter; both come back the moment
+  /// it closes.
+  static const double _buttonsFloor = 96;
 
   @override
   Widget build(BuildContext context) {
@@ -368,77 +421,92 @@ class _ControlsSheet extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(
-                NightshadeTokens.spaceSm,
-                NightshadeTokens.spaceSm,
-                NightshadeTokens.spaceSm,
-                0,
-              ),
-              child: Row(
-                children: <Widget>[
-                  for (var i = 0; i < ImagingSidePanel.sections.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 2),
-                      child: NightshadeChip(
-                        label: ImagingSidePanel.sections[i].tooltip,
-                        icon: ImagingSidePanel.sections[i].icon,
-                        selected: i == selectedSection,
-                        onTap: () => onSectionSelected(i),
-                      ),
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final height = constraints.maxHeight;
+            final showStrip = !height.isFinite || height >= _stripFloor;
+            final showButtons = !height.isFinite || height >= _buttonsFloor;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                if (showStrip)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(
+                      NightshadeTokens.spaceSm,
+                      NightshadeTokens.spaceSm,
+                      NightshadeTokens.spaceSm,
+                      0,
                     ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: MediaQuery.sizeOf(context).height * _bodyFraction,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: NightshadeTokens.spaceLg,
-                  vertical: NightshadeTokens.spaceSm,
-                ),
-                child: ImagingSectionBody(
-                  colors: colors,
-                  section: selectedSection,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                NightshadeTokens.spaceLg,
-                0,
-                NightshadeTokens.spaceLg,
-                NightshadeTokens.spaceMd,
-              ),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _SheetLoopButton(
-                      isLooping: isLooping,
-                      isSingleCapture: isSingleCapture,
-                      isStoppingCapture: isStoppingCapture,
-                      onToggleLoop: onToggleLoop,
+                    child: Row(
+                      children: <Widget>[
+                        for (var i = 0;
+                            i < ImagingSidePanel.sections.length;
+                            i++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 2),
+                            child: NightshadeChip(
+                              label: ImagingSidePanel.sections[i].tooltip,
+                              icon: ImagingSidePanel.sections[i].icon,
+                              selected: i == selectedSection,
+                              onTap: () => onSectionSelected(i),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  Expanded(
-                    child: _SheetSnapshotButton(
-                      isLooping: isLooping,
-                      isSingleCapture: isSingleCapture,
-                      isSavingCapture: isSavingCapture,
-                      isStoppingCapture: isStoppingCapture,
-                      onSnapshot: onSnapshot,
+                // The section body takes whatever the sheet has left after the
+                // chip strip and the two buttons — never a fraction of the
+                // WINDOW, which is a different number the moment a keyboard is
+                // up. Each section scrolls internally, so this can shrink to
+                // nothing without overflowing.
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: NightshadeTokens.spaceLg,
+                      vertical: NightshadeTokens.spaceSm,
+                    ),
+                    child: ImagingSectionBody(
+                      colors: colors,
+                      section: selectedSection,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+                if (showButtons)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      NightshadeTokens.spaceLg,
+                      0,
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceMd,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _SheetLoopButton(
+                            isLooping: isLooping,
+                            isSingleCapture: isSingleCapture,
+                            isStoppingCapture: isStoppingCapture,
+                            onToggleLoop: onToggleLoop,
+                          ),
+                        ),
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        Expanded(
+                          child: _SheetSnapshotButton(
+                            isLooping: isLooping,
+                            isSingleCapture: isSingleCapture,
+                            isSavingCapture: isSavingCapture,
+                            isStoppingCapture: isStoppingCapture,
+                            onSnapshot: onSnapshot,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );

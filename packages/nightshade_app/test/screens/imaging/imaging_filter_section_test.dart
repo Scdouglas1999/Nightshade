@@ -1,17 +1,23 @@
-// The Imaging screen's filter strip is the ONLY filter control on the screen,
-// and it shipped without an `onFilterSelected` callback: picking Ha moved the
-// wheel and highlighted the chip, but `exposureSettingsProvider.filter` stayed
-// on whatever it was before, so every reader of that mirror (the Dashboard
+// The Imaging screen's filter wheel is the ONLY filter-position control on the
+// screen, and it shipped without an `onFilterSelected` callback: picking Ha
+// moved the wheel and highlighted the chip, but `exposureSettingsProvider.filter`
+// stayed on whatever it was before, so every reader of that mirror (the Tonight
 // session card among them) described the frame with the wrong filter.
+//
+// The Observatory relayout moved the strip out of the deleted bottom banner
+// into the side panel's Filter wheel section; the contract did not move.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_app/screens/imaging/widgets/imaging_bottom_banner.dart';
+import 'package:nightshade_app/screens/imaging/widgets/imaging_side_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+
+/// Index of the Filter wheel section on the side-panel strip.
+const int _filterSection = 5;
 
 class _ConnectedWheel extends FilterWheelStateNotifier {
   _ConnectedWheel(super.ref) {
@@ -42,20 +48,15 @@ class _AcceptingDeviceService extends DeviceService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('picking a filter chip records it on the exposure settings',
+  testWidgets('picking a filter records it on the exposure settings',
       (tester) async {
     late _AcceptingDeviceService deviceService;
     final handle = await pumpAppScreen(
       tester,
       Builder(
-        builder: (context) => ImagingBottomBanner(
+        builder: (context) => ImagingSectionBody(
           colors: context.nightshadeColors,
-          isLooping: false,
-          isSingleCapture: false,
-          isSavingCapture: false,
-          isStoppingCapture: false,
-          onSnapshot: () {},
-          onToggleLoop: () {},
+          section: _filterSection,
         ),
       ),
       size: const Size(1400, 700),
@@ -80,5 +81,25 @@ void main() {
 
     expect(deviceService.lastPosition, 4);
     expect(handle.container.read(exposureSettingsProvider).filter, 'Ha');
+  });
+
+  testWidgets('with no wheel attached the section says so once',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      Builder(
+        builder: (context) => ImagingSectionBody(
+          colors: context.nightshadeColors,
+          section: _filterSection,
+        ),
+      ),
+      size: const Size(1400, 700),
+      settle: false,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // The single empty-state pattern, not a banner and not a stack of cards.
+    expect(find.byType(EmptyState), findsOneWidget);
+    expect(find.text('No filter wheel'), findsOneWidget);
   });
 }

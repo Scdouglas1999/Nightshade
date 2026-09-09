@@ -489,10 +489,8 @@ class _MountTabState extends ConsumerState<MountTab> {
                                     : mountState.isSlewing
                                         ? 'Pulse guiding is disabled during a slew.'
                                         : '$pulseDurationMs ms correction pulses',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 16),
                   Center(
@@ -596,9 +594,8 @@ class _InfoRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textSecondary)),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -629,10 +626,8 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            fontWeight: FontWeight.w600,
-            color: color),
+        style: NightshadeTypography.caption
+            .copyWith(fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -671,9 +666,8 @@ class _PulseButton extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textSecondary)),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary)),
       ],
     );
   }

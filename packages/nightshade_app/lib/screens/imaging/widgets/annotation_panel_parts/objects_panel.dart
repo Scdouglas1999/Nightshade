@@ -509,27 +509,24 @@ class _AnnotationObjectsPanelState
                 value: AnnotationPanelSortMode.brightness,
                 child: Text(
                   'Sort: Brightness',
-                  style: TextStyle(
-                      color: widget.colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textPrimary),
                 ),
               ),
               PopupMenuItem(
                 value: AnnotationPanelSortMode.name,
                 child: Text(
                   'Sort: Name',
-                  style: TextStyle(
-                      color: widget.colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textPrimary),
                 ),
               ),
               PopupMenuItem(
                 value: AnnotationPanelSortMode.type,
                 child: Text(
                   'Sort: Type',
-                  style: TextStyle(
-                      color: widget.colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.textPrimary),
                 ),
               ),
             ],
@@ -631,9 +628,8 @@ class _AnnotationObjectsPanelState
                         size: 14, color: widget.colors.textPrimary),
                     const SizedBox(width: 8),
                     Text('Export CSV',
-                        style: TextStyle(
-                            color: widget.colors.textPrimary,
-                            fontSize: NightshadeTypography.fontSize12)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textPrimary)),
                   ],
                 ),
               ),
@@ -646,9 +642,8 @@ class _AnnotationObjectsPanelState
                         size: 14, color: widget.colors.textPrimary),
                     const SizedBox(width: 8),
                     Text('Export DS9 Regions',
-                        style: TextStyle(
-                            color: widget.colors.textPrimary,
-                            fontSize: NightshadeTypography.fontSize12)),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: widget.colors.textPrimary)),
                   ],
                 ),
               ),

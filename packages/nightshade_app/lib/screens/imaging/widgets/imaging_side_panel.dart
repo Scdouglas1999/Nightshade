@@ -159,7 +159,6 @@ class _FilterWheelSection extends ConsumerWidget {
             title: 'Filter wheel',
           ),
           FilterWheelSelector(
-            key: ImagingTutorialKeys.filterSelector,
             style: FilterSelectorStyle.buttons,
             // The wheel is the screen's only filter-position control, so the
             // exposure settings mirror has to follow the selection or every

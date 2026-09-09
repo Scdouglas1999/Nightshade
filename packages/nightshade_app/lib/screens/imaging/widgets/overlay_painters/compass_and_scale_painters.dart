@@ -168,15 +168,11 @@ class CompassOverlayPainter extends CustomPainter {
       double arrowAngleRad, double compassRadius, Color color) {
     final textSpan = TextSpan(
       text: text,
-      style: TextStyle(
-        color: color,
-        fontSize: NightshadeTypography.fontSize13,
-        fontWeight: FontWeight.w700,
-        shadows: const [
-          Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
-          Shadow(blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
-        ],
-      ),
+      style: NightshadeTypography.bodySm
+          .copyWith(fontWeight: FontWeight.w700, color: color, shadows: const [
+        Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
+        Shadow(blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
+      ]),
     );
     final textPainter = TextPainter(
       text: textSpan,
@@ -304,15 +300,15 @@ class ScaleBarPainter extends CustomPainter {
     // Measure text first so we can size the background
     final textSpan = TextSpan(
       text: bestLabel,
-      style: const TextStyle(
-        color: Color(0xFFFFFFFF),
-        fontSize: NightshadeTypography.fontSize12,
-        fontWeight: FontWeight.w600,
-        shadows: [
-          Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
-          Shadow(blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
-        ],
-      ),
+      style: NightshadeTypography.caption.copyWith(
+          fontWeight: FontWeight.w600,
+          color: Color(0xFFFFFFFF),
+          shadows: [
+            Shadow(
+                blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
+            Shadow(
+                blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
+          ]),
     );
     final textPainter = TextPainter(
       text: textSpan,

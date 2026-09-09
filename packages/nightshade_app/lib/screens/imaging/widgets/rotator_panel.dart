@@ -292,11 +292,9 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      angle != null ? '${angle.toStringAsFixed(1)}°' : '---',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize18,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                      // No angle is an em dash, never '---'.
+                      angle != null ? '${angle.toStringAsFixed(1)}°' : '\u2014',
+                      style: NightshadeTypography.readoutSm.copyWith(
                         color: _isConnected
                             ? colors.textPrimary
                             : colors.textMuted,
@@ -307,11 +305,9 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           'Moving...',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.accent,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: NightshadeTypography.caption.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: colors.accent),
                         ),
                       ),
                   ],
@@ -326,20 +322,16 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
               (mechanicalAngle - angle).abs() > 0.1)
             Text(
               'Mechanical: ${mechanicalAngle.toStringAsFixed(1)}°',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           if (!_isConnected)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Rotator not connected',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
             ),
         ],
@@ -367,10 +359,8 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
             child: TextField(
               controller: _angleController,
               focusNode: _angleFocusNode,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -378,15 +368,11 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                 isDense: true,
                 hintText:
                     '${minAngle.toStringAsFixed(1)} - ${maxAngle.toStringAsFixed(1)}',
-                hintStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted,
-                ),
+                hintStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
                 suffixText: '°',
-                suffixStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
-                ),
+                suffixStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
@@ -426,25 +412,19 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
             ),
             child: TextField(
               controller: _syncController,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: InputBorder.none,
                 isDense: true,
                 hintText: 'Sky PA 0 - 360',
-                hintStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted,
-                ),
+                hintStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
                 suffixText: '°',
-                suffixStyle: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
-                ),
+                suffixStyle: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
@@ -557,12 +537,7 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
               widget.label,
               maxLines: 1,
               softWrap: false,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                color: textColor,
-              ),
+              style: NightshadeTypography.readoutXs.copyWith(color: textColor),
             ),
           ),
         ),

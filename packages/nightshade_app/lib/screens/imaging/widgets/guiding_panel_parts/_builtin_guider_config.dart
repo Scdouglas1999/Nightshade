@@ -52,11 +52,8 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
                   ),
                   child: Text(
                     'Built-in',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize9,
-                      fontWeight: FontWeight.w600,
-                      color: colors.primary,
-                    ),
+                    style: NightshadeTypography.caption.copyWith(
+                        fontWeight: FontWeight.w600, color: colors.primary),
                   ),
                 ),
               ],
@@ -88,9 +85,8 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
               ),
               child: Text(
                 'Failed to load guider config: $error',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.error),
+                style:
+                    NightshadeTypography.caption.copyWith(color: colors.error),
               ),
             ),
             data: (config) => _BuiltinGuiderConfigForm(
@@ -422,10 +418,8 @@ class _ConfigInputRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = TextStyle(
-      fontSize: NightshadeTypography.fontSize12,
-      color: colors.textSecondary,
-    );
+    final labelStyle =
+        NightshadeTypography.caption.copyWith(color: colors.textSecondary);
     final id = helpId;
     final Widget labelWidget = id == null
         ? Text(label, style: labelStyle)
@@ -472,20 +466,16 @@ class _ConfigInputRow extends StatelessWidget {
                 ),
                 child: TextField(
                   controller: controller,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textPrimary),
                   decoration: InputDecoration(
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     border: InputBorder.none,
                     isDense: true,
                     suffixText: suffix,
-                    suffixStyle: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textMuted,
-                    ),
+                    suffixStyle: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                   keyboardType: keyboardType,
                   inputFormatters: inputFormatters,
@@ -496,10 +486,8 @@ class _ConfigInputRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   helperText!,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textMuted,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                 ),
               ],
             ],
