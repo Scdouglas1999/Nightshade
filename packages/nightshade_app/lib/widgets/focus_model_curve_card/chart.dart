@@ -19,10 +19,10 @@ class _HfrScatterChart extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         child: CustomPaint(
           painter: _HfrCurvePainter(
             points: points,
@@ -364,7 +364,7 @@ class _TemperatureLegend extends StatelessWidget {
           child: Container(
             height: 6,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               gradient: const LinearGradient(colors: [
                 Color(0xFF4F8BFF),
                 Color(0xFFB9A26A),

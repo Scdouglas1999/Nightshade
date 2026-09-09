@@ -107,7 +107,8 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: NightshadeDecorations.emphasisSurface(
                     colors.warning,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusXs),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -390,7 +391,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.warning,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,

@@ -248,7 +248,7 @@ class _FilterChip extends StatelessWidget {
         enabled: true,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -256,7 +256,7 @@ class _FilterChip extends StatelessWidget {
               border: Border.all(
                 color: isReference ? colors.primary : colors.border,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,

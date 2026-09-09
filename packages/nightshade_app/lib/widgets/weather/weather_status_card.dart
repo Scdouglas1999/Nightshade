@@ -155,7 +155,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -264,7 +264,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -320,7 +320,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
       padding: const EdgeInsets.all(16),
       decoration: NightshadeDecorations.emphasisSurface(
         _getAlertColor(alertLevel, colors),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         children: [

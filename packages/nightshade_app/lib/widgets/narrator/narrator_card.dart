@@ -90,7 +90,7 @@ class NarratorCard extends StatelessWidget {
     final Widget edge = Container(
       width: 3,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
         color: isCelebrate ? null : accent.withValues(alpha: 0.85),
         gradient: isCelebrate
             ? LinearGradient(

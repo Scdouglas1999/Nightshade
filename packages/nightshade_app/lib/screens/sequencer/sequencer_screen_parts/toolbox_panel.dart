@@ -147,7 +147,7 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                         indicator: NightshadeDecorations.statusChip(
                           widget.colors.primary,
                           borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(8),
+                            top: Radius.circular(NightshadeTokens.radiusLg),
                           ),
                           bordered: false,
                         ),

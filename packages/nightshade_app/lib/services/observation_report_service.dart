@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdf/pdf.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 part 'observation_report_service/statistics.dart';
@@ -236,7 +237,7 @@ class ObservationReportService {
           padding: const pw.EdgeInsets.all(12),
           decoration: pw.BoxDecoration(
             color: PdfColors.blueGrey50,
-            borderRadius: pw.BorderRadius.circular(4),
+            borderRadius: pw.BorderRadius.circular(NightshadeTokens.radiusXs),
           ),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -877,7 +878,7 @@ class ObservationReportService {
           padding: const pw.EdgeInsets.all(8),
           decoration: pw.BoxDecoration(
             color: PdfColors.blueGrey50,
-            borderRadius: pw.BorderRadius.circular(2),
+            borderRadius: pw.BorderRadius.circular(NightshadeTokens.radiusXs),
           ),
           child: pw.Text(
             session.notes!,

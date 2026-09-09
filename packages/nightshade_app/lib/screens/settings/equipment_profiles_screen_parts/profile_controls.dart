@@ -218,9 +218,12 @@ class _BinningSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: value == i ? colors.primary : Colors.transparent,
                         borderRadius: BorderRadius.horizontal(
-                          left: i == 1 ? const Radius.circular(5) : Radius.zero,
-                          right:
-                              i == 4 ? const Radius.circular(5) : Radius.zero,
+                          left: i == 1
+                              ? const Radius.circular(NightshadeTokens.radiusSm)
+                              : Radius.zero,
+                          right: i == 4
+                              ? const Radius.circular(NightshadeTokens.radiusSm)
+                              : Radius.zero,
                         ),
                       ),
                       child: Center(

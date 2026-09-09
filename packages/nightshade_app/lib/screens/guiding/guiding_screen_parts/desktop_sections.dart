@@ -419,8 +419,8 @@ mixin _GuidingDesktopSections
             padding: headerPadding,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(NightshadeTokens.radiusLg)),
             ),
             child: Row(
               children: [
@@ -507,8 +507,8 @@ mixin _GuidingDesktopSections
               ),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(8)),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(NightshadeTokens.radiusLg)),
               ),
               child: Row(
                 children: [
@@ -743,7 +743,7 @@ mixin _GuidingDesktopSections
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: SingleChildScrollView(

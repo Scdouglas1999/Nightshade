@@ -7,18 +7,27 @@ import 'dart:io';
 ///
 ///   * `BorderRadius.circular(<n>)`  — should use `NightshadeTokens.radius*` /
 ///     `NightshadeTokens.borderRadius*`.
-///   * inline `TextStyle(fontSize: ...)` literals — should use the
-///     `NightshadeTypography` scale (h1..h6, body*, label*, mono*, ...).
+///   * inline `TextStyle(fontSize: ...)` literals AND `.copyWith(fontSize:)`
+///     on a named style — should use the `NightshadeTypography` scale
+///     (display, pageTitle, sectionTitle, eyebrow, body*, readout*, button*).
 ///   * raw `Colors.<name>` usages — should use `NightshadeColors.of(context)`.
 ///     Raw Material colors are the worst offenders because they DO NOT invert
 ///     under red-night mode and break dark-adaptation in the field.
 ///
 /// This is an incremental-migration TRACKER, not a hard gate. The full
-/// migration (~1150 radii, ~2780 inline TextStyles across the app) is a
-/// deliberate, reviewable, look-preserving effort — never a blind mass replace.
-/// The script reports per-category counts and the worst-offending files so the
-/// migration can be driven down over time and regressions (count growth) can be
-/// caught in review.
+/// migration is a deliberate, reviewable, look-preserving effort — never a
+/// blind mass replace. The script reports per-category counts and the
+/// worst-offending files so the migration can be driven down over time and
+/// regressions (count growth) can be caught in review.
+///
+/// The TextStyle count jumped from 23 to 2,160 in the Observatory wave-0
+/// commit and no code was added: the scan was line-at-a-time, and `dart format`
+/// breaks nearly every one of these constructors across lines, so it had been
+/// reporting roughly one percent of what was there — while this very comment
+/// said "~2780 inline TextStyles across the app". The count is now taken over
+/// the whole file (2,145 `TextStyle(fontSize:)` plus 15 `.copyWith(fontSize:)`
+/// in the screen layer), which is the number the prose always claimed. The
+/// radius count going 4 -> 0 in the same commit IS a real migration.
 ///
 /// Exit behavior:
 ///   * Default (informational): always exits 0 — safe for CI, never blocks.
@@ -49,12 +58,24 @@ void main(List<String> args) {
   // like `BorderRadius.circular(NightshadeTokens.radiusMd)`.
   final radiiPattern = RegExp(r'BorderRadius\.circular\(\s*\d+(?:\.\d+)?\s*\)');
 
-  // Inline TextStyle(...) that carries a fontSize. We require `fontSize:` in
-  // the constructor head so we don't flag `.copyWith(color: ...)` recolors of
-  // an existing typography token (the sanctioned recolor pattern). The
-  // non-greedy body stops at the first `fontSize:` within the constructor.
+  // Inline TextStyle(...) that carries a fontSize, and `.copyWith(fontSize:)`
+  // on a named style.
+  //
+  // `.copyWith(color:)` is the sanctioned recolor and is not flagged. Resizing
+  // is a different act: it takes a style that IS a named role and makes it a
+  // size that is not on the scale, which is the same magic number the
+  // constructor form carries, only harder to grep for. The Observatory scale
+  // forbids both (docs/design/overhaul/03-tokens.md §2) — there are no other
+  // sizes, and a role that needs a different size is a different role.
+  //
+  // The non-greedy body stops at the first `fontSize:` within the call, and
+  // `dotAll` lets it cross newlines: `dart format` breaks nearly every one of
+  // these across lines, so a line-at-a-time scan saw almost none of them. This
+  // one is therefore run over the whole file rather than line by line, with
+  // the line number recovered from the match offset.
   final textStylePattern = RegExp(
-    r'TextStyle\((?:[^()]|\([^()]*\))*?fontSize:',
+    r'(?:TextStyle|\.copyWith)\((?:[^()]|\([^()]*\))*?fontSize:',
+    dotAll: true,
   );
 
   // Raw Material `Colors.<name>` (e.g. Colors.white, Colors.red). Excludes
@@ -79,21 +100,28 @@ void main(List<String> args) {
   for (final file in dartFiles) {
     final relPath = file.path.replaceAll('\\', '/');
     final lines = file.readAsLinesSync();
+    // The comment-stripped source, one line per line, so an offset in it maps
+    // straight back to a line number.
+    final stripped = <String>[];
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
       // Skip line comments so a documented example doesn't inflate the count.
       final code = _stripLineComment(line);
+      stripped.add(code);
       if (code.trim().isEmpty) continue;
 
       for (final _ in radiiPattern.allMatches(code)) {
         radiiHits.add(_Hit(relPath, i + 1, line.trim()));
       }
-      for (final _ in textStylePattern.allMatches(code)) {
-        textStyleHits.add(_Hit(relPath, i + 1, line.trim()));
-      }
       for (final _ in colorsPattern.allMatches(code)) {
         colorsHits.add(_Hit(relPath, i + 1, line.trim()));
       }
+    }
+
+    final source = stripped.join('\n');
+    for (final match in textStylePattern.allMatches(source)) {
+      final line = '\n'.allMatches(source.substring(0, match.start)).length;
+      textStyleHits.add(_Hit(relPath, line + 1, lines[line].trim()));
     }
   }
 
@@ -191,7 +219,7 @@ void _printReport({
     'use NightshadeTokens.radius* / NightshadeTokens.borderRadius*',
   );
   _printCategory(
-    'Inline TextStyle(fontSize: ...) literals',
+    'Inline TextStyle(fontSize:) and .copyWith(fontSize:)',
     textStyles,
     'use the NightshadeTypography scale (h1..h6, body*, label*, mono*)',
   );

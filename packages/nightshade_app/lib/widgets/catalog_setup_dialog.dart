@@ -137,7 +137,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg)),
       child: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
           context,
@@ -158,7 +159,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                       padding: const EdgeInsets.all(12),
                       decoration: NightshadeDecorations.tintedBadge(
                         colors.primary,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusLg),
                       ),
                       child: Icon(
                         Icons.download_rounded,
@@ -198,7 +200,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colors.background,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +254,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                   ),
                   const SizedBox(height: 12),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusXs),
                     child: LinearProgressIndicator(
                       value: _progress,
                       backgroundColor: colors.border,

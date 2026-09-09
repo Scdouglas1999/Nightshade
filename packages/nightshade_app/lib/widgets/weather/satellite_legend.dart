@@ -32,7 +32,7 @@ class SatelliteLegend extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -43,7 +43,7 @@ class SatelliteLegend extends StatelessWidget {
             width: 100,
             height: 12,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               gradient: const LinearGradient(
                 colors: [
                   Color(0xFF0d0d18), // Very dark (clear sky)
@@ -90,7 +90,7 @@ class SatelliteLegend extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -115,7 +115,8 @@ class SatelliteLegend extends StatelessWidget {
                 child: Container(
                   height: 20,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusXs),
                     gradient: const LinearGradient(
                       colors: [
                         Color(0xFF0d0d18), // Very dark (clear sky)

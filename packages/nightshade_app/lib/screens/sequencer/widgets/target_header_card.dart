@@ -179,7 +179,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: NightshadeDecorations.tintedBadge(
         categoryColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+        borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(NightshadeTokens.radiusXl)),
       ),
       child: Row(
         children: [

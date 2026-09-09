@@ -96,7 +96,7 @@ class ObjectInfoTooltip extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -305,7 +305,7 @@ class _TooltipActionButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
             ),
             child: Row(

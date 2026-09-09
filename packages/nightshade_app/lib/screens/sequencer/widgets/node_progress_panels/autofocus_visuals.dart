@@ -48,8 +48,8 @@ class _StarZoomPanel extends StatelessWidget {
             height: 80,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(3)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(NightshadeTokens.radiusXs)),
             ),
             child: crop != null
                 ? _buildStarImage(crop)
@@ -65,8 +65,8 @@ class _StarZoomPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 2),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(3)),
+              borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(NightshadeTokens.radiusXs)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -149,7 +149,8 @@ class _StarZoomPanel extends StatelessWidget {
       }
 
       return ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+        borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(NightshadeTokens.radiusXs)),
         child: Image.memory(
           _createBmpFromRgba(rgbaPixels, crop.width, crop.height),
           width: 80,

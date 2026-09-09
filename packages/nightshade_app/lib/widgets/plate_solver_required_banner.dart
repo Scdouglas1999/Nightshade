@@ -42,7 +42,7 @@ class PlateSolverRequiredBanner extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

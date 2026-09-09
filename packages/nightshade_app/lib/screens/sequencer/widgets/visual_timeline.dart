@@ -427,7 +427,8 @@ class _TimelinePainter extends CustomPainter {
 
         final rect = Rect.fromLTWH(x, y + barGap, w, rowHeight - barGap * 2);
         canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(3)),
+          RRect.fromRectAndRadius(
+              rect, const Radius.circular(NightshadeTokens.radiusXs)),
           Paint()
             ..color = barColor.withValues(alpha: 0.7)
             ..style = PaintingStyle.fill,

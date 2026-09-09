@@ -28,8 +28,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(NightshadeTokens.radiusLg)),
             ),
             child: Row(
               children: [
@@ -67,8 +67,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: colors.border),
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(NightshadeTokens.radiusLg)),
             ),
             child: Column(
               children: [

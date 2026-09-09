@@ -141,8 +141,8 @@ class _SlewDropdownButtonState extends ConsumerState<SlewDropdownButton> {
             enabled: enabled,
             onSelected: _handleSlewMode,
             offset: const Offset(0, 40),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg)),
             color: colors.surface,
             tooltip: 'More slew options',
             itemBuilder: (context) => [

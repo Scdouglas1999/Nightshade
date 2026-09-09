@@ -324,7 +324,7 @@ class _TooltipWidget extends StatelessWidget {
             padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
               boxShadow: [
                 BoxShadow(
@@ -372,7 +372,8 @@ class _TooltipWidget extends StatelessWidget {
                       // Progress bar
                       Expanded(
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusXs),
                           child: LinearProgressIndicator(
                             value: totalSteps > 1
                                 ? (currentIndex + 1) / totalSteps

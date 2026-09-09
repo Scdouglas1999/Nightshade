@@ -261,7 +261,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -375,7 +375,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(NightshadeTokens.radiusLg)),
           ),
           child: Row(
             children: [
@@ -383,7 +384,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 padding: EdgeInsets.all(iconPadding),
                 decoration: BoxDecoration(
                   color: stateColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child:
                     Icon(widget.state.icon, color: stateColor, size: iconSize),
@@ -489,7 +491,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.error.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.error.withValues(alpha: 0.4)),
       ),
       child: Row(
@@ -529,7 +531,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.info.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.info.withValues(alpha: 0.4)),
       ),
       child: Row(
@@ -633,7 +635,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               ),
               child: Text(
                 widget.ditherAmount.toStringAsFixed(0),
@@ -677,7 +679,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                         side: BorderSide(color: colors.border),
                         activeColor: colors.primary,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4)),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusXs)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -721,13 +724,14 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             expanded: _settleExpanded,
             child: InkWell(
               onTap: () => setState(() => _settleExpanded = !_settleExpanded),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -771,7 +775,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               border: Border.all(color: colors.border.withValues(alpha: 0.5)),
             ),
             child: Column(
@@ -915,7 +919,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         color: Colors.transparent,
         child: InkWell(
           onTap: isDisabled ? null : () => _runReportingAction(id, action),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           child: ConstrainedBox(
             // Ensure minimum 44px touch target height for accessibility
             constraints: BoxConstraints(minHeight: small ? 40 : 44),
@@ -931,7 +935,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                     : (isDisabled
                         ? colors.surfaceAlt
                         : color.withValues(alpha: 0.15)),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 border: Border.all(
                   color: isDisabled
                       ? colors.border

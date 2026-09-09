@@ -44,7 +44,7 @@ class DashboardWeatherWidget extends ConsumerWidget {
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 border: Border.all(color: colors.border),
                 boxShadow: [
                   BoxShadow(
@@ -508,7 +508,7 @@ class _RadarPreview extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       clipBehavior: Clip.antiAlias,
@@ -583,7 +583,7 @@ class _AlertBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: NightshadeDecorations.statusChip(
         bgColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         children: [
@@ -751,7 +751,7 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

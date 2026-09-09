@@ -33,7 +33,8 @@ class _SectionCard extends StatelessWidget {
           InkWell(
             onTap: onToggle,
             borderRadius: isExpanded
-                ? const BorderRadius.vertical(top: Radius.circular(8))
+                ? const BorderRadius.vertical(
+                    top: Radius.circular(NightshadeTokens.radiusLg))
                 : BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Padding(
               padding: const EdgeInsets.all(16),

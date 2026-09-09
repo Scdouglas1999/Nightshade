@@ -518,7 +518,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           if (pct != null && _isInProgress(s?.state)) ...[
             const SizedBox(height: 10),
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               child: LinearProgressIndicator(
                 value: (pct / 100).clamp(0.0, 1.0),
                 minHeight: 6,

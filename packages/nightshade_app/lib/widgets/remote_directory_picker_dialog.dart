@@ -222,7 +222,8 @@ class _RemoteDirectoryPickerDialogState
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Text(
                   _listing?.currentPath ?? 'Host roots',
@@ -344,7 +345,7 @@ class _ValidationBanner extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.error.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

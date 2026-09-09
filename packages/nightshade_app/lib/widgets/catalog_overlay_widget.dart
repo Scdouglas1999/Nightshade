@@ -532,7 +532,7 @@ class _CatalogObjectTooltip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -604,7 +604,7 @@ class _CatalogOverlayHud extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -696,7 +696,7 @@ class CatalogOverlayBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: accent.withValues(alpha: 0.6)),
       ),
       child: Row(
