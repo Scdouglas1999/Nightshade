@@ -15,7 +15,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// the card's selected accent.
 ///
 /// Fail-closed is structural: the widget never fabricates a clear night.
-///   * A provider error surfaces as a [NightshadeAlert] (the forecast feed /
+///   * A provider error surfaces as a [NightshadeBanner] (the forecast feed /
 ///     site configuration failed — the operator must see why).
 ///   * A [WeekForecast] that is not [WeekForecast.available] renders only a
 ///     warning banner with the honest reason and *no* night cards.
@@ -45,18 +45,17 @@ class WeekForecastStrip extends ConsumerWidget {
       loading: () => const _ForecastSkeletonStrip(),
       error: (error, _) => Padding(
         padding: NightshadeTokens.screenPadding,
-        child: NightshadeAlert(
-          severity: NightshadeAlertSeverity.error,
-          title: 'Forecast unavailable',
-          message: error.toString(),
-          action: NightshadeButton(
-            label: 'Retry',
-            icon: LucideIcons.refreshCw,
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: () => ref.invalidate(weekForecastProvider),
-          ),
-        ),
+        child: NightshadeBanner(
+            title: 'Forecast unavailable',
+            message: error.toString(),
+            tone: BannerTone.error,
+            action: NightshadeButton(
+              label: 'Retry',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: () => ref.invalidate(weekForecastProvider),
+            )),
       ),
       data: (week) {
         if (!week.available) {
@@ -66,9 +65,9 @@ class WeekForecastStrip extends ConsumerWidget {
             padding: NightshadeTokens.screenPadding,
             child: Align(
               alignment: Alignment.topLeft,
-              child: NightshadeInlineBanner(
-                severity: NightshadeAlertSeverity.warning,
-                message: week.unavailableReason ?? 'Forecast unavailable',
+              child: NightshadeBanner(
+                title: week.unavailableReason ?? 'Forecast unavailable',
+                tone: BannerTone.warning,
               ),
             ),
           );
@@ -145,11 +144,10 @@ class _NightCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: WeekForecastStrip._cardWidth,
-      child: NightshadeCard(
-        isSelected: isBest,
-        padding: NightshadeTokens.cardPadding,
-        child: _buildBody(context),
-      ),
+      child: NightshadePanel(
+          selected: isBest,
+          padding: NightshadeTokens.cardPadding,
+          child: _buildBody(context)),
     );
   }
 
@@ -190,7 +188,8 @@ class _NightCard extends StatelessWidget {
         Expanded(
           child: Text(
             _weekdayDate(night.nightDateLocal),
-            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.bodyStrong
+                .copyWith(color: colors.textPrimary),
           ),
         ),
         if (isBest) ...[
@@ -416,7 +415,7 @@ class _ForecastSkeletonStrip extends StatelessWidget {
             width: WeekForecastStrip._cardWidth,
             padding: NightshadeTokens.cardPadding,
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: NightshadeTokens.borderRadiusMd,
               border: Border.all(color: colors.border),
             ),

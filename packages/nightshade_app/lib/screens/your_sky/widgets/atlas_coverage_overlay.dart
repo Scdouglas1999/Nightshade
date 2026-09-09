@@ -33,73 +33,73 @@ class AtlasCoverageOverlay extends StatelessWidget {
             .map((t) => t.integrationSeconds)
             .reduce((a, b) => a > b ? a : b);
 
-    return NightshadeCard(
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.primary),
-                child: Icon(LucideIcons.layers,
-                    size: NightshadeTokens.iconSm, color: colors.primary),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'Atlas coverage',
-                  style: NightshadeTypography.h5
-                      .copyWith(color: colors.textPrimary),
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.primary),
+                  child: Icon(LucideIcons.layers,
+                      size: NightshadeTokens.iconSm, color: colors.primary),
                 ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'Atlas coverage',
+                    style: NightshadeTypography.bodyStrong
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _StatRow(
+              stats: [
+                _Stat(
+                  icon: LucideIcons.clock,
+                  label: 'Integration',
+                  value: formatIntegration(totalSeconds),
+                  tint: colors.primary,
+                ),
+                _Stat(
+                  icon: LucideIcons.layoutGrid,
+                  label: 'Tiles',
+                  value: '${coverage.length}',
+                  tint: colors.info,
+                ),
+                _Stat(
+                  icon: LucideIcons.image,
+                  label: 'Frames',
+                  value: '$totalFrames',
+                  tint: colors.success,
+                ),
+              ],
+            ),
+            if (coverage.isNotEmpty) ...[
+              const SizedBox(height: NightshadeTokens.spaceLg),
+              Text(
+                'All-sky map',
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              _AllSkyCoverageMap(coverage: coverage, maxSeconds: maxSeconds),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                'Each point is a tile at its place on the sky (Aitoff projection); '
+                'brighter = deeper. Tap a point for its depth. Deepest: '
+                '${formatIntegration(maxSeconds)}.',
+                style: NightshadeTypography.captionSm
+                    .copyWith(color: colors.textMuted),
               ),
             ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          _StatRow(
-            stats: [
-              _Stat(
-                icon: LucideIcons.clock,
-                label: 'Integration',
-                value: formatIntegration(totalSeconds),
-                tint: colors.primary,
-              ),
-              _Stat(
-                icon: LucideIcons.layoutGrid,
-                label: 'Tiles',
-                value: '${coverage.length}',
-                tint: colors.info,
-              ),
-              _Stat(
-                icon: LucideIcons.image,
-                label: 'Frames',
-                value: '$totalFrames',
-                tint: colors.success,
-              ),
-            ],
-          ),
-          if (coverage.isNotEmpty) ...[
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            Text(
-              'All-sky map',
-              style: NightshadeTypography.labelSm
-                  .copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            _AllSkyCoverageMap(coverage: coverage, maxSeconds: maxSeconds),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              'Each point is a tile at its place on the sky (Aitoff projection); '
-              'brighter = deeper. Tap a point for its depth. Deepest: '
-              '${formatIntegration(maxSeconds)}.',
-              style: NightshadeTypography.captionSm
-                  .copyWith(color: colors.textMuted),
-            ),
           ],
-        ],
-      ),
-    );
+        ));
   }
 }
 
@@ -380,7 +380,8 @@ class _TileDetailSheet extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.primary),
+                decoration:
+                    NightshadeDecorations.chip(colors, tone: colors.primary),
                 child: Icon(LucideIcons.mapPin,
                     size: NightshadeTokens.iconSm, color: colors.primary),
               ),
@@ -388,7 +389,7 @@ class _TileDetailSheet extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Tile ${tile.tileId}',
-                  style: NightshadeTypography.h5
+                  style: NightshadeTypography.bodyStrong
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -518,7 +519,7 @@ class _StatTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: NightshadeTokens.borderRadiusMd,
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
@@ -533,7 +534,7 @@ class _StatTile extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               stat.value,
-              style: NightshadeTypography.statValue
+              style: NightshadeTypography.readoutLg
                   .copyWith(color: colors.textPrimary),
             ),
           ),

@@ -44,10 +44,8 @@ class FramingSliderField extends StatelessWidget {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
         ),
         Expanded(
@@ -72,10 +70,8 @@ class FramingSliderField extends StatelessWidget {
           width: 45,
           child: Text(
             '${value.toInt()}${suffix ?? ''}',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textPrimary),
             textAlign: TextAlign.right,
           ),
         ),
@@ -107,9 +103,7 @@ class FramingToggleChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive
-              ? colors.primary.withValues(alpha: 0.2)
-              : colors.surfaceAlt,
+          color: isActive ? colors.primary.withValues(alpha: 0.2) : colors.well,
           borderRadius: NightshadeTokens.borderRadiusMd,
           border: Border.all(
             color: isActive
@@ -119,8 +113,7 @@ class FramingToggleChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
+          style: NightshadeTypography.caption.copyWith(
             color: isActive ? colors.primary : colors.textSecondary,
             fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
           ),
@@ -166,8 +159,7 @@ class _FramingSmallIconButtonState extends State<FramingSmallIconButton> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color:
-                  _isHovered ? widget.colors.primary : widget.colors.surfaceAlt,
+              color: _isHovered ? widget.colors.primary : widget.colors.well,
               borderRadius: NightshadeTokens.borderRadiusMd,
               border: Border.all(color: widget.colors.border),
             ),

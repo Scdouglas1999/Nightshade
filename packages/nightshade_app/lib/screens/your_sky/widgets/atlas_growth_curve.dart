@@ -59,114 +59,114 @@ class AtlasGrowthCurvePanel extends StatelessWidget {
               '${points.length} nights',
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        NightshadeCard(
-          padding: NightshadeTokens.cardPadding,
-          child: AdaptiveChartContainer(
-            preferredHeight: 170,
-            child: LineChart(
-              LineChartData(
-                minX: 0,
-                maxX: lastN.toDouble(),
-                minY: 0,
-                maxY: yMax,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: true,
-                  horizontalInterval: yMax / 4,
-                  getDrawingHorizontalLine: (_) => FlLine(
-                    color: colors.border.withValues(alpha: 0.3),
-                    strokeWidth: 1,
-                  ),
-                  getDrawingVerticalLine: (_) => FlLine(
-                    color: colors.border.withValues(alpha: 0.3),
-                    strokeWidth: 1,
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      interval: _axisInterval(points.length),
-                      getTitlesWidget: (value, meta) {
-                        final i = value.round();
-                        if (i < 0 || i >= points.length) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                            top: NightshadeTokens.spaceSm,
-                          ),
-                          child: Text(
-                            _shortLabel(points[i]),
-                            style: NightshadeTypography.captionSm.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                        );
-                      },
+        NightshadePanel(
+            padding: NightshadeTokens.cardPadding,
+            child: AdaptiveChartContainer(
+              preferredHeight: 170,
+              child: LineChart(
+                LineChartData(
+                  minX: 0,
+                  maxX: lastN.toDouble(),
+                  minY: 0,
+                  maxY: yMax,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: true,
+                    horizontalInterval: yMax / 4,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: colors.border.withValues(alpha: 0.3),
+                      strokeWidth: 1,
+                    ),
+                    getDrawingVerticalLine: (_) => FlLine(
+                      color: colors.border.withValues(alpha: 0.3),
+                      strokeWidth: 1,
                     ),
                   ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 40,
-                      interval: yMax / 4,
-                      getTitlesWidget: (value, meta) => Text(
-                        '${value.toStringAsFixed(value >= 10 ? 0 : 1)}h',
-                        style: NightshadeTypography.captionSm.copyWith(
-                          color: colors.textSecondary,
+                  titlesData: FlTitlesData(
+                    show: true,
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        interval: _axisInterval(points.length),
+                        getTitlesWidget: (value, meta) {
+                          final i = value.round();
+                          if (i < 0 || i >= points.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              top: NightshadeTokens.spaceSm,
+                            ),
+                            child: Text(
+                              _shortLabel(points[i]),
+                              style: NightshadeTypography.captionSm.copyWith(
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        interval: yMax / 4,
+                        getTitlesWidget: (value, meta) => Text(
+                          '${value.toStringAsFixed(value >= 10 ? 0 : 1)}h',
+                          style: NightshadeTypography.captionSm.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border.all(color: colors.border),
-                ),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: false,
-                    color: lineColor,
-                    barWidth: 2.5,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: lineColor.withValues(alpha: 0.1),
-                    ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(color: colors.border),
                   ),
-                ],
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => colors.surface,
-                    getTooltipItems: (touchedSpots) => touchedSpots.map((spot) {
-                      final i = spot.x.round();
-                      final label = (i >= 0 && i < points.length)
-                          ? _shortLabel(points[i])
-                          : '';
-                      return LineTooltipItem(
-                        '$label\n${spot.y.toStringAsFixed(1)}h total',
-                        NightshadeTypography.labelQuiet.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      );
-                    }).toList(),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: false,
+                      color: lineColor,
+                      barWidth: 2.5,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: lineColor.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  ],
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => colors.surface,
+                      getTooltipItems: (touchedSpots) =>
+                          touchedSpots.map((spot) {
+                        final i = spot.x.round();
+                        final label = (i >= 0 && i < points.length)
+                            ? _shortLabel(points[i])
+                            : '';
+                        return LineTooltipItem(
+                          '$label\n${spot.y.toStringAsFixed(1)}h total',
+                          NightshadeTypography.labelQuiet.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
+            )),
       ],
     );
   }
@@ -177,8 +177,7 @@ class AtlasGrowthCurvePanel extends StatelessWidget {
       children: [
         const SectionHeader(title: 'Deepening over time'),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        NightshadeCard(
-          variant: CardVariant.subtle,
+        NightshadePanel(
           padding: NightshadeTokens.cardPadding,
           // A FIXED chart-sized box clipped this copy: the icon, a wrapped
           // title and a three-line body need more than 170px once the empty

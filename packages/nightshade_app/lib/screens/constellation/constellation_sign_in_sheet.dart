@@ -110,10 +110,7 @@ class _ConstellationSignInSheetState
           ),
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              message: _error!,
-            ),
+            NightshadeBanner(title: _error!, tone: BannerTone.error),
           ],
         ],
       ),

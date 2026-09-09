@@ -74,19 +74,13 @@ class _TargetEditorOverlay extends ConsumerWidget {
                                 children: [
                                   Text(
                                     name,
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize18,
-                                      fontWeight: FontWeight.w700,
-                                      color: colors.textPrimary,
-                                    ),
+                                    style: NightshadeTypography.pageTitle
+                                        .copyWith(color: colors.textPrimary),
                                   ),
                                   const Spacer(),
-                                  IconButton(
-                                    icon: Icon(
-                                      LucideIcons.x,
-                                      size: NightshadeTokens.iconMd,
-                                      color: colors.textSecondary,
-                                    ),
+                                  NightshadeIconButton(
+                                    icon: LucideIcons.x,
+                                    tooltip: 'Close',
                                     onPressed: onClose,
                                   ),
                                 ],

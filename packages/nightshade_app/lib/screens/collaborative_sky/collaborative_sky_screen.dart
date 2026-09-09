@@ -35,31 +35,10 @@ class CollaborativeSkyView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final configuredAsync = ref.watch(constellationConfiguredProvider);
 
     return Column(
       children: [
-        ScreenHeader(
-          title: 'Collaborative Sky',
-          subtitle:
-              'Image the sky together — pool integration on one target across '
-              'rigs, split a mosaic across your club, and share calibration.',
-          icon: LucideIcons.users,
-          trailing: IconButton(
-            icon: const Icon(
-              NightshadeIcons.refresh,
-              size: NightshadeTokens.iconMd,
-            ),
-            tooltip: 'Refresh',
-            color: colors.textSecondary,
-            constraints: const BoxConstraints(
-              minWidth: NightshadeTokens.minTouchTarget,
-              minHeight: NightshadeTokens.minTouchTarget,
-            ),
-            onPressed: () => _refresh(ref),
-          ),
-        ),
         Expanded(
           child: configuredAsync.when(
             data: (configured) => configured
@@ -73,7 +52,14 @@ class CollaborativeSkyView extends ConsumerWidget {
     );
   }
 
-  void _refresh(WidgetRef ref) {
+  void _refresh(WidgetRef ref) => refreshCollaborativeSky(ref);
+
+  /// Re-reads everything the collaborative view shows.
+  ///
+  /// Public because the view no longer carries a header of its own: the Plan
+  /// screen's "Your sky" tab owns the one refresh button for all three
+  /// discovery surfaces (06 §Plan removes the second header row).
+  static void refreshCollaborativeSky(WidgetRef ref) {
     ref.invalidate(constellationConfiguredProvider);
     ref.invalidate(constellationHubInfoProvider);
     ref.invalidate(coImagingSessionsProvider);
@@ -151,31 +137,29 @@ class _SignedOutBody extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          padding: NightshadeTokens.cardPadding,
-          child: Row(
-            children: [
-              Icon(
-                LucideIcons.shieldCheck,
-                size: NightshadeTokens.iconMd,
-                color: colors.info,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Text(
-                  'LAN-only and self-hosted: every shared artifact carries '
-                  'provenance and consent, and scoped roles enforce '
-                  'contribute-vs-admin. There is no Nightshade cloud.',
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
+        NightshadePanel(
+            padding: NightshadeTokens.cardPadding,
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.shieldCheck,
+                  size: NightshadeTokens.iconMd,
+                  color: colors.info,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'LAN-only and self-hosted: every shared artifact carries '
+                    'provenance and consent, and scoped roles enforce '
+                    'contribute-vs-admin. There is no Nightshade cloud.',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            )),
       ],
     );
   }
@@ -222,11 +206,10 @@ class _ConnectedBody extends ConsumerWidget {
             error: (error, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                NightshadeAlert(
-                  severity: NightshadeAlertSeverity.warning,
-                  title: 'Hub unavailable',
-                  message: describeConstellationError(error),
-                ),
+                NightshadeBanner(
+                    title: 'Hub unavailable',
+                    message: describeConstellationError(error),
+                    tone: BannerTone.warning),
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 Wrap(
                   spacing: NightshadeTokens.spaceMd,
@@ -234,7 +217,7 @@ class _ConnectedBody extends ConsumerWidget {
                   children: [
                     ConstellationSignOutButton(
                       onSignedOut: onRefresh,
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                     ),
                     NightshadeButton(
@@ -291,7 +274,7 @@ class _CoImagingSectionState extends ConsumerState<_CoImagingSection> {
           trailing: NightshadeButton(
             label: _starting ? 'Starting…' : 'Start session',
             icon: LucideIcons.plus,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             isLoading: _starting,
             onPressed: _starting ? null : _startSession,
@@ -321,11 +304,10 @@ class _CoImagingSectionState extends ConsumerState<_CoImagingSection> {
             );
           },
           loading: () => const _SectionSkeleton(),
-          error: (error, _) => NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not list co-imaging sessions',
-            message: describeConstellationError(error),
-          ),
+          error: (error, _) => NightshadeBanner(
+              title: 'Could not list co-imaging sessions',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
         ),
       ],
     );
@@ -665,11 +647,10 @@ class _MosaicsSection extends ConsumerWidget {
             );
           },
           loading: () => const _SectionSkeleton(),
-          error: (error, _) => NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not list collaborative mosaics',
-            message: describeConstellationError(error),
-          ),
+          error: (error, _) => NightshadeBanner(
+              title: 'Could not list collaborative mosaics',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
         ),
       ],
     );
@@ -731,11 +712,10 @@ class _SharedLibrarySection extends ConsumerWidget {
             onOpen: () => _openLibrary(context),
           ),
           loading: () => const _SectionSkeleton(),
-          error: (error, _) => NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
-            title: 'Could not read the calibration library',
-            message: describeConstellationError(error),
-          ),
+          error: (error, _) => NightshadeBanner(
+              title: 'Could not read the calibration library',
+              message: describeConstellationError(error),
+              tone: BannerTone.warning),
         ),
       ],
     );
@@ -760,25 +740,23 @@ class _EmptySectionHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        children: [
-          Icon(icon, size: NightshadeTokens.iconMd, color: colors.info),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Text(
-              message,
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          children: [
+            Icon(icon, size: NightshadeTokens.iconMd, color: colors.info),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Text(
+                message,
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }
 

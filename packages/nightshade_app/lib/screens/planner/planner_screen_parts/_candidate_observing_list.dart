@@ -196,7 +196,8 @@ class _CandidateObservingListDialogState
         backgroundColor: widget.colors.surface,
         title: Text(
           'Add to observing list',
-          style: TextStyle(color: widget.colors.textPrimary),
+          style: NightshadeTypography.body
+              .copyWith(color: widget.colors.textPrimary),
         ),
         content: SizedBox(
           width: dialogMaxWidth(context, 340),
@@ -213,22 +214,21 @@ class _CandidateObservingListDialogState
                 ),
                 error: (error, _) => Text(
                   'Could not load observing lists: $error',
-                  style: TextStyle(color: widget.colors.error),
+                  style: NightshadeTypography.body
+                      .copyWith(color: widget.colors.error),
                 ),
                 data: (lists) => lists.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
                           'No observing lists yet. Create one to add this target.',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textSecondary,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: widget.colors.textSecondary),
                         ),
                       )
                     : ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxHeight: clampPanelWidth(
+                          maxHeight: panelWidthFromFraction(
                             MediaQuery.sizeOf(context).height,
                             fraction: 0.35,
                             min: 120,
@@ -283,7 +283,7 @@ class _CandidateObservingListDialogState
                 NightshadeButton(
                   label: 'Create new list…',
                   icon: LucideIcons.plus,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   onPressed: _saving
                       ? null
@@ -296,10 +296,8 @@ class _CandidateObservingListDialogState
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 Text(
                   _error!,
-                  style: TextStyle(
-                    color: widget.colors.error,
-                    fontSize: NightshadeTypography.fontSize12,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: widget.colors.error),
                 ),
               ],
             ],
@@ -353,7 +351,7 @@ class _ObservingListRow extends StatelessWidget {
               vertical: NightshadeTokens.spaceSm,
             ),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),
@@ -370,10 +368,10 @@ class _ObservingListRow extends StatelessWidget {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color:
-                          enabled ? colors.textPrimary : colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.body.copyWith(
+                        color: enabled
+                            ? colors.textPrimary
+                            : colors.textSecondary),
                   ),
                 ),
                 if (alreadyContainsTarget)
@@ -404,190 +402,77 @@ class _ObservingListRow extends StatelessWidget {
   }
 }
 
-class _ScoreBadge extends StatelessWidget {
-  final double score;
-  final NightshadeColors colors;
-
-  const _ScoreBadge({required this.score, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color badgeColor;
-    if (score >= 75) {
-      badgeColor = colors.success;
-    } else if (score >= 50) {
-      badgeColor = colors.warning;
-    } else {
-      badgeColor = colors.error;
-    }
-
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: NightshadeDecorations.kpiBadge(badgeColor),
-      child: Center(
-        child: Text(
-          score.toStringAsFixed(0),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize15,
-            fontWeight: FontWeight.w700,
-            color: badgeColor,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Shows filter-aware estimated integration when Smart Night context is
-/// available; otherwise falls back to hours above minimum altitude.
-class _IntegrationEstimateChip extends ConsumerWidget {
-  final int targetId;
-  final double fallbackVisibleHours;
-  final NightshadeColors colors;
-
-  const _IntegrationEstimateChip({
-    required this.targetId,
-    required this.fallbackVisibleHours,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final previewAsync =
-        ref.watch(plannerTargetIntegrationPreviewProvider(targetId));
-
-    return previewAsync.when(
-      data: (preview) {
-        if (preview != null && preview.estimatedIntegrationHours > 0) {
-          return _StatChip(
-            icon: LucideIcons.timer,
-            label:
-                '~${preview.estimatedIntegrationHours.toStringAsFixed(1)}h integration',
-            colors: colors,
-          );
-        }
-        if (fallbackVisibleHours > 0) {
-          return _StatChip(
-            icon: LucideIcons.clock,
-            label: '${fallbackVisibleHours.toStringAsFixed(1)}h visible',
-            colors: colors,
-          );
-        }
-        return const SizedBox.shrink();
-      },
-      loading: () => fallbackVisibleHours > 0
-          ? _StatChip(
-              icon: LucideIcons.clock,
-              label: '${fallbackVisibleHours.toStringAsFixed(1)}h visible',
-              colors: colors,
-            )
-          : const SizedBox.shrink(),
-      error: (_, __) => fallbackVisibleHours > 0
-          ? _StatChip(
-              icon: LucideIcons.clock,
-              label: '${fallbackVisibleHours.toStringAsFixed(1)}h visible',
-              colors: colors,
-            )
-          : const SizedBox.shrink(),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final NightshadeColors colors;
-  final bool isWarning;
-
-  /// Optional explanation shown on hover/long-press. Used where a compact
-  /// chip label alone would be ambiguous (e.g. which "peak" altitude this is).
-  final String? tooltip;
-
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.colors,
-    this.isWarning = false,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final chipColor = isWarning ? colors.warning : colors.textSecondary;
-    final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: isWarning
-          ? NightshadeDecorations.emphasisSurface(
-              colors.warning,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            )
-          : BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: chipColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: NightshadeTypography.labelQuiet.copyWith(
-              color: chipColor,
-            ),
-          ),
-        ],
-      ),
-    );
-    if (tooltip == null) return chip;
-    return Tooltip(message: tooltip!, child: chip);
-  }
-}
-
+/// The loading placeholder for one candidate. Traces the shape a [Candidate]
+/// takes — badge, name, two readouts, window bar, one button — so the list
+/// does not reflow when the real rows arrive.
 class _CandidateSkeleton extends StatelessWidget {
   final NightshadeColors colors;
   const _CandidateSkeleton({required this.colors});
 
+  /// Placeholder heights, in logical pixels.
+  static const double _nameHeight = 14;
+  static const double _detailHeight = 12;
+  static const double _readoutHeight = 30;
+  static const double _buttonHeight = 28;
+
+  /// Width of one readout placeholder.
+  static const double _readoutWidth = 90;
+
+  /// Width of the action placeholder.
+  static const double _actionWidth = 96;
+
+  /// Width of the window-bar placeholder.
+  static const double _windowWidth = 120;
+
+  /// Below this the trailing placeholders are dropped rather than overflowed:
+  /// a `Candidate` at a phone width gives its measurements up to the name, and
+  /// a skeleton that claimed more would be a wider row than the one it stands
+  /// in for.
+  static const double _trailingFloor = 560;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
-      padding: NightshadeTokens.cardPadding,
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            SkeletonText(width: 180, height: 14),
-            Spacer(),
-            SkeletonBox(
-              width: 44,
-              height: 44,
-              borderRadius: NightshadeTokens.radiusFull,
-            ),
-          ]),
-          SizedBox(height: NightshadeTokens.spaceMd),
-          SkeletonText(width: 240, height: 12),
-          SizedBox(height: NightshadeTokens.spaceSm),
-          Row(children: [
-            SkeletonBox(width: 60, height: 22),
-            SizedBox(width: NightshadeTokens.spaceSm),
-            SkeletonBox(width: 60, height: 22),
-            SizedBox(width: NightshadeTokens.spaceSm),
-            SkeletonBox(width: 60, height: 22),
-          ]),
-          SizedBox(height: NightshadeTokens.spaceMd),
-          Row(children: [
-            SkeletonBox(width: 120, height: 30),
-            SizedBox(width: NightshadeTokens.spaceSm),
-            SkeletonBox(width: 150, height: 30),
-          ]),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= _trailingFloor;
+        return NightshadePanel(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+          child: Row(
+            children: [
+              const SkeletonBox(
+                width: Candidate.badgeSize,
+                height: Candidate.badgeSize,
+                borderRadius: NightshadeTokens.radiusLg,
+              ),
+              const SizedBox(width: Candidate.columnGap),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SkeletonText(width: 120, height: _nameHeight),
+                    SizedBox(height: NightshadeTokens.spaceXs),
+                    SkeletonText(width: 220, height: _detailHeight),
+                  ],
+                ),
+              ),
+              if (wide) ...const [
+                SizedBox(width: Candidate.columnGap),
+                SkeletonBox(width: _readoutWidth, height: _readoutHeight),
+                SizedBox(width: Candidate.columnGap),
+                SkeletonBox(width: _readoutWidth, height: _readoutHeight),
+                SizedBox(width: Candidate.columnGap),
+                SkeletonBox(
+                  width: _windowWidth,
+                  height: CandidateWindowBar.trackHeight,
+                ),
+              ],
+              const SizedBox(width: Candidate.columnGap),
+              const SkeletonBox(width: _actionWidth, height: _buttonHeight),
+            ],
+          ),
+        );
+      },
     );
   }
 }

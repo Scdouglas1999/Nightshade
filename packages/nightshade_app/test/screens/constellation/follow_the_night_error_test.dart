@@ -27,7 +27,8 @@ void main() {
       ],
     );
 
-    expect(find.text("Could not check tonight's handoffs"), findsOneWidget);
+    expect(find.textContaining("Could not check tonight's handoffs"),
+        findsOneWidget);
     expect(find.text('Retry handoffs'), findsOneWidget);
     expect(attempts, 1);
 
@@ -35,6 +36,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(attempts, 2);
-    expect(find.text("Could not check tonight's handoffs"), findsNothing);
+    expect(find.textContaining("Could not check tonight's handoffs"),
+        findsNothing);
   });
 }

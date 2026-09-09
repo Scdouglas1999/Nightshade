@@ -39,17 +39,16 @@ class _ProjectsError extends StatelessWidget {
         padding: const EdgeInsets.all(NightshadeTokens.space2xl),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: NightshadeAlert(
-            severity: NightshadeAlertSeverity.error,
-            title: 'Failed to load projects',
-            message: error.toString(),
-            action: NightshadeButton(
-              label: 'Retry',
-              icon: LucideIcons.refreshCw,
-              size: ButtonSize.small,
-              onPressed: onRetry,
-            ),
-          ),
+          child: NightshadeBanner(
+              title: 'Failed to load projects',
+              message: error.toString(),
+              tone: BannerTone.error,
+              action: NightshadeButton(
+                label: 'Retry',
+                icon: LucideIcons.refreshCw,
+                size: ButtonSize.small,
+                onPressed: onRetry,
+              )),
         ),
       ),
     );

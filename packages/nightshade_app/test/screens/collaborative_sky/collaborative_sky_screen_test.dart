@@ -117,7 +117,10 @@ void main() {
     await tester.pumpWidget(host(configured: true));
     await tester.pumpAndSettle();
 
-    expect(find.text('Collaborative Sky'), findsOneWidget);
+    // The view's own ScreenHeader is gone: it is one of three surfaces inside
+    // Plan's "Your sky" tab, and 06 leaves the page ONE header (the Plan page
+    // header, which the tab names). The three sections are what identifies it.
+    expect(find.text('Collaborative Sky'), findsNothing);
     expect(find.text('Live co-imaging'), findsOneWidget);
     expect(find.text('Collaborative mosaics'), findsOneWidget);
     expect(find.text('Shared calibration'), findsOneWidget);
@@ -183,7 +186,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('Could not verify membership'), findsOneWidget);
+    expect(find.textContaining('Could not verify membership'), findsOneWidget);
     expect(find.text('Join session'), findsNothing);
     expect(find.text('Leave'), findsNothing);
 
@@ -192,7 +195,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(attempts, 2);
-    expect(find.text('Could not verify membership'), findsNothing);
+    expect(find.textContaining('Could not verify membership'), findsNothing);
     expect(find.text('Join session'), findsOneWidget);
     expect(databaseReads, 0);
   });

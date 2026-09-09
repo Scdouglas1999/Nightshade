@@ -77,77 +77,76 @@ class HubStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeCard(
-      variant: CardVariant.elevated,
-      padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.tintedBadge(colors.success),
-                child: Icon(
-                  LucideIcons.radioTower,
-                  size: NightshadeTokens.iconSm,
-                  color: colors.success,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                  decoration:
+                      NightshadeDecorations.chip(colors, tone: colors.success),
+                  child: Icon(
+                    LucideIcons.radioTower,
+                    size: NightshadeTokens.iconSm,
+                    color: colors.success,
+                  ),
                 ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Connected',
-                      style: NightshadeTypography.labelSm.copyWith(
-                        color: colors.success,
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Connected',
+                        style: NightshadeTypography.labelSm.copyWith(
+                          color: colors.success,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatHubLabel(info.name, info.fingerprint),
-                      style: NightshadeTypography.labelStrong.copyWith(
-                        color: colors.textPrimary,
+                      const SizedBox(height: 2),
+                      Text(
+                        formatHubLabel(info.name, info.fingerprint),
+                        style: NightshadeTypography.labelStrong.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              ConstellationSignOutButton(
-                onSignedOut: onSignOut,
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Wrap(
-            spacing: NightshadeTokens.spaceSm,
-            runSpacing: NightshadeTokens.spaceSm,
-            children: [
-              if (displayName.isNotEmpty)
+                ConstellationSignOutButton(
+                  onSignedOut: onSignOut,
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Wrap(
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              children: [
+                if (displayName.isNotEmpty)
+                  _MetaChip(
+                    icon: LucideIcons.userCircle2,
+                    label: displayName,
+                    colors: colors,
+                  ),
                 _MetaChip(
-                  icon: LucideIcons.userCircle2,
-                  label: displayName,
+                  icon: LucideIcons.layoutGrid,
+                  label: 'order ${info.healpixOrder} · ${info.tilePixels}px',
                   colors: colors,
                 ),
-              _MetaChip(
-                icon: LucideIcons.layoutGrid,
-                label: 'order ${info.healpixOrder} · ${info.tilePixels}px',
-                colors: colors,
-              ),
-              _MetaChip(
-                icon: info.selfHosted ? LucideIcons.home : LucideIcons.cloud,
-                label: info.selfHosted ? 'Self-hosted' : 'Shared hub',
-                colors: colors,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+                _MetaChip(
+                  icon: info.selfHosted ? LucideIcons.home : LucideIcons.cloud,
+                  label: info.selfHosted ? 'Self-hosted' : 'Shared hub',
+                  colors: colors,
+                ),
+              ],
+            ),
+          ],
+        ));
   }
 }
 
@@ -170,7 +169,7 @@ class _MetaChip extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
         border: Border.all(color: colors.border),
       ),

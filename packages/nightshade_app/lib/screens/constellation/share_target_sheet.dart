@@ -90,11 +90,10 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
                 borderRadius: NightshadeTokens.radiusLg,
               ),
             ),
-            error: (error, _) => NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
-              title: 'Could not load your targets',
-              message: '$error',
-            ),
+            error: (error, _) => NightshadeBanner(
+                title: 'Could not load your targets',
+                message: '$error',
+                tone: BannerTone.warning),
           ),
           if (_selected != null) ...[
             const SizedBox(height: NightshadeTokens.spaceLg),
@@ -105,10 +104,7 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
           ],
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            NightshadeAlert(
-              severity: NightshadeAlertSeverity.error,
-              message: _error!,
-            ),
+            NightshadeBanner(title: _error!, tone: BannerTone.error),
           ],
         ],
       ),
@@ -300,29 +296,27 @@ class _EmptyTargets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        children: [
-          Icon(
-            LucideIcons.star,
-            size: NightshadeTokens.iconMd,
-            color: colors.textMuted,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Text(
-              'You have no targets in your catalog yet. Add a target you image, '
-              'then share it with the swarm.',
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
+    return NightshadePanel(
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.star,
+              size: NightshadeTokens.iconMd,
+              color: colors.textMuted,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Text(
+                'You have no targets in your catalog yet. Add a target you image, '
+                'then share it with the swarm.',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }

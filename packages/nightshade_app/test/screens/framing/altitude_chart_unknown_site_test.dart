@@ -84,8 +84,12 @@ void main() {
       reason: 'rendered a concrete altitude with no observing site: $texts',
     );
     expect(texts, contains('Alt: '));
-    expect(texts.where((t) => t == '--').length, greaterThanOrEqualTo(2),
-        reason: 'expected Alt and Airmass to both read "--", got: $texts');
+    // The copy rules put ONE em dash behind an unknown value, everywhere
+    // (03 §2): '--' was two hyphens pretending to be one.
+    expect(texts.where((t) => t == kReadoutUnknown).length,
+        greaterThanOrEqualTo(2),
+        reason:
+            'expected Alt and Airmass to both read an em dash, got: $texts');
   });
 
   testWidgets('the unknown-altitude chip carries no severity colour',
@@ -95,7 +99,7 @@ void main() {
     final colors = paletteUnderTest!;
     final dashes = tester
         .widgetList<Text>(find.byType(Text))
-        .where((text) => text.data == '--')
+        .where((text) => text.data == kReadoutUnknown)
         .toList();
     expect(dashes, isNotEmpty);
     for (final dash in dashes) {

@@ -76,6 +76,18 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
     }
   }
 
+  /// Re-reads whichever discovery surface is on screen.
+  void _refreshCurrentView(WidgetRef ref) {
+    switch (_view) {
+      case DiscoverView.yourSky:
+        YourSkyView.refreshYourSky(ref);
+      case DiscoverView.constellation:
+        ConstellationView.refreshConstellation(ref);
+      case DiscoverView.collaborative:
+        CollaborativeSkyView.refreshCollaborativeSky(ref);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -84,50 +96,44 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: NightshadeTokens.spaceLg,
+            horizontal: NightshadeTokens.space2xl,
             vertical: NightshadeTokens.spaceSm,
           ),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<DiscoverView>(
-              segments: const [
-                ButtonSegment(
-                  value: DiscoverView.yourSky,
-                  label: Text('Your Sky'),
-                  icon: Icon(LucideIcons.orbit),
+          child: Row(
+            children: [
+              // Scrolls rather than overflows: three segment labels plus the
+              // refresh button need ~330px, which a 360px phone does not have
+              // once the row is padded.
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedControl(
+                    segments: const [
+                      'Your sky',
+                      'Constellation',
+                      'Collaborate',
+                    ],
+                    selectedIndex: _view.index,
+                    onSelected: (index) => setState(
+                      () => _view = DiscoverView.values[index],
+                    ),
+                  ),
                 ),
-                ButtonSegment(
-                  value: DiscoverView.constellation,
-                  label: Text('Constellation'),
-                  icon: Icon(LucideIcons.users),
-                ),
-                ButtonSegment(
-                  value: DiscoverView.collaborative,
-                  label: Text('Collaborate'),
-                  icon: Icon(LucideIcons.radioTower),
-                ),
-              ],
-              selected: {_view},
-              onSelectionChanged: (selection) =>
-                  setState(() => _view = selection.first),
-              showSelectedIcon: false,
-              style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: colors.primary.withValues(alpha: 0.18),
-                selectedForegroundColor: colors.primary,
-                foregroundColor: colors.textSecondary,
-                backgroundColor: colors.surfaceAlt,
-                side: BorderSide(color: colors.border),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                visualDensity: VisualDensity.compact,
-                textStyle:
-                    const TextStyle(fontSize: NightshadeTypography.fontSize12),
               ),
-            ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              // The ONE refresh for all three surfaces. Each used to carry its
+              // own header with its own button; 06 §Plan leaves the page one
+              // header, so the action moves out here and dispatches on the
+              // segment in view.
+              NightshadeIconButton(
+                icon: NightshadeIcons.refresh,
+                tooltip: 'Refresh',
+                onPressed: () => _refreshCurrentView(ref),
+              ),
+            ],
           ),
         ),
         Expanded(

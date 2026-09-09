@@ -71,7 +71,9 @@ class _TimeWindowField extends StatelessWidget {
           label: Text(_format(window.startMinutes)),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
-        Text('to', style: TextStyle(color: colors.textSecondary)),
+        Text('to',
+            style: NightshadeTypography.body
+                .copyWith(color: colors.textSecondary)),
         const SizedBox(width: NightshadeTokens.spaceSm),
         OutlinedButton.icon(
           icon: const Icon(LucideIcons.clock, size: 14),
@@ -80,11 +82,17 @@ class _TimeWindowField extends StatelessWidget {
         ),
         if (window.endMinutes < window.startMinutes) ...[
           const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            '(crosses midnight)',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted),
+          // Flexible: the two time buttons and the word "to" have first claim
+          // on the row, and the note about midnight is the part that can wrap
+          // away. The Observatory scale raised `body` from 13 to 14, which is
+          // what pushed this row 11px over its box.
+          Flexible(
+            child: Text(
+              '(crosses midnight)',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ],
@@ -153,12 +161,10 @@ class _MoonField extends StatelessWidget {
           child: Text(
             '${(value * 100).round()} %',
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textPrimary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -192,12 +198,10 @@ class _MoonSeparationField extends StatelessWidget {
           child: Text(
             '${degrees.round()}°',
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textPrimary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -222,8 +226,7 @@ class _HorizonField extends StatelessWidget {
     if (profiles.isEmpty) {
       return Text(
         'No horizon profiles defined yet.',
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12, color: colors.warning),
+        style: NightshadeTypography.caption.copyWith(color: colors.warning),
       );
     }
     return AccessibleDropdown<int>(
@@ -264,7 +267,9 @@ class _ScheduledWindowField extends StatelessWidget {
               onPressed: () => _pickStart(context),
               label: Text('Start ${_fmt(startLocal)}'),
             ),
-            Text('to', style: TextStyle(color: colors.textSecondary)),
+            Text('to',
+                style: NightshadeTypography.body
+                    .copyWith(color: colors.textSecondary)),
             OutlinedButton.icon(
               icon: const Icon(LucideIcons.calendar, size: 14),
               onPressed: () => _pickEnd(context),
@@ -279,9 +284,8 @@ class _ScheduledWindowField extends StatelessWidget {
               width: 92,
               child: Text(
                 'Priority boost',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ),
             Expanded(
@@ -303,12 +307,10 @@ class _ScheduledWindowField extends StatelessWidget {
               child: Text(
                 '+${window.priorityBoost.toStringAsFixed(1)}',
                 textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+                style: NightshadeTypography.caption.copyWith(
+                    color: colors.textPrimary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ],

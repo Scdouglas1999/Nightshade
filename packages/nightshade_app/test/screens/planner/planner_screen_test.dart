@@ -117,6 +117,55 @@ Future<void> _tapCandidateAction(
   await tester.tap(button);
 }
 
+/// Opens the observing-list dialog.
+///
+/// A candidate row carries ONE button (05 §9) and the SELECTED row spends it on
+/// "Image tonight", so the list lives on the detail column's field preview,
+/// where every target can reach it — including the only one when the list holds
+/// a single candidate.
+Future<void> _openObservingListDialog(WidgetTester tester) async {
+  // By SEMANTICS, not `byTooltip`: NightshadeIconButton wraps its glyph in a
+  // NightshadeTooltip, which is not Material's Tooltip, and publishes the
+  // words on the node instead.
+  final button = find.bySemanticsLabel('Add to observing list');
+  await tester.ensureVisible(button.first);
+  await tester.pump();
+  await tester.tap(button.first);
+}
+
+/// Taps a planner tab by its label.
+///
+/// The strip is horizontally scrollable (05 §4 keeps its overflow behaviour),
+/// and inside `PageHeader` it is handed only a share of the header's free
+/// width, so a tab near the end can be scrolled out of view. Bring it in before
+/// tapping, or the gesture lands on the clip and the selection never changes.
+Future<void> _tapTab(WidgetTester tester, String label) async {
+  final bar = find.byType(AdaptiveTabBar);
+  final tab = find.descendant(of: bar, matching: find.text(label));
+  final strip =
+      find.descendant(of: bar, matching: find.byType(Scrollable)).first;
+
+  // Scroll the strip until the tab is WHOLLY inside it, re-measuring each
+  // time. `ensureVisible` alone is not enough: the bar re-measures its edge
+  // affordances in a post-frame callback, and showing or hiding a chevron
+  // changes the viewport width, which moves every tab out from under the tap
+  // point that was just computed.
+  // Fixed pumps, never `pumpAndSettle`: the planner runs a 1s sky clock that
+  // never goes quiet, so settling here times out rather than waiting for the
+  // scroll.
+  for (var attempt = 0; attempt < 12; attempt++) {
+    await tester.pump(const Duration(milliseconds: 120));
+    final barRect = tester.getRect(bar);
+    final tabRect = tester.getRect(tab);
+    if (tabRect.left >= barRect.left && tabRect.right <= barRect.right) break;
+    await tester.drag(strip, const Offset(-80, 0));
+  }
+
+  await tester.pump(const Duration(milliseconds: 120));
+  await tester.tap(tab);
+  await tester.pump(const Duration(milliseconds: 200));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => registerFallbackValue(''));
@@ -189,7 +238,9 @@ void main() {
     final search = find.widgetWithText(TextField, 'Search catalogs');
     expect(tester.takeException(), isNull);
     expect(search.hitTestable(), findsOneWidget);
-    expect(tester.getSize(search).height, 32);
+    // The Observatory search field is the shared NightshadeTextField in its
+    // dense form (05 §8: 32 normal, 28 dense), so a 34px slot still holds it.
+    expect(tester.getSize(search).height, fieldHeightDense);
 
     await settleProviderTeardown(tester);
   });
@@ -230,8 +281,8 @@ void main() {
   });
 
   testWidgets(
-      'renders all sub-tabs (Recommendation, Projects, Schedule, '
-      'Framing, Planetarium, Discover)', (tester) async {
+      'renders all sub-tabs (Tonight, Projects, Schedule, '
+      'Framing, Planetarium, Your sky)', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -257,12 +308,12 @@ void main() {
     expect(
       bar.tabs.map((t) => t.label).toList(),
       const [
-        'Recommendation',
+        'Tonight',
         'Projects',
         'Schedule',
         'Framing',
         'Planetarium',
-        'Discover',
+        'Your sky',
       ],
     );
 
@@ -294,7 +345,11 @@ void main() {
     await settleProviderTeardown(tester);
   });
 
-  testWidgets('Recommendation keeps transient alerts reachable',
+  // 06 SS Plan moves the transient-alerts card OFF this tab: it is a feed about
+  // the sky, not a planning control, and it lives on Analytics > Science >
+  // Transients (reachable from the top bar's alert action). The check is that
+  // the Tonight tab no longer carries a second alerts surface.
+  testWidgets('Tonight no longer carries the transient-alerts card',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
@@ -315,8 +370,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.byType(TransientAlertsPanel), findsOneWidget);
-    expect(find.text('Transient Alerts'), findsOneWidget);
+    expect(find.byType(TransientAlertsPanel), findsNothing);
+    expect(find.text('Transient Alerts'), findsNothing);
 
     await settleProviderTeardown(tester);
   });
@@ -413,7 +468,7 @@ void main() {
         reason: 'Sanity: Recommendation must be selected by default.');
 
     // Tap Schedule. find.text matches the tab's label text.
-    await tester.tap(find.text('Schedule'));
+    await _tapTab(tester, 'Schedule');
     await tester.pump(const Duration(milliseconds: 200));
 
     // Post-condition: Schedule is selected (single-selection model).
@@ -450,7 +505,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // Tap Discover (the right-most tab).
-    await tester.tap(find.text('Discover'));
+    await _tapTab(tester, 'Your sky');
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(_selectedTabIndex(tester), PlannerTab.discover.index,
@@ -461,8 +516,7 @@ void main() {
     await settleProviderTeardown(tester);
   });
 
-  testWidgets('primary recommendation exposes Send to Framing action',
-      (tester) async {
+  testWidgets('the selected target exposes a Frame it action', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -510,19 +564,26 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
+    // 06 SS Plan gives the detail column ONE pair of actions - "Frame it" and
+    // the page's single primary "Build sequence" - instead of repeating a
+    // framing button on the hero AND on every candidate row.
     expect(
-      find.widgetWithText(NightshadeButton, 'Send to Framing'),
-      findsNWidgets(2),
-      reason:
-          'The primary card and the matching candidate row should both offer framing.',
+      find.widgetWithText(NightshadeButton, 'Frame it'),
+      findsOneWidget,
+      reason: 'the selected target must still reach the framing surface',
+    );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Build sequence'),
+      findsOneWidget,
+      reason: 'the page has exactly one primary action',
     );
 
     await settleProviderTeardown(tester);
   });
 
   testWidgets(
-      'candidate row exposes a Review in Sequencer action (not only the '
-      'primary)', (tester) async {
+      'every candidate row carries its own action, not only the top one',
+      (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -588,25 +649,24 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    // The primary card's full-width button plus each candidate row's button
-    // all carry the same "Review in Sequencer" label. With one primary card
-    // and two candidate rows that is three occurrences; the key point is that
-    // it appears MORE than once, i.e. the candidates are no longer stranded.
-    final reviewButtons =
-        find.widgetWithText(NightshadeButton, 'Review in Sequencer');
+    // 05 SS9 gives a candidate ONE button. The top row's is the "do it now"
+    // action; every other row parks the target. Neither is the page's primary,
+    // and no row is left without a way to act on it.
     expect(
-      reviewButtons,
-      findsNWidgets(3),
-      reason:
-          'Every candidate row must offer "Review in Sequencer" alongside the '
-          'primary card — not just the top recommendation.',
+      find.widgetWithText(NightshadeButton, 'Image tonight'),
+      findsOneWidget,
+      reason: 'the top candidate carries the do-it-now action',
+    );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Add'),
+      findsOneWidget,
+      reason: 'the other candidate is not stranded without an action',
     );
 
     await settleProviderTeardown(tester);
   });
 
-  testWidgets(
-      'candidate row shows altitude chart without expand toggle on desktop',
+  testWidgets('the selected target shows its altitude, with no expand toggle',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
@@ -651,12 +711,18 @@ void main() {
 
     expect(find.text('Show altitude curve'), findsNothing);
     expect(find.text('Hide altitude curve'), findsNothing);
+    // 06 SS Plan puts ONE 110px altitude well in the detail column. The old
+    // layout repeated a full AltitudeChart on the hero AND on every candidate
+    // row, which is the same measurement stated N+1 times.
     expect(
       find.byType(AltitudeChart),
-      findsNWidgets(2),
-      reason:
-          'Primary recommendation and candidate row should each show an altitude chart.',
+      findsNothing,
+      reason: 'the Framing tab owns the full altitude instrument, not a row',
     );
+    // The four readouts above the well state the same night in figures, so the
+    // curve is never the only place a number lives.
+    expect(find.text('ALT NOW'), findsOneWidget);
+    expect(find.text('WINDOW'), findsOneWidget);
 
     await settleProviderTeardown(tester);
   });
@@ -734,7 +800,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await _tapCandidateAction(tester, 'Add to observing list');
+    await _openObservingListDialog(tester);
     await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(NightshadeButton, 'Create new list…'),
@@ -834,7 +900,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await _tapCandidateAction(tester, 'Add to observing list');
+    await _openObservingListDialog(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Galaxies'));
     await tester.pump();
@@ -943,7 +1009,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await _tapCandidateAction(tester, 'Add to observing list', first: true);
+    await _openObservingListDialog(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Summer Galaxies'));
     await tester.pumpAndSettle();
@@ -1017,7 +1083,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await _tapCandidateAction(tester, 'Add to observing list', first: true);
+    await _openObservingListDialog(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('Already added'), findsOneWidget);
@@ -1040,7 +1106,8 @@ void main() {
     await settleProviderTeardown(tester);
   });
 
-  testWidgets('the peak chip names which peak it is', (tester) async {
+  testWidgets('the altitude the target reaches is stated once, and named',
+      (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -1080,15 +1147,24 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    // A bare "Peak 63°" beside the chart's transit altitude looked like the app
-    // contradicting itself; the label now says which peak it is.
-    expect(find.textContaining('Peak in dark'), findsWidgets);
+    // A bare "Peak 63°" chip beside the chart's transit altitude looked like
+    // the app contradicting itself. 06 SS Plan removes the chip row entirely:
+    // the detail column states the altitude ONCE, as a labelled Readout, so
+    // there is no second number to disagree with.
     expect(find.text('Peak 63°'), findsNothing);
+    expect(find.textContaining('Peak in dark'), findsNothing,
+        reason: 'the chip that needed the disambiguating label is gone');
+    expect(find.text('TRANSIT'), findsWidgets,
+        reason: 'the transit altitude is a labelled readout, not a bare chip');
 
     await settleProviderTeardown(tester);
   });
 
-  testWidgets('candidates use extra width for more candidates, not more void',
+  // 06 SS Plan replaces the multi-column candidate grid with ONE column beside
+  // a 380px detail panel: the extra width now buys the selected target's
+  // field, readouts, altitude and facts rather than a second stack of rows.
+  // The rows still stack, and the list still gives up its width to the panel.
+  testWidgets('extra width buys the detail column, not a second card column',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -1154,21 +1230,25 @@ void main() {
     expect(
       cardRect(81).top,
       lessThan(cardRect(82).top),
-      reason: 'One column at 1400px: the cards stack.',
+      reason: 'the candidates are one column, in score order',
     );
+    final narrowWidth = cardRect(81).width;
 
     await pumpAtWidth(2600);
     expect(
       cardRect(81).top,
-      cardRect(82).top,
-      reason: 'A 2560px-wide window left a ~1240px void in the middle of every '
-          'card while only three of 1200+ candidates fit on screen; the extra '
-          'width must buy another column instead.',
+      lessThan(cardRect(82).top),
+      reason: 'still one column: the width goes to the detail panel',
     );
     expect(
       cardRect(81).width,
-      lessThan(1400),
-      reason: 'Each card should now be about half the list width.',
+      greaterThan(narrowWidth),
+      reason: 'the list keeps the width the 380px panel does not take',
+    );
+    expect(
+      2600 - cardRect(81).right,
+      greaterThan(300),
+      reason: 'the detail column holds its 380px beside the list',
     );
 
     await settleProviderTeardown(tester);

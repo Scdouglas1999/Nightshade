@@ -32,8 +32,8 @@ class FramingMosaicSection extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Mosaic',
-                style:
-                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -48,7 +48,7 @@ class FramingMosaicSection extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+              color: colors.well,
               borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: Row(
@@ -58,9 +58,8 @@ class FramingMosaicSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to enable mosaic planning',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
               ],
@@ -139,9 +138,8 @@ class FramingMosaicSection extends ConsumerWidget {
           // Start corner dropdown
           Text(
             'Start Corner',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textSecondary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 6),
           FramingStartCornerSelector(
@@ -152,110 +150,101 @@ class FramingMosaicSection extends ConsumerWidget {
           const SizedBox(height: 12),
 
           // Panel summary
-          NightshadeCard(
-            variant: CardVariant.standard,
-            borderRadius: NightshadeTokens.radiusInline8,
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(NightshadeIcons.layoutGrid,
-                        size: 14, color: colors.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${config.totalPanels} Panels',
-                      style: NightshadeTypography.h6
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                  ],
-                ),
-                if (framingState.mosaicPanels.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      // Fixed-height panel rows: 20 box + 4*2 vertical padding = 28.
-                      itemExtent: 28,
-                      itemCount: framingState.mosaicPanels.length,
-                      itemBuilder: (context, index) {
-                        final panel = framingState.mosaicPanels[index];
-                        final isSelected =
-                            index == framingState.selectedPanelIndex;
-                        return InkWell(
-                          onTap: () => notifier.selectPanel(index),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? colors.primary.withValues(alpha: 0.2)
-                                  : Colors.transparent,
-                              borderRadius:
-                                  NightshadeTokens.borderRadiusInline4,
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 20,
-                                  height: 20,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? colors.primary
-                                        : colors.surface,
-                                    borderRadius:
-                                        NightshadeTokens.borderRadiusInline4,
-                                    border: Border.all(
+          NightshadePanel(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(NightshadeIcons.layoutGrid,
+                          size: 14, color: colors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${config.totalPanels} Panels',
+                        style: NightshadeTypography.eyebrow
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                    ],
+                  ),
+                  if (framingState.mosaicPanels.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        // Fixed-height panel rows: 20 box + 4*2 vertical padding = 28.
+                        itemExtent: 28,
+                        itemCount: framingState.mosaicPanels.length,
+                        itemBuilder: (context, index) {
+                          final panel = framingState.mosaicPanels[index];
+                          final isSelected =
+                              index == framingState.selectedPanelIndex;
+                          return InkWell(
+                            onTap: () => notifier.selectPanel(index),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? colors.primary.withValues(alpha: 0.2)
+                                    : Colors.transparent,
+                                borderRadius:
+                                    NightshadeTokens.borderRadiusInline4,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
                                       color: isSelected
                                           ? colors.primary
-                                          : colors.border,
+                                          : colors.surface,
+                                      borderRadius:
+                                          NightshadeTokens.borderRadiusInline4,
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? colors.primary
+                                            : colors.border,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '${panel.index + 1}',
+                                      style: NightshadeTypography.caption
+                                          .copyWith(
+                                              color: isSelected
+                                                  ? colors.textPrimary
+                                                  : colors.textSecondary,
+                                              fontWeight: FontWeight.w600),
                                     ),
                                   ),
-                                  child: Text(
-                                    '${panel.index + 1}',
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize9,
-                                      fontWeight: FontWeight.w600,
-                                      color: isSelected
-                                          ? colors.textPrimary
-                                          : colors.textSecondary,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      panel.raFormatted,
+                                      style: NightshadeTypography.monoCaption
+                                          .copyWith(
+                                              color: colors.textSecondary),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    panel.raFormatted,
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize10,
-                                      fontFamily: 'monospace',
-                                      color: colors.textSecondary,
-                                    ),
+                                  Text(
+                                    panel.decFormatted,
+                                    style: NightshadeTypography.monoCaption
+                                        .copyWith(color: colors.textSecondary),
                                   ),
-                                ),
-                                Text(
-                                  panel.decFormatted,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize10,
-                                    fontFamily: 'monospace',
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            ),
-          ),
+              )),
 
           // Create durable mosaic project (project + per-panel rows), routes
           // to /mosaic/:id so the scheduler/sequencer can drive it.
@@ -323,7 +312,8 @@ class FramingActionsPanel extends ConsumerWidget {
         // Supplementary utility actions not covered by the guided rail.
         Text(
           'Utilities',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+          style:
+              NightshadeTypography.eyebrow.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         // Utility actions use the design-system NightshadeButton (outline)
@@ -339,7 +329,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: LucideIcons.listPlus,
                 label: 'Add to Sequence',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onAddToExistingSequence : null,
               ),
@@ -351,7 +341,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: LucideIcons.wand2,
                 label: 'Auto-build',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onAddToSequence : null,
               ),
@@ -365,7 +355,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: LucideIcons.bookmark,
                 label: 'Save Target',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasTarget ? onSaveTarget : null,
               ),
@@ -375,7 +365,7 @@ class FramingActionsPanel extends ConsumerWidget {
               child: NightshadeButton(
                 icon: NightshadeIcons.download,
                 label: 'Cache Image',
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: hasSurveyImage ? onCacheImage : null,
               ),
@@ -388,7 +378,7 @@ class FramingActionsPanel extends ConsumerWidget {
           child: NightshadeButton(
             icon: NightshadeIcons.refresh,
             label: 'Reload',
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: hasTarget
                 ? () => ref.read(framingProvider.notifier).loadSurveyImage()

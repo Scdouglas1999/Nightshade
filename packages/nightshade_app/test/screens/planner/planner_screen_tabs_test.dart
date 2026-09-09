@@ -94,12 +94,12 @@ Widget _harness({PlannerTab? initialTab, String? initialTabQuery}) {
 /// Index of the planner tab matching [label], per the rendered tab order.
 int _tabIndex(String label) {
   const order = <String>[
-    'Recommendation',
+    'Tonight',
     'Projects',
     'Schedule',
     'Framing',
     'Planetarium',
-    'Discover',
+    'Your sky',
   ];
   final i = order.indexOf(label);
   if (i < 0) throw ArgumentError('Unknown planner tab label: $label');
@@ -114,6 +114,39 @@ int _selectedTabIndex(WidgetTester tester) =>
 /// Asserts that the tab labelled [label] is the selected one.
 void _expectSelected(WidgetTester tester, String label) {
   expect(_selectedTabIndex(tester), _tabIndex(label));
+}
+
+/// Taps a planner tab by its label.
+///
+/// The strip is horizontally scrollable (05 §4 keeps its overflow behaviour),
+/// and inside `PageHeader` it is handed only a share of the header's free
+/// width, so a tab near the end can be scrolled out of view. Bring it in before
+/// tapping, or the gesture lands on the clip and the selection never changes.
+Future<void> _tapTab(WidgetTester tester, String label) async {
+  final bar = find.byType(AdaptiveTabBar);
+  final tab = find.descendant(of: bar, matching: find.text(label));
+  final strip =
+      find.descendant(of: bar, matching: find.byType(Scrollable)).first;
+
+  // Scroll the strip until the tab is WHOLLY inside it, re-measuring each
+  // time. `ensureVisible` alone is not enough: the bar re-measures its edge
+  // affordances in a post-frame callback, and showing or hiding a chevron
+  // changes the viewport width, which moves every tab out from under the tap
+  // point that was just computed.
+  // Fixed pumps, never `pumpAndSettle`: the planner runs a 1s sky clock that
+  // never goes quiet, so settling here times out rather than waiting for the
+  // scroll.
+  for (var attempt = 0; attempt < 12; attempt++) {
+    await tester.pump(const Duration(milliseconds: 120));
+    final barRect = tester.getRect(bar);
+    final tabRect = tester.getRect(tab);
+    if (tabRect.left >= barRect.left && tabRect.right <= barRect.right) break;
+    await tester.drag(strip, const Offset(-80, 0));
+  }
+
+  await tester.pump(const Duration(milliseconds: 120));
+  await tester.tap(tab);
+  await tester.pump(const Duration(milliseconds: 200));
 }
 
 void main() {
@@ -305,7 +338,7 @@ void main() {
       await tester.pumpWidget(_harness(initialTabQuery: 'not-a-tab'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      _expectSelected(tester, 'Recommendation');
+      _expectSelected(tester, 'Tonight');
     });
 
     testWidgets('tapping the Schedule tab switches the selection',
@@ -317,9 +350,9 @@ void main() {
       await tester.pumpWidget(_harness());
       await tester.pump(const Duration(milliseconds: 200));
 
-      _expectSelected(tester, 'Recommendation');
+      _expectSelected(tester, 'Tonight');
 
-      await tester.tap(find.text('Schedule'));
+      await _tapTab(tester, 'Schedule');
       await tester.pump(const Duration(milliseconds: 200));
 
       _expectSelected(tester, 'Schedule');
@@ -331,7 +364,7 @@ void main() {
       await tester.pumpWidget(_harness());
       await tester.pump(const Duration(milliseconds: 200));
 
-      await tester.tap(find.text('Projects'));
+      await _tapTab(tester, 'Projects');
       await tester.pump(const Duration(milliseconds: 200));
 
       _expectSelected(tester, 'Projects');
@@ -388,7 +421,7 @@ void main() {
       bar.onSelected(PlannerTab.discover.index);
       await tester.pump(const Duration(milliseconds: 300));
 
-      _expectSelected(tester, 'Discover');
+      _expectSelected(tester, 'Your sky');
       expect(tester.takeException(), isNull);
     });
   });

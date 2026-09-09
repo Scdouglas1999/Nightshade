@@ -88,7 +88,7 @@ class TargetScoreRow extends StatelessWidget {
                   children: [
                     Text(
                       score.targetName,
-                      style: NightshadeTypography.h5.copyWith(
+                      style: NightshadeTypography.bodyStrong.copyWith(
                         color: eligible ? colors.textPrimary : colors.textMuted,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -98,10 +98,8 @@ class TargetScoreRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         score.rejectionReasons.first,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.error,
-                        ),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.error),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
@@ -116,12 +114,9 @@ class TargetScoreRow extends StatelessWidget {
                 child: Text(
                   score.totalScore.toStringAsFixed(3),
                   textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: eligible ? colors.textPrimary : colors.textMuted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                  style: NightshadeTypography.bodyStrong.copyWith(
+                      color: eligible ? colors.textPrimary : colors.textMuted,
+                      fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
               ),
               const SizedBox(width: NightshadeTokens.spaceMd),
@@ -144,25 +139,12 @@ class TargetScoreRow extends StatelessWidget {
               ),
               if (onDelete != null) ...[
                 const SizedBox(width: NightshadeTokens.spaceSm),
-                Tooltip(
-                  message: 'Remove from scheduler',
-                  child: IconButton(
-                    key: ValueKey('scheduler-delete-row-${score.targetId}'),
-                    icon: Icon(
-                      LucideIcons.x,
-                      size: NightshadeTokens.iconSm,
-                      color: colors.textSecondary,
-                      semanticLabel:
-                          'Remove ${score.targetName} from scheduler',
-                    ),
-                    splashRadius: 16,
-                    constraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: onDelete,
-                  ),
+                NightshadeIconButton(
+                  key: ValueKey('scheduler-delete-row-${score.targetId}'),
+                  icon: LucideIcons.x,
+                  tooltip: 'Remove ${score.targetName} from scheduler',
+                  size: IconButtonSize.sm,
+                  onPressed: onDelete,
                 ),
               ],
             ],
@@ -201,23 +183,32 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The chip's own fill IS its boundary in this language (05 §10), so this
+    // uses the shared chip decoration rather than a hand-rolled tint + border.
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: color.withValues(alpha: 0.40)),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: 3,
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w600,
-          color: color,
-          letterSpacing: 0.2,
-        ),
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
+      decoration: NightshadeDecorations.chip(
+        NightshadeColors.of(context),
+        tone: color,
+      ),
+      // Flexible, not a bare Text: `eyebrow` carries +0.7 tracking, which is
+      // enough to push some labels past the 130px column the row gives this
+      // slot. Ellipsising is the row's job, not an overflow stripe's.
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              style: NightshadeTypography.eyebrow.copyWith(color: color),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -234,8 +225,7 @@ class _GoalSummary extends StatelessWidget {
     if (progress.isEmpty) {
       return Text(
         'No integration goals',
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
       );
     }
     return Wrap(
@@ -248,7 +238,7 @@ class _GoalSummary extends StatelessWidget {
             decoration: BoxDecoration(
               color: p.isComplete
                   ? colors.success.withValues(alpha: 0.12)
-                  : colors.surfaceAlt,
+                  : colors.well,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(
@@ -259,12 +249,10 @@ class _GoalSummary extends StatelessWidget {
             ),
             child: Text(
               '${p.goal.filter} ${p.capturedCount}/${p.goal.frameCount}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-                color: p.isComplete ? colors.success : colors.textSecondary,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: p.isComplete ? colors.success : colors.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  fontWeight: FontWeight.w600),
             ),
           ),
       ],

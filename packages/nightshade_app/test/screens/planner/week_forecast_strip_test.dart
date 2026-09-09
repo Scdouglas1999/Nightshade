@@ -7,7 +7,7 @@
 // deterministic AsyncValues so no network is touched, and assert each rendered
 // branch:
 //
-//   * provider error            -> NightshadeAlert + Retry action
+//   * provider error            -> NightshadeBanner + Retry action
 //   * WeekForecast.unavailable  -> inline warning banner with the reason, NO
 //                                  night cards
 //   * available, empty nights   -> honest "nothing to forecast yet" empty state
@@ -79,7 +79,7 @@ Widget _harness(WeekForecast week) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('provider error renders a NightshadeAlert with a Retry action',
+  testWidgets('provider error renders a NightshadeBanner with a Retry action',
       (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -104,11 +104,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(NightshadeAlert), findsOneWidget);
-    expect(find.text('Forecast unavailable'), findsOneWidget);
+    expect(find.byType(NightshadeBanner), findsOneWidget);
+    // NightshadeBanner renders its title and message as one Text.rich, so the
+    // title is a span rather than a whole Text widget.
+    expect(find.textContaining('Forecast unavailable'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Retry'), findsOneWidget);
     // Fail-closed: no night cards rendered on an error.
-    expect(find.byType(NightshadeCard), findsNothing);
+    expect(find.byType(NightshadePanel), findsNothing);
   });
 
   testWidgets(
@@ -121,13 +123,13 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.byType(NightshadeInlineBanner), findsOneWidget);
+    expect(find.byType(NightshadeBanner), findsOneWidget);
     expect(
-      find.text('Cloud forecast unavailable: network error'),
+      find.textContaining('Cloud forecast unavailable: network error'),
       findsOneWidget,
     );
     // No night cards in the unavailable state.
-    expect(find.byType(NightshadeCard), findsNothing);
+    expect(find.byType(NightshadePanel), findsNothing);
     expect(find.text('This Week'), findsNothing);
   });
 
@@ -161,7 +163,7 @@ void main() {
       findsOneWidget,
     );
     // It still renders as a card in the strip.
-    expect(find.byType(NightshadeCard), findsOneWidget);
+    expect(find.byType(NightshadePanel), findsOneWidget);
   });
 
   testWidgets('a night with darkHours == 0 renders "No astronomical darkness"',
@@ -210,7 +212,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // One card per night.
-    expect(find.byType(NightshadeCard), findsNWidgets(3));
+    expect(find.byType(NightshadePanel), findsNWidgets(3));
     // The section header is present in the available state.
     expect(find.text('This Week'), findsOneWidget);
     // The clear-hours rows render for every dark night.
@@ -302,16 +304,17 @@ void main() {
     await tester.pumpWidget(_harness(week));
     await tester.pumpAndSettle();
 
-    expect(find.byType(NightshadeCard), findsNWidgets(2));
+    expect(find.byType(NightshadePanel), findsNWidgets(2));
     expect(
       find.byIcon(LucideIcons.star),
       findsNothing,
       reason: 'no night is imageable, so none of them is the "best night"',
     );
-    final cards =
-        tester.widgetList<NightshadeCard>(find.byType(NightshadeCard)).toList();
+    final cards = tester
+        .widgetList<NightshadePanel>(find.byType(NightshadePanel))
+        .toList();
     expect(
-      cards.every((c) => c.isSelected == false),
+      cards.every((c) => c.selected == false),
       isTrue,
       reason: 'the selected-card accent must not mark a 0-score night either',
     );

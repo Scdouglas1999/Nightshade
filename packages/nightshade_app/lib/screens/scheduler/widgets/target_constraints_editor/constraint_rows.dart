@@ -43,7 +43,7 @@ class _ConstraintRowState extends State<_ConstraintRow> {
           vertical: NightshadeTokens.spaceSm,
         ),
         decoration: BoxDecoration(
-          color: c.enabled ? colors.surfaceAlt : colors.surfaceHover,
+          color: c.enabled ? colors.well : colors.surfaceHover,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
@@ -70,11 +70,12 @@ class _ConstraintRowState extends State<_ConstraintRow> {
                 onChange: widget.onChange,
               ),
             ),
-            IconButton(
+            NightshadeIconButton(
+              icon: LucideIcons.trash2,
               tooltip: 'Remove constraint',
+              size: IconButtonSize.sm,
+              color: colors.error,
               onPressed: widget.onDelete,
-              icon: Icon(LucideIcons.trash2,
-                  size: NightshadeTokens.iconSm, color: colors.error),
             ),
           ],
         ),

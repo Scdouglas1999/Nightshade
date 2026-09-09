@@ -37,7 +37,8 @@ void main() {
       ],
     );
 
-    expect(find.text('Contribution receipts unavailable'), findsOneWidget);
+    expect(find.textContaining('Contribution receipts unavailable'),
+        findsOneWidget);
     expect(find.text('Retry receipts'), findsOneWidget);
     expect(attempts, 1);
 
@@ -45,6 +46,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(attempts, 2);
-    expect(find.text('Contribution receipts unavailable'), findsNothing);
+    expect(
+        find.textContaining('Contribution receipts unavailable'), findsNothing);
   });
 }

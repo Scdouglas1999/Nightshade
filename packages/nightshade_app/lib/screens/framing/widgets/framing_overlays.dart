@@ -35,19 +35,15 @@ class FramingTargetInfoOverlay extends StatelessWidget {
           if (target.catalogId != null && target.catalogId != target.name)
             Text(
               target.catalogId!,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           const SizedBox(height: 4),
           Text(
             '${target.raFormatted}  ${target.decFormatted}',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()]),
           ),
           if (target.magnitude != null || target.sizeArcmin != null)
             Padding(
@@ -59,10 +55,8 @@ class FramingTargetInfoOverlay extends StatelessWidget {
                   if (target.sizeArcmin != null)
                     "${target.sizeArcmin!.toStringAsFixed(0)}'",
                 ].join('  '),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
             ),
         ],
@@ -96,10 +90,7 @@ class FramingEquipmentWarningCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.warning,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-      ),
+      decoration: NightshadeDecorations.chip(colors, tone: colors.warning),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -117,8 +108,8 @@ class FramingEquipmentWarningCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style:
-                      NightshadeTypography.h6.copyWith(color: colors.warning),
+                  style: NightshadeTypography.eyebrow
+                      .copyWith(color: colors.warning),
                 ),
               ),
             ],
@@ -126,11 +117,8 @@ class FramingEquipmentWarningCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             message,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary,
-              height: 1.4,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 12),
@@ -205,17 +193,14 @@ class FramingInfoRow extends StatelessWidget {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
+            style: NightshadeTypography.bodySm.copyWith(
               fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
               color: highlight ? colors.primary : colors.textPrimary,
             ),
@@ -256,19 +241,15 @@ class FramingCoordRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w500,
-            color: valueColor,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+          style: NightshadeTypography.caption.copyWith(
+              color: valueColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              fontWeight: FontWeight.w500),
         ),
       ],
     );

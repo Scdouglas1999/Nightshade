@@ -15,12 +15,12 @@ import 'package:nightshade_app/screens/planner/planner_screen.dart';
 /// The tab names this build renders, as `PlannerTab` + the English labels in
 /// `translations.dart` (`plannerTab*`).
 const _renderedTabLabels = <String>{
-  'Recommendation',
+  'Tonight',
   'Projects',
   'Schedule',
   'Framing',
   'Planetarium',
-  'Discover',
+  'Your sky',
 };
 
 /// Lines that are pure comments carry design history, not directions to the

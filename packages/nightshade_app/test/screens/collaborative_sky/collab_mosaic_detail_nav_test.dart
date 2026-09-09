@@ -109,7 +109,10 @@ void main() {
   testWidgets('the detail page has a working back control', (tester) async {
     await _openDetail(tester);
 
-    final back = find.byTooltip('Back');
+    // The back affordance moved into the one PageHeader (06 removes the second
+    // header row), and NightshadeIconButton publishes its words on the
+    // semantics node rather than in a Material Tooltip.
+    final back = find.bySemanticsLabel('Back to Collaborate');
     expect(back, findsOneWidget);
     await tester.tap(back);
     await tester.pumpAndSettle();
