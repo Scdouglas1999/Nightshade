@@ -427,7 +427,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
     // Wrap with controls if not compact
     if (widget.compact) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         child: mapWidget,
       );
     }
@@ -490,7 +490,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 border: Border.all(
                   color: colors.border,
                   width: 1,
@@ -561,7 +561,7 @@ class _ZoomButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: colors.surface.withValues(alpha: 0.9),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       // The tap lived on a bare gesture wrapper, which publishes an action
       // and no role, so assistive tech read a live control as an inert
       // disabled panel. The flags are only published when given.
@@ -570,7 +570,7 @@ class _ZoomButton extends StatelessWidget {
           enabled: true,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             child: Container(
               width: 44,
               height: 44,
@@ -579,7 +579,7 @@ class _ZoomButton extends StatelessWidget {
                   color: colors.border,
                   width: 1,
                 ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               ),
               child: Icon(
                 icon,

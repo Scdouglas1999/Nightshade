@@ -447,7 +447,7 @@ class _PromptCard extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 240),
       decoration: BoxDecoration(
         color: colors.surfaceElevated,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border.withValues(alpha: 0.7)),
         boxShadow: [
           BoxShadow(

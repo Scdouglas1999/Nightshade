@@ -167,7 +167,7 @@ class _SpotlightPainter extends CustomPainter {
         path.addRRect(
           RRect.fromRectAndRadius(
             inflatedRect,
-            const Radius.circular(8),
+            const Radius.circular(NightshadeTokens.radiusLg),
           ),
         );
         break;
@@ -293,7 +293,7 @@ class _ExpandingRingPainter extends CustomPainter {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             inflatedRect,
-            const Radius.circular(8),
+            const Radius.circular(NightshadeTokens.radiusLg),
           ),
           paint,
         );

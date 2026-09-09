@@ -589,7 +589,8 @@ class _ValueScaleBar extends StatelessWidget {
               child: Container(
                 height: 8,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                   // The scale bar explains the surface, so it must be the
                   // SAME ramp: painted raw it advertised a blue-to-red key
                   // beside a red-night surface that no longer had one.

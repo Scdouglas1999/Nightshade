@@ -206,7 +206,7 @@ class _RemoteConnectionIndicatorState
           ? const BoxDecoration()
           : NightshadeDecorations.statusChip(
               color,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               bordered: false,
             ),
       child: Icon(_iconFor(status), size: 20, color: color),
@@ -224,7 +224,7 @@ class _RemoteConnectionIndicatorState
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

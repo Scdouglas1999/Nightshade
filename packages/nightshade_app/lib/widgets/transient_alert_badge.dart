@@ -119,7 +119,7 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
       ],
       elevation: 8,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
     );
   }
@@ -157,7 +157,7 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
                 widget.onTap?.call();
               }
             },
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Stack(
@@ -294,7 +294,7 @@ class _CountBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: colors.error,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(
           color: colors.surface,
           width: 1.5,
@@ -568,7 +568,7 @@ class _AlertListItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: TransientTypeStyle.color(alert.type, colors)
                   .withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
             ),
             child: Center(
               child: Icon(
@@ -614,7 +614,7 @@ class _AlertListItem extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               ),
               child: Text(
                 'mag ${alert.magnitude!.toStringAsFixed(1)}',
@@ -635,7 +635,7 @@ class _AlertListItem extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: colors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               ),
               child: Text(
                 'NEW',

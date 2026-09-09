@@ -94,8 +94,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                       decoration: BoxDecoration(
                         color: colors.surface,
                         borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          topRight: Radius.circular(8),
+                          topLeft: Radius.circular(NightshadeTokens.radiusLg),
+                          topRight: Radius.circular(NightshadeTokens.radiusLg),
                         ),
                       ),
                       child: Stack(
@@ -124,8 +124,10 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                     payload.bytes!.isNotEmpty) {
                                   return ClipRRect(
                                     borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(8),
-                                      topRight: Radius.circular(8),
+                                      topLeft: Radius.circular(
+                                          NightshadeTokens.radiusLg),
+                                      topRight: Radius.circular(
+                                          NightshadeTokens.radiusLg),
                                     ),
                                     child: Image.memory(
                                       payload.bytes!,
@@ -147,8 +149,10 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                     !isRemoteMode) {
                                   return ClipRRect(
                                     borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(8),
-                                      topRight: Radius.circular(8),
+                                      topLeft: Radius.circular(
+                                          NightshadeTokens.radiusLg),
+                                      topRight: Radius.circular(
+                                          NightshadeTokens.radiusLg),
                                     ),
                                     child: Image.file(
                                       File(widget.image.filePath),

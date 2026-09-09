@@ -101,7 +101,8 @@ class PsfFieldMapPainter extends CustomPainter {
           // Empty tile
           final emptyPaint = Paint()..color = bgColor;
           canvas.drawRRect(
-            RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(3)),
+            RRect.fromRectAndRadius(rect.deflate(1),
+                const Radius.circular(NightshadeTokens.radiusXs)),
             emptyPaint,
           );
           continue;
@@ -119,7 +120,8 @@ class PsfFieldMapPainter extends CustomPainter {
 
         final cellPaint = Paint()..color = color.withValues(alpha: 0.7);
         canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(3)),
+          RRect.fromRectAndRadius(rect.deflate(1),
+              const Radius.circular(NightshadeTokens.radiusXs)),
           cellPaint,
         );
 
@@ -129,7 +131,8 @@ class PsfFieldMapPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.5;
         canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(3)),
+          RRect.fromRectAndRadius(rect.deflate(1),
+              const Radius.circular(NightshadeTokens.radiusXs)),
           borderPaint,
         );
 

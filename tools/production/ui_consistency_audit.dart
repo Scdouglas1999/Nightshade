@@ -59,6 +59,26 @@ final _rules = <_Rule>[
         'documented as intentional.',
   ),
   _Rule(
+    id: 'deprecated_text_style',
+    pattern: RegExp(
+      // The Observatory scale replaced h1..h6 with display / pageTitle /
+      // sectionTitle / eyebrow, and statValue / statLabel with the readout
+      // family (docs/design/overhaul/03-tokens.md §2).
+      r'NightshadeTypography\.(?:h[1-6]|statValue|statLabel)\b'
+      // `surfaceAlt` was the fourth tone in a ladder that now has five; an
+      // inset is `well` and a container is `surface` (§1.1).
+      r'|\.surfaceAlt\b'
+      // The pre-overhaul decoration factories, replaced by panel / well /
+      // panelSelected / railItemSelected / chip / popover / dialog (§5.2).
+      r'|NightshadeDecorations\.(?:iconChip|emphasisSurface|tintedBadge'
+      r'|statusChip|selectedSurface|cardSelected|navSelected|cardHover'
+      r'|dragFeedback|kpiBadge|filledButtonColors|filledButton)\b',
+    ),
+    summary:
+        'Deprecated design-system member. Adopt the Observatory replacement '
+        '(03-tokens.md §1.1, §2, §5.2); wave 4 deletes these.',
+  ),
+  _Rule(
     id: 'empty_callback',
     pattern: RegExp(
       r'\b(?:onPressed|onTap|onChanged|onSubmitted|onDismiss|onLongPress)'
@@ -213,6 +233,13 @@ Map<String, Object?> _buildJsonReport({
 }) {
   final semanticRawColors =
       rawColorClassifications['semantic_theme_color'] ?? 0;
+  // `deprecated_text_style` is deliberately NOT here. It reports an
+  // in-progress migration — the Observatory overhaul deprecates the old scale
+  // in wave 0 and rewrites the call sites screen by screen in wave 3 — so every
+  // one of its findings is a site the deprecating wave was forbidden to touch.
+  // Blocking on it would fail the build for doing exactly what was asked. Wave
+  // 4 deletes the deprecated members, at which point the rule can only fire on
+  // a reintroduction and can be promoted.
   final blockingRuleIds = <String>[
     'raw_button_style',
     'large_radius',
@@ -237,7 +264,7 @@ Map<String, Object?> _buildJsonReport({
     'designSystemGallery': galleryEvidence,
     'blockingRuleIds': blockingRuleIds,
     'policy':
-        'Blocking findings are raw button styles, large ordinary radii, empty, fake, or stub callbacks, unadvertised headless routes, missing design-system gallery evidence, and semantic raw Material colors. Intentional image/overlay colors are report-only.',
+        'Blocking findings are raw button styles, large ordinary radii, empty, fake, or stub callbacks, unadvertised headless routes, missing design-system gallery evidence, and semantic raw Material colors. Intentional image/overlay colors and deprecated design-system members (an in-progress migration) are report-only.',
   };
 }
 
@@ -588,6 +615,13 @@ bool _isScopedOutFinding({required String path, required String ruleId}) {
           'packages/nightshade_app/lib/screens/mosaic/mosaic_project_screen.dart') {
     // A muted breadcrumb, not an action: the theme's TextButton default paints
     // it as a primary one. The override keeps kMinInteractiveDimension.
+    return true;
+  }
+  if (ruleId == 'deprecated_text_style' &&
+      path == 'packages/nightshade_ui/lib/src/theme/nightshade_colors.dart') {
+    // The rule is about CALL SITES. This file is where `surfaceAlt` is
+    // declared, and a deprecated field still has to appear in its own class's
+    // constructor, copyWith, lerp, == and hashCode until wave 4 removes it.
     return true;
   }
 

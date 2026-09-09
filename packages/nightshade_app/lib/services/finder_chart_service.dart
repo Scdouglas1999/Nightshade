@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:pdf/pdf.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 /// Configuration for finder chart rendering
@@ -577,7 +578,7 @@ class FinderChartService {
           height: 200,
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-            borderRadius: pw.BorderRadius.circular(4),
+            borderRadius: pw.BorderRadius.circular(NightshadeTokens.radiusXs),
           ),
         ),
 

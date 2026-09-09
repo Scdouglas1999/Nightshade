@@ -66,7 +66,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
       tooltip: counts.tooltip,
       offset: const Offset(0, -200),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         side: BorderSide(color: colors.border),
       ),
       color: colors.surface,

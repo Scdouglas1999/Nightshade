@@ -231,7 +231,7 @@ class _MoveButton extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return Material(
       color: colors.surfaceAlt,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       // The tap lived on a bare gesture wrapper, which publishes an action
       // and no role, so assistive tech read a live control as an inert
       // disabled panel. The flags are only published when given.
@@ -240,7 +240,7 @@ class _MoveButton extends StatelessWidget {
           enabled: onPressed != null,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             child: SizedBox(
               width: size,
               height: size,

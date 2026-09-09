@@ -139,7 +139,7 @@ class _AutofocusProgressOverlayState
           height: height,
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(
               color: overlayState.isRunning
                   ? colors.primary.withValues(alpha: 0.6)
@@ -242,7 +242,7 @@ class _AutofocusProgressOverlayState
             child: Container(
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               ),
               child: overlayState.vcurvePoints.isEmpty
                   ? Center(
@@ -446,7 +446,7 @@ class _AutofocusProgressOverlayState
           label: tooltip,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             child: SizedBox(
               width: 24,
               height: 24,
@@ -512,11 +512,11 @@ class _StatBadge extends StatelessWidget {
         decoration: highlight
             ? NightshadeDecorations.emphasisSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

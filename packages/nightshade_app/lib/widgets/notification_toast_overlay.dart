@@ -366,7 +366,7 @@ class _NotificationToastState extends State<_NotificationToast>
               enabled: true,
               child: InkWell(
                 onTap: widget.onDismiss,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 child: Container(
                   constraints: const BoxConstraints(
                     maxWidth: 360,
@@ -374,7 +374,8 @@ class _NotificationToastState extends State<_NotificationToast>
                   ),
                   decoration: BoxDecoration(
                     color: _getBackgroundColor(colors),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
                     border: Border.all(
                       color: accentColor.withValues(alpha: 0.3),
                       width: 1,
@@ -388,7 +389,8 @@ class _NotificationToastState extends State<_NotificationToast>
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

@@ -360,7 +360,8 @@ class _ToggleButton extends StatelessWidget {
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
               : const BoxDecoration(
-                  borderRadius: BorderRadius.all(Radius.circular(6)),
+                  borderRadius: BorderRadius.all(
+                      Radius.circular(NightshadeTokens.radiusSm)),
                 ),
           child: Icon(
             icon,

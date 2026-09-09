@@ -414,7 +414,7 @@ class _StateChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: NightshadeDecorations.tintedBadge(
         tint,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -484,7 +484,7 @@ class _AxisChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -525,7 +525,7 @@ class _StatusBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: NightshadeDecorations.emphasisSurface(
         tint,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       ),
       child: Row(
         children: [

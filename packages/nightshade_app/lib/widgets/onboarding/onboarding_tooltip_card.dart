@@ -148,7 +148,7 @@ class OnboardingTooltipCard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               border: Border.all(
                 color: colors.primary.withValues(alpha: 0.35),
                 width: 1,
@@ -172,7 +172,8 @@ class OnboardingTooltipCard extends StatelessWidget {
                       height: 32,
                       decoration: BoxDecoration(
                         color: colors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusLg),
                       ),
                       child: Icon(
                         LucideIcons.sparkles,
@@ -323,7 +324,7 @@ class _ProgressDots extends StatelessWidget {
                   : isComplete
                       ? primaryColor.withValues(alpha: 0.5)
                       : inactiveColor,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             ),
           ),
         );

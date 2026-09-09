@@ -65,7 +65,8 @@ class _NarratorDetailSheet extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
                 decoration: BoxDecoration(
                   color: colors.border,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                 ),
               ),
             ),

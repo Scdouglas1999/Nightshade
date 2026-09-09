@@ -156,7 +156,7 @@ class _ResidualVectorPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(0, 0, size.width, size.height),
-        const Radius.circular(4),
+        const Radius.circular(NightshadeTokens.radiusXs),
       ),
       bgPaint,
     );

@@ -30,9 +30,15 @@ void main() {
   double greenBlueShare(Color c) => (c.g + c.b) / (c.r + c.g + c.b);
 
   /// Every surface a body of text can land on in this palette.
+  ///
+  /// `well` is the Observatory inset — the ground under a chart, an image area
+  /// or a number field — and on a dark palette it is the DEEPEST surface, so it
+  /// is the easy one; it is measured anyway, because the floor is a floor on
+  /// every surface and not on the ones that were convenient to check.
   const surfaces = <String, Color>{
     'background': Color(0xFF0A0000),
     'surface': Color(0xFF140808),
+    'well': Color(0xFF0F0404),
     'surfaceAlt': Color(0xFF1C0C0C),
     'surfaceHover': Color(0xFF241010),
     'surfaceElevated': Color(0xFF281212),
@@ -75,6 +81,20 @@ void main() {
     test('the sampled surfaces #1C0C0C and #140808 are covered', () {
       expect(surfaces['surfaceAlt'], const Color(0xFF1C0C0C));
       expect(surfaces['surface'], const Color(0xFF140808));
+    });
+
+    /// The map above is pinned as hex so the audit's numbers stay quotable.
+    /// That is only safe while the hex IS the palette — a repainted surface
+    /// with a stale copy here would measure the colour it used to be and pass.
+    test('the pinned surfaces are the palette\'s own', () {
+      expect(surfaces['background'], colors.background);
+      expect(surfaces['surface'], colors.surface);
+      expect(surfaces['well'], colors.well);
+      // ignore: deprecated_member_use
+      expect(surfaces['surfaceAlt'], colors.surfaceAlt);
+      expect(surfaces['surfaceHover'], colors.surfaceHover);
+      expect(surfaces['surfaceElevated'], colors.surfaceElevated);
+      expect(surfaces['surfaceOverlay'], colors.surfaceOverlay);
     });
   });
 

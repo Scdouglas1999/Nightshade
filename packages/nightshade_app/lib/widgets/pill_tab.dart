@@ -89,7 +89,8 @@ class _PillTabState extends State<PillTab> {
                       color: _isHovered
                           ? widget.colors.surfaceHover
                           : widget.colors.surface,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusLg),
                       border: Border.all(
                         color: _isHovered
                             ? widget.colors.borderHighlight

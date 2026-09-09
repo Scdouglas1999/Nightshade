@@ -278,7 +278,7 @@ class _SnoozeButton extends StatelessWidget {
 
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       // The tap lived on a bare gesture wrapper, which publishes an action
       // and no role, so assistive tech read a live control as an inert
       // disabled panel. The flags are only published when given.
@@ -287,7 +287,7 @@ class _SnoozeButton extends StatelessWidget {
           enabled: true,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               child: Row(

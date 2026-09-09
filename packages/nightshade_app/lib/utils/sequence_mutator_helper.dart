@@ -131,7 +131,7 @@ Future<bool> showValidationIssueDialog(
       return Dialog(
         backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         child: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
@@ -226,7 +226,7 @@ class _ValidationDialogHeader extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: NightshadeDecorations.statusChip(
               color,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               bordered: false,
             ),
             child: Icon(
@@ -305,7 +305,7 @@ class _ValidationIssueCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -315,7 +315,7 @@ class _ValidationIssueCard extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             decoration: NightshadeDecorations.statusChip(
               severityColor,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               bordered: false,
             ),
             child: Icon(severityIcon, size: 14, color: severityColor),
@@ -343,7 +343,8 @@ class _ValidationIssueCard extends StatelessWidget {
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: colors.surface,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusXs),
                       ),
                       child: Text(
                         issue.category.label,

@@ -182,7 +182,7 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
       margin: const EdgeInsets.symmetric(horizontal: 8),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.primary,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -257,7 +257,8 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
                       padding: const EdgeInsets.all(4),
                       decoration: NightshadeDecorations.tintedBadge(
                         colors.error,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusXs),
                       ),
                       child: isCancelling
                           ? SizedBox(
@@ -304,7 +305,7 @@ class OperationIndicator extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: NightshadeDecorations.tintedBadge(
         colors.primary,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
