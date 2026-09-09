@@ -83,6 +83,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _saving = false;
   bool _transitioning = false;
 
+  /// Re-enables the footer after [_stepInputCooldown]. Held so it can be
+  /// cancelled: a timer that outlives the wizard fires `setState` on a dead
+  /// State, and every widget test that leaves the step mid-transition failed
+  /// its own tear-down on the pending timer rather than on anything it
+  /// asserted.
+  Timer? _cooldownTimer;
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    super.dispose();
+  }
+
   /// True while the "Leave setup?" confirmation is on screen, so a repeated
   /// back gesture cannot stack a second copy of it.
   bool _leavePromptOpen = false;
@@ -140,8 +153,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // Without this short cooldown, the second click of a desktop double-click
       // lands on the new step's button at the same coordinates and validates or
       // advances a screen the user never intentionally acted on.
-      await Future<void>.delayed(_stepInputCooldown);
-      if (mounted) setState(() => _transitioning = false);
+      _cooldownTimer?.cancel();
+      _cooldownTimer = Timer(_stepInputCooldown, () {
+        if (mounted) setState(() => _transitioning = false);
+      });
     }
   }
 
@@ -512,9 +527,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               // The step rail names the current step on the wide layout; the
               // phone column has no rail, so the header qualifies the title
               // instead of repeating it.
-              context: isPhone ? _StepRail.labelFor(draft.currentStep) : null,
               actions: [
-                _SkipOnboardingAction(onExit: busy ? null : _onExitWizard),
+                _SkipOnboardingAction(
+                  onExit: busy ? null : _onExitWizard,
+                  compact: isPhone,
+                ),
               ],
             ),
             Expanded(
@@ -624,8 +641,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // padding, single-row footer) so the step body keeps the height it needs
     // and nothing clips. Portrait keeps the roomier spacing.
     final compact = Responsive.isPhoneLandscape(context);
-    final gap =
-        compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd;
+    final gap = compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceLg,
@@ -636,7 +652,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         children: [
           _PhoneProgress(currentStep: draft.currentStep),
           SizedBox(height: gap),
-          _ProgressEyebrow(currentStep: draft.currentStep),
+          // The phone column has no step rail, so the eyebrow names the step
+          // as well as counting it.
+          _ProgressEyebrow(currentStep: draft.currentStep, withLabel: true),
           Expanded(
             child: NightshadePanel(
               padding: const EdgeInsets.all(NightshadeTokens.spaceMd),

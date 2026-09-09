@@ -471,7 +471,6 @@ class _OnboardingCaptureDirStepState
     });
     final draft = ref.watch(onboardingDraftProvider);
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
     // Mirror the stored folder into the box whenever it changes underneath us
     // (Browse, a host switch, a resumed draft) without stamping on an edit the
@@ -491,14 +490,10 @@ class _OnboardingCaptureDirStepState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Where should we save captures?',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
+        const SectionTitle(
+          icon: NightshadeIcons.folder,
+          title: 'Where should we save captures?',
         ),
-        const SizedBox(height: 6),
         // Describe the naming pattern, which is what actually controls layout.
         // The shipped default is `$TARGET_$FILTER_$DATE_$SEQ` — flat, so every
         // frame lands directly in the chosen folder. Subfolders are real (a `/`
@@ -506,51 +501,38 @@ class _OnboardingCaptureDirStepState
         Text(
           'Every capture is saved here. File names — and any subfolders — come '
           'from the naming pattern in Settings → Imaging.',
-          style: theme.textTheme.bodyMedium?.copyWith(
+          style: NightshadeTypography.bodySm.copyWith(
             color: colors.textSecondary,
           ),
         ),
-        const SizedBox(height: 16),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          borderRadius: NightshadeTokens.radiusLg,
-          padding: const EdgeInsets.all(14),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+        Container(
+          decoration: NightshadeDecorations.well(colors),
+          padding: NightshadeTokens.paddingMd,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(NightshadeIcons.folder, color: colors.primary, size: 18),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: TextField(
+                    child: NightshadeTextField(
                       key: onboardingCaptureDirFieldKey,
                       controller: _pathController,
                       focusNode: _pathFocus,
                       enabled: !_selecting && !_validating,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.textPrimary,
-                        fontFamily: 'monospace',
-                      ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: 'Type or paste a folder, or use Browse',
-                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.textMuted,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
+                      prefixIcon: NightshadeIcons.folder,
+                      hint: 'Type or paste a folder, or use Browse',
+                      mono: true,
                       onChanged: _onPathChanged,
                       onSubmitted: (value) =>
                           unawaited(_commitTypedPath(value)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
                   NightshadeButton(
                     icon: NightshadeIcons.folderOpen,
                     label: 'Browse',
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed:
                         _selecting || _validating ? null : _pickDirectory,
@@ -560,37 +542,37 @@ class _OnboardingCaptureDirStepState
               if (_selecting ||
                   _validating ||
                   _check == _FolderCheck.checking) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: NightshadeTokens.spaceMd),
                 Row(
                   children: [
                     if (_selecting)
                       Icon(
                         NightshadeIcons.folderOpen,
-                        size: 14,
+                        size: NightshadeTokens.iconXs,
                         color: colors.primary,
                       )
                     else
                       SizedBox(
-                        width: 14,
-                        height: 14,
+                        width: NightshadeTokens.iconXs,
+                        height: NightshadeTokens.iconXs,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: colors.primary,
                         ),
                       ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
                     Text(
                       _selecting
                           ? 'Waiting for folder selection…'
                           : 'Checking write permissions…',
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      style: NightshadeTypography.bodySm.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ] else
-                ..._buildVerdict(theme, colors, draft.captureDirectory),
+                ..._buildVerdict(colors, draft.captureDirectory),
             ],
           ),
         ),
@@ -605,20 +587,20 @@ class _OnboardingCaptureDirStepState
   /// could not be reached is reported as unknown instead of being folded into
   /// either verdict.
   List<Widget> _buildVerdict(
-    ThemeData theme,
     NightshadeColors colors,
     String? draftPath,
   ) {
     Widget line(IconData icon, Color color, String message) => Padding(
-          padding: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 8),
+              Icon(icon, size: NightshadeTokens.iconSm, color: color),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: Text(
                   message,
-                  style: theme.textTheme.bodySmall?.copyWith(color: color),
+                  style: NightshadeTypography.bodySm.copyWith(color: color),
                 ),
               ),
             ],

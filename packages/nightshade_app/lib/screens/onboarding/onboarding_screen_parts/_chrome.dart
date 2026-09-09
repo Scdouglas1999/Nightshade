@@ -50,18 +50,25 @@ class _NoticeBand extends StatelessWidget {
 /// it, and the wizard's one loud line is the step's own title inside that
 /// panel.
 class _ProgressEyebrow extends StatelessWidget {
-  const _ProgressEyebrow({required this.currentStep});
+  const _ProgressEyebrow({required this.currentStep, this.withLabel = false});
 
   final OnboardingStep currentStep;
+
+  /// Appends the step's name. Used where there is no step rail to name it.
+  final bool withLabel;
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final count =
+        'Step ${currentStep.order + 1} of ${OnboardingStepOrder.total}';
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       child: Text(
-        'Step ${currentStep.order + 1} of ${OnboardingStepOrder.total}',
+        withLabel ? '$count \u00b7 ${_StepRail.labelFor(currentStep)}' : count,
         style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -72,12 +79,22 @@ class _ProgressEyebrow extends StatelessWidget {
 /// Ghost, top right (06 § Onboarding). The wizard's single `primary` lives in
 /// the footer on "Next".
 class _SkipOnboardingAction extends StatelessWidget {
-  const _SkipOnboardingAction({required this.onExit});
+  const _SkipOnboardingAction({required this.onExit, this.compact = false});
 
   final VoidCallback? onExit;
 
+  /// Glyph only. The label does not fit beside the title on a phone.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return NightshadeIconButton(
+        icon: LucideIcons.logOut,
+        tooltip: 'Skip onboarding',
+        onPressed: onExit,
+      );
+    }
     return NightshadeButton(
       icon: LucideIcons.logOut,
       label: 'Skip onboarding',
@@ -106,8 +123,7 @@ class _PhoneProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final progress =
-        (currentStep.order + 1) / OnboardingStepOrder.total;
+    final progress = (currentStep.order + 1) / OnboardingStepOrder.total;
     return ClipRRect(
       borderRadius: NightshadeTokens.borderRadiusFull,
       child: LinearProgressIndicator(
@@ -391,8 +407,7 @@ class _StepRailItem extends StatelessWidget {
           message: state,
           child: Container(
             height: ShellChromeMetrics.railItemSize,
-            padding:
-                const EdgeInsets.only(
+            padding: const EdgeInsets.only(
               left: _StepRail._glyphInset,
               right: NightshadeTokens.spaceSm,
             ),

@@ -440,9 +440,8 @@ class _DeviceList extends StatelessWidget {
                 icon: isDiscovering
                     ? LucideIcons.loader
                     : NightshadeIcons.searchEmpty,
-                title: isDiscovering
-                    ? 'Scanning for devices'
-                    : 'No devices found',
+                title:
+                    isDiscovering ? 'Scanning for devices' : 'No devices found',
                 body: isDiscovering
                     ? null
                     : 'Make sure the device is connected and powered on, then '
@@ -525,8 +524,8 @@ class _DeviceTileState extends State<_DeviceTile> {
       if (position == null || !position.hasContentDimensions) return;
       Scrollable.ensureVisible(
         context,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        duration: NightshadeTokens.durationSmooth,
+        curve: NightshadeTokens.curveStandard,
         alignment: 0.5,
       );
     });

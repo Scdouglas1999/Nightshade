@@ -261,7 +261,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byKey(onboardingNoticeKey),
-        matching: find.byType(IconButton),
+        matching: find.byType(NightshadeIconButton),
       ),
     );
     await tester.pumpAndSettle();
@@ -350,7 +350,12 @@ void main() {
       of: find.byKey(onboardingNoticeKey),
       matching: find.byType(Text),
     );
-    final texts = band.evaluate().map((e) => (e.widget as Text).data).join(' ');
+    final texts = band
+        .evaluate()
+        .map((e) =>
+            (e.widget as Text).data ??
+            (e.widget as Text).textSpan!.toPlainText())
+        .join(' ');
     expect(texts, contains('Aperture'));
     expect(texts, isNot(contains('Focal length')));
   });
@@ -391,6 +396,9 @@ void main() {
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.byKey(onboardingNoticeKey), findsOneWidget);
+    // The footer disables itself for one input cooldown after a transition;
+    // Back is not on screen until it expires.
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();

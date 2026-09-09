@@ -33,7 +33,6 @@ class OnboardingNextStepsStep extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(onboardingDraftProvider);
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
     final profileName = (draft.profileName ?? '').trim().isNotEmpty
         ? draft.profileName!.trim()
@@ -54,100 +53,60 @@ class OnboardingNextStepsStep extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Celebration / summary panel.
-          NightshadeCard(
-            variant: CardVariant.elevated,
+          // The step panel is the container; a card inside it would be a
+          // panel inside a panel.
+          const SectionTitle(
+            icon: LucideIcons.rocket,
+            title: "You're all set",
+          ),
+          Text(
+            '$profileName is active and ready to image.',
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Container(
+            decoration: NightshadeDecorations.well(colors),
+            padding: NightshadeTokens.paddingMd,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: NightshadeTokens.iconXl + NightshadeTokens.spaceMd,
-                      height:
-                          NightshadeTokens.iconXl + NightshadeTokens.spaceMd,
-                      alignment: Alignment.center,
-                      decoration:
-                          NightshadeDecorations.iconChip(colors.success),
-                      child: Icon(
-                        LucideIcons.rocket,
-                        color: colors.success,
-                        size: NightshadeTokens.iconLg,
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "You're all set",
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: colors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '$profileName is active and ready to image.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Your rig'.toUpperCase(),
+                  style: NightshadeTypography.eyebrow.copyWith(
+                    color: colors.textMuted,
+                  ),
                 ),
-                const SizedBox(height: NightshadeTokens.spaceLg),
+                const SizedBox(height: NightshadeTokens.spaceSm),
                 _SummaryLine(
-                  // `aperture` is this codebase's telescope/optics icon;
-                  // lucide_icons 0.257.0 has no `telescope` glyph.
-                  icon: NightshadeIcons.aperture,
                   label: 'Telescope',
                   // The optics step marks a library scope whose numbers were
                   // edited as "— edited". Carrying that marker here keeps the
                   // wizard's closing statement about the rig from pairing a
-                  // model name with an image scale computed from a focal length
-                  // that model does not have.
+                  // model name with an image scale computed from a focal
+                  // length that model does not have.
                   value: telescopeSummaryLabel(
                     draft,
                     ref.watch(hardwarePresetsServiceProvider).allTelescopes(),
                   ),
                 ),
+                _SummaryLine(label: 'Camera', value: draft.cameraName),
                 _SummaryLine(
-                  icon: NightshadeIcons.camera,
-                  label: 'Camera',
-                  value: draft.cameraName,
-                ),
-                _SummaryLine(
-                  icon: NightshadeIcons.move,
                   label: 'Image scale',
                   value: imageScale != null
-                      ? '${imageScale.toStringAsFixed(2)} arcsec/px'
+                      ? '${imageScale.toStringAsFixed(2)} \u2033/px'
                       : null,
                   mono: true,
                 ),
-                _SummaryLine(
-                  icon: LucideIcons.mapPin,
-                  label: 'Site',
-                  value: siteValue,
-                ),
+                _SummaryLine(label: 'Site', value: siteValue),
               ],
             ),
           ),
           const SizedBox(height: NightshadeTokens.space2xl),
-          Text(
-            'Where to next?',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
+          const SectionTitle(title: 'Where to next?'),
           _NextStepCard(
             icon: NightshadeIcons.sparkle,
-            tint: colors.primary,
             title: 'Capture your first light',
             subtitle:
                 'Connect your camera and take your very first exposure, guided step by step.',
@@ -156,7 +115,6 @@ class OnboardingNextStepsStep extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NextStepCard(
             icon: NightshadeIcons.book,
-            tint: colors.info,
             title: 'Take the first-night walkthrough',
             subtitle:
                 'A short tour of the imaging, sequencing, and guiding workflow.',
@@ -165,7 +123,6 @@ class OnboardingNextStepsStep extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NextStepCard(
             icon: NightshadeIcons.checklist,
-            tint: colors.success,
             title: 'Review readiness checklist',
             subtitle:
                 'Confirm your gear connects and everything is configured before you head out.',
@@ -178,7 +135,6 @@ class OnboardingNextStepsStep extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceMd),
             _NextStepCard(
               icon: LucideIcons.mapPin,
-              tint: colors.warning,
               title: 'Set your observing site',
               subtitle:
                   'Your location powers Tonight, the planner, meridian flips, and the weather radar.',
@@ -191,56 +147,58 @@ class OnboardingNextStepsStep extends ConsumerWidget {
   }
 }
 
-/// One labelled fact in the rig-summary panel. Renders "— not set —" in muted
-/// type when the value is absent rather than hiding the row, so the user sees
-/// the complete shape of their profile.
+/// One labelled fact in the rig summary. An absent value renders as an em dash
+/// in muted type rather than hiding the row, so the user sees the complete
+/// shape of their profile.
 class _SummaryLine extends StatelessWidget {
   const _SummaryLine({
-    required this.icon,
     required this.label,
     required this.value,
     this.mono = false,
   });
 
-  final IconData icon;
   final String label;
   final String? value;
+
+  /// True when the value is a measurement and takes the mono ramp.
   final bool mono;
+
+  /// Width of the key column.
+  static const double _keyWidth = 132;
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final hasValue = value != null && value!.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
+      padding: const EdgeInsets.symmetric(
+        vertical: NightshadeTokens.spaceXs / 2,
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon,
-              size: NightshadeTokens.iconXs, color: colors.textSecondary),
-          const SizedBox(width: NightshadeTokens.spaceSm),
           SizedBox(
-            width: 120,
+            width: _keyWidth,
             child: Text(
               label,
-              style: theme.textTheme.bodySmall?.copyWith(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
               ),
             ),
           ),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           Expanded(
             child: Text(
-              hasValue ? value! : '— not set —',
-              style: hasValue && mono
-                  ? NightshadeTypography.monoSm.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
+              hasValue ? value! : '\u2014',
+              style: !hasValue
+                  ? NightshadeTypography.bodySm.copyWith(
+                      color: colors.textMuted,
                     )
-                  : theme.textTheme.bodyMedium?.copyWith(
-                      color: hasValue ? colors.textPrimary : colors.textMuted,
-                      fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
-                    ),
+                  : (mono
+                          ? NightshadeTypography.readoutSm
+                          : NightshadeTypography.bodySm)
+                      .copyWith(color: colors.textPrimary),
             ),
           ),
         ],
@@ -249,67 +207,91 @@ class _SummaryLine extends StatelessWidget {
   }
 }
 
-/// A tappable next-step card: tinted icon chip + title + subtitle + chevron.
-class _NextStepCard extends StatelessWidget {
+/// A tappable next-step row: glyph + title + one line + chevron.
+///
+/// A row, not a card: a tappable container inside a panel is a row (05 §9),
+/// and the icon takes `textMuted` rather than a per-row tint — status colours
+/// mean status, and none of these four is a status.
+class _NextStepCard extends StatefulWidget {
   const _NextStepCard({
     required this.icon,
-    required this.tint,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
-  final Color tint;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
   @override
+  State<_NextStepCard> createState() => _NextStepCardState();
+}
+
+class _NextStepCardState extends State<_NextStepCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
 
-    return NightshadeCard(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: NightshadeTokens.iconXl,
-            height: NightshadeTokens.iconXl,
-            alignment: Alignment.center,
-            decoration: NightshadeDecorations.iconChip(tint),
-            child: Icon(icon, color: tint, size: NightshadeTokens.iconMd),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Semantics(
+          button: true,
+          label: '${widget.title}. ${widget.subtitle}',
+          child: ExcludeSemantics(
+            child: AnimatedContainer(
+              duration: NightshadeTokens.durationFast,
+              curve: NightshadeTokens.curveStandard,
+              padding: NightshadeTokens.paddingMd,
+              decoration: BoxDecoration(
+                color: _hovered ? colors.surfaceHover : colors.well,
+                borderRadius: NightshadeTokens.borderRadiusSm,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.icon,
+                    color: colors.textMuted,
+                    size: NightshadeTokens.iconMd,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: NightshadeTypography.bodyStrong.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          widget.subtitle,
+                          style: NightshadeTypography.bodySm.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Icon(
+                    NightshadeIcons.chevronRight,
+                    size: NightshadeTokens.iconSm,
+                    color: colors.textMuted,
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Icon(
-            NightshadeIcons.chevronRight,
-            size: NightshadeTokens.iconMd,
-            color: colors.textMuted,
-          ),
-        ],
+        ),
       ),
     );
   }

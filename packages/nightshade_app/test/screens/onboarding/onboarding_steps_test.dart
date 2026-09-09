@@ -80,7 +80,7 @@ void main() {
       await _pumpStep(tester, db: db, step: const OnboardingWelcomeStep());
 
       expect(find.text('Welcome to Nightshade'), findsOneWidget);
-      expect(find.textContaining("What we'll cover"), findsOneWidget);
+      expect(find.textContaining("WHAT WE'LL COVER"), findsOneWidget);
     });
   });
 
@@ -192,16 +192,13 @@ void main() {
       await container.read(onboardingDraftProvider.notifier).loaded;
       await tester.pumpAndSettle();
 
-      // Initially nothing computed. The widget renders the
-      // human-friendly "Awaiting inputs…" placeholder (NOT "--") in
-      // each computed-row slot — a stale comment in the widget
-      // mentions "--" but the actual UI text was updated. Three rows
-      // (effective focal length, focal ratio, image scale) all show
-      // the placeholder.
-      expect(find.text('Awaiting inputs…'), findsNWidgets(3));
+      // Initially nothing computed. Each of the three readouts (effective
+      // focal length, focal ratio, image scale) shows an em dash — never a
+      // "---" placeholder, and never a number the inputs do not support.
+      expect(find.text('—'), findsNWidgets(3));
 
       // Enter realistic values: 1000mm, 80mm, 3.76µm, 1.0x reducer
-      // -> image scale ≈ 0.78 arcsec/px, f/12.5
+      // -> image scale ≈ 0.78 ″/px, f/12.5
       await tester.enterText(
           find.widgetWithText(TextField, '').first.evaluate().isEmpty
               ? find.byType(TextField).at(0)
@@ -220,7 +217,7 @@ void main() {
       expect(draft.imageScaleArcsecPerPixel, isNotNull);
 
       // The summary row should now show the computed image scale.
-      expect(find.textContaining('arcsec/px'), findsOneWidget);
+      expect(find.textContaining('″/px'), findsOneWidget);
       expect(find.textContaining('f/12.5'), findsOneWidget);
     });
   });
@@ -461,7 +458,7 @@ void main() {
 
       await requestIpEstimate(tester);
 
-      expect(find.text('Approximate location from your IP address'),
+      expect(find.textContaining('Approximate location from your IP address'),
           findsOneWidget);
       expect(
           find.textContaining('not where your telescope is'), findsOneWidget);
@@ -485,8 +482,8 @@ void main() {
       addTearDown(db.close);
       await pumpSiteStep(tester, db, approximateLocation: () async => null);
 
-      expect(
-          find.text('Approximate location from your IP address'), findsNothing);
+      expect(find.textContaining('Approximate location from your IP address'),
+          findsNothing);
       expect(find.textContaining('Looking up an approximate'), findsNothing);
     });
 
@@ -526,7 +523,7 @@ void main() {
       await tester.pumpAndSettle();
       await requestIpEstimate(tester);
 
-      expect(find.text('Approximate location from your IP address'),
+      expect(find.textContaining('Approximate location from your IP address'),
           findsOneWidget);
       expect(find.text('Use this'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -653,7 +650,7 @@ void main() {
       // Renders the device names and the computed image scale.
       expect(find.text('ASI294MC Pro'), findsOneWidget);
       expect(find.text('EQ6-R'), findsOneWidget);
-      expect(find.textContaining('arcsec/px'), findsOneWidget);
+      expect(find.textContaining('″/px'), findsOneWidget);
 
       // Profile name field is pre-filled. The TextField renders both
       // its current value ("My First Rig" from the controller) AND the
@@ -863,13 +860,19 @@ void main() {
       await notifier.goToStep(OnboardingStep.summary);
       await tester.pumpAndSettle();
 
+      // The rail states its verdict per step through the design system's own
+      // tooltip, not Material's.
+      Finder railState(String state) => find.byWidgetPredicate(
+            (w) => w is NightshadeTooltip && w.message == state,
+          );
+
       // Passed with a value: welcome, drivers, camera, mount, optical train,
       // capture folder.
-      expect(find.byTooltip('Configured'), findsNWidgets(6));
+      expect(railState('Configured'), findsNWidgets(6));
       // Passed with nothing on record: focuser, filter wheel, guider, camera
       // defaults, observing site.
-      expect(find.byTooltip('Skipped — nothing was set'), findsNWidgets(5));
-      expect(find.byTooltip('Current step'), findsOneWidget);
+      expect(railState('Skipped — nothing was set'), findsNWidgets(5));
+      expect(railState('Current step'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(microseconds: 1));

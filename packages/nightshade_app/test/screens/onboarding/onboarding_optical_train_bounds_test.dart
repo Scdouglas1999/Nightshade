@@ -102,7 +102,7 @@ void main() {
     await _type(tester, _pixelSize, '3.76');
 
     expect(find.text('f/6.00'), findsOneWidget);
-    expect(find.text('600.0'), findsOneWidget);
+    expect(find.textContaining('600.0'), findsOneWidget);
     expect(find.text('\u2014'), findsNothing);
     expect(find.textContaining('Must be between'), findsNothing);
 
