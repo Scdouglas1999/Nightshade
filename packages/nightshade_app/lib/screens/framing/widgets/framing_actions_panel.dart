@@ -234,7 +234,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
                   ),
                   const SizedBox(height: NightshadeTokens.spaceMd),
                   Text(
-                    'Preview Field of View',
+                    'Preview field of view',
                     style: NightshadeTypography.caption.copyWith(
                       color: colors.textSecondary,
                     ),

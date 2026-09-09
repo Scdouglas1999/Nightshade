@@ -107,10 +107,19 @@ class FramingPreviewFovSlider extends StatelessWidget {
               ];
               final selected =
                   values.indexWhere((preset) => (value - preset).abs() < 0.05);
-              return SegmentedControl(
-                segments: labels,
-                selectedIndex: selected,
-                onSelected: (index) => onChanged(values[index]),
+              // SegmentedControl is a mainAxisSize.min Row with no wrap, and
+              // this panel is hosted in a 250-500 px column (and a phone
+              // bottom sheet). Let the presets scroll instead of overflowing.
+              return SizedBox(
+                height: SegmentedControl.segmentHeight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedControl(
+                    segments: labels,
+                    selectedIndex: selected,
+                    onSelected: (index) => onChanged(values[index]),
+                  ),
+                ),
               );
             }),
           ],

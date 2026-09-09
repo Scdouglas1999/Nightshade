@@ -77,18 +77,23 @@ class FramingControlsSection extends ConsumerWidget {
 
         const SizedBox(height: NightshadeTokens.spaceLg),
 
-        // Preview FOV control (always available for browsing).
-        FormRow(
-          label: 'Preview FOV',
-          child: FramingPreviewFovSlider(
-            colors: colors,
-            value: framingState.previewFovDegrees,
-            hasEquipment: hasEquipment,
-            equipmentFov: equipment?.fovWidthDeg,
-            onChanged: (value) {
-              ref.read(framingProvider.notifier).setPreviewFov(value);
-            },
-          ),
+        // Preview FOV (always available for browsing). A full-width composite
+        // rather than a FormRow: the label column would squeeze the preset
+        // row, and the panel already carries its own value readout.
+        Text(
+          'Preview field of view',
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        FramingPreviewFovSlider(
+          colors: colors,
+          value: framingState.previewFovDegrees,
+          hasEquipment: hasEquipment,
+          equipmentFov: equipment?.fovWidthDeg,
+          onChanged: (value) {
+            ref.read(framingProvider.notifier).setPreviewFov(value);
+          },
         ),
 
         // Equipment FOV overlay controls (only when equipment is configured and

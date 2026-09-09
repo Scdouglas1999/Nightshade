@@ -76,9 +76,10 @@ class _CanvasControls extends StatelessWidget {
     return Consumer(
       builder: (context, ref, child) {
         // One toolbar (05 §7): the survey picker in its own group, then the
-        // layer toggles as selectable icon buttons. NightshadeToolbar measures
-        // its own width and moves what does not fit behind the overflow menu,
-        // so the strip no longer wraps to a second line on a phone canvas.
+        // layer toggles as selectable icon buttons. NightshadeToolbar only
+        // measures itself when it is given an `overflow` list; with none it is
+        // a min-width Row, so on a phone canvas the strip scrolls sideways
+        // rather than overflowing (07: reduce content or let it scroll).
         final toggles = <Widget>[
           NightshadeIconButton(
             icon: NightshadeIcons.grid,
@@ -123,18 +124,22 @@ class _CanvasControls extends StatelessWidget {
             ),
         ];
 
-        final toolbar = NightshadeToolbar(
-          groups: [
-            [
-              _SurveySourceSelector(
-                colors: colors,
-                source: framingState.surveySource,
-                onChanged: (source) =>
-                    ref.read(framingProvider.notifier).setSurveySource(source),
-              ),
+        final Widget toolbar = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: NightshadeToolbar(
+            groups: [
+              [
+                _SurveySourceSelector(
+                  colors: colors,
+                  source: framingState.surveySource,
+                  onChanged: (source) => ref
+                      .read(framingProvider.notifier)
+                      .setSurveySource(source),
+                ),
+              ],
+              toggles,
             ],
-            toggles,
-          ],
+          ),
         );
 
         if (!framingState.isLoadingImage) return toolbar;
