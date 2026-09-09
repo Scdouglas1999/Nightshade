@@ -68,7 +68,7 @@ Future<void> _pumpAndCheck(WidgetTester tester, Size size) async {
   );
   // The Guide tab's setup instructions carry the screen identity in the
   // compact layout.
-  expect(find.text('Three-Point Polar Alignment'), findsOneWidget,
+  expect(find.text('Three-point polar alignment'), findsOneWidget,
       reason: 'Setup instructions must be present at '
           '${size.width}x${size.height}');
 }

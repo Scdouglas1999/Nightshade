@@ -107,12 +107,12 @@ void main() {
 
     await tester.tap(find.byType(PopupMenuButton<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete Device').last);
+    await tester.tap(find.text('Delete device').last);
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsOneWidget);
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Delete Device'),
+      find.widgetWithText(NightshadeButton, 'Delete device'),
     );
     await tester.pump();
     expect(notifier.deleteCalls, 1);

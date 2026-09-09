@@ -1,22 +1,5 @@
 part of '../flat_wizard_screen.dart';
 
-// Shared widgets
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final NightshadeColors colors;
-
-  const _SectionHeader({required this.title, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
-    );
-  }
-}
-
 class _FilterSelector extends ConsumerWidget {
   const _FilterSelector();
 
@@ -30,25 +13,11 @@ class _FilterSelector extends ConsumerWidget {
     // No filters loaded (no wheel / not yet seeded): keep the read-only card so
     // the section is not an empty control.
     if (filters.isEmpty) {
-      return NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'No filter',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  color: colors.textPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
+      // The FormRow around this already carries the "Filter" label, so the
+      // card-with-an-icon-and-a-label collapses to the value it was hiding.
+      return Text(
+        'No filter',
+        style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
       );
     }
 
@@ -57,30 +26,21 @@ class _FilterSelector extends ConsumerWidget {
         ? state.currentFilterIndex
         : 0;
 
-    return Row(
-      children: [
-        Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
-        const SizedBox(width: 12),
-        // A REAL selection over the loaded filters. Indices are the item values
-        // (labelled by filter name) so duplicate filter names never collide.
-        // Disabled while a run holds the busy latch — the run captured its
-        // target filter at start — mirroring _FilterChecklist's null-onChanged
-        // disable.
-        Expanded(
-          child: NightshadeDropdown(
-            isExpanded: true,
-            isDense: true,
-            value: selectedIndex.toString(),
-            items: [for (var i = 0; i < filters.length; i++) i.toString()],
-            itemLabels: [for (final f in filters) f.filterName],
-            onChanged: state.isCapturing
-                ? null
-                : (v) {
-                    if (v != null) notifier.selectQuickFilter(int.parse(v));
-                  },
-          ),
-        ),
-      ],
+    // A REAL selection over the loaded filters. Indices are the item values
+    // (labelled by filter name) so duplicate filter names never collide.
+    // Disabled while a run holds the busy latch — the run captured its target
+    // filter at start — mirroring _FilterChecklist's null-onChanged disable.
+    return NightshadeDropdown(
+      isExpanded: true,
+      isDense: true,
+      value: selectedIndex.toString(),
+      items: [for (var i = 0; i < filters.length; i++) i.toString()],
+      itemLabels: [for (final f in filters) f.filterName],
+      onChanged: state.isCapturing
+          ? null
+          : (v) {
+              if (v != null) notifier.selectQuickFilter(int.parse(v));
+            },
     );
   }
 }
@@ -95,18 +55,10 @@ class _FilterChecklist extends ConsumerWidget {
     final notifier = ref.read(flatWizardProvider.notifier);
 
     if (state.filterSettings.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        ),
-        child: Text(
-          'No filters available. Connect a filter wheel.',
-          style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize13),
-        ),
+      return const EmptyState.compact(
+        icon: LucideIcons.filter,
+        title: 'No filters',
+        body: 'Connect a filter wheel to batch flats by filter.',
       );
     }
 
@@ -115,9 +67,13 @@ class _FilterChecklist extends ConsumerWidget {
     // are visibly disabled — not just silently ignored by the notifier guard.
     final interactable = !state.isCapturing;
 
-    return NightshadeCard(
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusInline8,
+    // A well inside the controls column, not a card: this is a data inset,
+    // and a panel inside a panel does not exist (02 rule 2).
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.well,
+        borderRadius: NightshadeTokens.borderRadiusSm,
+      ),
       child: Column(
         children: [
           for (int i = 0; i < state.filterSettings.length; i++)
@@ -153,35 +109,34 @@ class _FilterChecklistItem extends StatelessWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
+      ),
       decoration: BoxDecoration(
         border:
             isLast ? null : Border(bottom: BorderSide(color: colors.border)),
       ),
       child: Row(
         children: [
-          Checkbox(
+          NightshadeCheckbox(
             value: filter.enabled,
             onChanged: onToggle == null ? null : (v) => onToggle!(v ?? false),
-            activeColor: colors.primary,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           Expanded(
             child: Text(
               filter.filterName,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.bodySm.copyWith(
                 color: filter.enabled ? colors.textPrimary : colors.textMuted,
               ),
             ),
           ),
           if (filter.suggestedExposure != null)
             Text(
-              '~${filter.suggestedExposure!.toStringAsFixed(1)}s',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              '~${filter.suggestedExposure!.toStringAsFixed(1)} s',
+              style: NightshadeTypography.monoCaption.copyWith(
                 color: colors.textMuted,
-                fontFamily: 'monospace',
               ),
             ),
         ],

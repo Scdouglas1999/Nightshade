@@ -11,6 +11,8 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
   ) {
     final ui = ref.watch(polarAlignmentUiStateProvider);
 
+    // The settings column is a side panel (05 §15): 'surface' toned, 16px
+    // padding, sections separated by 16 and each opened by a SectionTitle.
     return Container(
       color: colors.surface,
       child: Column(
@@ -19,7 +21,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
           Expanded(
             child: SingleChildScrollView(
               controller: _configScrollController,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -59,7 +61,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   if (state.phase == PolarAlignPhase.adjusting) ...[
                     const SizedBox(height: 24),
                     _buildSectionHeader(
-                        colors, 'Adjustment Tips', NightshadeIcons.idea),
+                        colors, 'Adjustment tips', NightshadeIcons.idea),
                     const SizedBox(height: 12),
                     _buildAdjustmentTips(colors),
                     if (state.currentError != null) ...[
@@ -120,18 +122,10 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
     );
   }
 
+  /// The kit's section title (05 §15), not a hand-built icon + h6 row.
   Widget _buildSectionHeader(
       NightshadeColors colors, String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: colors.textMuted),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
-      ],
-    );
+    return SectionTitle(icon: icon, title: title);
   }
 
   Widget _buildEssentialSettings(
@@ -249,7 +243,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
 
             // Step size
             _SettingRow(
-              label: 'Step Size',
+              label: 'Step size',
               tooltip:
                   'Distance between measurement points. Larger = more accurate but may hit mount limits',
               colors: colors,
@@ -337,7 +331,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
           children: [
             // Manual rotation toggle
             _SettingRow(
-              label: 'Manual Rotation',
+              label: 'Manual rotation',
               tooltip: 'Enable for star trackers without GoTo capability',
               colors: colors,
               child: NightshadeSwitch(
@@ -351,7 +345,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
 
             // Solve timeout
             _SettingRow(
-              label: 'Solve Timeout',
+              label: 'Solve timeout',
               tooltip: 'Maximum time to wait for plate solve',
               colors: colors,
               child: Row(
@@ -383,7 +377,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
 
             // Start position
             _SettingRow(
-              label: 'Start From',
+              label: 'Start from',
               tooltip: 'Current: measure from where the scope points now. '
                   'Pole: slew to the pole region first (requires your site '
                   'location to be set).',

@@ -193,14 +193,14 @@ void main() {
       }
     }
 
-    expect(find.text('Alignment History'), findsNothing);
+    expect(find.text('Alignment history'), findsNothing);
 
     await tester.tap(find.widgetWithText(NightshadeButton, 'History'));
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
 
-    final panel = find.text('Alignment History');
+    final panel = find.text('Alignment history');
     expect(panel, findsOneWidget);
     // Visible, not merely built: the defect was a header toggle whose only
     // effect was below the fold.
@@ -280,7 +280,7 @@ void main() {
       ),
     );
     await _openWizard(tester);
-    expect(find.text('Alignment Stopped'), findsOneWidget);
+    expect(find.text('Alignment stopped'), findsOneWidget);
 
     // Done pops back to Imaging.
     _activeRouter!.pop();
@@ -295,7 +295,7 @@ void main() {
     );
 
     await _openWizard(tester);
-    expect(find.text('Alignment Stopped'), findsNothing);
-    expect(find.text('Alignment Complete'), findsNothing);
+    expect(find.text('Alignment stopped'), findsNothing);
+    expect(find.text('Alignment complete'), findsNothing);
   });
 }

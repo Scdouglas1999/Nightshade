@@ -22,40 +22,57 @@ class PairingScreen extends ConsumerWidget {
     final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.text('pairingTitle')),
-        // The framework's back arrow carries a tooltip and no accessible NAME
-        // — read off the live tree, the only way off this page was an unnamed
-        // button. NightshadeIconButton requires the tooltip and publishes it
-        // as the control's name, so the node says what it is and how to press
-        // it.
-        leading: Navigator.of(context).canPop()
-            ? NightshadeIconButton(
-                icon: NightshadeIcons.arrowLeft,
-                tooltip: 'Back to Remote access',
-                onPressed: () => Navigator.of(context).maybePop(),
-              )
-            : null,
-      ),
+      backgroundColor: NightshadeColors.of(context).background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (state.error != null) ...[
-                _PairingErrorBanner(
-                  message: state.error!,
-                  onDismiss: () =>
-                      ref.read(pairingProvider.notifier).clearError(),
-                ),
-                const SizedBox(height: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // One 56px page header instead of a Material AppBar (04 §4): the
+            // route is pushed from Remote access, so the screen's identity is
+            // the title and the thing it belongs to is the context line.
+            PageHeader(
+              icon: NightshadeIcons.link,
+              title: l10n.text('pairingTitle'),
+              context: l10n.text('pairingContext'),
+              actions: <Widget>[
+                // The framework's back arrow carries a tooltip and no
+                // accessible NAME — read off the live tree, the only way off
+                // this page was an unnamed button. NightshadeIconButton
+                // requires the tooltip and publishes it as the control's name,
+                // so the node says what it is and how to press it.
+                if (Navigator.of(context).canPop())
+                  NightshadeIconButton(
+                    icon: NightshadeIcons.arrowLeft,
+                    tooltip: 'Back to Remote access',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
               ],
-              _buildPairingSection(context, ref, state),
-              const SizedBox(height: 32),
-              _buildPairedDevicesSection(context, ref, state),
-            ],
-          ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (state.error != null) ...[
+                      _PairingErrorBanner(
+                        message: state.error!,
+                        onDismiss: () =>
+                            ref.read(pairingProvider.notifier).clearError(),
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceLg),
+                    ],
+                    _buildPairingSection(context, ref, state),
+                    // Panel gap is spaceLg (03 §3.1), not the 32 this screen
+                    // used; 32 is the settings section gap, and these are two
+                    // panels on one page.
+                    const SizedBox(height: NightshadeTokens.spaceLg),
+                    _buildPairedDevicesSection(context, ref, state),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -64,45 +81,47 @@ class PairingScreen extends ConsumerWidget {
   Widget _buildPairingSection(
       BuildContext context, WidgetRef ref, PairingState state) {
     final l10n = context.l10n;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              l10n.text('pairingNewDeviceTitle'),
-              style: Theme.of(context).textTheme.headlineSmall,
+    final colors = NightshadeColors.of(context);
+    return NightshadePanel(
+      head: PanelHead(
+        icon: NightshadeIcons.link,
+        label: l10n.text('pairingNewDeviceTitle'),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.lastPairedDevice != null) ...[
+            _PairedConfirmation(
+              device: state.lastPairedDevice!,
+              onDismiss: () =>
+                  ref.read(pairingProvider.notifier).clearLastPairedDevice(),
             ),
-            const SizedBox(height: 16),
-            if (state.lastPairedDevice != null) ...[
-              _PairedConfirmation(
-                device: state.lastPairedDevice!,
-                onDismiss: () =>
-                    ref.read(pairingProvider.notifier).clearLastPairedDevice(),
-              ),
-              const SizedBox(height: 16),
-            ],
-            if (state.pairingCode == null) ...[
-              Text(
-                l10n.text('pairingStartDesc'),
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              NightshadeButton(
-                label: l10n.text('pairingStartButton'),
-                icon: NightshadeIcons.link,
-                variant: ButtonVariant.primary,
-                isLoading: state.isLoading,
-                onPressed: state.isLoading
-                    ? null
-                    : () => ref.read(pairingProvider.notifier).startPairing(),
-              ),
-            ] else ...[
-              _buildPairingCodeDisplay(context, ref, state),
-            ],
+            const SizedBox(height: NightshadeTokens.spaceLg),
           ],
-        ),
+          if (state.pairingCode == null) ...[
+            Text(
+              l10n.text('pairingStartDesc'),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            // The page's ONE primary, sized to its label. It was a stretched
+            // full-width bar across a 1200px page — a button that wide reads
+            // as a banner, and 02 rule 4 gives the page one primary, not one
+            // primary per available pixel.
+            NightshadeButton(
+              label: l10n.text('pairingStartButton'),
+              icon: NightshadeIcons.link,
+              size: ButtonSize.small,
+              isLoading: state.isLoading,
+              onPressed: state.isLoading
+                  ? null
+                  : () => ref.read(pairingProvider.notifier).startPairing(),
+            ),
+          ] else ...[
+            _buildPairingCodeDisplay(context, ref, state),
+          ],
+        ],
       ),
     );
   }
@@ -114,13 +133,19 @@ class PairingScreen extends ConsumerWidget {
     final minutes = timeRemaining?.inMinutes ?? 0;
     final seconds = (timeRemaining?.inSeconds ?? 0) % 60;
 
+    final colors = NightshadeColors.of(context);
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+          // A well inside the panel — the deepest nesting the design language
+          // allows (02 rule 2). It was `primaryContainer`, a Material tone
+          // that has no place on the four-step tonal ladder.
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            color: colors.well,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
           ),
           child: Column(
             children: [
@@ -134,10 +159,11 @@ class PairingScreen extends ConsumerWidget {
                 container: true,
                 child: Text(
                   l10n.text('pairingEnterCode'),
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textSecondary),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: NightshadeTokens.spaceMd),
               // Named for assistive tech, not just drawn. A [SelectableText]
               // publishes its text as a semantic value; the live tree exposed
               // "Enter this code on your device:" and "Expires in 04:55" with
@@ -149,14 +175,17 @@ class PairingScreen extends ConsumerWidget {
                 label: 'Pairing code: ${state.pairingCode}',
                 child: SelectableText(
                   state.pairingCode!,
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 4,
-                        fontFamily: 'monospace',
-                      ),
+                  // The credential is the loudest thing in the panel: a
+                  // readout, mono and tabular by construction, instead of a
+                  // Material display style with an ad-hoc 'monospace' family
+                  // that resolved to whatever the platform had.
+                  style: NightshadeTypography.readoutLg.copyWith(
+                    color: colors.textPrimary,
+                    letterSpacing: NightshadeTokens.spaceXs,
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: NightshadeTokens.spaceSm),
               // The copy control published NO accessible node at all — a bare
               // IconButton's tooltip is not a name — and pressing it changed
               // nothing the operator could see: two screenshots taken 3 s
@@ -166,16 +195,16 @@ class PairingScreen extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceMd),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               NightshadeIcons.timer,
-              size: 20,
-              color: Theme.of(context).colorScheme.secondary,
+              size: NightshadeTokens.iconGlyphPanelHead,
+              color: colors.textMuted,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Semantics(
               container: true,
               child: Text(
@@ -186,21 +215,26 @@ class PairingScreen extends ConsumerWidget {
                     'seconds': seconds.toString().padLeft(2, '0'),
                   },
                 ),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
+                style: NightshadeTypography.monoCaption
+                    .copyWith(color: colors.textMuted),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        NightshadeButton(
-          label: l10n.text('pairingCancel'),
-          variant: ButtonVariant.secondary,
-          isLoading: state.isLoading,
-          onPressed: state.isLoading
-              ? null
-              : () => ref.read(pairingProvider.notifier).cancelPairing(),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        // Sized to its label under the centred code, not stretched across the
+        // panel: while a code is live this is the only control here, and a
+        // full-width secondary reads as a second surface.
+        Align(
+          child: NightshadeButton(
+            label: l10n.text('pairingCancel'),
+            variant: ButtonVariant.secondary,
+            size: ButtonSize.small,
+            isLoading: state.isLoading,
+            onPressed: state.isLoading
+                ? null
+                : () => ref.read(pairingProvider.notifier).cancelPairing(),
+          ),
         ),
       ],
     );
@@ -209,106 +243,72 @@ class PairingScreen extends ConsumerWidget {
   Widget _buildPairedDevicesSection(
       BuildContext context, WidgetRef ref, PairingState state) {
     final l10n = context.l10n;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.text('pairingDevicesTitle'),
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-                // Only offered when there is something to revoke: an
-                // always-present "Revoke All" on an empty list is a control
-                // that cannot do anything.
-                if (state.pairedDevices.isNotEmpty) ...[
-                  NightshadeButton(
-                    label: l10n.text('pairingRevokeAllButton'),
-                    icon: NightshadeIcons.shieldOff,
-                    variant: ButtonVariant.destructive,
-                    size: ButtonSize.small,
-                    onPressed: state.isLoading
-                        ? null
-                        : () => _showRevokeAllDialog(
-                              context,
-                              ref,
-                              state.pairedDevices,
-                            ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                NightshadeIconButton(
-                  icon: NightshadeIcons.refresh,
-                  tooltip: l10n.text('pairingRefresh'),
-                  onPressed: state.isLoading
-                      ? null
-                      : () => ref
-                          .read(pairingProvider.notifier)
-                          .loadPairedDevices(),
-                  size: IconButtonSize.sm,
-                ),
-              ],
+    final colors = NightshadeColors.of(context);
+    return NightshadePanel(
+      // The panel's own label row carries its actions (05 §2) instead of a
+      // headlineSmall title competing with the page header.
+      head: PanelHead(
+        icon: NightshadeIcons.device,
+        label: l10n.text('pairingDevicesTitle'),
+        trailing: <Widget>[
+          // Only offered when there is something to revoke: an always-present
+          // "Revoke all" on an empty list is a control that cannot do
+          // anything.
+          if (state.pairedDevices.isNotEmpty)
+            NightshadeButton(
+              label: l10n.text('pairingRevokeAllButton'),
+              icon: NightshadeIcons.shieldOff,
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: state.isLoading
+                  ? null
+                  : () => _showRevokeAllDialog(
+                        context,
+                        ref,
+                        state.pairedDevices,
+                      ),
             ),
-            const SizedBox(height: 16),
-            if (state.pairedDevices.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: [
-                      Icon(
-                        NightshadeIcons.device,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        l10n.text('pairingNoDevices'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      // `colorScheme.outline` is a BORDER colour. Used as
-                      // body text on this empty state it measured 1.31:1
-                      // against the card — rgb(43,49,59) on rgb(24,28,34) —
-                      // so the one sentence telling a new user how to pair a
-                      // device was effectively invisible. textSecondary is the
-                      // design system's body-secondary token and clears AA.
-                      Text(
-                        l10n.text('pairingNoDevicesDesc'),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: NightshadeColors.of(context).textSecondary,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: state.pairedDevices.length,
-                separatorBuilder: (context, index) => const Divider(),
-                itemBuilder: (context, index) {
-                  final device = state.pairedDevices[index];
-                  return _buildDeviceListItem(
+          NightshadeIconButton(
+            icon: NightshadeIcons.refresh,
+            tooltip: l10n.text('pairingRefresh'),
+            onPressed: state.isLoading
+                ? null
+                : () => ref.read(pairingProvider.notifier).loadPairedDevices(),
+            size: IconButtonSize.sm,
+          ),
+        ],
+      ),
+      child: state.pairedDevices.isEmpty
+          // The one empty-state pattern (05 §12), not a 64px icon over two
+          // bare Texts. Padding is internal to EmptyState.
+          ? EmptyState.compact(
+              icon: NightshadeIcons.device,
+              title: l10n.text('pairingNoDevices'),
+              body: l10n.text('pairingNoDevicesDesc'),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (var i = 0;
+                    i < state.pairedDevices.length;
+                    i++) ...<Widget>[
+                  // A hairline between rows, never under the last one (05 §9).
+                  if (i > 0)
+                    Container(height: _rowHairline, color: colors.border),
+                  _buildDeviceListItem(
                     context,
                     ref,
-                    device,
+                    state.pairedDevices[i],
                     enabled: !state.isLoading,
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
+                  ),
+                ],
+              ],
+            ),
     );
   }
+
+  /// The 1px rule between paired-device rows.
+  static const double _rowHairline = 1;
 
   Widget _buildDeviceListItem(
     BuildContext context,
@@ -318,28 +318,26 @@ class PairingScreen extends ConsumerWidget {
   }) {
     final colors = NightshadeColors.of(context);
     final statusText = _deviceStatus(device);
-    final statusColor = _deviceStatusColor(colors, device);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        vertical: NightshadeTokens.spaceMd,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: colors.well,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-            ),
+          // A list row's leading icon is a 15px muted glyph (05 §9), not a
+          // 44px accent tile — the tile was the loudest thing in a list whose
+          // subject is the device NAME.
+          Padding(
+            padding: const EdgeInsets.only(top: NightshadeTokens.spaceXs / 2),
             child: Icon(
               _getDeviceIcon(device.deviceType),
-              size: 22,
-              color: colors.primary,
+              size: NightshadeTokens.iconGlyphPanelHead,
+              color: colors.textMuted,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,31 +347,27 @@ class PairingScreen extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         device.deviceName,
-                        style: Theme.of(context).textTheme.titleSmall,
+                        style: NightshadeTypography.bodyStrong
+                            .copyWith(color: colors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius:
-                            BorderRadius.circular(NightshadeTokens.radiusFull),
-                      ),
-                      child: Text(
-                        statusText,
-                        style: NightshadeTypography.labelStrongSm
-                            .copyWith(color: statusColor),
-                      ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    // The kit chip, not a bespoke pill: radiusFull is not on
+                    // the radius scale (02 "not rounded-everything"), and the
+                    // tone fill is the chip's job.
+                    NightshadeChip(
+                      label: statusText,
+                      tone: _deviceStatusTone(device),
+                      dot: true,
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: NightshadeTokens.spaceXs),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+                  spacing: NightshadeTokens.spaceSm,
+                  runSpacing: NightshadeTokens.spaceXs,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
@@ -389,14 +383,16 @@ class PairingScreen extends ConsumerWidget {
                     _AccessBadge(grantSpec: device.authGrantSpec),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                // Timestamps are muted (03 §1.1), not body-secondary: they are
+                // the quietest thing in the row, under the name and the chip.
                 Text(
                   context.l10n.text(
                     'pairingPairedAt',
                     params: {'time': _formatDate(context, device.pairedAt)},
                   ),
                   style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
+                    color: colors.textMuted,
                   ),
                 ),
                 Text(
@@ -414,7 +410,7 @@ class PairingScreen extends ConsumerWidget {
                       // legitimately have no entry here.
                       : 'No connection recorded yet',
                   style: NightshadeTypography.caption.copyWith(
-                    color: colors.textSecondary,
+                    color: colors.textMuted,
                   ),
                 ),
               ],
@@ -422,6 +418,12 @@ class PairingScreen extends ConsumerWidget {
           ),
           PopupMenuButton<String>(
             enabled: enabled,
+            tooltip: 'Device actions',
+            icon: Icon(
+              NightshadeIcons.more,
+              size: NightshadeTokens.iconGlyphPanelHead,
+              color: colors.textMuted,
+            ),
             onSelected: (value) {
               if (value == 'rename') {
                 _showRenameDialog(context, ref, device);
@@ -539,20 +541,23 @@ class PairingScreen extends ConsumerWidget {
     return 'Trusted';
   }
 
-  Color _deviceStatusColor(NightshadeColors colors, PairedDevice device) {
+  /// The chip tone for a device's status.
+  ///
+  /// Neutral, not the accent, for a device that has never been seen: nothing
+  /// about that row is a positive signal, and a blue badge read as "this
+  /// device is good to go".
+  ChipTone _deviceStatusTone(PairedDevice device) {
     if (!device.isActive) {
-      return colors.error;
+      return ChipTone.error;
     }
     if (device.lastConnectedAt == null) {
-      // Muted, not the accent colour: nothing about this row is a positive
-      // signal, and a blue badge read as "this device is good to go".
-      return colors.textMuted;
+      return ChipTone.neutral;
     }
     final difference = DateTime.now().difference(device.lastConnectedAt!);
     if (difference.inHours < 24) {
-      return colors.success;
+      return ChipTone.success;
     }
-    return colors.textSecondary;
+    return ChipTone.neutral;
   }
 
   String _formatDate(BuildContext context, DateTime date) {

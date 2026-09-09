@@ -6,6 +6,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/polar_alignment/polar_alignment_error_format.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 void main() {
   group('formatPolarError', () {
@@ -39,8 +40,9 @@ void main() {
     });
 
     test('renders a non-finite value as unknown, never as NaN', () {
-      expect(formatPolarError(double.nan), '--');
-      expect(formatPolarError(double.infinity), '--');
+      // The kit's unknown marker (an em dash), not a pair of hyphens.
+      expect(formatPolarError(double.nan), kReadoutUnknown);
+      expect(formatPolarError(double.infinity), kReadoutUnknown);
     });
   });
 }

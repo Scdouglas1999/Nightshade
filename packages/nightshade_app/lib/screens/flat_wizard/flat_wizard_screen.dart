@@ -59,15 +59,43 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
 
     return Column(
       children: [
-        // Title + mode tabs share ONE row: the title folds inline to the
-        // left of the tab strip — icon-only on a phone — and the live
-        // "Capturing" badge rides at the right end of the same row.
-        _buildTabBar(colors, state),
+        // One 56px page header (04 §4): title, underline mode tabs, and the
+        // live "Capturing" chip as the header's action. This was a bespoke
+        // 'surface' bar with the title folded inline beside the tab strip.
+        PageHeader(
+          key: FlatWizardTutorialKeys.tabs,
+          icon: LucideIcons.sun,
+          title: 'Flat wizard',
+          tabs: AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) => AdaptiveTabBar(
+              tabs: const [
+                AdaptiveTab(label: 'Quick capture', icon: LucideIcons.zap),
+                AdaptiveTab(
+                  label: 'Multi-filter batch',
+                  icon: LucideIcons.layers,
+                ),
+                AdaptiveTab(label: 'Sky flats', icon: LucideIcons.sunrise),
+              ],
+              selectedIndex: _tabController.index,
+              onSelected: (i) => _tabController.animateTo(i),
+            ),
+          ),
+          actions: <Widget>[
+            // The kit chip, not a bespoke radiusXl outlined capsule with a
+            // spinner in it: 05 §10 gives status one shape.
+            if (state.isCapturing)
+              const NightshadeChip(
+                label: 'Capturing',
+                tone: ChipTone.success,
+                dot: true,
+              ),
+          ],
+        ),
 
         // Split view content
         Expanded(
@@ -80,110 +108,10 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                 _SkyFlatsControls(),
               ],
             ),
-            previewPanel:
-                FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
+            previewPanel: FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
           ),
         ),
       ],
-    );
-  }
-
-  /// A compact "Capturing" status pill surfaced inline at the right end of the
-  /// tab row while a flat-capture run is active.
-  Widget _capturingBadge(NightshadeColors colors) {
-    return Padding(
-      padding: const EdgeInsets.only(right: NightshadeTokens.spaceMd),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: colors.success.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-          border: Border.all(color: colors.success.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.success,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Capturing',
-              style: NightshadeTypography.label.copyWith(color: colors.success),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabBar(NightshadeColors colors, FlatWizardState state) {
-    // AdaptiveTabBar never overflows: the three mode labels scroll
-    // horizontally on a narrow phone instead of throwing a RenderFlex.
-    // It drives the existing TabController so the TabBarView stays in sync.
-    // The screen title is folded inline to the left of the strip (icon-only on
-    // a phone) and the live "Capturing" badge rides at the right end.
-    final isPhone = Responsive.isPhone(context);
-    return Container(
-      key: FlatWizardTutorialKeys.tabs,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          Padding(
-            padding: EdgeInsets.only(
-              left: NightshadeTokens.spaceLg,
-              right:
-                  isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // On a phone the title folds to icon-only to keep the tab strip
-                // from overflowing, so the visible label is dropped. The screen
-                // identity still rides on the icon via a Semantics label so it
-                // stays accessible (and assertable) without the wide text.
-                Semantics(
-                  label: 'Flat Frame Wizard',
-                  child: Icon(LucideIcons.sun, size: 18, color: colors.primary),
-                ),
-                if (!isPhone) ...[
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  Text(
-                    'Flat Frame Wizard',
-                    style: NightshadeTypography.h5.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Expanded(
-            child: AnimatedBuilder(
-              animation: _tabController,
-              builder: (context, _) => AdaptiveTabBar(
-                tabs: const [
-                  AdaptiveTab(label: 'Quick Capture', icon: LucideIcons.zap),
-                  AdaptiveTab(
-                      label: 'Multi-Filter Batch', icon: LucideIcons.layers),
-                  AdaptiveTab(label: 'Sky Flats', icon: LucideIcons.sunrise),
-                ],
-                selectedIndex: _tabController.index,
-                onSelected: (i) => _tabController.animateTo(i),
-              ),
-            ),
-          ),
-          if (state.isCapturing) _capturingBadge(colors),
-        ],
-      ),
     );
   }
 }

@@ -126,7 +126,7 @@ void main() {
     expect(await tester.runAsync(notifier.loadPairedDevices), isTrue);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Revoke All'));
+    await tester.tap(find.text('Revoke all'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsOneWidget);
@@ -135,7 +135,7 @@ void main() {
     // The action behind it is unchanged — revoking every row — and is covered
     // by pairing_revoke_all_test.dart; what is under test here is the sentence
     // the operator has to agree to.
-    expect(find.text('Revoke Access'), findsOneWidget);
+    expect(find.text('Revoke access'), findsOneWidget);
   });
 
   testWidgets('the plural form survives for a real "all"', (tester) async {
@@ -154,7 +154,7 @@ void main() {
     expect(await tester.runAsync(notifier.loadPairedDevices), isTrue);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Revoke All'));
+    await tester.tap(find.text('Revoke all'));
     await tester.pumpAndSettle();
     expect(find.textContaining('all 3 paired devices'), findsOneWidget);
   });

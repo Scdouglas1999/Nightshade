@@ -26,6 +26,16 @@ extension _CenterPanel on _PolarAlignmentScreenState {
         settingsLoaded &&
         ref.watch(appObserverLocationProvider) == null;
 
+    // One banner per problem (05 §11): the solver and the site already have
+    // theirs, so the shared blocker banner carries only what is left.
+    final otherBlockers = state.phase == PolarAlignPhase.idle
+        ? _startBlockers()
+            .where((b) =>
+                !b.contains('plate solver') &&
+                !b.contains('observing location'))
+            .toList()
+        : const <String>[];
+
     return Container(
       color: colors.background,
       child: Column(
@@ -35,14 +45,28 @@ extension _CenterPanel on _PolarAlignmentScreenState {
               state.phase == PolarAlignPhase.adjusting)
             _buildProgressSteps(colors, state),
 
+          // ONE banner, the kit's (05 §11). It was a bespoke warning card with
+          // its own heading, paragraph and a filled button — three surfaces
+          // for one problem.
           if (showSolverBanner)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: PlateSolverRequiredBanner(
-                contextMessage:
-                    'Polar alignment plate-solves each capture to measure '
-                    'mount error. Install and configure ASTAP (or '
-                    'Astrometry.net) before starting.',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                NightshadeTokens.spaceLg,
+                NightshadeTokens.spaceLg,
+                NightshadeTokens.spaceLg,
+                0,
+              ),
+              child: NightshadeBanner(
+                tone: BannerTone.warning,
+                title: 'Plate solver not configured.',
+                message: 'Polar alignment plate-solves each capture to '
+                    'measure mount error.',
+                action: NightshadeButton(
+                  label: 'Set up plate solver',
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: () => context.push('/settings/plate-solving'),
+                ),
               ),
             ),
 
@@ -74,38 +98,45 @@ extension _CenterPanel on _PolarAlignmentScreenState {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // A disabled Start explains itself on HOVER,
+                            // which is no explanation to the operator who
+                            // clicked it. The blockers that have no banner of
+                            // their own are stated here, where they are
+                            // already looking.
+                            if (otherBlockers.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  NightshadeTokens.spaceLg,
+                                  0,
+                                  NightshadeTokens.spaceLg,
+                                  NightshadeTokens.spaceSm,
+                                ),
+                                child: NightshadeBanner(
+                                  key: startBlockedNoticeKey,
+                                  tone: BannerTone.warning,
+                                  title: 'Cannot start yet.',
+                                  message: otherBlockers.join(' · '),
+                                ),
+                              ),
                             if (showSiteBanner)
                               Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration:
-                                      NightshadeDecorations.emphasisSurface(
-                                    colors.warning,
-                                    borderRadius:
-                                        NightshadeTokens.borderRadiusInline8,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(NightshadeIcons.warning,
-                                          size: 16, color: colors.warning),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          'No observing location set. Polar '
-                                          'error is measured relative to your '
-                                          'site latitude — set an observing '
-                                          'location in Settings before '
-                                          'aligning.',
-                                          style: TextStyle(
-                                            fontSize:
-                                                NightshadeTypography.fontSize12,
-                                            color: colors.warning,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                padding: const EdgeInsets.fromLTRB(
+                                  NightshadeTokens.spaceLg,
+                                  0,
+                                  NightshadeTokens.spaceLg,
+                                  NightshadeTokens.spaceSm,
+                                ),
+                                child: NightshadeBanner(
+                                  tone: BannerTone.warning,
+                                  title: 'No observing location set.',
+                                  message: 'Polar error is measured relative '
+                                      'to your site latitude.',
+                                  action: NightshadeButton(
+                                    label: 'Set a location',
+                                    variant: ButtonVariant.secondary,
+                                    size: ButtonSize.small,
+                                    onPressed: () =>
+                                        context.push('/settings/location'),
                                   ),
                                 ),
                               ),
@@ -200,97 +231,72 @@ extension _CenterPanel on _PolarAlignmentScreenState {
     );
   }
 
+  /// The idle centre column: what this method does, and the four things the
+  /// operator has to do before starting.
+  ///
+  /// It was a 64px tinted icon over a 20px bold heading, a centred paragraph
+  /// and four bespoke numbered rows. The panel carries it now, the steps are
+  /// the kit's [Checklist], and the copy is sentence case.
   Widget _buildSetupInstructions(NightshadeColors colors) {
     final isAllSky = ref.watch(polarAlignmentUiStateProvider).mode ==
         PolarAlignmentMode.allSky;
 
+    final steps = isAllSky
+        ? const <ChecklistStep>[
+            ChecklistStep(
+              title: 'Point at any bright star field',
+              detail: 'It does not have to be near the pole.',
+            ),
+            ChecklistStep(title: 'Connect the camera and the mount'),
+            ChecklistStep(
+              title: 'Set the exposure on the left, then start',
+            ),
+            ChecklistStep(
+              title: 'Follow the live reticle while you adjust',
+              detail: 'Azimuth and altitude, on the right.',
+            ),
+          ]
+        : const <ChecklistStep>[
+            ChecklistStep(
+              title: 'Roughly align the mount to the pole',
+              detail: 'Within a few degrees is enough.',
+            ),
+            ChecklistStep(title: 'Point the telescope near the celestial pole'),
+            ChecklistStep(title: 'Connect the camera and the mount'),
+            ChecklistStep(title: 'Set the options on the left, then start'),
+          ];
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isAllSky ? NightshadeIcons.globe : NightshadeIcons.compass,
-            size: 64,
-            color: colors.primary.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            isAllSky
-                ? 'All-Sky Polar Alignment'
-                : 'Three-Point Polar Alignment',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize20,
-              fontWeight: FontWeight.bold,
-              color: colors.textPrimary,
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.space2xl,
+        vertical: NightshadeTokens.spaceLg,
+      ),
+      child: NightshadePanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SectionTitle(
+              icon: isAllSky ? NightshadeIcons.globe : NightshadeIcons.compass,
+              title: isAllSky
+                  ? 'All-sky polar alignment'
+                  : 'Three-point polar alignment',
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isAllSky
-                ? 'Align from any part of the sky — no need to point near the '
-                    'celestial pole. Nightshade plate-solves a live frame and '
-                    'shows azimuth/altitude error on the target reticle while '
-                    'you adjust the mount.'
-                : 'This wizard helps you precisely align your mount to the '
-                    'celestial pole. It captures three images at different '
-                    'positions, plate-solves each one, and calculates polar '
-                    'alignment error.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              color: colors.textSecondary,
-              height: 1.5,
+            Text(
+              isAllSky
+                  ? 'Align from any part of the sky. Nightshade plate-solves '
+                      'a live frame and shows the azimuth and altitude error '
+                      'on the reticle while you adjust the mount.'
+                  : 'Nightshade captures three images at different positions, '
+                      'plate-solves each one, and works out how far the '
+                      "mount's polar axis is from the pole.",
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
             ),
-          ),
-          const SizedBox(height: 32),
-          if (isAllSky) ...[
-            _InstructionStep(
-              colors: colors,
-              number: 1,
-              text: 'Point at any bright star field (not necessarily the pole)',
-            ),
-            _InstructionStep(
-              colors: colors,
-              number: 2,
-              text: 'Ensure camera and mount are connected',
-            ),
-            _InstructionStep(
-              colors: colors,
-              number: 3,
-              text: 'Configure exposure settings on the left and click Start',
-            ),
-            _InstructionStep(
-              colors: colors,
-              number: 4,
-              text:
-                  'Follow the live reticle on the right while adjusting azimuth and altitude',
-            ),
-          ] else ...[
-            _InstructionStep(
-              colors: colors,
-              number: 1,
-              text:
-                  'Roughly align your mount to the pole (within a few degrees)',
-            ),
-            _InstructionStep(
-              colors: colors,
-              number: 2,
-              text: 'Point the telescope near the celestial pole',
-            ),
-            _InstructionStep(
-              colors: colors,
-              number: 3,
-              text: 'Ensure camera and mount are connected',
-            ),
-            _InstructionStep(
-              colors: colors,
-              number: 4,
-              text: 'Configure settings on the left and click Start',
-            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Checklist(steps: steps),
           ],
-        ],
+        ),
       ),
     );
   }

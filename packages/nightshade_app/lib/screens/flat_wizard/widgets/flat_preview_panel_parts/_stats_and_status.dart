@@ -16,47 +16,60 @@ class _StatsBar extends StatelessWidget {
         ? state.filterSettings[state.currentFilterIndex]
         : null;
 
-    // A dense readout row that must not overflow on a phone: the labelled
-    // stats wrap, and the status indicator drops onto its own line when the
-    // viewport is too narrow to keep it inline.
-    final stats = [
-      ResponsiveStat(
+    // Readouts, not a stat strip: an unknown value is an em dash (Readout
+    // renders it from a null), never a hyphen, and the frame count reads
+    // "0 / 30" instead of "-/-" — a pair of hyphens said nothing about how many
+    // frames the run is even aiming for.
+    final frameTarget =
+        currentFilter?.frameCountOverride ?? state.globalSettings.frameCount;
+    final readouts = <Readout>[
+      Readout(
         label: 'Filter',
-        value: currentFilter?.filterName ?? '-',
+        value: currentFilter?.filterName,
+        size: ReadoutSize.sm,
       ),
-      ResponsiveStat(
+      Readout(
         label: 'Exposure',
-        value: currentFilter?.calibratedExposure != null
-            ? '${currentFilter!.calibratedExposure!.toStringAsFixed(2)}s'
-            : '-',
+        value: currentFilter?.calibratedExposure?.toStringAsFixed(2),
+        unit: 's',
+        size: ReadoutSize.sm,
       ),
-      ResponsiveStat(
+      Readout(
         label: 'ADU',
-        value: currentFilter?.currentAdu != null
-            ? currentFilter!.currentAdu!.toStringAsFixed(0)
-            : '-',
+        value: currentFilter?.currentAdu?.toStringAsFixed(0),
+        size: ReadoutSize.sm,
       ),
-      ResponsiveStat(
+      Readout(
         label: 'Frame',
-        value: currentFilter != null
-            ? '${currentFilter.capturedCount}/${currentFilter.frameCountOverride ?? state.globalSettings.frameCount}'
-            : '-/-',
+        value: '${currentFilter?.capturedCount ?? 0} / $frameTarget',
+        size: ReadoutSize.sm,
       ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceLg,
+      ),
+      child: Container(
+        // A well under the image, not a card: this is a data display inside
+        // the preview column (02 rule 2).
+        decoration: BoxDecoration(
+          color: colors.well,
+          borderRadius: NightshadeTokens.borderRadiusSm,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceLg,
+          vertical: NightshadeTokens.spaceMd,
+        ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Keep stats + status on one line only when there is comfortable
-            // room; otherwise stack the status under the wrapped stats.
-            final inline = constraints.maxWidth >= 460;
-            final statStrip =
-                ResponsiveStatStrip(stats: stats, minCellWidth: 96);
+            // Keep readouts + status on one line only when there is
+            // comfortable room; otherwise stack the status under them.
+            final inline = constraints.maxWidth >= _inlineStatusWidth;
+            final strip = ReadoutRow(
+              children: readouts,
+              gap: NightshadeTokens.space2xl,
+            );
             final status = _StatusIndicator(
               status: currentFilter?.status ?? FilterCalibrationStatus.pending,
               colors: colors,
@@ -65,8 +78,8 @@ class _StatsBar extends StatelessWidget {
             if (inline) {
               return Row(
                 children: [
-                  Expanded(child: statStrip),
-                  const SizedBox(width: 16),
+                  Expanded(child: strip),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
                   status,
                 ],
               );
@@ -74,8 +87,8 @@ class _StatsBar extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                statStrip,
-                const SizedBox(height: 10),
+                strip,
+                const SizedBox(height: NightshadeTokens.spaceMd),
                 Align(alignment: Alignment.centerRight, child: status),
               ],
             );
@@ -84,6 +97,9 @@ class _StatsBar extends StatelessWidget {
       ),
     );
   }
+
+  /// Below this width the status indicator drops onto its own line.
+  static const double _inlineStatusWidth = 460;
 }
 
 class _StatusIndicator extends StatelessWidget {
@@ -110,7 +126,7 @@ class _StatusIndicator extends StatelessWidget {
         ),
       FilterCalibrationStatus.calibrated => (
           LucideIcons.check,
-          'On Target',
+          'On target',
           colors.success
         ),
       FilterCalibrationStatus.capturing => (
@@ -143,11 +159,11 @@ class _StatusIndicator extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 6),
+        Icon(icon, size: NightshadeTokens.iconGlyphPanelHead, color: color),
+        const SizedBox(width: NightshadeTokens.spaceXs + 2),
         Text(
           label,
-          style: NightshadeTypography.label.copyWith(color: color),
+          style: NightshadeTypography.bodySm.copyWith(color: color),
         ),
       ],
     );
@@ -239,14 +255,15 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
 }
 
 class _VisualizationsSection extends ConsumerWidget {
+  /// Below this width the two visualizations stack down to one.
+  static const double _sideBySideWidth = 560;
+
   final FlatWizardState state;
 
   const _VisualizationsSection({required this.state});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
-
     // Count visible visualizations
     final visibleCount = [
       state.showAduGraph,
@@ -273,102 +290,76 @@ class _VisualizationsSection extends ConsumerWidget {
     final toleranceAdu = targetAdu * tolerancePercent / 100.0;
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with toggles
-          Row(
-            children: [
-              Text(
-                'Visualizations',
-                style: NightshadeTypography.h6
-                    .copyWith(color: colors.textSecondary),
-              ),
-              const Spacer(),
-              _ToggleButton(
-                icon: LucideIcons.lineChart,
-                isActive: state.showAduGraph,
-                onTap: () => ref
-                    .read(flatWizardProvider.notifier)
-                    .toggleAduGraph(!state.showAduGraph),
-                tooltip: 'ADU Graph',
-              ),
-              _ToggleButton(
-                icon: LucideIcons.layoutGrid,
-                isActive: state.showFilterCards,
-                onTap: () => ref
-                    .read(flatWizardProvider.notifier)
-                    .toggleFilterCards(!state.showFilterCards),
-                tooltip: 'Filter Cards',
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Visualization content
-          Expanded(
-            child: Row(
+          // A section title naming what the reader is looking at, not the
+          // category word "Visualizations". The two view toggles ride in its
+          // trailing slot as kit icon buttons.
+          SectionTitle(
+            icon: LucideIcons.lineChart,
+            title: 'Convergence',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (state.showAduGraph)
-                  Expanded(
-                    child: _AduConvergenceGraph(
-                      history: state.aduHistory,
-                      targetAdu: targetAdu,
-                      toleranceAdu: toleranceAdu,
-                    ),
-                  ),
-                if (state.showFilterCards)
-                  Expanded(child: _FilterProgressCards(state: state)),
+                NightshadeIconButton(
+                  icon: LucideIcons.lineChart,
+                  tooltip: 'ADU graph',
+                  size: IconButtonSize.sm,
+                  selected: state.showAduGraph,
+                  onPressed: () => ref
+                      .read(flatWizardProvider.notifier)
+                      .toggleAduGraph(!state.showAduGraph),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                NightshadeIconButton(
+                  icon: LucideIcons.layoutGrid,
+                  tooltip: 'Filter cards',
+                  size: IconButtonSize.sm,
+                  selected: state.showFilterCards,
+                  onPressed: () => ref
+                      .read(flatWizardProvider.notifier)
+                      .toggleFilterCards(!state.showFilterCards),
+                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
 
-class _ToggleButton extends StatelessWidget {
-  final IconData icon;
-  final bool isActive;
-  final VoidCallback onTap;
-  final String tooltip;
+          // Visualization content.
+          //
+          // Side by side only when there is room for two: on a phone the
+          // region is ~360 wide, and splitting it gave each half a ~98px
+          // column that could hold neither a chart nor its empty state.
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final graph = state.showAduGraph
+                    ? _AduConvergenceGraph(
+                        history: state.aduHistory,
+                        targetAdu: targetAdu,
+                        toleranceAdu: toleranceAdu,
+                      )
+                    : null;
+                final cards = state.showFilterCards
+                    ? _FilterProgressCards(state: state)
+                    : null;
 
-  const _ToggleButton({
-    required this.icon,
-    required this.isActive,
-    required this.onTap,
-    required this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
-    return NightshadeTooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          margin: const EdgeInsets.only(left: 4),
-          decoration: isActive
-              ? NightshadeDecorations.tintedBadge(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                )
-              : const BoxDecoration(
-                  borderRadius: BorderRadius.all(
-                      Radius.circular(NightshadeTokens.radiusSm)),
-                ),
-          child: Icon(
-            icon,
-            size: 16,
-            color: isActive ? colors.primary : colors.textMuted,
+                if (constraints.maxWidth < _sideBySideWidth) {
+                  // The convergence chart is the section's subject; the filter
+                  // cards stand in only when it is switched off.
+                  return graph ?? cards ?? const SizedBox.shrink();
+                }
+                return Row(
+                  children: [
+                    if (graph != null) Expanded(child: graph),
+                    if (cards != null) Expanded(child: cards),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -58,8 +58,8 @@ void main() {
     // Open the row menu on the FIRST device and rename it.
     await tester.tap(find.byType(PopupMenuButton<String>).first);
     await tester.pumpAndSettle();
-    expect(find.text('Rename Device'), findsOneWidget);
-    await tester.tap(find.text('Rename Device'));
+    expect(find.text('Rename device'), findsOneWidget);
+    await tester.tap(find.text('Rename device'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), "Sean's Pixel");
@@ -102,7 +102,7 @@ void main() {
 
     await tester.tap(find.byType(PopupMenuButton<String>).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rename Device'));
+    await tester.tap(find.text('Rename device'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), '   ');

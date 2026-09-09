@@ -39,10 +39,10 @@ void main() {
     expect(tester.takeException(), isNull);
 
     for (final tab in const [
-      'Multi-Filter Batch',
-      'Sky Flats',
-      'Quick Capture',
-      'Sky Flats',
+      'Multi-filter batch',
+      'Sky flats',
+      'Quick capture',
+      'Sky flats',
     ]) {
       await tester.tap(find.text(tab).first);
       await _drain(tester);

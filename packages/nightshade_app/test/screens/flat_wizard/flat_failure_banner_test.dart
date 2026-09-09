@@ -94,21 +94,39 @@ void main() {
       ),
     );
 
-    expect(find.text('Flat capture failed - no frames were saved.'),
-        findsOneWidget);
+    // NightshadeBanner draws the title and the message as ONE Text.rich, so
+    // the assertions read the rich text rather than a per-sentence Text.
     expect(
-      find.textContaining('brightness barely changed while the exposure grew '
-          '176x'),
+      find.textContaining(
+        'Flat capture failed - no frames were saved.',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
-    expect(find.textContaining('1364 ADU against 1049'), findsOneWidget);
     expect(
-      find.textContaining('Check the flat panel is switched on'),
+      find.textContaining(
+        'brightness barely changed while the exposure grew 176x',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('1364 ADU against 1049', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Check the flat panel is switched on',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     // The solver's own per-filter reason, surfaced rather than dropped.
     expect(
-      find.text('R: Max exposure reached but still under target'),
+      find.textContaining(
+        'R: Max exposure reached but still under target',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
   });
@@ -154,11 +172,16 @@ void main() {
 
     expect(
       find.textContaining(
-          'even at the 0.001 s minimum exposure the frame reached 48000 ADU'),
+        'even at the 0.001 s minimum exposure the frame reached 48000 ADU',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Dim the panel or lower the camera gain'),
+      find.textContaining(
+        'Dim the panel or lower the camera gain',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
   });
@@ -167,9 +190,22 @@ void main() {
       (tester) async {
     await _pump(tester, _failedRun(history: const []));
 
-    expect(find.text('Flat capture failed - no frames were saved.'),
-        findsOneWidget);
-    expect(find.textContaining('maximum exposure'), findsNothing);
-    expect(find.textContaining('brightness barely changed'), findsNothing);
+    // NightshadeBanner draws the title and the message as ONE Text.rich, so
+    // the assertions read the rich text rather than a per-sentence Text.
+    expect(
+      find.textContaining(
+        'Flat capture failed - no frames were saved.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('maximum exposure', findRichText: true),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('brightness barely changed', findRichText: true),
+      findsNothing,
+    );
   });
 }

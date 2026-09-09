@@ -40,7 +40,6 @@
 // diagnostics_responsive_test.dart for the phone-size/orientation coverage.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/diagnostics/diagnostic_dump_screen.dart';
@@ -132,12 +131,13 @@ void main() {
             'when allSessionsProvider is empty and no session is active.');
   });
 
-  // The chip was a bare InkWell: it published a tap action but no role, so a
-  // screen reader announced the sentence as static text with no hint that it
-  // opens the guide.
-  testWidgets('learn-more chip announces itself as a button', (tester) async {
-    final semantics = tester.ensureSemantics();
-
+  // 07 "What NOT to do": no inline explainer paragraph, no "Learn more" link.
+  // The tab used to carry both above the content — a sentence describing the
+  // screen to someone already looking at it, and an accent link into a modal
+  // guide. The EmptyState alone carries the guidance now; screen-level help
+  // lives in the top-bar help popover.
+  testWidgets('carries no inline explainer and no learn-more link',
+      (tester) async {
     await pumpAppScreen(
       tester,
       const DiagnosticsScreen(),
@@ -147,39 +147,18 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    final data = tester
-        .getSemantics(find.text('Learn more about optical diagnostics'))
-        .getSemanticsData();
     expect(
-      data.hasFlag(SemanticsFlag.isButton),
-      isTrue,
-      reason: 'the learn-more chip must carry the button role',
+      find.text('Learn more about optical diagnostics'),
+      findsNothing,
+      reason: 'the "Learn more" link is forbidden by 07 "What NOT to do"',
     );
-    expect(data.hasAction(SemanticsAction.tap), isTrue);
-    expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
-
-    semantics.dispose();
-  });
-
-  testWidgets('learn-more chip opens the in-app interpretation guide',
-      (tester) async {
-    await pumpAppScreen(
-      tester,
-      const DiagnosticsScreen(),
-      size: const Size(430, 820),
-      settle: false,
-      extraOverrides: _diagnosticsOverrides(),
+    expect(
+      find.textContaining('Optical-train health across the whole session'),
+      findsNothing,
+      reason: 'the inline explainer paragraph is forbidden by 02 rule 5',
     );
-    await _drainAsyncFrames(tester);
-
-    await tester.tap(find.text('Learn more about optical diagnostics'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Reading optical diagnostics'), findsOneWidget);
-    expect(find.text('Scores and grade'), findsOneWidget);
-    expect(find.textContaining('Tilt: star size changes'), findsOneWidget);
-    expect(find.text('Close'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    // The guidance the screen still owes the operator.
+    expect(find.text('Select an imaging session to analyze'), findsOneWidget);
   });
 
   // DiagnosticDumpScreen — bug-report attachment surface

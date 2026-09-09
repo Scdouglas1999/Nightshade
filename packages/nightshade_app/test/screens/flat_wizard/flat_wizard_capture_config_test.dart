@@ -66,7 +66,14 @@ void main() {
       lights: _lights,
     );
 
-    expect(find.text('Gain 100  ·  Offset 50  ·  Bin 1×1'), findsWidgets);
+    // The run-on mono line became a KeyValueList: each value is its own
+    // Text, keyed by its own label.
+    expect(find.text('Gain'), findsWidgets);
+    expect(find.text('100'), findsWidgets);
+    expect(find.text('Offset'), findsWidgets);
+    expect(find.text('50'), findsWidgets);
+    expect(find.text('Binning'), findsWidgets);
+    expect(find.text('1×1'), findsWidgets);
   });
 
   testWidgets('a flat/light offset divergence is called out', (tester) async {
@@ -81,9 +88,11 @@ void main() {
       lights: _lights,
     );
 
-    expect(find.text('Gain 100  ·  Offset 10  ·  Bin 1×1'), findsWidgets);
+    expect(find.text('Gain'), findsWidgets);
+    expect(find.text('100'), findsWidgets);
+    expect(find.text('10'), findsWidgets);
     expect(
-      find.textContaining('These flats will not match your light frames'),
+      find.textContaining('These flats will not match your lights'),
       findsWidgets,
     );
     expect(find.textContaining('offset 10 vs 50'), findsWidgets);
@@ -102,7 +111,7 @@ void main() {
     );
 
     expect(
-      find.textContaining('These flats will not match your light frames'),
+      find.textContaining('These flats will not match your lights'),
       findsNothing,
     );
   });

@@ -17,6 +17,18 @@ part 'flat_preview_panel_parts/_convergence_and_filters.dart';
 class FlatPreviewPanel extends ConsumerWidget {
   const FlatPreviewPanel({super.key});
 
+  /// Below this height the panel scrolls with fixed regions instead of
+  /// fighting a flex split for pixels.
+  static const double _shortThreshold = 560;
+
+  /// Frame height in the scrolled (short) layout.
+  static const double _shortPreviewHeight = 260;
+
+  /// Convergence height in the scrolled (short) layout. Sized so the section
+  /// title, the panel padding and an EmptyState all fit: at 220 the empty
+  /// state was clipped by 200px.
+  static const double _shortVisualizationsHeight = 300;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(flatWizardProvider);
@@ -36,18 +48,21 @@ class FlatPreviewPanel extends ConsumerWidget {
         // flex split would crush the visualization charts into overflow.
         // Below a threshold, scroll the panel with sensible fixed heights
         // instead of fighting for pixels.
-        final isShort =
-            constraints.maxHeight.isFinite && constraints.maxHeight < 560;
+        final isShort = constraints.maxHeight.isFinite &&
+            constraints.maxHeight < _shortThreshold;
 
         if (isShort) {
           return SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: 260, child: imagePreview),
+                SizedBox(height: _shortPreviewHeight, child: imagePreview),
                 statsBar,
                 if (countdown != null) countdown,
-                SizedBox(height: 220, child: visualizations),
+                SizedBox(
+                  height: _shortVisualizationsHeight,
+                  child: visualizations,
+                ),
               ],
             ),
           );
@@ -84,31 +99,29 @@ class _ImagePreview extends StatelessWidget {
     // depending on how setLastImage was called. We handle both for robustness.
     final CapturedImageResult? imageResult = _extractImageResult();
 
+    // A flush panel: the frame runs edge to edge under it, clipped to the
+    // panel radius (02 rule 1, 05 §1).
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: NightshadeCard(
-        variant: CardVariant.standard,
-        borderRadius: NightshadeTokens.radiusInline8,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
-          child: Stack(
-            children: [
-              // Image or empty state
-              Positioned.fill(
-                child: imageResult != null
-                    ? _buildImage(imageResult, colors)
-                    : _buildEmptyState(colors),
-              ),
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: NightshadePanel(
+        flush: true,
+        child: Stack(
+          children: [
+            // Image or empty state
+            Positioned.fill(
+              child: imageResult != null
+                  ? _buildImage(imageResult, colors)
+                  : _buildEmptyState(),
+            ),
 
-              // Histogram overlay (top right)
-              if (showHistogram && imageResult != null)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: _buildHistogramOverlay(imageResult, colors),
-                ),
-            ],
-          ),
+            // Histogram overlay (top right)
+            if (showHistogram && imageResult != null)
+              Positioned(
+                top: NightshadeTokens.spaceMd,
+                right: NightshadeTokens.spaceMd,
+                child: _buildHistogramOverlay(imageResult, colors),
+              ),
+          ],
         ),
       ),
     );
@@ -135,7 +148,7 @@ class _ImagePreview extends StatelessWidget {
     }
 
     if (displayBytes.isEmpty || result.width <= 0 || result.height <= 0) {
-      return _buildEmptyState(colors);
+      return _buildEmptyState();
     }
 
     return AstroImageViewer(
@@ -150,43 +163,16 @@ class _ImagePreview extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState(NightshadeColors colors) {
-    // Centered but scroll-safe: when the preview region is short (phone), the
+  Widget _buildEmptyState() {
+    // The one empty-state pattern (05 §12), not a 64px icon over two hand-
+    // toned Texts. Scroll-safe: when the preview region is short (phone), the
     // placeholder must not overflow its Stack/Positioned.fill bounds.
-    return SingleChildScrollView(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 0),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                LucideIcons.image,
-                size: 64,
-                color: colors.textMuted,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No flat captured yet',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Start capture or test exposure to see preview',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textMuted.withValues(alpha: 0.7),
-                  fontSize: NightshadeTypography.fontSize12,
-                ),
-              ),
-            ],
-          ),
+    return const SingleChildScrollView(
+      child: Center(
+        child: EmptyState.compact(
+          icon: LucideIcons.image,
+          title: 'No flat captured yet',
+          body: 'Start a capture or a test exposure to see the frame here.',
         ),
       ),
     );

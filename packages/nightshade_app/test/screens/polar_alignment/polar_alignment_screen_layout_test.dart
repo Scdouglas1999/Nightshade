@@ -136,7 +136,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       final start = tester.widget<NightshadeButton>(
-        find.widgetWithText(NightshadeButton, 'Start Alignment'),
+        find.widgetWithText(NightshadeButton, 'Start alignment'),
       );
       expect(start.onPressed, isNull);
       expect(
@@ -174,7 +174,7 @@ void main() {
         reason: 'Layout should not overflow at mount-tab dialog dimensions',
       );
 
-      expect(find.text('Three-Point Polar Alignment'), findsOneWidget);
+      expect(find.text('Three-point polar alignment'), findsOneWidget);
     },
   );
 

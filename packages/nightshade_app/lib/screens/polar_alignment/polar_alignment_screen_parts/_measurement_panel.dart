@@ -123,7 +123,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                                 size: 12, color: colors.success),
                             const SizedBox(width: 6),
                             Text(
-                              'Plate Solved',
+                              'Plate solved',
                               style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w600,
@@ -299,8 +299,8 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
 
     // Direction text - use Left/Right/Up/Down as per UX design. Both point
     // the opposite way from the bullseye marker (the correction direction).
-    final azDir = error != null ? error.azimuthAdjustment : '--';
-    final altDir = error != null ? error.altitudeAdjustment : '--';
+    final azDir = error != null ? error.azimuthAdjustment : kReadoutUnknown;
+    final altDir = error != null ? error.altitudeAdjustment : kReadoutUnknown;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -378,7 +378,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
             mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,
             children: [
               Text(
-                'Adjust Mount',
+                'Adjust mount',
                 style:
                     NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
@@ -408,7 +408,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                 )
               else
                 Text(
-                  '--',
+                  kReadoutUnknown,
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize22,
                     fontWeight: FontWeight.bold,
@@ -442,7 +442,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                 )
               else
                 Text(
-                  '--',
+                  kReadoutUnknown,
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize22,
                     fontWeight: FontWeight.bold,
@@ -456,7 +456,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
 
               // Total error
               Text(
-                'Total Error',
+                'Total error',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
@@ -478,7 +478,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                 )
               else
                 Text(
-                  '--',
+                  kReadoutUnknown,
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize28,
                     fontWeight: FontWeight.bold,

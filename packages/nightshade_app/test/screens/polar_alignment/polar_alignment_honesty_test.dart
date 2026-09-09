@@ -115,8 +115,8 @@ void main() {
       alignmentState: _completed(initialTotal: 1800, finalTotal: 1800),
     );
 
-    expect(find.text('Alignment Complete'), findsNothing);
-    expect(find.text('Alignment Stopped'), findsOneWidget);
+    expect(find.text('Alignment complete'), findsNothing);
+    expect(find.text('Alignment stopped'), findsOneWidget);
     expect(find.text('+0%'), findsNothing);
     expect(find.text('No change'), findsOneWidget);
   });
@@ -127,7 +127,7 @@ void main() {
       alignmentState: _completed(initialTotal: 1800, finalTotal: 1900),
     );
 
-    expect(find.text('Alignment Stopped'), findsOneWidget);
+    expect(find.text('Alignment stopped'), findsOneWidget);
     expect(find.text('Worse'), findsOneWidget);
   });
 
@@ -138,13 +138,13 @@ void main() {
       alignmentState: _completed(initialTotal: 1800, finalTotal: 12),
     );
 
-    expect(find.text('Alignment Complete'), findsOneWidget);
+    expect(find.text('Alignment complete'), findsOneWidget);
     expect(find.text('+99%'), findsOneWidget);
   });
 
   testWidgets('idle All-Sky reticle does not claim acceptance', (tester) async {
     await _pumpScreen(tester);
-    await tester.tap(find.text('All-Sky'));
+    await tester.tap(find.text('All-sky'));
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Within acceptance — hold steady'), findsNothing);

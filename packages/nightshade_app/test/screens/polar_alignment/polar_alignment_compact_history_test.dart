@@ -70,9 +70,12 @@ void main() {
     // The operator is reading the Errors tab when they reach for History.
     await tester.tap(find.text('Errors'));
     await _settle(tester);
-    expect(find.text('Alignment History'), findsNothing);
+    expect(find.text('Alignment history'), findsNothing);
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'History'));
+    // On a phone the header's History control is an icon button — the label
+    // does not fit beside the title and the primary — so it is found by the
+    // tooltip that names it.
+    await tester.tap(find.byTooltip('Show past alignment runs'));
     await _settle(tester);
 
     // No "Tried to modify a provider while the widget tree was building":
@@ -80,7 +83,7 @@ void main() {
     // provider through the TabController's own listener.
     expect(tester.takeException(), isNull);
 
-    final panel = find.text('Alignment History');
+    final panel = find.text('Alignment history');
     expect(
       panel,
       findsOneWidget,

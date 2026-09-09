@@ -131,7 +131,7 @@ void main() {
       reason: 'the run finished with a 3.2" result printed on the same screen',
     );
     // The numeric row it contradicted is still there.
-    expect(find.text('Total'), findsOneWidget);
+    expect(find.text('TOTAL'), findsOneWidget);
     expect(find.textContaining('3.2"'), findsWidgets);
   });
 
@@ -139,7 +139,7 @@ void main() {
       (tester) async {
     await _pumpScreen(tester, _completedRun);
 
-    expect(find.text('Alignment Complete'), findsOneWidget);
+    expect(find.text('Alignment complete'), findsOneWidget);
     expect(
       find.text('Worse'),
       findsNothing,
