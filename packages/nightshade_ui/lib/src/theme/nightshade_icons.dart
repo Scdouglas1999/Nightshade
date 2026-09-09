@@ -12,8 +12,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 ///
 /// - Every value is a Lucide [IconData] (the go-forward family). Where a
 ///   Material icon in the screens has no clean Lucide equivalent, the migration
-///   map (`docs/design/icon-migration-map.md`) flags it to KEEP Material rather
-///   than pick a misleading glyph — those are intentionally absent here.
+///   map (`docs/design/overhaul/archive/icon-migration-map.md`) flags it to KEEP
+///   Material rather than pick a misleading glyph — those are intentionally
+///   absent here.
 /// - Names are *semantic* (the thing the icon means), not glyph names. Prefer
 ///   [delete] over `trash2`, [error] over `xCircle`. A few low-level glyph-named
 ///   members (e.g. [circle], [square], [dot]) are kept where the icon genuinely

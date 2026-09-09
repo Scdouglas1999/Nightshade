@@ -1,5 +1,10 @@
 # Screen icon-migration map (Material `Icons.*` → `NightshadeIcons` / Lucide)
 
+> **Archived 2026-09-09.** This map records the Material → Lucide pass on the 7.0.0
+> screens, including the handful of glyphs it deliberately kept as Material. It is history,
+> not guidance. Lucide via `NightshadeIcons` is the icon family; see
+> [`../05-components.md`](../05-components.md) for how icons are sized and coloured.
+
 This is the canonical "Material icon → semantic icon" mapping for the
 per-directory migration of `packages/nightshade_app/lib/screens` onto the
 `nightshade_ui` design system. Lucide is the **go-forward** icon family (the

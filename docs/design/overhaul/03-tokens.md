@@ -209,7 +209,7 @@ used directly by Nightshade widgets.
 | `radiusInline2` | 4 | 2 | fold into Xs |
 | `radiusInline4` | 4 | 4 | = Xs |
 | `radiusInline8` | 8 | 8 | = Lg |
-| `radiusInline9/11/12/…` | nearest of 4/6/8/12 | | see `docs/design/token-migration-map.md`; round 9→8, 11→12, 12→12, 14+→12 |
+| `radiusInline9/11/12/…` | nearest of 4/6/8/12 | | see `docs/design/overhaul/archive/token-migration-map.md`; round 9→8, 11→12, 12→12, 14+→12 |
 
 Edit: `theme/nightshade_tokens.dart`, change the constants. Because 979 call sites in
 `packages/nightshade_app/lib` already reference `NightshadeTokens.radiusInline*` / `radius*`, the

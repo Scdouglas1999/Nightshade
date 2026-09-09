@@ -45,7 +45,7 @@ abstract final class NightshadeTypography {
   // mechanical, look-preserving migration, after which a design pass can fold
   // call sites onto the semantic named styles. Do NOT introduce new off-scale
   // sizes in fresh code — adopt a named style instead. Full literal→token
-  // mapping table: docs/design/token-migration-map.md.
+  // mapping table: docs/design/overhaul/archive/token-migration-map.md.
 
   static const double fontSize8 = 8.0;
   static const double fontSize9 = 9.0;
