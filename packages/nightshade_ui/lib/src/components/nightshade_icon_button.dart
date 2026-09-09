@@ -162,6 +162,10 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
           );
 
     return Semantics(
+      // Own node: without `container` the name and flags merge into the
+      // neighbouring semantics node (a dialog title swallowed its close
+      // button's label), which un-names every icon button for a screen reader.
+      container: true,
       button: true,
       enabled: !disabled,
       label: widget.tooltip,
