@@ -12,7 +12,6 @@ import '../framing/framing_screen.dart';
 import '../planetarium/planetarium_screen.dart';
 import '../planetarium/show_in_sky.dart';
 import '../accessible_dropdown.dart';
-import '../suggestions/widgets/transient_alerts_panel.dart';
 import '../your_sky/your_sky_screen.dart';
 import '../constellation/constellation_screen.dart';
 import '../collaborative_sky/collaborative_sky_screen.dart';
@@ -20,7 +19,6 @@ import '../../localization/nightshade_localizations.dart';
 import '../../utils/authority_bound_dialog.dart';
 import '../../utils/darkroom_navigation.dart' show unavailableControlName;
 import '../../utils/plan_tonight_sequencer_helper.dart';
-import '../../widgets/touch_target_floor.dart';
 import 'widgets/progress_tab_content.dart';
 import 'widgets/projects_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
@@ -248,7 +246,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       (
         PlannerTab.recommendation,
         AdaptiveTab(
-          label: l10n.text('plannerTabRecommendation'),
+          label: l10n.text('plannerTabTonight'),
           icon: LucideIcons.sparkles,
         ),
       ),
@@ -283,7 +281,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       (
         PlannerTab.discover,
         AdaptiveTab(
-          label: l10n.text('plannerTabDiscover'),
+          label: l10n.text('plannerTabYourSky'),
           icon: LucideIcons.orbit,
         ),
       ),
@@ -295,23 +293,13 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       'its enum index and the list must cover every value.',
     );
 
-    // On a phone the bottom nav already names the screen, so the standalone
-    // ~56px "Plan Tonight" title row is dead vertical space — costly on a short
-    // landscape phone (e.g. a Fold cover screen). Fold a compact title inline to
-    // the left of the (scrollable) tab strip so the two collapse into a single
-    // row. Tablet/desktop keep the full title header above the tabs.
-    final isPhone = Responsive.isPhone(context);
-    final keyboardCompact =
-        isPhone && MediaQuery.viewInsetsOf(context).bottom > 0;
-
     final tabBar = AdaptiveTabBar(
       tabs: [for (final t in tabs) t.$2],
       selectedIndex: _currentSubTab,
       onSelected: (index) => setState(() => _currentSubTab = index),
-      // On phone the leading title icon already supplies the left inset, so the
-      // tab strip starts tight against it.
-      horizontalPadding:
-          isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceLg,
+      // The page header owns the 24px gutter, so the strip starts flush
+      // against the title block.
+      horizontalPadding: 0,
     );
 
     return Scaffold(
@@ -321,52 +309,12 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         bottom: false,
         child: Column(
           children: [
-            // Title + sub-tabs share ONE row on every form factor: the title
-            // folds inline to the left of the tab strip — icon-only on a phone,
-            // icon + label on tablet/desktop.
-            // While a phone keyboard is open, the focused search field is the
-            // active navigation context. Temporarily reclaim the tab strip's
-            // height so the controls row still fits in a short landscape
-            // viewport; it returns unchanged when the keyboard closes.
-            if (!keyboardCompact)
-              Container(
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  border: Border(bottom: BorderSide(color: colors.border)),
-                ),
-                child: Row(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(
-                        left: NightshadeTokens.spaceLg,
-                        right: isPhone
-                            ? NightshadeTokens.spaceSm
-                            : NightshadeTokens.spaceMd,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            LucideIcons.moonStar,
-                            size: 18,
-                            color: colors.primary,
-                          ),
-                          if (!isPhone) ...[
-                            const SizedBox(width: NightshadeTokens.spaceSm),
-                            Text(
-                              context.l10n.text('plannerTitle'),
-                              style: NightshadeTypography.h5.copyWith(
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Expanded(child: tabBar),
-                  ],
-                ),
-              ),
+            PageHeader(
+              icon: LucideIcons.compass,
+              title: l10n.text('plannerTitleShort'),
+              tabs: tabBar,
+              actions: const [_PlanNightChips()],
+            ),
             Expanded(
               child: IndexedStack(
                 index: _currentSubTab,
@@ -375,10 +323,11 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                 //
                 // The last three are heavy LIVE-SKY views (HiPS tile maps with
                 // time-ticking sky rotation, plus the animated living-sky in
-                // Discover). IndexedStack keeps every child BUILT — which is what
-                // we want for state preservation — but it does NOT pause their
-                // animations when off-tab, so all four ran their 60fps repaints
-                // at once and pegged idle CPU (~78%), flashing the panel.
+                // Your sky). IndexedStack keeps every child BUILT — which is
+                // what we want for state preservation — but it does NOT pause
+                // their animations when off-tab, so all four ran their 60fps
+                // repaints at once and pegged idle CPU (~78%), flashing the
+                // panel.
                 //
                 // Wrap each heavy view in a TickerMode gated on "is this the
                 // active tab". TickerMode mutes every AnimationController/Ticker

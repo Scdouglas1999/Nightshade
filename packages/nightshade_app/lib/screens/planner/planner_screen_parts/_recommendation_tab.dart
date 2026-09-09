@@ -1,9 +1,14 @@
-// Owns the Recommendation tab: its state notifier, scroll-driven pagination, and the orchestrating build/error/loading scaffolding around primary card + candidate list + risk/rationale sections.
+// Owns the Tonight tab: its selection state, scroll-driven pagination, and the
+// two-column body (candidate list | 380px detail column) with the single
+// empty / loading / error pattern around it.
 part of '../planner_screen.dart';
 
-/// "Recommendation" tab — the original Plan Tonight body. Kept as a separate
-/// widget so the search/filter state and infinite-scroll machinery stay
-/// scoped to this tab (the other tabs don't need it).
+/// "Tonight" tab — the planner's scoring surface.
+///
+/// Two columns: the filtered candidate list on the left, and the selected
+/// target's detail column on the right. Kept as a separate widget so the
+/// search / filter state and the infinite-scroll machinery stay scoped to this
+/// tab (the other tabs don't need it).
 class _RecommendationTab extends ConsumerStatefulWidget {
   const _RecommendationTab();
 
@@ -12,9 +17,13 @@ class _RecommendationTab extends ConsumerStatefulWidget {
 }
 
 class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
-  int? _selectedAlternateIndex;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+
+  /// The candidate the detail column describes, or null to follow the
+  /// optimizer's pick. Held as a target id, not an index, so a filter change
+  /// that reorders the list keeps the same target selected.
+  int? _selectedTargetId;
 
   @override
   void initState() {
@@ -82,21 +91,21 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
               keyboardCompact: keyboardCompact,
             ),
             Expanded(
-              // NEVER FLASH: the optimization plan refreshes whenever its inputs
-              // change (location, the 30s state re-hydration, a real target/profile
-              // edit). `when(loading:)` would drop the whole tab to a skeleton on
-              // every one of those, blanking the screen even when the result is
-              // identical. Instead, keep rendering the LAST good plan while a
-              // refresh is in flight (Riverpod retains the previous value across a
-              // reload), and only fall back to the skeleton on the very first load
-              // or the error screen when there is no value to keep showing. The
-              // content updates seamlessly in place when new data actually arrives.
+              // NEVER FLASH: the optimization plan refreshes whenever its
+              // inputs change (location, the 30s state re-hydration, a real
+              // target/profile edit). `when(loading:)` would drop the whole tab
+              // to a skeleton on every one of those, blanking the screen even
+              // when the result is identical. Instead, keep rendering the LAST
+              // good plan while a refresh is in flight (Riverpod retains the
+              // previous value across a reload), and only fall back to the
+              // skeleton on the very first load or the error screen when there
+              // is no value to keep showing.
               child: _whenWithPrevious<SessionOptimizationPlan>(
                 planAsync,
-                data: (plan) =>
-                    _buildBody(context, colors, plan, candidatesAsync),
+                data: (plan) => _buildBody(context, colors, plan,
+                    candidatesAsync, constraints.maxWidth),
                 loading: () => _buildLoadingState(colors),
-                error: (error) => _buildErrorState(context, colors, error),
+                error: (error) => _buildErrorState(context, error),
               ),
             ),
           ],
@@ -125,13 +134,37 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     NightshadeColors colors,
     SessionOptimizationPlan plan,
     AsyncValue<List<TargetSuggestion>> candidatesAsync,
+    double availableWidth,
   ) {
     return _whenWithPrevious<List<TargetSuggestion>>(
       candidatesAsync,
-      data: (candidates) => _buildContent(context, colors, plan, candidates),
+      data: (candidates) =>
+          _buildContent(context, colors, plan, candidates, availableWidth),
       loading: () => _buildLoadingState(colors),
-      error: (error) => _buildErrorState(context, colors, error),
+      error: (error) => _buildErrorState(context, error),
     );
+  }
+
+  /// The candidate the detail column describes: the user's pick when it is
+  /// still in the filtered list, else the optimizer's, else the top row.
+  TargetSuggestion? _effectiveSelection(
+    SessionOptimizationPlan plan,
+    List<TargetSuggestion> candidates,
+  ) {
+    if (candidates.isEmpty) return null;
+    final chosen = _selectedTargetId;
+    if (chosen != null) {
+      for (final candidate in candidates) {
+        if (candidate.targetId == chosen) return candidate;
+      }
+    }
+    final optimizerPick = plan.primaryTarget;
+    if (optimizerPick != null) {
+      for (final candidate in candidates) {
+        if (candidate.targetId == optimizerPick.targetId) return candidate;
+      }
+    }
+    return candidates.first;
   }
 
   Widget _buildContent(
@@ -139,164 +172,64 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     NightshadeColors colors,
     SessionOptimizationPlan plan,
     List<TargetSuggestion> candidates,
+    double availableWidth,
   ) {
-    final l10n = context.l10n;
+    if (candidates.isEmpty) return _PlannerFilteredEmptyState(colors: colors);
 
-    // Determine the effective primary (optimizer pick, alternate override,
-    // or — when filters strip the optimizer pick out — fall back to the top
-    // candidate in the filtered list).
-    TargetSuggestion? effectivePrimary;
-    if (_selectedAlternateIndex != null &&
-        plan.alternates.isNotEmpty &&
-        _selectedAlternateIndex! < plan.alternates.length) {
-      effectivePrimary = plan.alternates[_selectedAlternateIndex!];
-    } else if (plan.primaryTarget != null) {
-      effectivePrimary = plan.primaryTarget;
-    } else if (candidates.isNotEmpty) {
-      effectivePrimary = candidates.first;
+    final selected = _effectiveSelection(plan, candidates);
+    final list = _CandidateList(
+      candidates: candidates,
+      colors: colors,
+      scrollController: _scrollController,
+      selectedTargetId: selected?.targetId,
+      onSelect: (target) => setState(() => _selectedTargetId = target.targetId),
+    );
+
+    // Below the shell's layout breakpoint the two panes cannot both hold their
+    // measurements, so they stack: the target you are about to act on first,
+    // then the list you would pick a different one from.
+    final narrow = availableWidth < ShellChromeMetrics.shellLayoutBreakpoint;
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (selected != null)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: _TargetDetailColumn(
+                target: selected,
+                plan: plan,
+                bottomPinned: false,
+                onFrameIt: () => _sendToFraming(context, ref, selected),
+                onBuildSequence: () =>
+                    _createSequence(context, colors, selected, plan),
+              ),
+            ),
+          Expanded(child: list),
+        ],
+      );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile =
-            constraints.maxWidth < NightshadeTokens.breakpointTablet;
-        final padding = isMobile
-            ? NightshadeTokens.screenPaddingCompact
-            : NightshadeTokens.screenPadding;
-
-        return SingleChildScrollView(
-          controller: _scrollController,
-          padding: padding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Authoritative headline: a READ-ONLY preview of the live
-              // SchedulerEngine's decision — the exact target the autopilot
-              // would slew to right now. This is what the rig runs; the
-              // suggestion-based card below is the whole-night OUTLOOK
-              // supplement (peak altitude / transit / window hours), not a
-              // competing #1 ranker.
-              _AutopilotPreviewBanner(colors: colors),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              const TransientAlertsPanel(initiallyExpanded: false),
-              const SizedBox(height: NightshadeTokens.space2xl),
-              if (effectivePrimary != null) ...[
-                _OutlookSectionLabel(colors: colors),
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                _PrimaryTargetCard(
-                  target: effectivePrimary,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: list),
+        SidePanel(
+          width: _kPlannerDetailWidth,
+          child: selected == null
+              ? const SizedBox.shrink()
+              : _TargetDetailColumn(
+                  target: selected,
                   plan: plan,
-                  colors: colors,
-                  isMobile: isMobile,
-                  isOverride: _selectedAlternateIndex != null,
-                  onSendToFraming: () =>
-                      _sendToFraming(context, ref, effectivePrimary!),
+                  bottomPinned: true,
+                  onFrameIt: () => _sendToFraming(context, ref, selected),
+                  onBuildSequence: () =>
+                      _createSequence(context, colors, selected, plan),
                 ),
-                const SizedBox(height: NightshadeTokens.spaceLg),
-                SizedBox(
-                  width: double.infinity,
-                  child: NightshadeButton(
-                    label: l10n.text('plannerReviewInSequencer'),
-                    icon: LucideIcons.listOrdered,
-                    variant: ButtonVariant.primary,
-                    onPressed: () => _createSequence(
-                      context,
-                      colors,
-                      effectivePrimary!,
-                      plan,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                Text(
-                  l10n.text('plannerReviewHint'),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.space2xl),
-              ],
-              SectionHeader(
-                title: candidates.isEmpty
-                    ? 'No matching candidates'
-                    : 'Tonight’s candidates',
-                subtitle: candidates.isEmpty
-                    ? 'Adjust the filters on this tab to bring more targets back.'
-                    : '${candidates.length} target${candidates.length == 1 ? '' : 's'} after filters',
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              if (candidates.isEmpty)
-                _FilteredEmptyState(colors: colors)
-              else
-                _CandidateList(
-                  candidates: candidates,
-                  colors: colors,
-                  isMobile: isMobile,
-                ),
-
-              if (ref
-                      .watch(suggestionFilterProvider)
-                      .searchQuery
-                      .trim()
-                      .length >=
-                  2)
-                _InstalledCatalogResultsSection(
-                  query: ref.watch(suggestionFilterProvider).searchQuery.trim(),
-                  colors: colors,
-                ),
-
-              // External SIMBAD name resolver — shows up only when the user
-              // is actively searching and either nothing local matched or
-              // they want to broaden beyond the installed catalog. Reads the
-              // current search query via ref so this method doesn't need a
-              // filter parameter just to gate one widget.
-              if (ref
-                      .watch(suggestionFilterProvider)
-                      .searchQuery
-                      .trim()
-                      .length >=
-                  3)
-                _SimbadResultsSection(
-                  query: ref.watch(suggestionFilterProvider).searchQuery.trim(),
-                  colors: colors,
-                  hasLocalMatches: candidates.isNotEmpty,
-                ),
-
-              if (plan.riskFactors.isNotEmpty) ...[
-                const SizedBox(height: NightshadeTokens.space2xl),
-                SectionHeader(
-                  title: l10n.text('plannerRiskFactors'),
-                  subtitle: l10n.text('plannerRiskFactorsSubtitle'),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                _RiskFactorsList(riskFactors: plan.riskFactors, colors: colors),
-              ],
-              if (plan.rationale.isNotEmpty) ...[
-                const SizedBox(height: NightshadeTokens.space2xl),
-                SectionHeader(
-                  title: l10n.text('plannerRationale'),
-                  // The rationale is always about the OPTIMIZER's pick, which
-                  // is not necessarily the card above it: a search or filter
-                  // can leave a different hero card on screen, and then the
-                  // generic "Why this plan was chosen" read as an explanation
-                  // of that card while contradicting every number on it. Name
-                  // the target the numbers belong to.
-                  subtitle: plan.primaryTarget == null
-                      ? l10n.text('plannerRationaleSubtitle')
-                      : l10n.text(
-                          'plannerRationaleSubtitleNamed',
-                          params: {'target': plan.primaryTarget!.targetName},
-                        ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                _RationaleList(rationale: plan.rationale, colors: colors),
-              ],
-            ],
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -361,86 +294,50 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
   Widget _buildLoadingState(NightshadeColors colors) {
     return ShimmerLoading(
       child: ListView.separated(
-        padding: NightshadeTokens.screenPadding,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.space2xl,
+          vertical: NightshadeTokens.spaceMd,
+        ),
         itemCount: 6,
         separatorBuilder: (_, __) =>
-            const SizedBox(height: NightshadeTokens.spaceMd),
+            const SizedBox(height: NightshadeTokens.spaceSm),
         itemBuilder: (_, __) => _CandidateSkeleton(colors: colors),
       ),
     );
   }
 
-  Widget _buildErrorState(
-    BuildContext context,
-    NightshadeColors colors,
-    Object error,
-  ) {
+  /// The one error surface for this tab. A missing observing site is not an
+  /// error the user caused, so it reads as the screen's single [EmptyState]
+  /// with the fix on it; anything else offers a retry.
+  Widget _buildErrorState(BuildContext context, Object error) {
+    final l10n = context.l10n;
     final isLocationError = error is StateError;
-    // On a phone in landscape the tab body is only ~200 px tall once the
-    // header/filters are subtracted, which is shorter than this icon + title +
-    // body + action column. Center it when there is room, but fall back to a
-    // scroll when the viewport is too short so the call-to-action button stays
-    // reachable instead of overflowing the bottom edge.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Padding(
-                padding: NightshadeTokens.screenPadding,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isLocationError
-                          ? LucideIcons.mapPin
-                          : LucideIcons.alertCircle,
-                      size: NightshadeTokens.icon2xl,
-                      color: isLocationError ? colors.warning : colors.error,
-                    ),
-                    const SizedBox(height: NightshadeTokens.spaceLg),
-                    Text(
-                      isLocationError
-                          ? context.l10n.text('plannerLocationMissingTitle')
-                          : context.l10n.text('plannerPlanFailedTitle'),
-                      style: NightshadeTypography.h4.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: NightshadeTokens.spaceSm),
-                    Text(
-                      isLocationError
-                          ? context.l10n.text('plannerLocationMissingBody')
-                          : context.l10n.text('plannerPlanFailedBody'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: NightshadeTokens.spaceXl),
-                    if (isLocationError)
-                      NightshadeButton(
-                        label: context.l10n.text('plannerOpenSettings'),
-                        icon: LucideIcons.mapPin,
-                        onPressed: () =>
-                            context.go('/settings?section=location'),
-                      )
-                    else
-                      NightshadeButton(
-                        label: context.l10n.text('plannerRetry'),
-                        icon: LucideIcons.refreshCw,
-                        onPressed: () =>
-                            ref.invalidate(_plannerOptimizationProvider),
-                      ),
-                  ],
+    return Center(
+      child: SingleChildScrollView(
+        child: isLocationError
+            ? EmptyState(
+                icon: LucideIcons.mapPin,
+                title: l10n.text('plannerNoSiteTitle'),
+                body: l10n.text('plannerNoSiteBody'),
+                action: NightshadeButton(
+                  label: l10n.text('plannerNoSiteAction'),
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: () => context.go('/settings?section=location'),
+                ),
+              )
+            : EmptyState(
+                icon: LucideIcons.alertCircle,
+                title: l10n.text('plannerPlanFailedTitle'),
+                body: l10n.text('plannerPlanFailedBody'),
+                action: NightshadeButton(
+                  label: l10n.text('plannerPlanFailedAction'),
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: () => ref.invalidate(_plannerOptimizationProvider),
                 ),
               ),
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 }

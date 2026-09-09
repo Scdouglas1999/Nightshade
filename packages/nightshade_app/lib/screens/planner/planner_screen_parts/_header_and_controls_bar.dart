@@ -1,7 +1,66 @@
 // Top-of-screen chrome: the planner header (title + icon) and the controls bar that arranges search, filter chips, and sort.
 part of '../planner_screen.dart';
 
+/// The two facts the page header carries about tonight: the moon's
+/// illumination and the astronomical-dark window.
+///
+/// Both are measured FROM the observing site, so with no site there is nothing
+/// to state and the chips are absent — the tab body's one `EmptyState` is then
+/// the single place that problem is represented (06 §Plan; 02 rule 5).
+class _PlanNightChips extends ConsumerWidget {
+  const _PlanNightChips();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = ref.watch(appObserverLocationProvider);
+    if (plannerSiteUnset(location)) return const SizedBox.shrink();
+
+    final now = DateTime.now();
+    final illumination = AstronomyCalculations.moonIllumination(now);
+    final twilight = AstronomyCalculations.calculateTwilightTimes(
+      date: now,
+      latitudeDeg: location!.latitude,
+      longitudeDeg: location.longitude,
+    );
+    final dusk = twilight.astronomicalDusk;
+    final dawn = twilight.astronomicalDawn;
+    final l10n = context.l10n;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        NightshadeChip(
+          icon: LucideIcons.moon,
+          label: l10n.text(
+            'plannerChipMoon',
+            params: {'value': illumination.round().toString()},
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        NightshadeChip(
+          icon: LucideIcons.clock,
+          label: dusk == null || dawn == null
+              ? l10n.text('plannerChipDarkNone')
+              : l10n.text(
+                  'plannerChipDark',
+                  params: {'start': _hhmm(dusk), 'end': _hhmm(dawn)},
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// 24-hour clock, zero-padded. `DateFormat.Hm()` would follow the device
+  /// locale into a 12-hour clock; every other time on this screen is 24-hour.
+  static String _hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:'
+      '${t.minute.toString().padLeft(2, '0')}';
+}
+
 // Controls bar (search, filters, sort)
+
+/// The search field's width on the desktop filter row (06 §Plan: "300 px
+/// search field").
+const double _kPlannerSearchWidth = 300;
 
 class _PlannerControlsBar extends ConsumerWidget {
   final NightshadeColors colors;
@@ -44,73 +103,70 @@ class _PlannerControlsBar extends ConsumerWidget {
       },
     );
 
+    // The row the mockup draws: a 300px search field, the two or three
+    // most-used filters, a "More" chip for the rest, and the sort right-
+    // aligned. Everything past "More" lives in the same sheet the phone
+    // layout has always used, so no filter loses its control.
+    final moreChip = _ControlChip(
+      colors: colors,
+      icon: LucideIcons.filter,
+      label: filters.activeCount > 0 ? 'More (${filters.activeCount})' : 'More',
+      active: filters.activeCount > 0,
+      onTap: () => _openFiltersSheet(
+        context,
+        ref,
+        constellations: constellations,
+        magRange: magRange,
+        sizeRange: sizeRange,
+      ),
+    );
+
     return Container(
       padding: EdgeInsets.fromLTRB(
-        NightshadeTokens.spaceLg,
-        keyboardCompact
-            ? 0
-            : isPhone
-                ? NightshadeTokens.spaceSm
-                : NightshadeTokens.spaceMd,
-        NightshadeTokens.spaceLg,
-        keyboardCompact ? 0 : NightshadeTokens.spaceSm,
+        isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+        keyboardCompact ? 0 : NightshadeTokens.spaceMd,
+        isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+        keyboardCompact ? 0 : NightshadeTokens.spaceMd,
       ),
       decoration: BoxDecoration(
-        color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
       child: isPhone
           ? Row(
               children: [
-                // Search and the Filters button share one compact row on phone
+                // Search and the Filters chip share one compact row on phone
                 // so the controls bar is a single strip rather than two stacked
-                // rows — reclaiming a whole row's height for the candidate list.
+                // rows — reclaiming a whole row's height for the candidate
+                // list.
                 Expanded(child: searchField),
                 const SizedBox(width: NightshadeTokens.spaceSm),
-                _FiltersSheetButton(
-                  colors: colors,
-                  activeCount: filters.activeCount,
-                  height: keyboardCompact ? 32 : 36,
-                  // With the software keyboard up the shell hands the whole
-                  // controls bar a ~34px slot, so the 48dp touch floor cannot
-                  // fit — asking for it there overflows the strip instead of
-                  // growing the target. The floor applies in the resting state,
-                  // which is the state a finger actually aims at.
-                  floorTouchTarget: !keyboardCompact,
-                  onTap: () => _openFiltersSheet(
-                    context,
-                    ref,
-                    constellations: constellations,
-                    magRange: magRange,
-                    sizeRange: sizeRange,
-                  ),
-                ),
-                if (filters.activeCount > 0 && !keyboardCompact) ...[
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  _ResetChip(
-                    colors: colors,
-                    onPressed: () => _resetFilters(ref),
-                  ),
-                ],
+                moreChip,
               ],
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          : Row(
               children: [
-                searchField,
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                Wrap(
-                  spacing: NightshadeTokens.spaceSm,
-                  runSpacing: NightshadeTokens.spaceSm,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: _ControlsBarChips(
-                    colors: colors,
-                    filters: filters,
-                    constellations: constellations,
-                    magRange: magRange,
-                    sizeRange: sizeRange,
-                    controller: controller,
-                  ).chips(ref),
+                SizedBox(width: _kPlannerSearchWidth, child: searchField),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                _ObjectTypeMultiSelect(
+                  colors: colors,
+                  selected: filters.selectedObjectTypes,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                _MinAltitudeControl(
+                  colors: colors,
+                  value: filters.minCurrentAltitude,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                _MoonSeparationControl(
+                  colors: colors,
+                  value: filters.minMoonDistance,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                moreChip,
+                const Spacer(),
+                _SortDropdown(
+                  colors: colors,
+                  value: filters.plannerSort ?? PlannerSortMode.score,
                 ),
               ],
             ),
@@ -271,93 +327,5 @@ class _ControlsBarChips {
       if (filters.activeCount > 0)
         _ResetChip(colors: colors, onPressed: resetFilters),
     ];
-  }
-}
-
-/// Phone-tier launcher for the filter sheet. Mirrors the visual weight of a
-/// `_ControlChip` but spans the row and shows an active-count badge.
-class _FiltersSheetButton extends StatelessWidget {
-  final NightshadeColors colors;
-  final int activeCount;
-  final VoidCallback onTap;
-  final double height;
-
-  /// Whether to floor the hit box at the Android 48dp minimum. Off only when
-  /// the caller's own slot is shorter than that (see the keyboard-compact bar).
-  final bool floorTouchTarget;
-
-  const _FiltersSheetButton({
-    required this.colors,
-    required this.activeCount,
-    required this.onTap,
-    this.height = 36,
-    this.floorTouchTarget = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final active = activeCount > 0;
-    final fg = active ? colors.primary : colors.textSecondary;
-    final bg = active
-        ? NightshadeDecorations.tintedBadge(
-            colors.primary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-          ).color
-        : colors.surfaceAlt;
-    final pill = Container(
-      // Matches the compact phone search-field height (36) so the two sit on
-      // one tidy row. A label + active-count badge keep it self-explanatory
-      // while staying narrow enough to leave the search field most of the
-      // row.
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(
-          color: active ? colors.primary.withValues(alpha: 0.5) : colors.border,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.slidersHorizontal, size: 15, color: fg),
-          const SizedBox(width: 6),
-          Text(
-            'Filters',
-            style: NightshadeTypography.labelStrong.copyWith(
-              color: fg,
-            ),
-          ),
-          if (active) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-              ),
-              child: Text(
-                '$activeCount',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  color: colors.onPrimary,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-    return InkWell(
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      onTap: onTap,
-      // The painted pill keeps its compact height, but the tappable box is
-      // floored at the Android 48dp minimum — measured at 134.7x36.0 on every
-      // phone width before this. `InkResponse` hit-tests opaquely, so the
-      // floored box is genuinely tappable, not just a bigger semantics rect.
-      child: floorTouchTarget ? TouchTargetFloor(child: pill) : pill,
-    );
   }
 }

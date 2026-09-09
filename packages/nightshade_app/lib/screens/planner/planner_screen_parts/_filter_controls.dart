@@ -23,56 +23,25 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     // On a narrow phone row the long hint never fully shows anyway; a short
     // hint reads better and avoids an awkward mid-word clip.
-    final hint = compact
-        ? 'Search catalogs'
-        : 'Search tonight candidates and installed catalogs';
-    return SizedBox(
-      height: height,
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            color: colors.textPrimary),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: hint,
-          hintStyle: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              color: colors.textMuted),
-          prefixIcon:
-              Icon(LucideIcons.search, size: 16, color: colors.textMuted),
-          suffixIcon: controller.text.isEmpty
-              ? null
-              : IconButton(
-                  iconSize: 14,
-                  icon: Icon(LucideIcons.x, color: colors.textMuted),
-                  tooltip: 'Clear search',
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                ),
-          filled: true,
-          fillColor: colors.surfaceAlt,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: compact ? 10 : 12,
-            vertical: 8,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            borderSide: BorderSide(color: colors.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            borderSide: BorderSide(color: colors.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            borderSide: BorderSide(color: colors.primary),
-          ),
-        ),
-      ),
+    final hint =
+        compact ? 'Search catalogs' : context.l10n.text('plannerSearchHint');
+    return NightshadeTextField(
+      controller: controller,
+      onChanged: onChanged,
+      hint: hint,
+      dense: true,
+      prefixIcon: LucideIcons.search,
+      suffixWidget: controller.text.isEmpty
+          ? null
+          : NightshadeIconButton(
+              icon: LucideIcons.x,
+              tooltip: 'Clear search',
+              size: IconButtonSize.sm,
+              onPressed: () {
+                controller.clear();
+                onChanged('');
+              },
+            ),
     );
   }
 }

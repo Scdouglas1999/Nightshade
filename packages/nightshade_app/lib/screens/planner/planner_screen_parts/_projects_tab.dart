@@ -32,43 +32,19 @@ class _ProjectsTabState extends State<_ProjectsTab> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: NightshadeTokens.spaceLg,
+            horizontal: NightshadeTokens.space2xl,
             vertical: NightshadeTokens.spaceSm,
           ),
           decoration: BoxDecoration(
-            color: colors.surfaceAlt,
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: SegmentedButton<_ProjectsScope>(
-              segments: const [
-                ButtonSegment(
-                  value: _ProjectsScope.thisProject,
-                  label: Text('This Project'),
-                  icon: Icon(LucideIcons.folderKanban),
-                ),
-                ButtonSegment(
-                  value: _ProjectsScope.allTargets,
-                  label: Text('All Targets'),
-                  icon: Icon(LucideIcons.trendingUp),
-                ),
-              ],
-              selected: {_scope},
-              onSelectionChanged: (selection) =>
-                  setState(() => _scope = selection.first),
-              showSelectedIcon: false,
-              style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: colors.primary.withValues(alpha: 0.18),
-                selectedForegroundColor: colors.primary,
-                foregroundColor: colors.textSecondary,
-                backgroundColor: colors.surfaceAlt,
-                side: BorderSide(color: colors.border),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                visualDensity: VisualDensity.compact,
-                textStyle:
-                    const TextStyle(fontSize: NightshadeTypography.fontSize12),
+            child: SegmentedControl(
+              segments: const ['This project', 'All targets'],
+              selectedIndex: _scope.index,
+              onSelected: (index) => setState(
+                () => _scope = _ProjectsScope.values[index],
               ),
             ),
           ),

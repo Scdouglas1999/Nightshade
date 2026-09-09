@@ -367,43 +367,48 @@ class _SortDropdown extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const labels = {
-      PlannerSortMode.score: 'Sort: Score',
-      PlannerSortMode.altitude: 'Sort: Altitude',
-      PlannerSortMode.magnitude: 'Sort: Magnitude',
-      PlannerSortMode.size: 'Sort: Size (largest)',
-      PlannerSortMode.constellation: 'Sort: Constellation',
-      PlannerSortMode.objectType: 'Sort: Object type',
-      PlannerSortMode.catalogId: 'Sort: Catalog ID',
+      PlannerSortMode.score: 'Score',
+      PlannerSortMode.altitude: 'Altitude',
+      PlannerSortMode.magnitude: 'Magnitude',
+      PlannerSortMode.size: 'Size (largest)',
+      PlannerSortMode.constellation: 'Constellation',
+      PlannerSortMode.objectType: 'Object type',
+      PlannerSortMode.catalogId: 'Catalog ID',
     };
 
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-        border: Border.all(color: colors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: AccessibleDropdown<PlannerSortMode>(
-          value: value,
-          items: [
-            for (final m in PlannerSortMode.values)
-              DropdownMenuItem(value: m, child: Text(labels[m]!)),
-          ],
-          isDense: true,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textPrimary),
-          dropdownColor: colors.surface,
-          iconSize: 14,
-          onChanged: (v) {
-            if (v == null) return;
-            final notifier = ref.read(suggestionFilterProvider.notifier);
-            notifier.state = notifier.state.copyWith(plannerSort: () => v);
-          },
+    // The mockup right-aligns this as prose, not a control pill: a muted
+    // "Sort:" and the current mode in `textPrimary`, with the menu behind it.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          context.l10n.text('plannerSortPrefix'),
+          style: NightshadeTypography.bodySm.copyWith(
+            color: colors.textMuted,
+          ),
         ),
-      ),
+        const SizedBox(width: NightshadeTokens.spaceXs),
+        DropdownButtonHideUnderline(
+          child: AccessibleDropdown<PlannerSortMode>(
+            value: value,
+            items: [
+              for (final m in PlannerSortMode.values)
+                DropdownMenuItem(value: m, child: Text(labels[m]!)),
+            ],
+            isDense: true,
+            style: NightshadeTypography.buttonSm.copyWith(
+              color: colors.textPrimary,
+            ),
+            dropdownColor: colors.surfaceElevated,
+            iconSize: NightshadeTokens.iconSm,
+            onChanged: (v) {
+              if (v == null) return;
+              final notifier = ref.read(suggestionFilterProvider.notifier);
+              notifier.state = notifier.state.copyWith(plannerSort: () => v);
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -454,28 +459,13 @@ class _ControlChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final reason = unavailableReason;
     final unavailable = reason != null;
-    // A filter that cannot be applied is drawn as the row's dead weight: no
-    // tint, no active border, muted text — the same reading its accessible name
-    // gives.
-    final bg = active && !unavailable
-        ? NightshadeDecorations.tintedBadge(
-            colors.primary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-          ).color
-        : colors.surfaceAlt;
-    final border = active && !unavailable
-        ? colors.primary.withValues(alpha: 0.5)
-        : colors.border;
-    final fg = unavailable
-        ? colors.textMuted
-        : active
-            ? colors.primary
-            : colors.textSecondary;
 
-    // Declare the chip. A bare `InkWell` publishes a focusable node that never
-    // sets isEnabled, and nothing in the subtree carries the on/off state
-    // either, so a screen-reader user is told the filter row is dead and is
-    // never told which filters are applied.
+    // Declare the chip. A bare tap target publishes a focusable node that
+    // never sets isEnabled, and nothing in the subtree carries the on/off
+    // state either, so a screen-reader user is told the filter row is dead and
+    // is never told which filters are applied. The wrapper below is the
+    // accessible node; the component's own Semantics is excluded so AT reads
+    // one node, not two.
     final chip = Semantics(
       container: true,
       button: true,
@@ -483,34 +473,12 @@ class _ControlChip extends StatelessWidget {
       selected: active,
       label: unavailable ? unavailableControlName(label, reason) : label,
       onTap: unavailable ? null : onTap,
-      child: InkWell(
-        // The wrapper above is the accessible node; without this the
-        // InkWell publishes a second, unflagged one and AT still reads
-        // the control as disabled. Verified on the running app.
-        excludeFromSemantics: true,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-        onTap: unavailable ? null : onTap,
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-            border: Border.all(color: border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: fg),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: NightshadeTypography.labelSm.copyWith(
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
+      child: ExcludeSemantics(
+        child: NightshadeFilterChip(
+          label: label,
+          icon: icon,
+          trailingIcon: unavailable ? null : LucideIcons.chevronDown,
+          onTap: unavailable ? null : onTap,
         ),
       ),
     );
