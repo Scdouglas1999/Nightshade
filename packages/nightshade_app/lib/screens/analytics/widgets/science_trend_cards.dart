@@ -259,51 +259,46 @@ class _TrendCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 14, color: lineColor),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: lineColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (points.isNotEmpty)
-                  _LatestPill(
-                    colors: colors,
-                    label: formatY(points.last.value),
-                    color: lineColor,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                height: 1.4,
-                color: colors.textSecondary,
               ),
-            ),
-            const SizedBox(height: 12),
-            AdaptiveChartContainer(
-              preferredHeight: 160,
-              child: points.length < 2
-                  ? _Placeholder(colors: colors, message: emptyMessage)
-                  : _buildChart(),
-            ),
-          ],
-        ),
+              if (points.isNotEmpty)
+                _LatestPill(
+                  colors: colors,
+                  label: formatY(points.last.value),
+                  color: lineColor,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          AdaptiveChartContainer(
+            preferredHeight: 160,
+            child: points.length < 2
+                ? _Placeholder(colors: colors, message: emptyMessage)
+                : _buildChart(),
+          ),
+        ],
       ),
     );
   }
@@ -366,10 +361,8 @@ class _TrendCardShell extends StatelessWidget {
               getTitlesWidget: (value, meta) {
                 return Text(
                   elapsedAxisLabel(value),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 );
               },
             ),
@@ -377,9 +370,8 @@ class _TrendCardShell extends StatelessWidget {
           leftTitles: AxisTitles(
             axisNameWidget: Text(
               yLabel,
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize10),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
             sideTitles: SideTitles(
               showTitles: true,
@@ -387,10 +379,8 @@ class _TrendCardShell extends StatelessWidget {
               interval: yInterval,
               getTitlesWidget: (value, meta) => Text(
                 formatY(value),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ),
           ),
@@ -445,11 +435,8 @@ class _LatestPill extends StatelessWidget {
       decoration: NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize10,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+        style: NightshadeTypography.caption
+            .copyWith(color: color, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -473,11 +460,8 @@ class _Placeholder extends StatelessWidget {
       child: Text(
         message,
         textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          color: colors.textSecondary,
-          height: 1.4,
-        ),
+        style: NightshadeTypography.caption
+            .copyWith(color: colors.textSecondary, height: 1.4),
       ),
     );
   }

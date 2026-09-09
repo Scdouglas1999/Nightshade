@@ -244,10 +244,8 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                     const SizedBox(height: 4),
                     Text(
                       '$error',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize12,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ],
@@ -361,19 +359,15 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                   Text(
                     '${errors.first}'
                     '${extraErrorCount > 0 ? ' (+$extraErrorCount more)' : ''}',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ] else if (isLoading) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Waiting for the current session and frame products.',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ],
               ],

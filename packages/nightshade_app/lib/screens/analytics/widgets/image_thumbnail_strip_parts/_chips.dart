@@ -88,13 +88,14 @@ class _ScienceBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
         ),
         child: icon != null
-            ? Icon(icon, size: 9, color: const Color(0xFFFFFFFF))
+            ? Icon(icon,
+                size: NightshadeTokens.iconXs,
+                color: NightshadeColors.dark.textPrimary)
             : Text(
                 label ?? '',
-                style: const TextStyle(
-                  fontSize: NightshadeTypography.fontSize8,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFFFFFFF),
+                style: NightshadeTypography.caption.copyWith(
+                  color: NightshadeColors.dark.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
       ),
@@ -119,9 +120,8 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           Expanded(

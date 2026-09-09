@@ -284,11 +284,8 @@ class _RungChip extends StatelessWidget {
                         ? Icon(LucideIcons.check, size: 12, color: accent)
                         : Text(
                             '$index',
-                            style: TextStyle(
-                              color: digit,
-                              fontSize: NightshadeTypography.fontSize12,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: NightshadeTypography.caption.copyWith(
+                                color: digit, fontWeight: FontWeight.w600),
                           ),
                   ),
                   const SizedBox(width: NightshadeTokens.spaceSm),
@@ -297,9 +294,8 @@ class _RungChip extends StatelessWidget {
                       spec.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: NightshadeTypography.caption.copyWith(
                         color: foreground,
-                        fontSize: NightshadeTypography.fontSize11_5,
                         fontWeight: FontWeight.w600,
                         height: 1.2,
                       ),

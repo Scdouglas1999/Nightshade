@@ -222,10 +222,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                 child: Text(
                                   widget.assessment?.label.toUpperCase() ??
                                       'UNRATED',
-                                  style: const TextStyle(
-                                    fontSize: NightshadeTypography.fontSize8,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFFFFFFFF),
+                                  style: NightshadeTypography.caption.copyWith(
+                                    color: NightshadeColors.dark.textPrimary,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -248,10 +247,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                 ),
                                 child: Text(
                                   widget.image.hfr!.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    fontSize: NightshadeTypography.fontSize9,
+                                  style: NightshadeTypography.caption.copyWith(
+                                    color: NightshadeColors.dark.textPrimary,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFFFFFFFF),
                                   ),
                                 ),
                               ),
@@ -303,11 +301,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                 ),
                                 child: Text(
                                   'REJECTED',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize8,
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.background,
-                                  ),
+                                  style: NightshadeTypography.caption.copyWith(
+                                      color: colors.background,
+                                      fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ),
@@ -322,20 +318,16 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                       children: [
                         Text(
                           filterLabel(widget.image.filter),
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
+                          style: NightshadeTypography.caption.copyWith(
+                              color: colors.textPrimary,
+                              fontWeight: FontWeight.w600),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           '${widget.image.exposureDuration.toInt()}s',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize9,
-                            color: colors.textSecondary,
-                          ),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textSecondary),
                         ),
                         if (widget.assessment != null)
                           Row(
@@ -346,11 +338,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                   // quality_score, which is a different number for
                                   // the same frame. Name the one on the tile.
                                   'Advisory ${widget.assessment!.advisoryScore.toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize8,
-                                    color: qualityColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: NightshadeTypography.caption.copyWith(
+                                      color: qualityColor,
+                                      fontWeight: FontWeight.w600),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -454,9 +444,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
               const SizedBox(width: 8),
               Text(
                 isAccepted ? 'Flag as poor quality' : 'Restore as good',
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize12),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -470,9 +459,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                 const SizedBox(width: 8),
                 Text(
                   'Show calibration details',
-                  style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize12),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
@@ -542,9 +530,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
       builder: (context) => AlertDialog(
         backgroundColor: colors.surface,
         title: Text('Frame ${widget.image.fileName}',
-            style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize15)),
+            style: NightshadeTypography.sectionTitle
+                .copyWith(color: colors.textPrimary)),
         content: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
             context,

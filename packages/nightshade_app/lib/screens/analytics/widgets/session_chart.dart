@@ -85,10 +85,8 @@ class SessionChart extends StatelessWidget {
               'No ${measurementName ?? title.toLowerCase()} recorded for '
               'these frames',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
         ),
@@ -171,10 +169,8 @@ class SessionChart extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 6.0),
                     child: Text(
                       elapsedAxisLabel(value),
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize10,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ),
                 ),
@@ -186,10 +182,8 @@ class SessionChart extends StatelessWidget {
                   interval: axis.interval,
                   getTitlesWidget: (value, meta) => Text(
                     axis.label(value),
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize10,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
               ),
@@ -296,39 +290,37 @@ class _ChartShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: NightshadeTypography.bodyStrong
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                      Text(
-                        yAxisLabel,
-                        style: NightshadeTypography.caption
-                            .copyWith(color: colors.textMuted),
-                      ),
-                    ],
-                  ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: NightshadeTypography.bodyStrong
+                          .copyWith(color: colors.textPrimary),
+                    ),
+                    Text(
+                      yAxisLabel,
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
+                    ),
+                  ],
                 ),
-                if (summary != null) summary!,
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
+              ),
+              if (summary != null) summary!,
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
       ),
     );
   }

@@ -548,10 +548,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 ),
                 child: Text(
                   _lastExportResult!,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                   // Room for the path AND a completeness caveat: a truncated
                   // "…rows were dropped" note would be worse than none.
                   maxLines: 4,
@@ -592,10 +590,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
               const SizedBox(width: 8),
               Text(
                 'Loading sessions...',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -619,10 +615,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 'Could not load sessions: ${sessionsAsync.error}',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: colors.error,
-                  fontSize: NightshadeTypography.fontSize11,
-                ),
+                style:
+                    NightshadeTypography.caption.copyWith(color: colors.error),
               ),
             ),
             TextButton(

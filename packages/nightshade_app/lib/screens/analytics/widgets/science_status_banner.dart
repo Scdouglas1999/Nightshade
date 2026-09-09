@@ -216,11 +216,8 @@ class _StatusContainer extends StatelessWidget {
               children: [
                 Text(
                   headline,
-                  style: TextStyle(
-                    color: style.accent,
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      color: style.accent, fontWeight: FontWeight.w600),
                 ),
                 if (subtitleText != null && subtitleText.isNotEmpty)
                   Padding(
@@ -229,11 +226,8 @@ class _StatusContainer extends StatelessWidget {
                       subtitleText,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize11,
-                        height: 1.3,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary, height: 1.3),
                     ),
                   ),
               ],

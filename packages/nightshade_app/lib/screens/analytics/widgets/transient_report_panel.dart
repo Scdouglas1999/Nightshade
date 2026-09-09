@@ -78,148 +78,145 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
     _magZeroPoint = _resolveMagZeroPoint(selected);
     _format = _resolveFormat(selected, scienceSettings);
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Transient Discovery Report',
-              style: NightshadeTypography.bodyStrong.copyWith(
-                color: colors.textPrimary,
-              ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Transient Discovery Report',
+            style: NightshadeTypography.bodyStrong.copyWith(
+              color: colors.textPrimary,
             ),
-            const SizedBox(height: NightshadeTokens.spaceXs),
-            Text(
-              'Submit a confirmed detection to the TNS live with your bot key, '
-              'or export an ingestible AAVSO / MPC report to upload manually.',
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textMuted,
-              ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'Submit a confirmed detection to the TNS live with your bot key, '
+            'or export an ingestible AAVSO / MPC report to upload manually.',
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textMuted,
             ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Text(
-              'Detection',
-              style: NightshadeTypography.bodyStrong.copyWith(
-                color: colors.textSecondary,
-              ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Text(
+            'Detection',
+            style: NightshadeTypography.bodyStrong.copyWith(
+              color: colors.textSecondary,
             ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            ...sorted.map(
-              (d) => _DetectionTile(
-                colors: colors,
-                detection: d,
-                selected: d.id == _selectedId,
-                onTap: () => setState(() {
-                  _selectedId = d.id;
-                  _preview = null;
-                }),
-              ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          ...sorted.map(
+            (d) => _DetectionTile(
+              colors: colors,
+              detection: d,
+              selected: d.id == _selectedId,
+              onTap: () => setState(() {
+                _selectedId = d.id;
+                _preview = null;
+              }),
             ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Text(
-              'Network',
-              style: NightshadeTypography.bodyStrong.copyWith(
-                color: colors.textSecondary,
-              ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Text(
+            'Network',
+            style: NightshadeTypography.bodyStrong.copyWith(
+              color: colors.textSecondary,
             ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Wrap(
-              spacing: NightshadeTokens.spaceSm,
-              children: TransientReportFormat.values.map((fmt) {
-                final enabled = _formatEnabled(fmt, selected, scienceSettings);
-                return NightshadeChip(
-                  label: _formatLabel(fmt),
-                  selected: _format == fmt,
-                  // `enabled: false` is what makes an unavailable network LOOK
-                  // unavailable. Passing a null onTap alone rendered it
-                  // identically to a network the operator simply had not picked
-                  // yet, so the notices below explained a blocker for a chip
-                  // that gave no sign of being blocked.
-                  enabled: enabled,
-                  onTap: enabled
-                      ? () => setState(() {
-                            _format = fmt;
-                            _preview = null;
-                          })
-                      : null,
-                );
-              }).toList(),
-            ),
-            // Every unavailable network says why, not just the selected one.
-            // A disabled chip has no onTap, so a user could never move the
-            // selection onto it — the AAVSO and MPC explanations existed in
-            // _disabledReason() and were unreachable by any sequence of clicks.
-            ...(() {
-              final notices = _disabledNotices(selected, scienceSettings);
-              if (notices.isEmpty) return <Widget>[];
-              return <Widget>[
-                const SizedBox(height: NightshadeTokens.spaceSm),
-                for (final notice in notices)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: NightshadeTokens.spaceXs,
-                    ),
-                    child: Text(
-                      notice,
-                      style: NightshadeTypography.labelQuiet.copyWith(
-                        color: colors.warning,
-                      ),
-                    ),
-                  ),
-              ];
-            })(),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            if (_preview != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: BoxDecoration(
-                  color: colors.well,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  border: Border.all(color: colors.border),
-                ),
-                child: SelectableText(
-                  _preview!,
-                  style: NightshadeTypography.monoSm.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            children: TransientReportFormat.values.map((fmt) {
+              final enabled = _formatEnabled(fmt, selected, scienceSettings);
+              return NightshadeChip(
+                label: _formatLabel(fmt),
+                selected: _format == fmt,
+                // `enabled: false` is what makes an unavailable network LOOK
+                // unavailable. Passing a null onTap alone rendered it
+                // identically to a network the operator simply had not picked
+                // yet, so the notices below explained a blocker for a chip
+                // that gave no sign of being blocked.
+                enabled: enabled,
+                onTap: enabled
+                    ? () => setState(() {
+                          _format = fmt;
+                          _preview = null;
+                        })
+                    : null,
+              );
+            }).toList(),
+          ),
+          // Every unavailable network says why, not just the selected one.
+          // A disabled chip has no onTap, so a user could never move the
+          // selection onto it — the AAVSO and MPC explanations existed in
+          // _disabledReason() and were unreachable by any sequence of clicks.
+          ...(() {
+            final notices = _disabledNotices(selected, scienceSettings);
+            if (notices.isEmpty) return <Widget>[];
+            return <Widget>[
               const SizedBox(height: NightshadeTokens.spaceSm),
-            ],
-            _buildActionRow(selected, scienceSettings, colors),
+              for (final notice in notices)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    bottom: NightshadeTokens.spaceXs,
+                  ),
+                  child: Text(
+                    notice,
+                    style: NightshadeTypography.labelQuiet.copyWith(
+                      color: colors.warning,
+                    ),
+                  ),
+                ),
+            ];
+          })(),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          if (_preview != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+              decoration: BoxDecoration(
+                color: colors.well,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                border: Border.all(color: colors.border),
+              ),
+              child: SelectableText(
+                _preview!,
+                style: NightshadeTypography.monoSm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+          ],
+          _buildActionRow(selected, scienceSettings, colors),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            _actionNote(_format),
+            style: NightshadeTypography.labelQuiet.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+          if (_lastAtName != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
-              _actionNote(_format),
+              'Submitted as $_lastAtName',
+              style: NightshadeTypography.labelQuiet.copyWith(
+                color: colors.success,
+              ),
+            ),
+          ],
+          if (_lastExportPath != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              'Exported: $_lastExportPath',
               style: NightshadeTypography.labelQuiet.copyWith(
                 color: colors.textMuted,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            if (_lastAtName != null) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                'Submitted as $_lastAtName',
-                style: NightshadeTypography.labelQuiet.copyWith(
-                  color: colors.success,
-                ),
-              ),
-            ],
-            if (_lastExportPath != null) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                'Exported: $_lastExportPath',
-                style: NightshadeTypography.labelQuiet.copyWith(
-                  color: colors.textMuted,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
@@ -250,36 +247,34 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
   }
 
   Widget _scienceSettingsUnavailable(AsyncValue<ScienceSettings> settings) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            settings.hasError
+                ? 'Reporting settings unavailable'
+                : 'Loading reporting settings…',
+            style: TextStyle(color: widget.colors.error),
+          ),
+          if (settings.hasError) ...[
+            const SizedBox(height: 6),
             Text(
-              settings.hasError
-                  ? 'Reporting settings unavailable'
-                  : 'Loading reporting settings…',
-              style: TextStyle(color: widget.colors.error),
+              settings.error.toString(),
+              style: TextStyle(color: widget.colors.textMuted),
             ),
-            if (settings.hasError) ...[
-              const SizedBox(height: 6),
-              Text(
-                settings.error.toString(),
-                style: TextStyle(color: widget.colors.textMuted),
-              ),
-              const SizedBox(height: 10),
-              NightshadeButton(
-                label: 'Retry reporting settings',
-                icon: LucideIcons.refreshCw,
-                variant: ButtonVariant.secondary,
-                size: ButtonSize.small,
-                onPressed: () => ref.invalidate(scienceSettingsProvider),
-              ),
-            ],
+            const SizedBox(height: 10),
+            NightshadeButton(
+              label: 'Retry reporting settings',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: () => ref.invalidate(scienceSettingsProvider),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

@@ -16,32 +16,27 @@ extension _PhotometricWizardSaveNavigation
       children: [
         Text(
           'Save Calibration',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w500,
-          ),
+          style:
+              NightshadeTypography.button.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
-        NightshadeCard(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildCoefficientRow(colors, 'Filter', coeff.filterName),
-                _buildCoefficientRow(
-                    colors, 'Zero Point', coeff.zeroPoint.toStringAsFixed(4)),
-                _buildCoefficientRow(colors, 'Extinction',
-                    coeff.extinctionCoefficient.toStringAsFixed(4)),
-                _buildCoefficientRow(
-                    colors, 'Color Term', coeff.colorTerm.toStringAsFixed(4)),
-                _buildCoefficientRow(
-                    colors, 'RMS', coeff.rmsResidual.toStringAsFixed(4)),
-                _buildCoefficientRow(
-                    colors, 'Stars', '${coeff.matchedStarCount}'),
-              ],
-            ),
+        NightshadePanel(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildCoefficientRow(colors, 'Filter', coeff.filterName),
+              _buildCoefficientRow(
+                  colors, 'Zero Point', coeff.zeroPoint.toStringAsFixed(4)),
+              _buildCoefficientRow(colors, 'Extinction',
+                  coeff.extinctionCoefficient.toStringAsFixed(4)),
+              _buildCoefficientRow(
+                  colors, 'Color Term', coeff.colorTerm.toStringAsFixed(4)),
+              _buildCoefficientRow(
+                  colors, 'RMS', coeff.rmsResidual.toStringAsFixed(4)),
+              _buildCoefficientRow(
+                  colors, 'Stars', '${coeff.matchedStarCount}'),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -50,20 +45,17 @@ extension _PhotometricWizardSaveNavigation
           'measurements taken with the "$_filterName" filter. The standard '
           'equation M_std = m_inst - k*X + T*(B-V) + zp will be used '
           'to convert instrumental magnitudes to the standard system.',
-          style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         if (_statusMessage.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
             _statusMessage,
-            style: TextStyle(
-              color: _statusMessage.contains('Saved')
-                  ? colors.success
-                  : colors.textMuted,
-              fontSize: NightshadeTypography.fontSize12,
-            ),
+            style: NightshadeTypography.caption.copyWith(
+                color: _statusMessage.contains('Saved')
+                    ? colors.success
+                    : colors.textMuted),
           ),
         ],
       ],

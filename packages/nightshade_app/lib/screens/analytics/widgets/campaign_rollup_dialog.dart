@@ -67,9 +67,8 @@ class CampaignRollupDialog extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   '$err',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textMuted),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -139,19 +138,16 @@ class _Body extends StatelessWidget {
                   children: [
                     Text(
                       'Campaign Rollup',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize18,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.sectionTitle.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600),
                     ),
                     Text(
                       rollup.targetName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -260,9 +256,8 @@ class _Body extends StatelessWidget {
                             '${rollup.sessionCount == 1 ? 'session' : 'sessions'}'
                             ' was rejected or has not been graded.'
                         : 'No frames captured for this target yet.',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
                   )
                 else
                   for (final f in rollup.filters)
@@ -277,9 +272,8 @@ class _Body extends StatelessWidget {
                 if (rollup.sessions.isEmpty)
                   Text(
                     'No sessions recorded for this target.',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
                   )
                 else
                   for (final s in rollup.sessions)
@@ -338,12 +332,10 @@ class _SectionTitle extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textPrimary,
+                letterSpacing: 0.3,
+                fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -377,17 +369,13 @@ class _SummaryTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted)),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted)),
             const SizedBox(height: 4),
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize15,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.readoutSm.copyWith(
+                  color: colors.textPrimary, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -436,11 +424,9 @@ class _OverallProgress extends StatelessWidget {
               const Spacer(),
               Text(
                 '${(pct * 100).toStringAsFixed(1)}%',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w700,
-                  color: isComplete ? colors.success : colors.textPrimary,
-                ),
+                style: NightshadeTypography.bodySm.copyWith(
+                    color: isComplete ? colors.success : colors.textPrimary,
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -464,9 +450,8 @@ class _OverallProgress extends StatelessWidget {
             // session took, so one card would read "Captured 0.0h" over
             // "0.17h captured".
             'Accepted ${(captured / 3600.0).toStringAsFixed(1)}h of ${(goal / 3600.0).toStringAsFixed(1)}h goal | Remaining: ${remainingHours.toStringAsFixed(1)}h',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -498,11 +483,8 @@ class _FilterRow extends StatelessWidget {
             children: [
               Text(
                 filter.filter,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textPrimary, fontWeight: FontWeight.w600),
               ),
               const SizedBox(width: 12),
               // CampaignFilterRollup.capturedFrames counts ACCEPTED light
@@ -515,9 +497,8 @@ class _FilterRow extends StatelessWidget {
                     '${filter.capturedFrames}/${filter.goalFrames} frames accepted',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textSecondary),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 )
               else
@@ -526,9 +507,8 @@ class _FilterRow extends StatelessWidget {
                     '${filter.capturedFrames} frames accepted (no goal)',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
               const Spacer(),
@@ -557,9 +537,8 @@ class _FilterRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${(pct * 100).toStringAsFixed(0)}% complete | ${filter.remainingFrames} frames remaining',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ],
@@ -653,9 +632,8 @@ class _SessionRow extends StatelessWidget {
                           '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h captured',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize11,
-                              color: colors.textMuted),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -708,9 +686,8 @@ class _Chip extends StatelessWidget {
         children: [
           Text(
             '$label ',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
           Text(
             value,

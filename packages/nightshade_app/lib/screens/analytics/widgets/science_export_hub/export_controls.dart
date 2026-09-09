@@ -57,10 +57,8 @@ class _ExportTypeCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
                 ),
               ],
             ),
@@ -112,10 +110,8 @@ class _DateButton extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
               ],
             ),

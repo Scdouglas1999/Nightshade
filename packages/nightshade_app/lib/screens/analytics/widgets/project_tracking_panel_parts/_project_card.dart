@@ -112,189 +112,176 @@ class _EnhancedProjectCard extends ConsumerWidget {
     final completionPct = progress.completionFraction * 100.0;
     final l10n = context.l10n;
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row: name, catalog ID, edit goal button
-            Row(
-              children: [
-                // Status indicator
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: progress.isCompleted
-                        ? colors.success
-                        : progress.isTracked
-                            ? colors.primary
-                            : colors.textMuted,
-                  ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row: name, catalog ID, edit goal button
+          Row(
+            children: [
+              // Status indicator
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: progress.isCompleted
+                      ? colors.success
+                      : progress.isTracked
+                          ? colors.primary
+                          : colors.textMuted,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      progress.target.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: NightshadeTypography.sectionTitle
+                          .copyWith(color: colors.textPrimary),
+                    ),
+                    if (progress.target.catalogId != null ||
+                        progress.target.objectType != null)
                       Text(
-                        progress.target.name,
+                        progress.target.catalogId ??
+                            progress.target.objectType ??
+                            '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize15,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
-                      if (progress.target.catalogId != null ||
-                          progress.target.objectType != null)
-                        Text(
-                          progress.target.catalogId ??
-                              progress.target.objectType ??
-                              '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-                TextButton.icon(
-                  onPressed: () => CampaignRollupDialog.show(
-                    context,
-                    progress.target.id,
-                  ),
-                  icon: const Icon(LucideIcons.lineChart, size: 14),
-                  label: const Text(
-                    'View Campaign',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize12),
-                  ),
+              ),
+              TextButton.icon(
+                onPressed: () => CampaignRollupDialog.show(
+                  context,
+                  progress.target.id,
                 ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => _editGoal(context, ref),
-                  icon: const Icon(LucideIcons.target, size: 14),
-                  label: Text(
-                    progress.isTracked
-                        ? l10n.text('analyticsEditGoal')
-                        : l10n.text('analyticsSetGoal'),
-                    style: const TextStyle(
-                        fontSize: NightshadeTypography.fontSize12),
-                  ),
+                icon: const Icon(LucideIcons.lineChart, size: 14),
+                label: const Text(
+                  'View Campaign',
+                  style: NightshadeTypography.caption,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 4),
+              TextButton.icon(
+                onPressed: () => _editGoal(context, ref),
+                icon: const Icon(LucideIcons.target, size: 14),
+                label: Text(
+                  progress.isTracked
+                      ? l10n.text('analyticsEditGoal')
+                      : l10n.text('analyticsSetGoal'),
+                  style: NightshadeTypography.caption,
+                ),
+              ),
+            ],
+          ),
 
-            const SizedBox(height: 12),
+          const SizedBox(height: 12),
 
-            // Progress bar
-            if (progress.isTracked) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusSm),
-                      child: LinearProgressIndicator(
-                        value: progress.completionFraction,
-                        minHeight: 10,
-                        backgroundColor: colors.well,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          progress.isCompleted
-                              ? colors.success
-                              : colors.primary,
-                        ),
+          // Progress bar
+          if (progress.isTracked) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusSm),
+                    child: LinearProgressIndicator(
+                      value: progress.completionFraction,
+                      minHeight: 10,
+                      backgroundColor: colors.well,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        progress.isCompleted ? colors.success : colors.primary,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${completionPct.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w700,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${completionPct.toStringAsFixed(0)}%',
+                  style: NightshadeTypography.bodySm.copyWith(
                       color: progress.isCompleted
                           ? colors.success
                           : colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Stats row
-            Wrap(
-              spacing: 20,
-              runSpacing: 8,
-              children: [
-                _MetricChip(
-                  icon: LucideIcons.timer,
-                  label: 'Integrated',
-                  value: _formatHours(progress.integratedSecs),
-                  colors: colors,
-                ),
-                _MetricChip(
-                  icon: LucideIcons.target,
-                  label: 'Goal',
-                  value: progress.isTracked
-                      ? _formatHours(progress.goalIntegrationSecs)
-                      : 'Not set',
-                  colors: colors,
-                ),
-                _MetricChip(
-                  icon: LucideIcons.hourglass,
-                  label: 'Remaining',
-                  value: progress.isTracked
-                      ? _formatHours(progress.remainingSecs)
-                      : '-',
-                  colors: colors,
-                ),
-                _MetricChip(
-                  icon: LucideIcons.layers,
-                  label: 'Sessions',
-                  value: '${progress.sessionCount}',
-                  colors: colors,
-                ),
-                // "Frames returned", not "Frames": the sum is over each
-                // session's `successful_exposures`, which counts what the
-                // camera handed back rather than what the culling kept.
-                _MetricChip(
-                  icon: LucideIcons.image,
-                  label: 'Frames returned',
-                  value: '${progress.successfulExposures}',
-                  colors: colors,
+                      fontWeight: FontWeight.w600),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+          ],
 
-            // Per-filter breakdown
-            if (filterBreakdown.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _FilterBreakdownRow(
-                filterData: filterBreakdown,
+          // Stats row
+          Wrap(
+            spacing: 20,
+            runSpacing: 8,
+            children: [
+              _MetricChip(
+                icon: LucideIcons.timer,
+                label: 'Integrated',
+                value: _formatHours(progress.integratedSecs),
+                colors: colors,
+              ),
+              _MetricChip(
+                icon: LucideIcons.target,
+                label: 'Goal',
+                value: progress.isTracked
+                    ? _formatHours(progress.goalIntegrationSecs)
+                    : 'Not set',
+                colors: colors,
+              ),
+              _MetricChip(
+                icon: LucideIcons.hourglass,
+                label: 'Remaining',
+                value: progress.isTracked
+                    ? _formatHours(progress.remainingSecs)
+                    : '-',
+                colors: colors,
+              ),
+              _MetricChip(
+                icon: LucideIcons.layers,
+                label: 'Sessions',
+                value: '${progress.sessionCount}',
+                colors: colors,
+              ),
+              // "Frames returned", not "Frames": the sum is over each
+              // session's `successful_exposures`, which counts what the
+              // camera handed back rather than what the culling kept.
+              _MetricChip(
+                icon: LucideIcons.image,
+                label: 'Frames returned',
+                value: '${progress.successfulExposures}',
                 colors: colors,
               ),
             ],
+          ),
 
-            // Last imaged date
-            if (progress.lastSessionAt != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Last imaged: ${DateFormat('MMM d, yyyy HH:mm').format(progress.lastSessionAt!)}',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted),
-              ),
-            ],
+          // Per-filter breakdown
+          if (filterBreakdown.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _FilterBreakdownRow(
+              filterData: filterBreakdown,
+              colors: colors,
+            ),
           ],
-        ),
+
+          // Last imaged date
+          if (progress.lastSessionAt != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Last imaged: ${DateFormat('MMM d, yyyy HH:mm').format(progress.lastSessionAt!)}',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -327,9 +314,8 @@ class _MetricChip extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
             Text(
               value,
@@ -440,19 +426,17 @@ class _ProjectsLoadingSkeleton extends StatelessWidget {
         return const Padding(
           padding: EdgeInsets.only(bottom: 12),
           child: ShimmerLoading(
-            child: NightshadeCard(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonBox(width: 220, height: 16),
-                    SizedBox(height: 10),
-                    SkeletonBox(height: 8, borderRadius: 4),
-                    SizedBox(height: 12),
-                    SkeletonBox(width: 160, height: 12),
-                  ],
-                ),
+            child: NightshadePanel(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonBox(width: 220, height: 16),
+                  SizedBox(height: 10),
+                  SkeletonBox(height: 8, borderRadius: 4),
+                  SizedBox(height: 12),
+                  SkeletonBox(width: 160, height: 12),
+                ],
               ),
             ),
           ),

@@ -292,167 +292,161 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
         .where((tile) => tile.layerType == _selectedLayer)
         .toList(growable: false);
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '3D Surface Explorer',
-                  style: TextStyle(
-                    color: widget.colors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '3D Surface Explorer',
+                style: TextStyle(
+                  color: widget.colors.textPrimary,
+                  fontWeight: FontWeight.w700,
                 ),
-                const Spacer(),
-                if (layerNames.isNotEmpty)
-                  AccessibleDropdown<String>(
-                    value: _selectedLayer,
-                    items: layerNames
-                        .map(
-                          (layer) => DropdownMenuItem(
-                            value: layer,
-                            child: Text(_labelForLayer(layer)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      // The readout names a tile of the OLD layer; keeping it
-                      // would print one layer's value under another's name.
+              ),
+              const Spacer(),
+              if (layerNames.isNotEmpty)
+                AccessibleDropdown<String>(
+                  value: _selectedLayer,
+                  items: layerNames
+                      .map(
+                        (layer) => DropdownMenuItem(
+                          value: layer,
+                          child: Text(_labelForLayer(layer)),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    // The readout names a tile of the OLD layer; keeping it
+                    // would print one layer's value under another's name.
+                    setState(() {
+                      _selectedLayer = value;
+                      _selectedTile = null;
+                    });
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (selectedTiles.isEmpty) {
+                return AdaptiveChartContainer.fixed(
+                  height: 240,
+                  child: Center(
+                    child: Text(
+                      'No tile metrics available for this frame.',
+                      style: TextStyle(color: widget.colors.textMuted),
+                    ),
+                  ),
+                );
+              }
+
+              final scale = surfaceValueScale(selectedTiles);
+              final useAspect = constraints.maxWidth >= 520;
+              final plot = LayoutBuilder(
+                builder: (context, plotConstraints) {
+                  final plotSize = Size(
+                    plotConstraints.maxWidth,
+                    plotConstraints.maxHeight,
+                  );
+                  return GestureDetector(
+                    onPanUpdate: (details) {
+                      final orbit = surfaceOrbitDelta(details.delta, plotSize);
                       setState(() {
-                        _selectedLayer = value;
-                        _selectedTile = null;
+                        _yaw += orbit.yaw;
+                        _pitch =
+                            (_pitch - orbit.pitch).clamp(_minPitch, _maxPitch);
                       });
                     },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                if (selectedTiles.isEmpty) {
-                  return AdaptiveChartContainer.fixed(
-                    height: 240,
-                    child: Center(
-                      child: Text(
-                        'No tile metrics available for this frame.',
-                        style: TextStyle(color: widget.colors.textMuted),
+                    onTapUp: (details) => _selectTileAt(
+                      details.localPosition,
+                      selectedTiles,
+                      plotSize,
+                      scale,
+                    ),
+                    child: CustomPaint(
+                      key: kScienceSurfacePlotKey,
+                      painter: _SurfacePainter(
+                        tiles: selectedTiles,
+                        yaw: _yaw,
+                        pitch: _pitch,
+                        zExaggeration: _zExaggeration,
+                        showContour: _showContour,
+                        colors: widget.colors,
+                        selectedRow: _selectedTile?.tileRow,
+                        selectedCol: _selectedTile?.tileCol,
                       ),
+                      child: const SizedBox.expand(),
                     ),
                   );
-                }
+                },
+              );
 
-                final scale = surfaceValueScale(selectedTiles);
-                final useAspect = constraints.maxWidth >= 520;
-                final plot = LayoutBuilder(
-                  builder: (context, plotConstraints) {
-                    final plotSize = Size(
-                      plotConstraints.maxWidth,
-                      plotConstraints.maxHeight,
-                    );
-                    return GestureDetector(
-                      onPanUpdate: (details) {
-                        final orbit =
-                            surfaceOrbitDelta(details.delta, plotSize);
-                        setState(() {
-                          _yaw += orbit.yaw;
-                          _pitch = (_pitch - orbit.pitch)
-                              .clamp(_minPitch, _maxPitch);
-                        });
-                      },
-                      onTapUp: (details) => _selectTileAt(
-                        details.localPosition,
-                        selectedTiles,
-                        plotSize,
-                        scale,
-                      ),
-                      child: CustomPaint(
-                        key: kScienceSurfacePlotKey,
-                        painter: _SurfacePainter(
-                          tiles: selectedTiles,
-                          yaw: _yaw,
-                          pitch: _pitch,
-                          zExaggeration: _zExaggeration,
-                          showContour: _showContour,
-                          colors: widget.colors,
-                          selectedRow: _selectedTile?.tileRow,
-                          selectedCol: _selectedTile?.tileCol,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
-                    );
-                  },
-                );
-
-                if (useAspect) {
-                  // Full width, 16:9 up to a cap. Unbounded, a wide desktop
-                  // column gave the plot ~450px of mostly empty space and
-                  // pushed the value scale and the controls out of the card
-                  // entirely — the 25 dots never filled it.
-                  return SizedBox(
-                    height: math.min(constraints.maxWidth * 9 / 16, 300.0),
-                    child: plot,
-                  );
-                }
-
-                return AdaptiveChartContainer(
-                  preferredHeight: 240,
+              if (useAspect) {
+                // Full width, 16:9 up to a cap. Unbounded, a wide desktop
+                // column gave the plot ~450px of mostly empty space and
+                // pushed the value scale and the controls out of the card
+                // entirely — the 25 dots never filled it.
+                return SizedBox(
+                  height: math.min(constraints.maxWidth * 9 / 16, 300.0),
                   child: plot,
                 );
-              },
+              }
+
+              return AdaptiveChartContainer(
+                preferredHeight: 240,
+                child: plot,
+              );
+            },
+          ),
+          if (selectedTiles.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _ValueScaleBar(
+              colors: widget.colors,
+              scale: surfaceValueScale(selectedTiles),
+              unit: _unitForLayer(_selectedLayer),
             ),
-            if (selectedTiles.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _ValueScaleBar(
-                colors: widget.colors,
-                scale: surfaceValueScale(selectedTiles),
-                unit: _unitForLayer(_selectedLayer),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _selectedTile == null
-                    ? 'Tap a marker to read its tile and value. Drag to orbit.'
-                    : 'Tile r${_selectedTile!.tileRow}·c${_selectedTile!.tileCol}'
-                        ' — ${_formatValue(_selectedTile!.value)}'
-                        '${_unitForLayer(_selectedLayer)}'
-                        ' (${_selectedTile!.sampleCount} px sampled)',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
+            const SizedBox(height: 6),
+            Text(
+              _selectedTile == null
+                  ? 'Tap a marker to read its tile and value. Drag to orbit.'
+                  : 'Tile r${_selectedTile!.tileRow}·c${_selectedTile!.tileCol}'
+                      ' — ${_formatValue(_selectedTile!.value)}'
+                      '${_unitForLayer(_selectedLayer)}'
+                      ' (${_selectedTile!.sampleCount} px sampled)',
+              style: NightshadeTypography.caption.copyWith(
                   color: _selectedTile == null
                       ? widget.colors.textMuted
-                      : widget.colors.textPrimary,
-                ),
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _SliderLabeled(
-                    label: 'Z Exaggeration',
-                    value: _zExaggeration,
-                    min: 0.6,
-                    max: 3.2,
-                    onChanged: (value) =>
-                        setState(() => _zExaggeration = value),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                FilterChip(
-                  selected: _showContour,
-                  onSelected: (value) => setState(() => _showContour = value),
-                  label: const Text('Contours'),
-                ),
-              ],
+                      : widget.colors.textPrimary),
             ),
           ],
-        ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _SliderLabeled(
+                  label: 'Z Exaggeration',
+                  value: _zExaggeration,
+                  min: 0.6,
+                  max: 3.2,
+                  onChanged: (value) => setState(() => _zExaggeration = value),
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilterChip(
+                selected: _showContour,
+                onSelected: (value) => setState(() => _showContour = value),
+                label: const Text('Contours'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -574,10 +568,8 @@ class _ValueScaleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final caption = TextStyle(
-      fontSize: NightshadeTypography.fontSize10,
-      color: colors.textMuted,
-    );
+    final caption =
+        NightshadeTypography.caption.copyWith(color: colors.textMuted);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -641,8 +633,7 @@ class _SliderLabeled extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(fontSize: NightshadeTypography.fontSize11)),
+        Text(label, style: NightshadeTypography.caption),
         Slider(
           min: min,
           max: max,
@@ -771,11 +762,8 @@ class _SurfacePainter extends CustomPainter {
       final label = TextPainter(
         text: TextSpan(
           text: 'r${corner.$1}·c${corner.$2}',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize9,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.caption.copyWith(
+              color: colors.textSecondary, fontWeight: FontWeight.w600),
         ),
         textDirection: TextDirection.ltr,
       )..layout();

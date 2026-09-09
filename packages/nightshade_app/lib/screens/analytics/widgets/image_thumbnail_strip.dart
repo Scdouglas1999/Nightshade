@@ -176,9 +176,8 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         child: Center(
           child: Text(
             'No images captured in this session',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ),
       );
@@ -251,9 +250,8 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
                   child: Center(
                     child: Text(
                       'No frames match "${_filterLabel(_qualityFilter)}"',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
                 )

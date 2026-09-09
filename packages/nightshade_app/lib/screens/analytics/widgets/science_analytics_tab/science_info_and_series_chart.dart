@@ -250,111 +250,104 @@ class _SeriesChartCard extends StatelessWidget {
     // is a tick rather than a second copy a few pixels away.
     final xInterval = maxX / 4;
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
                   ),
-                ),
-                if (hubExportButton != null) hubExportButton!,
-                _ScienceInfoButton(title: title),
-              ],
-            ),
-            const SizedBox(height: 12),
-            AdaptiveChartContainer(
-              preferredHeight: 190,
-              child: LineChart(
-                LineChartData(
-                  minX: 0,
-                  maxX: maxX,
-                  minY: axis.min,
-                  maxY: axis.max,
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border.all(color: colors.border),
-                  ),
-                  gridData: FlGridData(
-                    drawVerticalLine: true,
-                    horizontalInterval: axis.interval,
-                    verticalInterval: xInterval,
-                    getDrawingHorizontalLine: (_) =>
-                        FlLine(color: colors.border.withValues(alpha: 0.35)),
-                    getDrawingVerticalLine: (_) =>
-                        FlLine(color: colors.border.withValues(alpha: 0.25)),
-                  ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 24,
-                        interval: xInterval,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            elapsedAxisLabel(value),
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize10,
-                              color: colors.textSecondary,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    leftTitles: AxisTitles(
-                      axisNameWidget: Text(
-                        yLabel,
-                        style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize10),
-                      ),
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 44,
-                        interval: axis.interval,
-                        getTitlesWidget: (value, meta) => Text(
-                          axis.label(value),
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      color: color,
-                      barWidth: 2,
-                      isCurved: false,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: color.withValues(alpha: 0.12),
-                      ),
-                    ),
-                  ],
                 ),
               ),
+              if (hubExportButton != null) hubExportButton!,
+              _ScienceInfoButton(title: title),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AdaptiveChartContainer(
+            preferredHeight: 190,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: maxX,
+                minY: axis.min,
+                maxY: axis.max,
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: colors.border),
+                ),
+                gridData: FlGridData(
+                  drawVerticalLine: true,
+                  horizontalInterval: axis.interval,
+                  verticalInterval: xInterval,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: colors.border.withValues(alpha: 0.35)),
+                  getDrawingVerticalLine: (_) =>
+                      FlLine(color: colors.border.withValues(alpha: 0.25)),
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 24,
+                      interval: xInterval,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          elapsedAxisLabel(value),
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textSecondary),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    axisNameWidget: Text(
+                      yLabel,
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 44,
+                      interval: axis.interval,
+                      getTitlesWidget: (value, meta) => Text(
+                        axis.label(value),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    color: color,
+                    barWidth: 2,
+                    isCurved: false,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: color.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

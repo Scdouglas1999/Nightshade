@@ -11,61 +11,59 @@ class _PhotometricTransformsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final transformsAsync = ref.watch(activeProfileTransformsProvider);
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Photometric Transforms',
-                    style: NightshadeTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                const _ScienceInfoButton(title: 'Photometric Transforms'),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            transformsAsync.when(
-              data: (transforms) => _buildTransformContent(context, transforms),
-              loading: () => SizedBox(
-                height: 60,
-                child: Center(
-                  child: SizedBox(
-                    width: NightshadeTokens.iconMd,
-                    height: NightshadeTokens.iconMd,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colors.primary,
-                    ),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Photometric Transforms',
+                  style: NightshadeTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
                   ),
                 ),
               ),
-              error: (error, _) => Text(
-                'Failed to load transforms: $error',
-                style: NightshadeTypography.caption.copyWith(
-                  color: colors.error,
+              const _ScienceInfoButton(title: 'Photometric Transforms'),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          transformsAsync.when(
+            data: (transforms) => _buildTransformContent(context, transforms),
+            loading: () => SizedBox(
+              height: 60,
+              child: Center(
+                child: SizedBox(
+                  width: NightshadeTokens.iconMd,
+                  height: NightshadeTokens.iconMd,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.primary,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                onPressed: () => _openCalibrationWizard(context),
-                icon: LucideIcons.beaker,
-                label: 'Calibrate',
-                variant: ButtonVariant.secondary,
+            error: (error, _) => Text(
+              'Failed to load transforms: $error',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.error,
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          SizedBox(
+            width: double.infinity,
+            child: NightshadeButton(
+              onPressed: () => _openCalibrationWizard(context),
+              icon: LucideIcons.beaker,
+              label: 'Calibrate',
+              variant: ButtonVariant.secondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -161,20 +159,15 @@ class _TransformRow extends StatelessWidget {
                     NightshadeDecorations.chip(colors, tone: qualityColor),
                 child: Text(
                   quality,
-                  style: TextStyle(
-                    color: qualityColor,
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      color: qualityColor, fontWeight: FontWeight.w600),
                 ),
               ),
               const Spacer(),
               Text(
                 ageLabel,
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize10,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
               ),
             ],
           ),
@@ -210,10 +203,8 @@ class _TransformRow extends StatelessWidget {
           Text(
             '${transform.matchedStarCount} stars matched  |  '
             'Catalog: ${transform.catalogSource}',
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize10,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -254,11 +245,8 @@ class _CoefficientChip extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize9,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textMuted, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 1),
           Text(

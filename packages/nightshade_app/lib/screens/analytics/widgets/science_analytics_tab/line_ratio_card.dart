@@ -14,71 +14,64 @@ class _MovingObjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Moving Object Candidates',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Moving Object Candidates',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              if (hubExportButton != null) hubExportButton!,
+              const _ScienceInfoButton(title: 'Moving Object Candidates'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (moving.isEmpty)
+            Text(
+              'No candidates detected in current session window.',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            )
+          else
+            ...moving.take(6).map(
+                  (candidate) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            candidate.objectName ?? candidate.candidateId,
+                            style: NightshadeTypography.labelSm.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '${(candidate.confidence * 100).toStringAsFixed(0)}%',
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${candidate.motionArcsecPerMinute.toStringAsFixed(2)}"/min',
+                          style: NightshadeTypography.caption
+                              .copyWith(color: colors.textMuted),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                if (hubExportButton != null) hubExportButton!,
-                const _ScienceInfoButton(title: 'Moving Object Candidates'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (moving.isEmpty)
-              Text(
-                'No candidates detected in current session window.',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12),
-              )
-            else
-              ...moving.take(6).map(
-                    (candidate) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              candidate.objectName ?? candidate.candidateId,
-                              style: NightshadeTypography.labelSm.copyWith(
-                                color: colors.textPrimary,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '${(candidate.confidence * 100).toStringAsFixed(0)}%',
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: NightshadeTypography.fontSize11,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${candidate.motionArcsecPerMinute.toStringAsFixed(2)}"/min',
-                            style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -149,122 +142,113 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
         scienceSettingsAsync.valueOrNull?.narrowbandRatiosEnabled;
     final latest = widget.lineRatios.isEmpty ? null : widget.lineRatios.first;
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Narrowband Ratios',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.textPrimary,
-                    ),
-                  ),
-                ),
-                const _ScienceInfoButton(title: 'Narrowband Ratios'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                isLoading: _isGenerating,
-                onPressed: _isGenerating
-                    ? null
-                    : narrowbandEnabled == null
-                        ? null
-                        : !narrowbandEnabled
-                            ? () => context.push('/settings?section=science')
-                            : widget.sessionId == null
-                                ? null
-                                : _generateLineRatios,
-                label: narrowbandEnabled == null
-                    ? 'Science settings unavailable'
-                    : !narrowbandEnabled
-                        ? 'Enable Narrowband Ratios in Settings'
-                        : _isGenerating
-                            ? 'Generating...'
-                            : 'Generate From Session Frames',
-                variant: ButtonVariant.secondary,
-                size: ButtonSize.small,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (_statusMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
                 child: Text(
-                  _statusMessage!,
+                  'Narrowband Ratios',
                   style: TextStyle(
-                    color: widget.colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize11,
+                    fontWeight: FontWeight.w600,
+                    color: widget.colors.textPrimary,
                   ),
                 ),
               ),
-            if (scienceSettingsAsync.hasError)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Could not load science settings: '
-                        '${scienceSettingsAsync.error}',
-                        style: TextStyle(
-                          color: widget.colors.error,
-                          fontSize: NightshadeTypography.fontSize11,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => ref.invalidate(scienceSettingsProvider),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              )
-            else if (narrowbandEnabled == false)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Feature disabled globally. Turn on Narrowband line ratios in Settings > Science.',
-                  style: TextStyle(
-                    color: widget.colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize11,
-                  ),
-                ),
-              ),
-            if (latest == null)
-              Text(
-                'No line-ratio products generated yet.',
-                style: TextStyle(
-                    color: widget.colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12),
-              )
-            else ...[
-              _MetricLine(
-                colors: widget.colors,
-                label: 'SII/Ha',
-                value: latest.ratioSiiHa,
-              ),
-              _MetricLine(
-                colors: widget.colors,
-                label: 'OIII/Ha',
-                value: latest.ratioOiiiHa,
-              ),
-              _MetricLine(
-                colors: widget.colors,
-                label: 'SII/OIII',
-                value: latest.ratioSiiOiii,
-              ),
+              const _ScienceInfoButton(title: 'Narrowband Ratios'),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: NightshadeButton(
+              isLoading: _isGenerating,
+              onPressed: _isGenerating
+                  ? null
+                  : narrowbandEnabled == null
+                      ? null
+                      : !narrowbandEnabled
+                          ? () => context.push('/settings?section=science')
+                          : widget.sessionId == null
+                              ? null
+                              : _generateLineRatios,
+              label: narrowbandEnabled == null
+                  ? 'Science settings unavailable'
+                  : !narrowbandEnabled
+                      ? 'Enable Narrowband Ratios in Settings'
+                      : _isGenerating
+                          ? 'Generating...'
+                          : 'Generate From Session Frames',
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_statusMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _statusMessage!,
+                style: NightshadeTypography.caption
+                    .copyWith(color: widget.colors.textMuted),
+              ),
+            ),
+          if (scienceSettingsAsync.hasError)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Could not load science settings: '
+                      '${scienceSettingsAsync.error}',
+                      style: NightshadeTypography.caption
+                          .copyWith(color: widget.colors.error),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.invalidate(scienceSettingsProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else if (narrowbandEnabled == false)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Feature disabled globally. Turn on Narrowband line ratios in Settings > Science.',
+                style: NightshadeTypography.caption
+                    .copyWith(color: widget.colors.textMuted),
+              ),
+            ),
+          if (latest == null)
+            Text(
+              'No line-ratio products generated yet.',
+              style: NightshadeTypography.caption
+                  .copyWith(color: widget.colors.textMuted),
+            )
+          else ...[
+            _MetricLine(
+              colors: widget.colors,
+              label: 'SII/Ha',
+              value: latest.ratioSiiHa,
+            ),
+            _MetricLine(
+              colors: widget.colors,
+              label: 'OIII/Ha',
+              value: latest.ratioOiiiHa,
+            ),
+            _MetricLine(
+              colors: widget.colors,
+              label: 'SII/OIII',
+              value: latest.ratioSiiOiii,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -404,10 +388,8 @@ class _MetricLine extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           Text(
             value.toStringAsFixed(3),

@@ -193,10 +193,8 @@ class _PeriodogramCustomPainter extends CustomPainter {
     final peakLabel = TextPainter(
       text: TextSpan(
         text: periodogramPeakLabel(bestFrequency),
-        style: TextStyle(
-            color: peakColor,
-            fontSize: NightshadeTypography.fontSize9,
-            fontWeight: FontWeight.w600),
+        style: NightshadeTypography.caption
+            .copyWith(color: peakColor, fontWeight: FontWeight.w600),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -210,8 +208,7 @@ class _PeriodogramCustomPainter extends CustomPainter {
 
   void _drawAxisLabels(
       Canvas canvas, Rect plotRect, double minFreq, double maxFreq) {
-    final textStyle =
-        TextStyle(color: textColor, fontSize: NightshadeTypography.fontSize9);
+    final textStyle = NightshadeTypography.caption.copyWith(color: textColor);
 
     // Y-axis labels: one per tick of the snapped axis, at its own precision.
     final labels = powerAxisLabels;

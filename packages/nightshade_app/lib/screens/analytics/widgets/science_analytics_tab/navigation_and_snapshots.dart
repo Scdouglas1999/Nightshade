@@ -291,12 +291,10 @@ class _SectionHeading extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-              letterSpacing: 0.4,
-            ),
+            style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textSecondary,
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w600),
           ),
           if (trailing != null) ...[
             const Spacer(),

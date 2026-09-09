@@ -20,9 +20,7 @@ class _PhaseFoldPainter extends StatelessWidget {
       return Center(
         child: Text(
           'No data to display',
-          style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       );
     }
@@ -102,8 +100,7 @@ class _PhaseFoldCustomPainter extends CustomPainter {
     }
 
     // Axis labels.
-    final textStyle =
-        TextStyle(color: textColor, fontSize: NightshadeTypography.fontSize9);
+    final textStyle = NightshadeTypography.caption.copyWith(color: textColor);
 
     // Y-axis (inverted — brighter at top, so displayMax at top and displayMin at bottom).
     for (var i = 0; i <= 4; i++) {

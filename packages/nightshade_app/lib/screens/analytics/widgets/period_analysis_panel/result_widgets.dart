@@ -24,32 +24,24 @@ class _ResultColumn extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize11,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 2),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize16,
-              fontWeight: FontWeight.w700,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: NightshadeTypography.readoutMd.copyWith(
+                color: colors.textPrimary, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 2),
           Text(
             detail,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize10,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
             textAlign: TextAlign.center,
           ),
           if (verdict != null) ...[
@@ -90,11 +82,9 @@ class _VerdictChip extends StatelessWidget {
           : NightshadeDecorations.chip(colors, tone: color),
       child: Text(
         label,
-        style: TextStyle(
-          color: filled ? colors.surface : color,
-          fontSize: NightshadeTypography.fontSize10,
-          fontWeight: FontWeight.w600,
-        ),
+        style: NightshadeTypography.caption.copyWith(
+            color: filled ? colors.surface : color,
+            fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -118,18 +108,13 @@ class _BlsStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize10),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
         Text(
           value,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+          style: NightshadeTypography.readoutXs
+              .copyWith(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
       ],
     );

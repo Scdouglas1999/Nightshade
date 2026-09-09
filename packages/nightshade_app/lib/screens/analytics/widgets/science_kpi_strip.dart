@@ -276,80 +276,69 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title.toUpperCase(),
-              style: TextStyle(
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize10,
                 letterSpacing: 0.6,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              headline,
-              style: TextStyle(
-                color: headlineTone,
-                fontWeight: FontWeight.w800,
-                fontSize: NightshadeTypography.fontSize22,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
-            ),
-            if (trust.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: trust
-                    .map(
-                      (t) => Tooltip(
-                        message: t.tooltip,
-                        preferBelow: false,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: NightshadeDecorations.chip(colors,
-                              tone: t.tone ?? colors.textMuted),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(t.icon,
-                                  size: 10,
-                                  color: t.tone ?? colors.textSecondary),
-                              const SizedBox(width: 3),
-                              Text(
-                                t.label,
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize9,
-                                  fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            headline,
+            style: NightshadeTypography.readoutLg
+                .copyWith(color: headlineTone, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
+          ),
+          if (trust.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: trust
+                  .map(
+                    (t) => Tooltip(
+                      message: t.tooltip,
+                      preferBelow: false,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: NightshadeDecorations.chip(colors,
+                            tone: t.tone ?? colors.textMuted),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(t.icon,
+                                size: 10,
+                                color: t.tone ?? colors.textSecondary),
+                            const SizedBox(width: 3),
+                            Text(
+                              t.label,
+                              style: NightshadeTypography.caption.copyWith(
                                   color: t.tone ?? colors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
                         ),
                       ),
-                    )
-                    .toList(),
-              ),
-            ],
+                    ),
+                  )
+                  .toList(),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

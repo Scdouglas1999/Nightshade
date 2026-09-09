@@ -21,209 +21,194 @@ class ScienceOverlayComposer extends ConsumerWidget {
     final prefsAsync = ref.watch(scienceVisualizationPrefsProvider);
 
     if (prefsAsync.hasError || !prefsAsync.hasValue) {
-      return NightshadeCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!prefsAsync.hasError)
-                const CircularProgressIndicator(strokeWidth: 2)
-              else ...[
-                Text(
-                  'Could not load science overlay preferences',
-                  style: TextStyle(color: colors.error),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  prefsAsync.error.toString(),
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize11,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                NightshadeButton(
-                  label: 'Retry overlay preferences',
-                  icon: LucideIcons.refreshCw,
-                  variant: ButtonVariant.secondary,
-                  size: ButtonSize.small,
-                  onPressed: () =>
-                      ref.invalidate(scienceVisualizationPrefsProvider),
-                ),
-              ],
+      return NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!prefsAsync.hasError)
+              const CircularProgressIndicator(strokeWidth: 2)
+            else ...[
+              Text(
+                'Could not load science overlay preferences',
+                style: TextStyle(color: colors.error),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                prefsAsync.error.toString(),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
+              ),
+              const SizedBox(height: 10),
+              NightshadeButton(
+                label: 'Retry overlay preferences',
+                icon: LucideIcons.refreshCw,
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: () =>
+                    ref.invalidate(scienceVisualizationPrefsProvider),
+              ),
             ],
-          ),
+          ],
         ),
       );
     }
     final prefs = prefsAsync.requireValue;
 
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Overlay Composer',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'Tap ⓘ for what each layer means',
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize10,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(LucideIcons.info, size: 12, color: colors.textMuted),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Overlays apply to the Imaging live view',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize11,
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () => context.go('/imaging'),
-                  icon: Icon(
-                    LucideIcons.arrowRight,
-                    size: 12,
-                    color: colors.primary,
-                  ),
-                  label: Text(
-                    'Open Imaging',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _LayerChip(
-                  legendKey: 'uniformity',
-                  label: 'Uniformity',
-                  active: overlayState.showUniformityMap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showUniformityMap: !overlayState.showUniformityMap,
-                    );
-                  },
-                ),
-                _LayerChip(
-                  legendKey: 'clip_high',
-                  label: 'Clip High',
-                  active: overlayState.showClipHighMap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showClipHighMap: !overlayState.showClipHighMap,
-                    );
-                  },
-                ),
-                _LayerChip(
-                  legendKey: 'clip_low',
-                  label: 'Clip Low',
-                  active: overlayState.showClipLowMap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showClipLowMap: !overlayState.showClipLowMap,
-                    );
-                  },
-                ),
-                _LayerChip(
-                  legendKey: 'residuals',
-                  label: 'Residual',
-                  active: overlayState.showResidualVectors,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showResidualVectors: !overlayState.showResidualVectors,
-                    );
-                  },
-                ),
-                _LayerChip(
-                  legendKey: 'moving',
-                  label: 'Moving Tracks',
-                  active: overlayState.showMovingObjectTracks,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showMovingObjectTracks:
-                          !overlayState.showMovingObjectTracks,
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Overlay Opacity ${(prefs.overlayOpacity * 100).round()}%',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Slider(
-              min: 0.05,
-              max: 0.95,
-              value: prefs.overlayOpacity.clamp(0.05, 0.95),
-              onChanged: (value) {
-                final next = prefs.copyWith(overlayOpacity: value);
-                ref
-                    .read(scienceVisualizationPrefsProvider.notifier)
-                    .savePrefs(next);
-              },
-            ),
-            // Show the inline gradient legend for whichever quantitative
-            // overlay is currently active. This gives users immediate "color
-            // = meaning" guidance the moment they enable an overlay, instead
-            // of forcing them into the long-form info dialog.
-            if (overlayState.showUniformityMap ||
-                overlayState.showClipHighMap ||
-                overlayState.showClipLowMap)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: ScienceOverlayLegend.inlineFor(
-                  context,
-                  overlayState.showClipHighMap
-                      ? 'clip_high'
-                      : overlayState.showClipLowMap
-                          ? 'clip_low'
-                          : 'uniformity',
+    return NightshadePanel(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Overlay Composer',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-          ],
-        ),
+              const Spacer(),
+              Text(
+                'Tap ⓘ for what each layer means',
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(LucideIcons.info, size: 12, color: colors.textMuted),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Overlays apply to the Imaging live view',
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => context.go('/imaging'),
+                icon: Icon(
+                  LucideIcons.arrowRight,
+                  size: 12,
+                  color: colors.primary,
+                ),
+                label: Text(
+                  'Open Imaging',
+                  style: NightshadeTypography.caption.copyWith(
+                      color: colors.primary, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _LayerChip(
+                legendKey: 'uniformity',
+                label: 'Uniformity',
+                active: overlayState.showUniformityMap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showUniformityMap: !overlayState.showUniformityMap,
+                  );
+                },
+              ),
+              _LayerChip(
+                legendKey: 'clip_high',
+                label: 'Clip High',
+                active: overlayState.showClipHighMap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showClipHighMap: !overlayState.showClipHighMap,
+                  );
+                },
+              ),
+              _LayerChip(
+                legendKey: 'clip_low',
+                label: 'Clip Low',
+                active: overlayState.showClipLowMap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showClipLowMap: !overlayState.showClipLowMap,
+                  );
+                },
+              ),
+              _LayerChip(
+                legendKey: 'residuals',
+                label: 'Residual',
+                active: overlayState.showResidualVectors,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showResidualVectors: !overlayState.showResidualVectors,
+                  );
+                },
+              ),
+              _LayerChip(
+                legendKey: 'moving',
+                label: 'Moving Tracks',
+                active: overlayState.showMovingObjectTracks,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showMovingObjectTracks:
+                        !overlayState.showMovingObjectTracks,
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Overlay Opacity ${(prefs.overlayOpacity * 100).round()}%',
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            min: 0.05,
+            max: 0.95,
+            value: prefs.overlayOpacity.clamp(0.05, 0.95),
+            onChanged: (value) {
+              final next = prefs.copyWith(overlayOpacity: value);
+              ref
+                  .read(scienceVisualizationPrefsProvider.notifier)
+                  .savePrefs(next);
+            },
+          ),
+          // Show the inline gradient legend for whichever quantitative
+          // overlay is currently active. This gives users immediate "color
+          // = meaning" guidance the moment they enable an overlay, instead
+          // of forcing them into the long-form info dialog.
+          if (overlayState.showUniformityMap ||
+              overlayState.showClipHighMap ||
+              overlayState.showClipLowMap)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: ScienceOverlayLegend.inlineFor(
+                context,
+                overlayState.showClipHighMap
+                    ? 'clip_high'
+                    : overlayState.showClipLowMap
+                        ? 'clip_low'
+                        : 'uniformity',
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -269,10 +254,8 @@ class _LayerChip extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(width: 6),
                 Semantics(
