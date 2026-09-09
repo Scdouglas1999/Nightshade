@@ -159,9 +159,10 @@ class _CompletedPass extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
-      child: NightshadeAlert(
+      child: NightshadeBanner(
+        title: 'The Darkroom pass finished',
         key: const ValueKey('session_review_darkroom_pass_done'),
-        severity: NightshadeAlertSeverity.success,
+        tone: BannerTone.success,
         message: 'The Darkroom pass for this night ran to the end$when — the '
             'drafting, the night report, the delivery and the morning message '
             'are all behind it. Open the Darkroom to see what it made of this '
@@ -172,7 +173,7 @@ class _CompletedPass extends ConsumerWidget {
                 key: const ValueKey('session_review_darkroom_pass_open'),
                 label: 'Open the Darkroom',
                 icon: LucideIcons.sliders,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed: () =>
                     openDarkroomForSession(context, ref, sessionId),

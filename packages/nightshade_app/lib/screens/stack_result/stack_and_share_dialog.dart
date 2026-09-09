@@ -354,14 +354,14 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     final isBusy = raw.contains('LiveStackBusyException') ||
         raw.contains('Stop live stacking');
     if (isBusy) {
-      return NightshadeAlert(
-        severity: NightshadeAlertSeverity.error,
+      return NightshadeBanner(
+        tone: BannerTone.error,
         title: 'Live stacking is active',
         message: 'The stacking engine is busy with a live session. Stop live '
             'stacking before running Stack & Share.',
         action: NightshadeButton(
           label: 'Stop live stacking',
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           icon: NightshadeIcons.stopCircle,
           onPressed: _stopLiveStacking,
@@ -379,8 +379,8 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.error,
+        NightshadeBanner(
+          tone: BannerTone.error,
           title: 'Stack & Share failed',
           message: body,
           action: failure.technical == null

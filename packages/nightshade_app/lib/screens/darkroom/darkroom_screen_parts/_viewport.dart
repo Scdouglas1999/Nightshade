@@ -340,7 +340,7 @@ class _DarkroomZoomControls extends StatelessWidget {
   Widget _labelControl(String label, String? reason, VoidCallback onPressed) {
     final button = NightshadeButton(
       label: label,
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
       onPressed: reason == null ? onPressed : null,
     );
@@ -594,12 +594,11 @@ class _DarkroomViewportState extends ConsumerState<_DarkroomViewport> {
                 ),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                  child: NightshadeAlert(
-                    severity: NightshadeAlertSeverity.error,
+                  child: NightshadeBanner(
+                    tone: BannerTone.error,
                     title: 'The render did not finish',
                     message: '$failure\n\nThis picture is the last render that '
                         'finished, so it does not show the stack as it stands.',
-                    compact: true,
                   ),
                 ),
               ),

@@ -139,8 +139,9 @@ class _AbComparePanelState extends State<AbComparePanel> {
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             if (_error != null) ...[
-              NightshadeAlert(
-                severity: NightshadeAlertSeverity.error,
+              NightshadeBanner(
+                title: 'The comparison could not be built',
+                tone: BannerTone.error,
                 message: _error!,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
@@ -261,7 +262,7 @@ class _RecipeColumn extends StatelessWidget {
                 NightshadeButton(
                   label: 'Run',
                   icon: NightshadeIcons.refresh,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   size: ButtonSize.small,
                   isLoading: running,
                   onPressed: running ? null : onRun,

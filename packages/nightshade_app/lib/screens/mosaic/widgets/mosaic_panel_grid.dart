@@ -257,7 +257,7 @@ class _PanelTile extends StatelessWidget {
               NightshadeButton(
                 label: 'Claim',
                 icon: NightshadeIcons.download,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 size: ButtonSize.small,
                 onPressed:
                     collaborativeBusy ? null : () => onClaim!(panel.panelIndex),
@@ -293,7 +293,7 @@ class _PanelTile extends StatelessWidget {
             NightshadeButton(
               label: 'Release',
               icon: NightshadeIcons.unlock,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               onPressed:
                   collaborativeBusy ? null : () => onRelease!(panel.panelIndex),

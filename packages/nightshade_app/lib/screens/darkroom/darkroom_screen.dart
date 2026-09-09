@@ -13,6 +13,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io' show Directory;
 import 'dart:math' as math;
@@ -37,6 +38,7 @@ import '../stack_result/stack_and_share_dialog.dart'
 import 'darkroom_branch_controller.dart';
 import 'darkroom_controller.dart';
 
+part 'darkroom_screen_parts/_landing.dart';
 part 'darkroom_screen_parts/_image_surface.dart';
 part 'darkroom_screen_parts/_viewport.dart';
 part 'darkroom_screen_parts/_history_panel.dart';
@@ -117,9 +119,8 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
       // one branch whose whole job is to send the operator somewhere else.
       return _shell(
         colors: colors,
-        title: 'Darkroom',
-        subtitle: 'Host-only processing',
-        trailing: _backControl(savePending: false),
+        context: 'Host-only processing',
+        actions: [_backControl(savePending: false)],
         body: EmptyState(
           icon: NightshadeIcons.device,
           title: 'Open the Darkroom on the imaging host',
@@ -131,11 +132,22 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
             key: const ValueKey('darkroom_remote_gate_back'),
             label: 'Go back',
             icon: NightshadeIcons.arrowLeft,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: _leave,
           ),
         ),
+      );
+    }
+
+    // A bare `/darkroom` is now a rail destination, so it lists what there is
+    // to open instead of refusing. Deliberately BEFORE the controller is
+    // watched: an empty scope fails that load by design, and watching it would
+    // put "this link named neither a recipe nor a master" back on screen.
+    if (widget.scope.isEmpty) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: const SafeArea(bottom: false, child: _DarkroomLandingView()),
       );
     }
 
@@ -172,9 +184,11 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
 
     return _shell(
       colors: colors,
-      title: state.hasRecipe ? state.recipeName : 'Darkroom',
-      subtitle: _subtitle(state),
-      trailing: _headerActions(state),
+      // The recipe qualifies the title; it does not replace it. The header used
+      // to become the recipe's name, which left the one screen in the app whose
+      // header did not say which screen it was.
+      context: state.hasRecipe ? state.recipeName : null,
+      actions: _headerActions(state),
       body: _body(context, colors, state),
     );
   }
@@ -192,9 +206,8 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   /// the whole way-out contract at the same time.
   Widget _shell({
     required NightshadeColors colors,
-    required String title,
-    required String subtitle,
-    required Widget trailing,
+    required String? context,
+    required List<Widget> actions,
     required Widget body,
   }) {
     return Scaffold(
@@ -216,11 +229,11 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
             bottom: false,
             child: Column(
               children: [
-                ScreenHeader(
-                  title: title,
-                  subtitle: subtitle,
-                  icon: NightshadeIcons.palette,
-                  trailing: trailing,
+                PageHeader(
+                  title: 'Darkroom',
+                  icon: NightshadeIcons.aperture,
+                  context: context,
+                  actions: actions,
                 ),
                 Expanded(child: body),
               ],
@@ -276,7 +289,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         child: NightshadeButton(
           label: 'Back',
           icon: NightshadeIcons.arrowLeft,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: _leave,
         ),
@@ -285,14 +298,10 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
   }
 
   /// The header's action slot: the way out, and the render control.
-  Widget _headerActions(DarkroomState state) {
+  List<Widget> _headerActions(DarkroomState state) {
     final render = _headerAction(state);
-    return Wrap(
-      spacing: NightshadeTokens.spaceXs,
-      runSpacing: NightshadeTokens.spaceXs,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        _backControl(savePending: state.savePending),
+    return [
+      _backControl(savePending: state.savePending),
         // The same boundary the Back control carries, for the same reason. The
         // `CallbackShortcuts` above publishes one focusable node over the whole
         // screen, and every unbounded fragment under it merges in — so in a
@@ -302,9 +311,8 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         // Reload", with the screen's title readable only as part of a control's
         // name. The editor layout escaped it purely because its body has
         // actions of its own to be incompatible with.
-        if (render != null) Semantics(container: true, child: render),
-      ],
-    );
+      if (render != null) Semantics(container: true, child: render),
+    ];
   }
 
   void _toast(String message, NightshadeAlertSeverity severity) {
@@ -316,19 +324,6 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
         severity: severity,
       );
     });
-  }
-
-  String _subtitle(DarkroomState state) {
-    if (state.loading) return 'Loading…';
-    if (state.loadError != null) return 'Nothing to open';
-    if (state.offer != null) return 'No recipe yet';
-    final enabled = state.steps.where((step) => step.enabled).length;
-    final total = state.steps.length;
-    final stack =
-        total == 1 ? '1 step · $enabled on' : '$total steps · $enabled on';
-    if (state.rendering) return '$stack · rendering…';
-    if (state.savePending) return '$stack · saving…';
-    return stack;
   }
 
   /// The header's single action slot.
@@ -350,7 +345,7 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
     return NightshadeButton(
       label: 'Reload',
       icon: NightshadeIcons.refresh,
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
       onPressed: _controller.refresh,
     );
@@ -431,11 +426,11 @@ class _DarkroomScreenState extends ConsumerState<DarkroomScreen> {
               NightshadeTokens.spaceMd,
               NightshadeTokens.spaceSm,
             ),
-            child: NightshadeAlert(
+            child: NightshadeBanner(
+              title: 'That recipe file was not imported',
               key: const ValueKey('darkroom_import_refusal'),
-              severity: NightshadeAlertSeverity.error,
+              tone: BannerTone.error,
               message: state.offerError!,
-              compact: true,
               onDismiss: _controller.dismissOfferError,
             ),
           ),
@@ -724,7 +719,7 @@ class _DarkroomFailureExitState extends ConsumerState<_DarkroomFailureExit> {
       return NightshadeButton(
         label: 'Browse sessions',
         icon: NightshadeIcons.history,
-        variant: ButtonVariant.outline,
+        variant: ButtonVariant.secondary,
         size: ButtonSize.small,
         semanticsHint:
             'Opens the session list in Analytics. This master has no '
@@ -735,7 +730,7 @@ class _DarkroomFailureExitState extends ConsumerState<_DarkroomFailureExit> {
     return NightshadeButton(
       label: 'Open this night\'s session review',
       icon: NightshadeIcons.history,
-      variant: ButtonVariant.outline,
+      variant: ButtonVariant.secondary,
       size: ButtonSize.small,
       onPressed: () => context.go(sessionReviewLocation(sessionId)),
     );
@@ -812,9 +807,10 @@ class _DarkroomStartOfferView extends StatelessWidget {
                 // stood until another import replaced it, so a refusal the
                 // operator had finished reading kept moving the controls it
                 // was telling them to use.
-                NightshadeAlert(
+                NightshadeBanner(
+                  title: 'That recipe file was not imported',
                   key: const ValueKey('darkroom_import_refusal'),
-                  severity: NightshadeAlertSeverity.error,
+                  tone: BannerTone.error,
                   message: message,
                   onDismiss: onDismissError,
                 ),
@@ -852,7 +848,7 @@ class _DarkroomStartOfferView extends StatelessWidget {
               NightshadeButton(
                 label: 'Start from linear',
                 icon: NightshadeIcons.frame,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: busy ? null : onStartFromLinear,
               ),
               const SizedBox(height: NightshadeTokens.spaceSm),
@@ -869,7 +865,7 @@ class _DarkroomStartOfferView extends StatelessWidget {
               NightshadeButton(
                 label: 'Import .nsrecipe',
                 icon: NightshadeIcons.upload,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: busy ? null : onImportRecipe,
               ),
               const SizedBox(height: NightshadeTokens.spaceSm),
@@ -905,10 +901,10 @@ class _DarkroomStartOfferView extends StatelessWidget {
     if (error != null) {
       return [
         const SizedBox(height: NightshadeTokens.spaceLg),
-        NightshadeAlert(
-          severity: NightshadeAlertSeverity.info,
+        NightshadeBanner(
+          title: 'The night\'s other masters could not be listed',
+          tone: BannerTone.info,
           message: error,
-          compact: true,
         ),
       ];
     }

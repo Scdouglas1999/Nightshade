@@ -235,7 +235,7 @@ class _DarkroomCompareViewState extends ConsumerState<_DarkroomCompareView> {
           NightshadeButton(
             label: _blinking ? 'Pause blink' : 'Resume blink',
             icon: _blinking ? NightshadeIcons.pause : NightshadeIcons.play,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () {
               if (_blinking) {

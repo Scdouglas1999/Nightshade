@@ -187,7 +187,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
           action: NightshadeButton(
             label: 'Try again',
             icon: NightshadeIcons.refresh,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             onPressed: () => ref.invalidate(mosaicArtifactsBaseDirProvider),
           ),
         ),
@@ -300,7 +300,7 @@ class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
               action: NightshadeButton(
                 label: 'Try again',
                 icon: NightshadeIcons.refresh,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 onPressed: controller.load,
               ),
             ),
@@ -607,7 +607,7 @@ class MosaicProjectActions extends StatelessWidget {
               NightshadeButton(
                 label: 'Stitch mosaic',
                 icon: NightshadeIcons.grid,
-                variant: ButtonVariant.outline,
+                variant: ButtonVariant.secondary,
                 isLoading: state.isStitching,
                 onPressed: (!canStitch || state.isBusy)
                     ? null
@@ -719,7 +719,7 @@ class MosaicCollaborativeSection extends StatelessWidget {
                 NightshadeButton(
                   label: _bulkClaimLabel(isOwner, controller.bulkClaimCount),
                   icon: NightshadeIcons.download,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.isClaiming,
                   onPressed: (state.isBusy || controller.bulkClaimCount == 0)
                       ? null
@@ -728,7 +728,7 @@ class MosaicCollaborativeSection extends StatelessWidget {
                 NightshadeButton(
                   label: 'Upload all integrated',
                   icon: NightshadeIcons.upload,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.isUploading,
                   onPressed:
                       (state.isBusy || state.integratedNotUploaded.isEmpty)

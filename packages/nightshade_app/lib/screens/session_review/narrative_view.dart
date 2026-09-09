@@ -376,7 +376,7 @@ class _ActionCard extends StatelessWidget {
             child: NightshadeButton(
               label: actionLabel,
               icon: NightshadeIcons.play,
-              variant: ButtonVariant.outline,
+              variant: ButtonVariant.secondary,
               size: ButtonSize.small,
               isLoading: busy,
               onPressed: busy ? null : () => onPressed(),

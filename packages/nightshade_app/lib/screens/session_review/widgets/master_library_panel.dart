@@ -69,7 +69,7 @@ class MasterLibraryPanel extends StatelessWidget {
           trailing: NightshadeButton(
             label: 'New accumulating',
             icon: NightshadeIcons.add,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed:
                 (busy || acceptedSubCount == 0) ? null : onCreateAccumulating,

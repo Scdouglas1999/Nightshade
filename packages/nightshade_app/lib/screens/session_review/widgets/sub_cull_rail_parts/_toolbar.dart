@@ -52,14 +52,14 @@ class _CullToolbar extends StatelessWidget {
         NightshadeButton(
           label: blink ? 'Stop blink' : 'Blink mode',
           icon: NightshadeIcons.play,
-          variant: blink ? ButtonVariant.primary : ButtonVariant.outline,
+          variant: blink ? ButtonVariant.primary : ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: onToggleBlink,
         ),
         NightshadeButton(
           label: selectMode ? 'Done selecting' : 'Select / lasso',
           icon: NightshadeIcons.crosshair,
-          variant: selectMode ? ButtonVariant.primary : ButtonVariant.outline,
+          variant: selectMode ? ButtonVariant.primary : ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: onToggleSelect,
         ),
@@ -159,7 +159,7 @@ class _CullToolbar extends StatelessWidget {
           NightshadeButton(
             label: 'Reject HFR above',
             icon: NightshadeIcons.error,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: onBulkCull,
           ),

@@ -228,8 +228,8 @@ class _RightColumn extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (shortfall != null) ...[
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
+          NightshadeBanner(
+            tone: BannerTone.warning,
             title: 'Subs were dropped from this master',
             message: shortfall,
           ),
@@ -461,21 +461,21 @@ class _FinishingActions extends StatelessWidget {
                 NightshadeButton(
                   label: 'Background extract',
                   icon: NightshadeIcons.grid,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.extractingBackground,
                   onPressed: busy ? null : controller.runBackgroundExtraction,
                 ),
                 NightshadeButton(
                   label: 'Deconvolve',
                   icon: NightshadeIcons.sparkle,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.deconvolving,
                   onPressed: busy ? null : controller.runDeconvolve,
                 ),
                 NightshadeButton(
                   label: 'Reduce stars',
                   icon: NightshadeIcons.star,
-                  variant: ButtonVariant.outline,
+                  variant: ButtonVariant.secondary,
                   isLoading: state.reducingStars,
                   onPressed: busy ? null : controller.runStarReduction,
                 ),

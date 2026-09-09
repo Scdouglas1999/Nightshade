@@ -201,19 +201,18 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // rendered. The switched-off step keeps its own warning on its own card.
       if (state.blockingRecipeError != null)
         wrap(
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.error,
+          NightshadeBanner(
+            tone: BannerTone.error,
             title: 'This stack does not validate',
             message: state.blockingRecipeError!,
-            compact: true,
           ),
         ),
       if (state.catalogError != null)
         wrap(
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
+          NightshadeBanner(
+            title: 'The operation catalogue could not be read',
+            tone: BannerTone.warning,
             message: state.catalogError!,
-            compact: true,
           ),
         ),
       // A refused move snaps the card back to where it started, which on its
@@ -222,11 +221,10 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // it, rather than only flashing past in a toast.
       if (state.reorderRefusal != null)
         wrap(
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.warning,
+          NightshadeBanner(
+            tone: BannerTone.warning,
             title: 'That move was refused',
             message: state.reorderRefusal!,
-            compact: true,
           ),
         ),
       // An insert that added nothing closes its chooser and leaves the stack
@@ -236,12 +234,11 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
       // the stack until the next edit clears it.
       if (state.insertRefusal != null)
         wrap(
-          NightshadeAlert(
+          NightshadeBanner(
             key: const ValueKey('darkroom_insert_refusal'),
-            severity: NightshadeAlertSeverity.warning,
+            tone: BannerTone.warning,
             title: 'That step was not added',
             message: state.insertRefusal!,
-            compact: true,
           ),
         ),
     ];
@@ -401,10 +398,10 @@ class _DarkroomHistoryPanelState extends State<_DarkroomHistoryPanel> {
               ],
               if (issue != null && !issue.isClean) ...[
                 const SizedBox(height: NightshadeTokens.spaceSm),
-                NightshadeAlert(
-                  severity: NightshadeAlertSeverity.error,
+                NightshadeBanner(
+                  title: 'This step will not run',
+                  tone: BannerTone.error,
                   message: _issueMessage(step, issue),
-                  compact: true,
                 ),
               ],
               if (spec == null && state.catalog != null) ...[

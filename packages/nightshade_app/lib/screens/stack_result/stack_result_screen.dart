@@ -301,7 +301,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         NightshadeButton(
           label: 'Export PNG',
           icon: LucideIcons.fileImage,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           isLoading: _exporting,
           onPressed: canExport
@@ -311,7 +311,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         NightshadeButton(
           label: 'Export JPEG',
           icon: NightshadeIcons.image,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: canExport
               ? () => _export(result, rgba, ShareExportFormat.jpeg)
@@ -320,7 +320,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         NightshadeButton(
           label: 'Share Card',
           icon: NightshadeIcons.share,
-          variant: ButtonVariant.outline,
+          variant: ButtonVariant.secondary,
           size: ButtonSize.small,
           onPressed: canExport
               ? () => _export(result, rgba, ShareExportFormat.shareCard)
@@ -339,7 +339,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             key: const ValueKey('stack_result_refine_in_darkroom'),
             label: 'Refine in Darkroom',
             icon: NightshadeIcons.sliders,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             semanticsHint: darkroomReason,
             onPressed: canRefine

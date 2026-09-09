@@ -350,7 +350,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                       key: const ValueKey('session_review_process_now'),
                       label: 'Process now',
                       icon: NightshadeIcons.sliders,
-                      variant: ButtonVariant.outline,
+                      variant: ButtonVariant.secondary,
                       size: ButtonSize.small,
                       isLoading: _darkroomRunning,
                       // Disabled on the DURABLE answer, so a screen that was
@@ -382,7 +382,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                   NightshadeButton(
                     label: 'Refresh',
                     icon: NightshadeIcons.refresh,
-                    variant: ButtonVariant.outline,
+                    variant: ButtonVariant.secondary,
                     size: ButtonSize.small,
                     onPressed: () => _controller.refresh(),
                   ),
