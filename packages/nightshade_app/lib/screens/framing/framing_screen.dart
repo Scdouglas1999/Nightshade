@@ -187,8 +187,12 @@ class _FramingViewState extends ConsumerState<FramingView> {
         phoneStrategy: PhonePanelStrategy.bottomSheet,
         secondary: [
           AdaptivePanel(
-            title: 'Framing Controls',
+            title: 'Framing controls',
             icon: NightshadeIcons.sliders,
+            // The side panel's surface and left hairline, matching
+            // [SidePanel]. The widget itself is not used here because
+            // AdaptivePanelLayout owns this panel's width (resizable 250-500,
+            // bottom sheet on a phone) and SidePanel would pin it to 320.
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: colors.surface,
@@ -321,8 +325,11 @@ class _FramingViewState extends ConsumerState<FramingView> {
     // gaps + 16 px gutter waste scarce vertical/horizontal space. Tablet/desktop
     // keep the roomier spacing.
     final isPhone = Responsive.isPhone(context);
-    final sectionGap = isPhone ? 12.0 : 20.0;
-    final bodyPadding = EdgeInsets.all(isPhone ? 12 : 16);
+    final sectionGap =
+        isPhone ? NightshadeTokens.spaceMd : SidePanel.sectionGap;
+    final bodyPadding = isPhone
+        ? const EdgeInsets.all(NightshadeTokens.spaceMd)
+        : SidePanel.contentPadding;
 
     final panels = Column(
       crossAxisAlignment: CrossAxisAlignment.start,

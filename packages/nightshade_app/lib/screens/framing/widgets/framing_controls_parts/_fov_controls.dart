@@ -1,8 +1,8 @@
 // Preview FOV slider, presets and equipment FOV overlay controls.
 part of '../framing_controls.dart';
 
-/// Preview FOV slider with current value, optional equipment-FOV badge, and
-/// quick preset buttons (0.5°, 1°, 2°, 5°, equipment).
+/// Preview FOV slider with current value, optional equipment-FOV badge, and a
+/// [SegmentedControl] of quick presets (0.5°, 1°, 2°, 5°, equipment).
 class FramingPreviewFovSlider extends StatelessWidget {
   final NightshadeColors colors;
   final double value;
@@ -85,103 +85,39 @@ class FramingPreviewFovSlider extends StatelessWidget {
                         .copyWith(color: colors.textMuted)),
               ],
             ),
-            const SizedBox(height: 8),
-            // Quick presets. A Wrap (not a Row) so the preset chips reflow to a
-            // second line instead of overflowing when this slider is hosted in a
-            // narrow column (e.g. the guided framing rail inside the 250-500px
-            // framing sidebar), where the optional "Equip" chip would otherwise
-            // push the Row past its width.
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _FovPresetButton(
-                    label: '0.5°',
-                    value: 0.5,
-                    currentValue: value,
-                    colors: colors,
-                    onTap: () => onChanged(0.5)),
-                _FovPresetButton(
-                    label: '1°',
-                    value: 1.0,
-                    currentValue: value,
-                    colors: colors,
-                    onTap: () => onChanged(1.0)),
-                _FovPresetButton(
-                    label: '2°',
-                    value: 2.0,
-                    currentValue: value,
-                    colors: colors,
-                    onTap: () => onChanged(2.0)),
-                _FovPresetButton(
-                    label: '5°',
-                    value: 5.0,
-                    currentValue: value,
-                    colors: colors,
-                    onTap: () => onChanged(5.0)),
-                if (hasEquipment && equipmentFov != null)
-                  _FovPresetButton(
-                    label: 'Equip',
-                    value: equipmentFov!,
-                    currentValue: value,
-                    colors: colors,
-                    onTap: () => onChanged(equipmentFov!),
-                    isEquipment: true,
-                  ),
-              ],
-            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            // Quick presets as the one second-level switch style inside a panel
+            // (05 §5). The equipment FOV joins the row as a last segment when a
+            // profile resolves; when the slider sits between presets nothing is
+            // selected, which SegmentedControl renders for index -1.
+            Builder(builder: (context) {
+              final values = <double>[
+                0.5,
+                1.0,
+                2.0,
+                5.0,
+                if (hasEquipment && equipmentFov != null) equipmentFov!,
+              ];
+              final labels = <String>[
+                '0.5°',
+                '1°',
+                '2°',
+                '5°',
+                if (hasEquipment && equipmentFov != null) 'Equip',
+              ];
+              final selected =
+                  values.indexWhere((preset) => (value - preset).abs() < 0.05);
+              return SegmentedControl(
+                segments: labels,
+                selectedIndex: selected,
+                onSelected: (index) => onChanged(values[index]),
+              );
+            }),
           ],
         ));
   }
 }
 
-class _FovPresetButton extends StatelessWidget {
-  final String label;
-  final double value;
-  final double currentValue;
-  final NightshadeColors colors;
-  final VoidCallback onTap;
-  final bool isEquipment;
-
-  const _FovPresetButton({
-    required this.label,
-    required this.value,
-    required this.currentValue,
-    required this.colors,
-    required this.onTap,
-    this.isEquipment = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isSelected = (currentValue - value).abs() < 0.05;
-    final color = isEquipment ? colors.info : colors.primary;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.2) : Colors.transparent,
-          borderRadius: NightshadeTokens.borderRadiusInline4,
-          border: Border.all(
-            color: isSelected ? color : colors.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: NightshadeTypography.caption.copyWith(
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected ? color : colors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Toggles the equipment-FOV overlay on/off and exposes its opacity slider.
-/// Only shown when preview FOV is larger than the equipment FOV.
 class FramingEquipmentFovOverlayControls extends StatelessWidget {
   final NightshadeColors colors;
   final bool showOverlay;
