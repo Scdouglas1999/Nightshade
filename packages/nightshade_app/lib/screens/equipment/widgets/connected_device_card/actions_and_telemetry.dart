@@ -3,43 +3,38 @@ part of '../connected_device_card.dart';
 extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   Widget _buildActionsRow(NightshadeColors colors) {
     final settingsAction = _resolveSettingsAction();
+    final actions =
+        _buildDeviceActions(colors).where((w) => w is! SizedBox).toList();
 
-    // Wrap so the quick actions and the trailing icon buttons flow to a second
-    // line on a narrow panel instead of overflowing the row.
-    return Wrap(
-      spacing: _deviceActionGap,
-      runSpacing: _deviceActionGap,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    // A ROW, never a Wrap. A wrapped action row left a lone icon stranded on a
+    // second line and made two panels in the same grid row different heights.
+    // At most two buttons stay inline; everything else — the remaining device
+    // actions, the details toggle and Disconnect — goes behind one
+    // `more-vertical` menu.
+    final inline = actions.take(_maxInlineActions).toList();
+    final overflowed = actions.skip(_maxInlineActions).toList();
+
+    return Row(
       children: [
-        // Device-specific quick actions. Wrap handles the spacing, so the
-        // inter-button SizedBox spacers are dropped.
-        ..._buildDeviceActions(colors).where((w) => w is! SizedBox),
-
-        // Settings — only for device types with real settings reachable from
-        // this panel (or when the parent injected an onSettings callback).
-        // Device types with nothing to configure get no gear rather than an
-        // inert one.
-        if (settingsAction != null)
+        for (var i = 0; i < inline.length; i++) ...[
+          if (i > 0) const SizedBox(width: _deviceActionGap),
+          Flexible(child: inline[i]),
+        ],
+        const Spacer(),
+        if (settingsAction != null) ...[
           NightshadeIconButton(
             icon: LucideIcons.settings2,
             tooltip: 'Settings',
             size: IconButtonSize.sm,
             onPressed: _anyCommandInFlight ? null : settingsAction,
           ),
-
-        NightshadeIconButton(
-          icon: _isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-          tooltip: _isExpanded ? 'Hide details' : 'Show details',
-          size: IconButtonSize.sm,
-          selected: _isExpanded,
-          onPressed: _toggleExpanded,
-        ),
-
-        NightshadeIconButton(
-          icon: LucideIcons.unplug,
-          tooltip: 'Disconnect',
-          size: IconButtonSize.sm,
-          onPressed: _anyCommandInFlight
+          const SizedBox(width: _deviceActionGap),
+        ],
+        _DeviceOverflowMenu(
+          extraActions: overflowed,
+          isExpanded: _isExpanded,
+          onToggleDetails: _toggleExpanded,
+          onDisconnect: _anyCommandInFlight
               ? null
               : widget.onDisconnect ?? () => _handleDisconnect(),
         ),
@@ -133,7 +128,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           ),
           const SizedBox(width: 8),
           _ActionButton(
-            label: state.isWarming ? 'Cancel Warm' : 'Warm Up',
+            label: state.isWarming ? 'Cancel warm-up' : 'Warm up',
             onTap: _deviceCommandInFlight
                 ? null
                 : state.isWarming
@@ -236,7 +231,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         );
         return [
           _ActionButton(
-            label: 'Move to...',
+            label: 'Move to…',
             onTap: state.isAbsolute && !state.isMoving && !autofocusRunning
                 ? () => _showMoveDialog(context)
                 : null,
@@ -295,7 +290,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         );
         return [
           _ActionButton(
-            label: 'Rotate to...',
+            label: 'Rotate to…',
             onTap: state.connectionState == DeviceConnectionState.connected &&
                     !state.isMoving &&
                     canMoveAbsolute
@@ -363,7 +358,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           ),
           const SizedBox(width: 8),
           _ActionButton(
-            label: 'Slew...',
+            label: 'Slew…',
             onTap: connected &&
                     canSetAzimuth &&
                     !state.isSlewing &&
@@ -488,18 +483,18 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       case ConnectedDeviceType.camera:
         final state = ref.watch(cameraStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           ('Gain', state.gain?.toString() ?? kReadoutUnknown),
           ('Offset', state.offset?.toString() ?? kReadoutUnknown),
           ('Binning', state.binning ?? kReadoutUnknown),
           ('Cooling', state.isCooling ? 'Active' : 'Off'),
-          ('Target Temp', formatCelsius(state.targetTemp)),
+          ('Target temp', formatCelsius(state.targetTemp)),
         ];
 
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           ('RA', state.ra?.toStringAsFixed(4) ?? kReadoutUnknown),
           ('Dec', state.dec?.toStringAsFixed(4) ?? kReadoutUnknown),
           (
@@ -514,17 +509,17 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
                 ? state.azimuth!.toStringAsFixed(2)
                 : kReadoutUnknown
           ),
-          ('Side of Pier', state.sideOfPier ?? 'Unknown'),
-          ('Tracking Rate', state.trackingRate.name.toUpperCase()),
+          ('Side of pier', state.sideOfPier ?? 'Unknown'),
+          ('Tracking rate', state.trackingRate.name.toUpperCase()),
         ];
 
       case ConnectedDeviceType.focuser:
         final state = ref.watch(focuserStateProvider);
         final reportedMax = state.maxPosition;
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           (
-            'Max Position',
+            'Max position',
             reportedMax != null && reportedMax > 0
                 ? reportedMax.toString()
                 : kReadoutUnknown
@@ -534,14 +529,14 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           ('Filters', state.filterNames.join(', ')),
         ];
 
       case ConnectedDeviceType.guider:
         final state = ref.watch(guiderStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           (
             'RA RMS',
             state.rmsRa != null
@@ -560,7 +555,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       case ConnectedDeviceType.rotator:
         final state = ref.watch(rotatorStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           (
             'Mechanical Position',
             state.mechanicalPosition != null
@@ -573,7 +568,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       case ConnectedDeviceType.dome:
         final state = ref.watch(domeStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           (
             'Azimuth',
             state.azimuth != null
@@ -589,7 +584,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       case ConnectedDeviceType.weather:
         final state = ref.watch(weatherStateProvider);
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           (
             'Temperature',
             state.temperature != null
@@ -665,7 +660,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             lastChecked == null ? null : _tickNow().difference(lastChecked);
         final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           (
             'Is Safe',
             lastChecked == null
@@ -687,7 +682,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         final snapshot = capabilities.valueOrNull;
         if (snapshot == null) {
           return [
-            ('Device ID', state.deviceId ?? 'Unknown'),
+            ('Device id', state.deviceId ?? 'Unknown'),
             (
               'Capabilities',
               capabilities.hasError ? 'Unavailable' : 'Loading...'
@@ -695,7 +690,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           ];
         }
         return [
-          ('Device ID', state.deviceId ?? 'Unknown'),
+          ('Device id', state.deviceId ?? 'Unknown'),
           if (snapshot.coverPresent)
             (
               'Cover Status',
@@ -720,3 +715,89 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
 /// Gap between a device panel's action controls (mockup: 6).
 const double _deviceActionGap = 6.0;
+
+/// How many device actions stay inline before the rest go behind the menu.
+const int _maxInlineActions = 2;
+
+/// The `⋮` at the end of a device panel's action row: the actions that did not
+/// fit inline, the details toggle, and Disconnect.
+class _DeviceOverflowMenu extends StatefulWidget {
+  /// Device actions pushed out of the inline row. Only `_ActionButton`s carry
+  /// a label, so anything else is skipped rather than shown as a blank item.
+  final List<Widget> extraActions;
+  final bool isExpanded;
+  final VoidCallback onToggleDetails;
+  final VoidCallback? onDisconnect;
+
+  const _DeviceOverflowMenu({
+    required this.extraActions,
+    required this.isExpanded,
+    required this.onToggleDetails,
+    required this.onDisconnect,
+  });
+
+  @override
+  State<_DeviceOverflowMenu> createState() => _DeviceOverflowMenuState();
+}
+
+class _DeviceOverflowMenuState extends State<_DeviceOverflowMenu> {
+  final GlobalKey _anchorKey = GlobalKey();
+
+  Future<void> _open() async {
+    final anchor = _anchorKey.currentContext;
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (anchor == null || overlay is! RenderBox) return;
+    final box = anchor.findRenderObject();
+    if (box is! RenderBox) return;
+    final topLeft =
+        box.localToGlobal(Offset(0, box.size.height), ancestor: overlay);
+    final bottomRight =
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
+
+    final extras = <_ActionButton>[
+      for (final action in widget.extraActions)
+        if (action is _ActionButton) action,
+    ];
+
+    final chosen = await showMenu<VoidCallback>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        topLeft.dx,
+        topLeft.dy,
+        overlay.size.width - bottomRight.dx,
+        overlay.size.height - bottomRight.dy,
+      ),
+      items: <PopupMenuEntry<VoidCallback>>[
+        for (final action in extras)
+          PopupMenuItem<VoidCallback>(
+            value: action.onTap,
+            enabled: action.onTap != null,
+            child: Text(action.label),
+          ),
+        if (extras.isNotEmpty) const PopupMenuDivider(),
+        PopupMenuItem<VoidCallback>(
+          value: widget.onToggleDetails,
+          child: Text(widget.isExpanded ? 'Hide details' : 'Show details'),
+        ),
+        PopupMenuItem<VoidCallback>(
+          value: widget.onDisconnect,
+          enabled: widget.onDisconnect != null,
+          child: const Text('Disconnect'),
+        ),
+      ],
+    );
+    if (!mounted || chosen == null) return;
+    chosen();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeIconButton(
+      key: _anchorKey,
+      icon: LucideIcons.moreVertical,
+      tooltip: 'More actions',
+      size: IconButtonSize.sm,
+      onPressed: _open,
+    );
+  }
+}

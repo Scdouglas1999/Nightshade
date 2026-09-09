@@ -37,30 +37,27 @@ class _FirstTimeOnboarding extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceXl),
-                NightshadePanel(
-                  head: const PanelHead(
+                const NightshadePanel(
+                  head: PanelHead(
                     label: 'Equipment setup',
                     icon: LucideIcons.listChecks,
                   ),
                   child: Checklist(
                     steps: [
+                      // No action on the row: the page's single primary
+                      // below IS this step, and offering it twice reads as two
+                      // different setups.
                       ChecklistStep(
                         title: 'Scan for connected equipment',
                         detail: 'Nightshade looks for native, ASCOM, Alpaca '
                             'and INDI devices.',
                         state: ChecklistStepState.next,
-                        action: NightshadeButton(
-                          label: 'Start setup',
-                          variant: ButtonVariant.secondary,
-                          size: ButtonSize.small,
-                          onPressed: onStartSetup,
-                        ),
                       ),
-                      const ChecklistStep(
+                      ChecklistStep(
                         title: 'Choose the devices you want to use',
                         detail: 'Camera, mount, focuser, filter wheel, guider.',
                       ),
-                      const ChecklistStep(
+                      ChecklistStep(
                         title: 'Save them as a profile',
                         detail: 'One profile reconnects the whole rig next '
                             'launch.',

@@ -104,7 +104,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Auto Meridian Flip',
-                          style: TextStyle(color: colors.textPrimary)),
+                          style: NightshadeTypography.body
+                              .copyWith(color: colors.textPrimary)),
                       Switch(
                         value: enableFlip,
                         onChanged: isSaving
@@ -124,11 +125,13 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     onChanged: (value) => flipMinutesText = value,
                     enabled: !isSaving,
                     keyboardType: TextInputType.number,
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     decoration: InputDecoration(
                       labelText:
                           'Meridian Flip Minutes ($_minFlipMinutes - $_maxFlipMinutes)',
-                      labelStyle: TextStyle(color: colors.textMuted),
+                      labelStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -141,9 +144,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       errorText!,
-                      style: TextStyle(
-                          color: colors.error,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.error),
                     ),
                   ],
                 ],
@@ -261,7 +263,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                       Expanded(
                         child: Text(
                           'Temperature Compensation',
-                          style: TextStyle(color: colors.textPrimary),
+                          style: NightshadeTypography.body
+                              .copyWith(color: colors.textPrimary),
                         ),
                       ),
                       Switch(
@@ -284,10 +287,12 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     enabled: !isSaving,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true, signed: true),
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Temp Coefficient (steps/C)',
-                      labelStyle: TextStyle(color: colors.textMuted),
+                      labelStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -302,11 +307,13 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     onChanged: (value) => backlashText = value,
                     enabled: !isSaving,
                     keyboardType: TextInputType.number,
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     decoration: InputDecoration(
                       labelText:
                           'Backlash Compensation ($_minBacklashSteps - $_maxBacklashSteps steps)',
-                      labelStyle: TextStyle(color: colors.textMuted),
+                      labelStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -319,9 +326,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       errorText!,
-                      style: TextStyle(
-                          color: colors.error,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.error),
                     ),
                   ],
                 ],
@@ -413,7 +419,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Reverse Direction',
-                          style: TextStyle(color: colors.textPrimary)),
+                          style: NightshadeTypography.body
+                              .copyWith(color: colors.textPrimary)),
                       Switch(
                         value: reversed,
                         onChanged: canReverse && !isSaving
@@ -427,9 +434,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       'This rotator does not report reverse-direction support.',
-                      style: TextStyle(
-                          color: colors.textMuted,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                     ),
                   ],
                 ],
@@ -515,7 +521,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Slave to Mount (Follow Mount)',
-                          style: TextStyle(color: colors.textPrimary)),
+                          style: NightshadeTypography.body
+                              .copyWith(color: colors.textPrimary)),
                       Switch(
                         value: slaved,
                         onChanged: isSaving
@@ -642,19 +649,20 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Calibrator Brightness (0 - $maxBrightness):',
-                      style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: NightshadeTypography.fontSize13)),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textSecondary)),
                   const SizedBox(height: 12),
                   TextFormField(
                     initialValue: brightnessText,
                     onChanged: (value) => brightnessText = value,
                     enabled: !isSaving,
                     keyboardType: TextInputType.number,
-                    style: TextStyle(color: colors.textPrimary),
+                    style: NightshadeTypography.body
+                        .copyWith(color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Brightness',
-                      hintStyle: TextStyle(color: colors.textMuted),
+                      hintStyle: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -667,9 +675,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     const SizedBox(height: 8),
                     Text(
                       errorText!,
-                      style: TextStyle(
-                          color: colors.error,
-                          fontSize: NightshadeTypography.fontSize13),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.error),
                     ),
                   ],
                 ],

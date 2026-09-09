@@ -217,19 +217,15 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             Expanded(
               child: Text(
                 profile.name,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             const SizedBox(width: 8),
             Text(
               slotStatus,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ),
@@ -241,11 +237,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
         enabled: false,
         child: Text(
           'No profiles available',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textMuted,
-            fontStyle: FontStyle.italic,
-          ),
+          style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
         ),
       ));
     }
@@ -293,6 +285,24 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
     final isConnected = _isDeviceConnected();
     final activeBackend = widget.device.activeBackend;
 
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _row(colors, constraints, isConnected, activeBackend: activeBackend),
+    );
+  }
+
+  /// The row proper. Below [_discoveryRowCompactWidth] the Connect / Disconnect
+  /// button drops its label and becomes an icon: a device NAME truncated to
+  /// "Simulated Filter W…" costs the operator the one thing the row exists to
+  /// tell them, and a verb they already know does not.
+  Widget _row(
+    NightshadeColors colors,
+    BoxConstraints constraints,
+    bool isConnected, {
+    required DriverType activeBackend,
+  }) {
+    final compact = constraints.hasBoundedWidth &&
+        constraints.maxWidth < _discoveryRowCompactWidth;
     return Container(
       padding: const EdgeInsets.symmetric(
         vertical: NightshadeTokens.spaceSm,
@@ -336,15 +346,24 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
                 : 'Connect for this session only. It is NOT saved to a '
                     'profile and will not reconnect on the next launch — use '
                     '"Add to profile" for that.',
-            child: NightshadeButton(
-              label: isConnected ? 'Disconnect' : 'Connect',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              isLoading: _isConnecting,
-              onPressed: _isConnecting
-                  ? null
-                  : (isConnected ? widget.onDisconnect : _handleConnect),
-            ),
+            child: compact
+                ? NightshadeIconButton(
+                    icon: isConnected ? LucideIcons.unplug : LucideIcons.plug,
+                    tooltip: isConnected ? 'Disconnect' : 'Connect',
+                    size: IconButtonSize.sm,
+                    onPressed: _isConnecting
+                        ? null
+                        : (isConnected ? widget.onDisconnect : _handleConnect),
+                  )
+                : NightshadeButton(
+                    label: isConnected ? 'Disconnect' : 'Connect',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                    isLoading: _isConnecting,
+                    onPressed: _isConnecting
+                        ? null
+                        : (isConnected ? widget.onDisconnect : _handleConnect),
+                  ),
           ),
           const SizedBox(width: _discoveryRowActionGap),
           _AddToProfileButton(
@@ -428,3 +447,7 @@ const double _discoveryRowIconSize = 15.0;
 
 /// Gap between the row's two actions (mockup: 6).
 const double _discoveryRowActionGap = 6.0;
+
+/// Below this the row's Connect button becomes icon-only so the device name
+/// keeps the width.
+const double _discoveryRowCompactWidth = 380.0;

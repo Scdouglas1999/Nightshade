@@ -340,18 +340,70 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     final metrics = _getMetrics();
     if (metrics.isEmpty) return const SizedBox.shrink();
 
-    return ReadoutRow(
-      gap: _deviceReadoutGap,
-      children: [
-        for (final metric in metrics)
-          Readout(
-            value: metric.value,
-            unit: metric.unit,
-            label: metric.label,
-            valueColor: metric.valueColor,
-          ),
-      ],
+    // A readout NEVER ellipsises: an "00:00:…" or "+47° 1…" is not a smaller
+    // reading, it is a different one. When the widest value cannot fit the
+    // panel at 20 px, the whole row steps down to 14 px together (so the row
+    // still reads as one scale) and the gap tightens with it.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = _deviceReadoutGap;
+        final available = constraints.hasBoundedWidth
+            ? constraints.maxWidth - gap * (metrics.length - 1)
+            : double.infinity;
+        final needed = metrics.fold<double>(
+          0,
+          (widest, metric) => widest > _readoutWidth(metric, ReadoutSize.md)
+              ? widest
+              : _readoutWidth(metric, ReadoutSize.md),
+        );
+        final fits =
+            available.isInfinite || needed * metrics.length <= available;
+        final size = fits ? ReadoutSize.md : ReadoutSize.sm;
+
+        return ReadoutRow(
+          gap: fits ? gap : _deviceReadoutGapDense,
+          children: [
+            for (final metric in metrics)
+              Readout(
+                value: metric.value,
+                unit: metric.unit,
+                label: metric.label,
+                size: size,
+                valueColor: metric.valueColor,
+              ),
+          ],
+        );
+      },
     );
+  }
+
+  /// Width [metric] needs at [size], measured with the real style rather than
+  /// guessed from the character count (the mono face is not the UI face, and
+  /// the label can be wider than the value).
+  double _readoutWidth(_DeviceMetric metric, ReadoutSize size) {
+    final valueStyle = switch (size) {
+      ReadoutSize.lg => NightshadeTypography.readoutLg,
+      ReadoutSize.md => NightshadeTypography.readoutMd,
+      ReadoutSize.sm => NightshadeTypography.readoutSm,
+    };
+    final text = '${metric.value ?? kReadoutUnknown}${metric.unit ?? ''}';
+    final value = _measure(text, valueStyle);
+    final label = _measure(
+      metric.label.toUpperCase(),
+      NightshadeTypography.readoutLabel,
+    );
+    return value > label ? value : label;
+  }
+
+  double _measure(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
   }
 
   List<_DeviceMetric> _getMetrics() {
@@ -378,20 +430,19 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return [
+          // Hours + minutes, degrees + arcminutes. A padded-colon sexagesimal
+          // with seconds is one field too wide for a 378 px panel and was
+          // ellipsising to "00:00:…", which reads as a different coordinate;
+          // the seconds live on Imaging's mount tab.
           _DeviceMetric(
             value: state.ra != null
-                ? CoordinateFormat.ra(state.ra!,
-                    style: SexagesimalStyle.paddedColons,
-                    seconds: SecondsPrecision.integerRounded)
+                ? CoordinateFormat.raHm(state.ra!, wrapHours: true)
                 : null,
             label: 'RA',
           ),
           _DeviceMetric(
-            value: state.dec != null
-                ? CoordinateFormat.dec(state.dec!,
-                    style: SexagesimalStyle.paddedColons,
-                    seconds: SecondsPrecision.integerRounded)
-                : null,
+            value:
+                state.dec != null ? CoordinateFormat.decDm(state.dec!) : null,
             label: 'Dec',
           ),
           _DeviceMetric(
@@ -788,3 +839,7 @@ const double _deviceIconSize = 16.0;
 
 /// Gap between the device panel's readouts (mockup: 20).
 const double _deviceReadoutGap = NightshadeTokens.spaceXl;
+
+/// The dense gap the readout row falls back to when the panel cannot seat the
+/// 20 px scale.
+const double _deviceReadoutGapDense = NightshadeTokens.spaceMd;

@@ -396,7 +396,7 @@ class _DeviceDashboard extends ConsumerWidget {
           title: 'No profile is selected',
           body: 'Pick a profile to see the devices it connects.',
           action: NightshadeButton(
-            label: 'Open Profiles',
+            label: 'Open profiles',
             variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () =>

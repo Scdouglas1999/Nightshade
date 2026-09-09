@@ -132,20 +132,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     // operator can see connected devices and act — not a "create your first
     // profile" wizard that would write the slave's own empty DB. Local/host and
     // mobile first-run onboarding is unchanged (isRemoteMode false there).
-    if (profiles.isEmpty && !isRemoteMode) {
-      return _FirstTimeOnboarding(
-        colors: colors,
-        onStartSetup: () => _showCreateProfileWizard(context),
-        onManualSetup: _createEmptyProfile,
-      );
-    }
+    final firstRun = profiles.isEmpty && !isRemoteMode;
 
     // Get selected profile
     final selectedProfile = selectedProfileId != null
         ? profiles.where((p) => p.id == selectedProfileId).firstOrNull
         : null;
 
-    final tabIndex = ref.watch(equipmentTabIndexProvider);
+    final tabIndex = firstRun ? 0 : ref.watch(equipmentTabIndexProvider);
 
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
@@ -158,8 +152,9 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             tabs: AdaptiveTabBar(
               horizontalPadding: 0,
               selectedIndex: tabIndex,
-              onSelected: (index) =>
-                  ref.read(equipmentTabIndexProvider.notifier).state = index,
+              onSelected: (index) => ref
+                  .read(equipmentTabIndexProvider.notifier)
+                  .state = firstRun ? 0 : index,
               tabs: [
                 const AdaptiveTab(label: 'Devices'),
                 AdaptiveTab(
@@ -188,32 +183,39 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             ],
           ),
           Expanded(
-            child: switch (tabIndex) {
-              1 => _ProfilesTab(
-                  selectedProfileId: selectedProfileId,
-                  onProfileSelected: (id) => ref
-                      .read(selectedEquipmentProfileIdProvider.notifier)
-                      .state = id,
-                  onCreateProfile: () => _showProfileEditor(context, null),
-                  onEditProfile: (profile) =>
-                      _showProfileEditor(context, profile),
-                  onConnectAll: _connectAllDevices,
-                  onDisconnectAll: _disconnectAllDevices,
-                  onSetDefault: _setDefaultProfile,
-                  onActivateProfile: _activateProfile,
-                  onDuplicateProfile: _duplicateProfile,
-                  onDeleteProfile: _deleteProfile,
-                  onReorderProfiles: _reorderProfiles,
-                ),
-              2 => const _OpticalTrainTab(),
-              _ => _EquipmentMainColumn(
-                  selectedProfile: selectedProfile,
-                  onSettings: () => _showSettings(context),
-                  onConnectAll: _connectAllDevices,
-                  onEditProfile: (profile) =>
-                      _showProfileEditor(context, profile),
-                ),
-            },
+            child: firstRun
+                ? _FirstTimeOnboarding(
+                    colors: colors,
+                    onStartSetup: () => _showCreateProfileWizard(context),
+                    onManualSetup: _createEmptyProfile,
+                  )
+                : switch (tabIndex) {
+                    1 => _ProfilesTab(
+                        selectedProfileId: selectedProfileId,
+                        onProfileSelected: (id) => ref
+                            .read(selectedEquipmentProfileIdProvider.notifier)
+                            .state = id,
+                        onCreateProfile: () =>
+                            _showProfileEditor(context, null),
+                        onEditProfile: (profile) =>
+                            _showProfileEditor(context, profile),
+                        onConnectAll: _connectAllDevices,
+                        onDisconnectAll: _disconnectAllDevices,
+                        onSetDefault: _setDefaultProfile,
+                        onActivateProfile: _activateProfile,
+                        onDuplicateProfile: _duplicateProfile,
+                        onDeleteProfile: _deleteProfile,
+                        onReorderProfiles: _reorderProfiles,
+                      ),
+                    2 => const _OpticalTrainTab(),
+                    _ => _EquipmentMainColumn(
+                        selectedProfile: selectedProfile,
+                        onSettings: () => _showSettings(context),
+                        onConnectAll: _connectAllDevices,
+                        onEditProfile: (profile) =>
+                            _showProfileEditor(context, profile),
+                      ),
+                  },
           ),
         ],
       ),
@@ -648,7 +650,7 @@ class _OpticalTrainTab extends ConsumerWidget {
           body: 'Activate a profile in the Profiles tab to edit its telescope, '
               'focal length and aperture.',
           action: NightshadeButton(
-            label: 'Open Profiles',
+            label: 'Open profiles',
             variant: ButtonVariant.secondary,
             size: ButtonSize.small,
             onPressed: () =>
