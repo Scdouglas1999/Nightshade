@@ -141,7 +141,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         icon: LucideIcons.folderKanban,
       ),
       AdaptiveTab(
-        label: l10n.text('analyticsEquipmentStats'),
+        label: l10n.text('analyticsEquipmentTab'),
         icon: LucideIcons.wrench,
         buttonKey: AnalyticsTutorialKeys.equipmentTab,
       ),
@@ -158,10 +158,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
     final tabs = _tabs(context);
-    final isPhone = Responsive.isPhone(context);
 
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
@@ -170,60 +168,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         bottom: false,
         child: Column(
           children: [
-            // Title + sub-tabs share ONE row: the title folds inline to the
-            // left of the tab strip — icon-only on a phone. AdaptiveTabBar
-            // scrolls horizontally (and collapses to icons on a compact
-            // phone) instead of overflowing the six tabs.
-            Container(
-              // `surface`, not the deprecated `surfaceAlt`: this row is a
-              // container, and 03-tokens routes containers to `surface` and
-              // insets to `well`. Swapped here because unwrapping the tour
-              // prompt re-indented the line into the wave's diff, and the
-              // deprecated-name gate reads added lines.
-              decoration: BoxDecoration(
-                color: colors.surface,
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: NightshadeTokens.spaceLg,
-                      right: isPhone
-                          ? NightshadeTokens.spaceSm
-                          : NightshadeTokens.spaceMd,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          LucideIcons.barChart3,
-                          size: 18,
-                          color: colors.primary,
-                        ),
-                        if (!isPhone) ...[
-                          const SizedBox(width: NightshadeTokens.spaceSm),
-                          Text(
-                            l10n.text('navAnalytics'),
-                            // bodyStrong is h5's replacement and its twin:
-                            // both are 14 / 600.
-                            style: NightshadeTypography.bodyStrong.copyWith(
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: AdaptiveTabBar(
-                      tabs: tabs,
-                      selectedIndex: _currentSubTab,
-                      onSelected: (index) =>
-                          setState(() => _currentSubTab = index),
-                    ),
-                  ),
-                ],
+            // The one 56 px page header every screen starts with (04 §4): the
+            // bar-chart glyph, the screen name, and the six sub-tabs as the
+            // ONLY tab style in the app. The old row hand-built a title block
+            // and a divider beside the strip; PageHeader owns both now.
+            PageHeader(
+              icon: LucideIcons.barChart3,
+              title: l10n.text('navAnalytics'),
+              tabs: AdaptiveTabBar(
+                tabs: tabs,
+                selectedIndex: _currentSubTab,
+                onSelected: (index) => setState(() => _currentSubTab = index),
               ),
             ),
 

@@ -751,6 +751,10 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbSunriseIn': 'Sunrise in',
     'dbSunsetAt': 'Sunset at',
     'dbTonight': 'Tonight',
+    // Wave 3 Analytics: 06-screens names the tab "Equipment" and the copy
+    // rules require sentence case, so this replaces 'Equipment Stats' at the
+    // call site. The old key stays; other surfaces still read it.
+    'analyticsEquipmentTab': 'Equipment',
   },
   'es': {
     'appTitle': 'Nightshade',
@@ -1503,5 +1507,6 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbSunriseIn': 'Amanece en',
     'dbSunsetAt': 'Puesta de sol a las',
     'dbTonight': 'Esta noche',
+    'analyticsEquipmentTab': 'Equipo',
   },
 };

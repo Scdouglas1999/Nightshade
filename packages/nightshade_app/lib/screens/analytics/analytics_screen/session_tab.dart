@@ -107,11 +107,17 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
 
     /// Metric computed from whichever frame set is on screen, so a finished
     /// session reports its real totals instead of an em-dash.
-    String frameMetric(String Function(List<DbCapturedImage>) value) {
+    ///
+    /// Null while the frames are loading or after they failed: a [Readout]
+    /// renders that as the em dash. The old strings ('Loading…',
+    /// 'Unavailable', 'No data') were placeholders sitting in a value slot,
+    /// which is exactly what the copy rules forbid — the charts below carry
+    /// the loading and error state.
+    String? frameMetric(String? Function(List<DbCapturedImage>) value) {
       return imagesAsyncValue.when(
         data: value,
-        loading: () => 'Loading…',
-        error: (_, __) => 'Unavailable',
+        loading: () => null,
+        error: (_, __) => null,
       );
     }
 
@@ -126,14 +132,19 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                 ref.watch(lastFrameBySessionProvider)[reviewSession.id],
           );
 
-    final summaryStats = [
-      ResponsiveStat(
+    // Every one of these is a measurement, so every one of them is a
+    // Readout (05 §3): mono value, quiet uppercase label, em dash when the
+    // number is not known.
+    final summaryReadouts = <Readout>[
+      Readout(
+        size: ReadoutSize.md,
         label: elapsed == null || !elapsed.isUnfinished
             ? l10n.text('analyticsDuration')
             : '${l10n.text('analyticsDuration')} · ${elapsed.captionLabel}',
-        value: isLive ? duration : elapsed?.valueLabel ?? '—',
+        value: isLive ? duration : elapsed?.valueLabel,
       ),
-      ResponsiveStat(
+      Readout(
+        size: ReadoutSize.md,
         label: l10n.text('analyticsExposures'),
         value: isLive
             ? '${sessionState.completedExposures}/${sessionState.totalExposures}'
@@ -145,7 +156,8 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                 return lights == accepted ? '$accepted' : '$accepted/$lights';
               }),
       ),
-      ResponsiveStat(
+      Readout(
+        size: ReadoutSize.md,
         label: l10n.text('analyticsIntegration'),
         value: isLive
             ? _formatAnalyticsIntegration(sessionState.totalIntegrationSecs)
@@ -160,12 +172,13 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                 return _formatAnalyticsIntegration(seconds);
               }),
       ),
-      ResponsiveStat(
+      Readout(
+        size: ReadoutSize.md,
         // Median, not mean: a handful of clouded frames drags a mean HFR
         // upward and makes a good night look worse than it was.
         label: 'Median HFR',
         value: isLive
-            ? sessionState.avgHfr?.toStringAsFixed(2) ?? '—'
+            ? sessionState.avgHfr?.toStringAsFixed(2)
             : frameMetric((images) {
                 final hfrs = acceptedLights(images)
                     .map((image) => image.hfr)
@@ -173,7 +186,7 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                     .where((value) => value.isFinite && value >= 0)
                     .toList()
                   ..sort();
-                if (hfrs.isEmpty) return 'No data';
+                if (hfrs.isEmpty) return null;
                 final mid = hfrs.length ~/ 2;
                 final median = hfrs.length.isOdd
                     ? hfrs[mid]
@@ -195,7 +208,10 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isPhone = constraints.maxWidth < BreakpointTokens.breakpointPhone;
-        final outerPadding = EdgeInsets.all(isPhone ? 16.0 : 24.0);
+        // 24 px page gutter (02 "generous page gutters"), 16 on a phone.
+        final outerPadding = EdgeInsets.all(
+          isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+        );
 
         if (noStandaloneFrames) {
           return Padding(
@@ -212,7 +228,7 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                     offerQuickCaptures: offerQuickCaptures,
                     onSelected: (id) => setState(() => _selectedSessionId = id),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: NightshadeTokens.space2xl),
                 ],
                 Expanded(
                   // Never the History tab's copy: this tab's subject is the
@@ -250,14 +266,13 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
           // the charts cover everything the session captured.
           final population = Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
             child: Text(
               excluded == 0
                   ? 'All four charts plot the same ${images.length} accepted light frames.'
                   : 'All four charts plot the same ${images.length} accepted light frames '
                       '· $excluded excluded (rejected or calibration)',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
               ),
             ),
@@ -270,11 +285,11 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
               children: [
                 population,
                 hfr,
-                const SizedBox(height: 16),
+                const SizedBox(height: NightshadeTokens.spaceLg),
                 guiding,
-                const SizedBox(height: 16),
+                const SizedBox(height: NightshadeTokens.spaceLg),
                 focuser,
-                const SizedBox(height: 16),
+                const SizedBox(height: NightshadeTokens.spaceLg),
                 temperature,
               ],
             );
@@ -285,15 +300,15 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
               Row(
                 children: [
                   Expanded(child: hfr),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
                   Expanded(child: guiding),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: NightshadeTokens.spaceLg),
               Row(
                 children: [
                   Expanded(child: focuser),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
                   Expanded(child: temperature),
                 ],
               ),
@@ -307,7 +322,6 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
             children: [
               if (allSessions.isNotEmpty && !isLive) ...[
                 _SessionReviewBar(
-                  colors: colors,
                   sessions: allSessions,
                   selectedId: reviewSelectionId,
                   offerQuickCaptures: offerQuickCaptures,
@@ -316,116 +330,102 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                       ? null
                       : () => setState(() => _selectedSessionId = null),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: NightshadeTokens.spaceLg),
               ],
 
-              // Session summary bar — header stacks above a reflowing stat
-              // strip so the four metrics never overflow a phone column.
-              NightshadeCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        headerTitle,
-                        style: NightshadeTypography.h4.copyWith(
-                          color: colors.textPrimary,
-                        ),
+              // Session summary — one panel: the eyebrow head names it, the
+              // session's own name and date sit under it, and the four numbers
+              // are Readouts that wrap instead of overflowing a phone column.
+              NightshadePanel(
+                head: PanelHead(
+                  icon: LucideIcons.activity,
+                  label: l10n.text('analyticsSession'),
+                  trailing: [
+                    if (isLive)
+                      NightshadeChip(
+                        label: l10n.text('analyticsInProgress'),
+                        tone: ChipTone.success,
+                        dot: true,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        headerSubtitle,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textSecondary,
-                        ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      headerTitle,
+                      style: NightshadeTypography.sectionTitle.copyWith(
+                        color: colors.textPrimary,
                       ),
-                      const SizedBox(height: 16),
-                      ResponsiveStatStrip(stats: summaryStats),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceXs),
+                    Text(
+                      headerSubtitle,
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceLg),
+                    Wrap(
+                      spacing: _summaryReadoutGap,
+                      runSpacing: NightshadeTokens.spaceLg,
+                      children: summaryReadouts,
+                    ),
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: NightshadeTokens.space2xl),
 
               // Graph grid
               imagesAsyncValue.when(
                 data: chartGrid,
-                loading: () => _AnalyticsAsyncState(
-                  colors: colors,
-                  icon: LucideIcons.lineChart,
-                  message: 'Loading analytics charts...',
+                loading: () => const _AnalyticsLoading(
+                  height: _chartGridSkeletonHeight,
                 ),
-                error: (err, stack) => _AnalyticsAsyncState(
-                  colors: colors,
-                  icon: LucideIcons.alertTriangle,
-                  message: 'Failed to load analytics charts',
-                  detail: err.toString(),
+                error: (err, stack) => _AnalyticsError(
+                  title: 'Analytics charts did not load',
+                  message: err.toString(),
                   onRetry: retryImages,
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: NightshadeTokens.space2xl),
 
               // Captured images strip
-              NightshadeCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.text('analyticsCapturedImages'),
-                        style: NightshadeTypography.h5.copyWith(
-                          color: colors.textPrimary,
-                        ),
+              NightshadePanel(
+                head: PanelHead(
+                  icon: LucideIcons.images,
+                  label: l10n.text('analyticsCapturedImages'),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // One line, not the four-sentence reassurance that used to
+                    // sit here: the only fact a reader cannot get from the
+                    // badges themselves is WHERE the bulk grader lives.
+                    Text(
+                      'Quality badges are advisory. To reject frames in bulk, '
+                      'use Science ▸ Field quality ▸ Grade frames.',
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textMuted,
                       ),
-                      const SizedBox(height: 4),
-                      // The one instruction that tells a user how to reject
-                      // frames has to name a place they can reach. "Science >
-                      // Grade frames" is not one: the bulk grader lives behind
-                      // the "Grade N frames" button on Analytics ▸ Science ▸
-                      // Field Quality.
-                      Text(
-                        'Quality badges are advisory and never change '
-                        'acceptance on their own. Nothing is deleted. To reject '
-                        'frames in bulk, use Analytics ▸ Science ▸ Field '
-                        'Quality ▸ Grade frames.',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textMuted,
-                        ),
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceMd),
+                    imagesAsyncValue.when(
+                      data: (images) => ImageThumbnailStrip(
+                          key: AnalyticsTutorialKeys.thumbnails,
+                          images: images),
+                      loading: () => const _AnalyticsLoading(
+                        height: kAnalyticsThumbnailRailHeight,
                       ),
-                      const SizedBox(height: 16),
-                      imagesAsyncValue.when(
-                        data: (images) => ImageThumbnailStrip(
-                            key: AnalyticsTutorialKeys.thumbnails,
-                            images: images),
-                        loading: () => SizedBox(
-                          height: kAnalyticsThumbnailRailHeight,
-                          child: _AnalyticsAsyncState(
-                            colors: colors,
-                            icon: LucideIcons.image,
-                            message: 'Loading images...',
-                            compact: true,
-                          ),
-                        ),
-                        error: (err, stack) => SizedBox(
-                          height: kAnalyticsThumbnailRailHeight,
-                          child: _AnalyticsAsyncState(
-                            colors: colors,
-                            icon: LucideIcons.alertTriangle,
-                            message: 'Failed to load images',
-                            detail: err.toString(),
-                            compact: true,
-                            onRetry: retryImages,
-                          ),
-                        ),
+                      error: (err, stack) => _AnalyticsError(
+                        title: 'Frames did not load',
+                        message: err.toString(),
+                        onRetry: retryImages,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -436,125 +436,85 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
   }
 }
 
-class _AnalyticsAsyncState extends StatelessWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String message;
-  final String? detail;
-  final VoidCallback? onRetry;
-  final bool compact;
+/// The gap between two summary [Readout]s. Matches [ReadoutRow]'s default;
+/// the strip uses a [Wrap] rather than a [ReadoutRow] so four readouts reflow
+/// on a phone instead of overflowing.
+const double _summaryReadoutGap = 28;
 
-  const _AnalyticsAsyncState({
-    required this.colors,
-    required this.icon,
-    required this.message,
-    this.detail,
-    this.onRetry,
-    this.compact = false,
-  });
+/// Height the chart-grid skeleton reserves so the page does not jump when the
+/// four charts arrive.
+const double _chartGridSkeletonHeight = 320;
+
+/// THE loading state for Analytics: a shimmering `well` block of the height
+/// the real content will take.
+///
+/// One pattern, not the four this screen used to carry (a bordered box with a
+/// blue glyph here, a spinner there, a sentence in a card elsewhere). A
+/// skeleton says "this is arriving" without claiming a number.
+class _AnalyticsLoading extends StatelessWidget {
+  const _AnalyticsLoading({required this.height});
+
+  /// How much vertical space to hold open.
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    final text = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment:
-          compact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-      children: [
-        Text(
-          message,
-          textAlign: compact ? TextAlign.left : TextAlign.center,
-          style: TextStyle(
-            fontSize: compact ? 12 : 14,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        if (detail != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            detail!,
-            textAlign: compact ? TextAlign.left : TextAlign.center,
-            style: TextStyle(
-              fontSize: compact ? 11 : 12,
-              color: colors.textSecondary,
-            ),
-            maxLines: compact ? 2 : 4,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ],
-    );
-
-    if (compact) {
-      return Center(
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusLg,
-            border: Border.all(color: colors.border),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: onRetry == null ? colors.primary : colors.error,
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: text),
-              if (onRetry != null) ...[
-                const SizedBox(width: 8),
-                NightshadeButton(
-                  label: 'Retry',
-                  icon: LucideIcons.refreshCw,
-                  size: ButtonSize.small,
-                  onPressed: onRetry,
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Center(
+    final colors = NightshadeColors.of(context);
+    return ShimmerLoading(
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: NightshadeTokens.borderRadiusXl,
-          border: Border.all(color: colors.border),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: onRetry == null ? colors.primary : colors.error,
-            ),
-            const SizedBox(height: 12),
-            text,
-            if (onRetry != null) ...[
-              const SizedBox(height: 12),
-              NightshadeButton(
-                label: 'Retry',
-                icon: LucideIcons.refreshCw,
-                size: ButtonSize.medium,
-                onPressed: onRetry,
-              ),
-            ],
-          ],
-        ),
+        height: height,
+        decoration: NightshadeDecorations.well(colors),
       ),
     );
   }
 }
 
-String _formatAnalyticsIntegration(double seconds) {
-  if (!seconds.isFinite || seconds <= 0) return 'No data';
+/// THE error state for Analytics: one [NightshadeBanner] in the `error` tone
+/// with one action.
+///
+/// 05 §11: never floating, never stacked, at most one action. The bordered
+/// "Failed to load…" box with its own icon column and its own radius was a
+/// second banner style living inside one screen.
+class _AnalyticsError extends StatelessWidget {
+  const _AnalyticsError({
+    required this.title,
+    this.message,
+    this.onRetry,
+  });
+
+  /// What failed, in one short sentence.
+  final String title;
+
+  /// The detail — usually the exception's message.
+  final String? message;
+
+  /// Retry handler; the banner's single action.
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeBanner(
+      title: title,
+      message: message,
+      tone: BannerTone.error,
+      action: onRetry == null
+          ? null
+          : NightshadeButton(
+              label: 'Retry',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: onRetry,
+            ),
+    );
+  }
+}
+
+/// Null (not 'No data') when there is nothing to report: the caller is a
+/// [Readout], whose one way of saying "unknown" is the em dash.
+String? _formatAnalyticsIntegration(double seconds) {
+  if (!seconds.isFinite || seconds <= 0) return null;
   final rounded = seconds.round();
   if (rounded < 60) return '${rounded}s';
   if (rounded < 3600) {
@@ -670,7 +630,6 @@ bool sessionMatchesTargetFilter(
 
 /// Picks which past session the Session tab is reviewing.
 class _SessionReviewBar extends StatelessWidget {
-  final NightshadeColors colors;
   final List<ImagingSession> sessions;
   final int? selectedId;
 
@@ -682,7 +641,6 @@ class _SessionReviewBar extends StatelessWidget {
   final VoidCallback? onClear;
 
   const _SessionReviewBar({
-    required this.colors,
     required this.sessions,
     required this.selectedId,
     required this.onSelected,
@@ -692,90 +650,82 @@ class _SessionReviewBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final format = DateFormat('MMM d, yyyy HH:mm');
     final hasSelection =
         (offerQuickCaptures && selectedId == kQuickCaptureSessionSelection) ||
             sessions.any((s) => s.id == selectedId);
 
-    return Container(
+    // A labelled control, so it is a FormRow (05 §8): the label sits to the
+    // LEFT of the field, not above it and not as a sentence beside it. The
+    // container is a panel, not the deprecated `surfaceAlt` box it was.
+    return NightshadePanel(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
+        vertical: NightshadeTokens.spaceMd,
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.history,
-              size: NightshadeTokens.iconXs, color: colors.textMuted),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            'Reviewing',
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
-            child: DropdownButtonHideUnderline(
-              child: AccessibleDropdown<int>(
-                value: hasSelection ? selectedId : null,
-                isExpanded: true,
-                isDense: true,
-                dropdownColor: colors.surfaceElevated,
-                borderRadius: NightshadeTokens.borderRadiusLg,
-                hint: Text(
-                  'Quick captures (no session selected)',
-                  style: NightshadeTypography.labelSm
-                      .copyWith(color: colors.textMuted),
+            child: FormRow(
+              label: 'Reviewing',
+              child: DropdownButtonHideUnderline(
+                child: AccessibleDropdown<int>(
+                  value: hasSelection ? selectedId : null,
+                  isExpanded: true,
+                  isDense: true,
+                  dropdownColor: colors.surfaceElevated,
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  hint: Text(
+                    'Quick captures (no session selected)',
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textPrimary),
+                  onChanged: onSelected,
+                  items: [
+                    // First, and named exactly as Diagnostics names it: an
+                    // operator who learns the entry on one tab finds it on all.
+                    if (offerQuickCaptures)
+                      DropdownMenuItem<int>(
+                        value: kQuickCaptureSessionSelection,
+                        child: Text(
+                          kQuickCaptureSessionLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NightshadeTypography.bodySm
+                              .copyWith(color: colors.textPrimary),
+                        ),
+                      ),
+                    for (final session in sessions.take(60))
+                      DropdownMenuItem<int>(
+                        value: session.id,
+                        child: Text(
+                          '${session.name ?? 'Session ${session.id}'}'
+                          '  ·  ${format.format(session.startTime)}'
+                          // "frames returned": `successful_exposures` counts
+                          // what the camera handed back, not what the culling
+                          // kept.
+                          '  ·  ${session.successfulExposures} frames returned',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NightshadeTypography.bodySm
+                              .copyWith(color: colors.textPrimary),
+                        ),
+                      ),
+                  ],
                 ),
-                style: NightshadeTypography.labelSm
-                    .copyWith(color: colors.textPrimary),
-                onChanged: onSelected,
-                items: [
-                  // First, and named exactly as Diagnostics names it: an
-                  // operator who learns the entry on one tab finds it on all.
-                  if (offerQuickCaptures)
-                    DropdownMenuItem<int>(
-                      value: kQuickCaptureSessionSelection,
-                      child: Text(
-                        kQuickCaptureSessionLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.labelSm
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                    ),
-                  for (final session in sessions.take(60))
-                    DropdownMenuItem<int>(
-                      value: session.id,
-                      child: Text(
-                        '${session.name ?? 'Session ${session.id}'}'
-                        '  ·  ${format.format(session.startTime)}'
-                        // "frames returned": `successful_exposures` counts what
-                        // the camera handed back, not what the culling kept.
-                        '  ·  ${session.successfulExposures} frames returned',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.labelSm
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                    ),
-                ],
               ),
             ),
           ),
           if (onClear != null) ...[
             const SizedBox(width: NightshadeTokens.spaceSm),
-            TextButton(
+            NightshadeButton(
+              label: 'Most recent',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
               onPressed: onClear,
-              child: Text(
-                'Most recent',
-                style:
-                    NightshadeTypography.caption.copyWith(color: colors.accent),
-              ),
             ),
           ],
         ],
