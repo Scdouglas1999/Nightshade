@@ -489,6 +489,9 @@ class _OnboardingCaptureDirStepState
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      // Hug the content: the panel this sits in is sized to what the step
+      // needs, and a Column that fills brings back the empty card of F5.
+      mainAxisSize: MainAxisSize.min,
       children: [
         const SectionTitle(
           icon: NightshadeIcons.folder,
@@ -506,75 +509,71 @@ class _OnboardingCaptureDirStepState
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
-        Container(
-          decoration: NightshadeDecorations.well(colors),
-          padding: NightshadeTokens.paddingMd,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        // NOT inside a `well`: a field's own fill is the well tone, so the
+        // path box had no edge against the block behind it.
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: NightshadeTextField(
+                    key: onboardingCaptureDirFieldKey,
+                    controller: _pathController,
+                    focusNode: _pathFocus,
+                    enabled: !_selecting && !_validating,
+                    prefixIcon: NightshadeIcons.folder,
+                    hint: 'Type or paste a folder, or use Browse',
+                    mono: true,
+                    onChanged: _onPathChanged,
+                    onSubmitted: (value) => unawaited(_commitTypedPath(value)),
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                NightshadeButton(
+                  icon: NightshadeIcons.folderOpen,
+                  label: 'Browse',
+                  variant: ButtonVariant.secondary,
+                  size: ButtonSize.small,
+                  onPressed: _selecting || _validating ? null : _pickDirectory,
+                ),
+              ],
+            ),
+            if (_selecting ||
+                _validating ||
+                _check == _FolderCheck.checking) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
               Row(
                 children: [
-                  Expanded(
-                    child: NightshadeTextField(
-                      key: onboardingCaptureDirFieldKey,
-                      controller: _pathController,
-                      focusNode: _pathFocus,
-                      enabled: !_selecting && !_validating,
-                      prefixIcon: NightshadeIcons.folder,
-                      hint: 'Type or paste a folder, or use Browse',
-                      mono: true,
-                      onChanged: _onPathChanged,
-                      onSubmitted: (value) =>
-                          unawaited(_commitTypedPath(value)),
+                  if (_selecting)
+                    Icon(
+                      NightshadeIcons.folderOpen,
+                      size: NightshadeTokens.iconXs,
+                      color: colors.primary,
+                    )
+                  else
+                    SizedBox(
+                      width: NightshadeTokens.iconXs,
+                      height: NightshadeTokens.iconXs,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
+                      ),
                     ),
-                  ),
                   const SizedBox(width: NightshadeTokens.spaceSm),
-                  NightshadeButton(
-                    icon: NightshadeIcons.folderOpen,
-                    label: 'Browse',
-                    variant: ButtonVariant.secondary,
-                    size: ButtonSize.small,
-                    onPressed:
-                        _selecting || _validating ? null : _pickDirectory,
+                  Text(
+                    _selecting
+                        ? 'Waiting for folder selection…'
+                        : 'Checking write permissions…',
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
-              if (_selecting ||
-                  _validating ||
-                  _check == _FolderCheck.checking) ...[
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                Row(
-                  children: [
-                    if (_selecting)
-                      Icon(
-                        NightshadeIcons.folderOpen,
-                        size: NightshadeTokens.iconXs,
-                        color: colors.primary,
-                      )
-                    else
-                      SizedBox(
-                        width: NightshadeTokens.iconXs,
-                        height: NightshadeTokens.iconXs,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      ),
-                    const SizedBox(width: NightshadeTokens.spaceSm),
-                    Text(
-                      _selecting
-                          ? 'Waiting for folder selection…'
-                          : 'Checking write permissions…',
-                      style: NightshadeTypography.bodySm.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ] else
-                ..._buildVerdict(colors, draft.captureDirectory),
-            ],
-          ),
+            ] else
+              ..._buildVerdict(colors, draft.captureDirectory),
+          ],
         ),
       ],
     );

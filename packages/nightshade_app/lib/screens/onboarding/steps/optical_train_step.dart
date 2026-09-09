@@ -404,6 +404,7 @@ class _OnboardingOpticalTrainStepState
           // or implausible renders as "—", never as a number the optics do not
           // support; the field that is out of bounds says so itself.
           Container(
+            width: double.infinity,
             decoration: NightshadeDecorations.well(colors),
             padding: NightshadeTokens.paddingMd,
             child: Column(

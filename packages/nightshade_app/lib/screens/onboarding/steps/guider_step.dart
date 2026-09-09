@@ -288,78 +288,76 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
 
-          // PHD2 quick path
-          Container(
-            decoration: NightshadeDecorations.well(colors),
-            padding: NightshadeTokens.paddingMd,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PHD2'.toUpperCase(),
-                  style: NightshadeTypography.eyebrow.copyWith(
-                    color: colors.textMuted,
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                FormRow(
-                  label: 'Host',
-                  child: NightshadeTextField(
-                    key: guiderHostFieldKey,
-                    controller: _hostController,
-                    // Re-derive the result line on every keystroke: a test
-                    // result describes one endpoint and must disappear the
-                    // moment the fields name a different one.
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(height: FormRow.rowGap),
-                FormRow(
-                  label: 'Port',
-                  child: NightshadeTextField(
-                    key: guiderPortFieldKey,
-                    controller: _portController,
-                    keyboardType: TextInputType.number,
-                    mono: true,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                Row(
-                  children: [
-                    NightshadeButton(
-                      icon: NightshadeIcons.bolt,
-                      label: _testing ? 'Testing…' : 'Test',
-                      variant: ButtonVariant.secondary,
-                      size: ButtonSize.small,
-                      onPressed: _testing ? null : _testConnection,
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceSm),
-                    // The selection action, separate from the probe. Test only
-                    // reports reachability; this is what writes the guider into
-                    // the profile, so an indoor setup with PHD2 not yet running
-                    // can still finish the wizard with its guider recorded.
-                    NightshadeButton(
-                      icon: NightshadeIcons.check,
-                      label: phd2IsSelected ? 'PHD2 selected' : 'Use PHD2',
-                      variant: ButtonVariant.secondary,
-                      size: ButtonSize.small,
-                      onPressed: phd2IsSelected ? null : _useThisPhd2,
-                    ),
-                    if (savedEndpoint != null) ...[
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      NightshadeButton(
-                        label: 'Clear',
-                        variant: ButtonVariant.ghost,
-                        size: ButtonSize.small,
-                        onPressed: _clearPhd2Selection,
-                      ),
-                    ],
-                  ],
-                ),
-                ...?_statusLine(colors, draft, savedEndpoint),
-              ],
+          // PHD2 quick path. NOT inside a `well`: a field's own fill is the
+          // well tone, so a field in a well has no edge at all — the host and
+          // port boxes vanished into the block behind them.
+          Text(
+            'PHD2'.toUpperCase(),
+            style: NightshadeTypography.eyebrow.copyWith(
+              color: colors.textMuted,
             ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FormRow(
+                label: 'Host',
+                child: NightshadeTextField(
+                  key: guiderHostFieldKey,
+                  controller: _hostController,
+                  // Re-derive the result line on every keystroke: a test
+                  // result describes one endpoint and must disappear the
+                  // moment the fields name a different one.
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(height: FormRow.rowGap),
+              FormRow(
+                label: 'Port',
+                child: NightshadeTextField(
+                  key: guiderPortFieldKey,
+                  controller: _portController,
+                  keyboardType: TextInputType.number,
+                  mono: true,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              Row(
+                children: [
+                  NightshadeButton(
+                    icon: NightshadeIcons.bolt,
+                    label: _testing ? 'Testing…' : 'Test',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    onPressed: _testing ? null : _testConnection,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  // The selection action, separate from the probe. Test only
+                  // reports reachability; this is what writes the guider into
+                  // the profile, so an indoor setup with PHD2 not yet running
+                  // can still finish the wizard with its guider recorded.
+                  NightshadeButton(
+                    icon: NightshadeIcons.check,
+                    label: phd2IsSelected ? 'PHD2 selected' : 'Use PHD2',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    onPressed: phd2IsSelected ? null : _useThisPhd2,
+                  ),
+                  if (savedEndpoint != null) ...[
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    NightshadeButton(
+                      label: 'Clear',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                      onPressed: _clearPhd2Selection,
+                    ),
+                  ],
+                ],
+              ),
+              ...?_statusLine(colors, draft, savedEndpoint),
+            ],
           ),
 
           const SizedBox(height: NightshadeTokens.spaceLg),
