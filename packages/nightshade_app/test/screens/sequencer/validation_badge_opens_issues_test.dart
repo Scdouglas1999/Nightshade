@@ -76,12 +76,15 @@ void main() {
 
     // The count chips ARE the affordance: tapping either opens the list.
     await tester.tap(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is NightshadeChip &&
-            (widget.tone == ChipTone.error || widget.tone == ChipTone.warning),
-        description: 'a validation count chip',
-      ).first,
+      find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is NightshadeChip &&
+                (widget.tone == ChipTone.error ||
+                    widget.tone == ChipTone.warning),
+            description: 'a validation count chip',
+          )
+          .first,
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));

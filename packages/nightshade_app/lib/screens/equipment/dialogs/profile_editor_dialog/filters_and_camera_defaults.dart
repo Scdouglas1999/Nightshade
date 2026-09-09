@@ -410,26 +410,25 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
   }
 
   Widget _buildRecRow(String label, int? value, NightshadeColors colors) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        children: [
-          SizedBox(
-            width: _recommendationLabelWidth,
-            child: Text(
-              label,
-              style: NightshadeTypography.caption
-                  .copyWith(color: colors.textSecondary),
-            ),
+    // No padding of its own: the caption's line height is the row rhythm, and
+    // the sub-4px gap this used to carry has no place on the 4px grid.
+    return Row(
+      children: [
+        SizedBox(
+          width: _recommendationLabelWidth,
+          child: Text(
+            label,
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
           ),
-          Text(
-            value == null ? kReadoutUnknown : value.toString(),
-            style: NightshadeTypography.monoCaption.copyWith(
-              color: value == null ? colors.textMuted : colors.textPrimary,
-            ),
+        ),
+        Text(
+          value == null ? kReadoutUnknown : value.toString(),
+          style: NightshadeTypography.monoCaption.copyWith(
+            color: value == null ? colors.textMuted : colors.textPrimary,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -18,7 +18,7 @@ class _SnippetPaletteContent extends ConsumerWidget {
         withSequenceMutation(
           context,
           ref,
-          operationName: 'Insert Snippet',
+          operationName: 'insert snippet',
           action: () async {
             final selectedId = ref.read(selectedNodeIdProvider);
             final profile = ref.read(activeEquipmentProfileProvider);

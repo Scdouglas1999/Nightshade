@@ -230,11 +230,11 @@ extension _TargetStep on _QuickStartWizardDialogState {
           LucideIcons.bookMarked,
           colors.warning,
           // Name a destination that exists. "Sky" and "Planner" are not
-          // labels in this build; the rail reads "Plan Tonight", and adding
+          // labels in this build; the rail reads "Plan tonight", and adding
           // a target to one of its projects is what writes the library row
           // this search reads.
           'Your target library is empty, so there is nothing to search. '
-              'Add one from Plan Tonight ▸ Projects, or enter RA/Dec below.',
+              'Add one from Plan tonight ▸ Projects, or enter RA/Dec below.',
         ),
       _ => (
           LucideIcons.searchX,

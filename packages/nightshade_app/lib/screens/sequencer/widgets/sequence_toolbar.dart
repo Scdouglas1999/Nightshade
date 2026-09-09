@@ -468,7 +468,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               final forceSave = await showValidationIssueDialog(
                 context,
                 issues: e.issues,
-                operationName: 'Export Sequence File',
+                operationName: 'export the sequence file',
                 forceLabel: 'Force save anyway',
               );
               if (!forceSave) return;

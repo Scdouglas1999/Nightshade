@@ -77,7 +77,7 @@ void insertSnippetGuarded(
   withSequenceMutation(
     context,
     ref,
-    operationName: 'Insert template',
+    operationName: 'insert template',
     action: () async {
       ref.read(currentSequenceProvider.notifier).insertSnippet(
             snippet,
@@ -273,7 +273,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     withSequenceMutation(
       context,
       ref,
-      operationName: 'Add target header',
+      operationName: 'add target header',
       action: () async {
         final notifier = ref.read(currentSequenceProvider.notifier);
         if (ref.read(currentSequenceProvider) == null) {

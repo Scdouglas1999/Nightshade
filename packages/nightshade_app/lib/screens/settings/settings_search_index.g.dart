@@ -13,8 +13,8 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'About',
     'License',
     'Nightshade',
-    'Software Update',
-    'System Information',
+    'Software update',
+    'System information',
   ],
   'adaptive-conditions': [
     'Adaptive conditions',
@@ -294,6 +294,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Enable automatic backups',
     'Enable sequence auto-save',
     'File paths',
+    'Files & storage',
     'Host-owned setting',
     'How often to create backups (hours)',
     'How often to save pending sequence edits',

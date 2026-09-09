@@ -848,7 +848,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       final force = await showValidationIssueDialog(
         context,
         issues: e.issues,
-        operationName: 'Export Sequence',
+        operationName: 'export sequence',
         forceLabel: 'Force export anyway',
       );
       if (!force || !context.mounted || !_isCurrentAuthority(authority)) {

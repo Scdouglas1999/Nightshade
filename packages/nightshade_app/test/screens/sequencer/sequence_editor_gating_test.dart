@@ -105,7 +105,7 @@ void main() {
       final ok = await withSequenceMutation(
         capturedContext,
         capturedRef,
-        operationName: 'Duplicate Node',
+        operationName: 'duplicate node',
         action: () async {
           throw SequenceLockedException(
             attemptedOperation: 'duplicate node',
@@ -119,7 +119,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 750));
 
       expect(ok, isFalse);
-      expect(find.textContaining('Could not Duplicate Node'), findsOneWidget);
+      expect(find.textContaining('Could not duplicate node'), findsOneWidget);
     });
 
     testWidgets(
@@ -155,7 +155,7 @@ void main() {
       final futureResult = withSequenceMutation(
         capturedContext,
         capturedRef,
-        operationName: 'Insert Snippet',
+        operationName: 'insert snippet',
         action: () async {
           throw const SnippetDeserializationException(
             unknownType: 'WarpDrive',
@@ -167,7 +167,7 @@ void main() {
       await tester.pump();
 
       // Dialog should have rendered with the typed message body.
-      expect(find.text('Could not Insert Snippet'), findsOneWidget);
+      expect(find.text('Could not insert snippet'), findsOneWidget);
       expect(find.textContaining('WarpDrive'), findsOneWidget);
       expect(
           find.textContaining('newer version of Nightshade'), findsOneWidget);
@@ -215,13 +215,13 @@ void main() {
       final futureForced = showValidationIssueDialog(
         capturedContext,
         issues: issues,
-        operationName: 'Save sequence',
+        operationName: 'save sequence',
         forceLabel: 'Force save anyway',
       );
       await tester.pumpAndSettle();
 
       // Header reflects the operation.
-      expect(find.text('Could not Save Sequence'), findsOneWidget);
+      expect(find.text('Could not save sequence'), findsOneWidget);
       // Every issue title shows.
       expect(find.text('No target'), findsOneWidget);
       expect(find.text('Camera disconnected'), findsOneWidget);
@@ -266,7 +266,7 @@ void main() {
       final futureCancelled = showValidationIssueDialog(
         capturedContext,
         issues: issues,
-        operationName: 'Save sequence',
+        operationName: 'save sequence',
         forceLabel: 'Force save anyway',
       );
       await tester.pumpAndSettle();
