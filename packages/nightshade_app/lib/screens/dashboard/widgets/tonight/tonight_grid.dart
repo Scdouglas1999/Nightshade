@@ -15,9 +15,12 @@ import '../dashboard_widget_registry.dart';
 const int kTonightGridColumns = 12;
 const double kTonightGridGap = NightshadeTokens.spaceLg;
 
-/// Below this the grid collapses to one column: four columns of a twelfth each
-/// is 180 px at 900, which is narrower than a readout row.
-const double _singleColumnWidth = 760;
+/// Below this the grid collapses to one column.
+///
+/// The shell's own narrow breakpoint, not a number of this file's own: below it
+/// the rail is already a bottom nav and the page header has shrunk, and a c4
+/// panel there is ~180 px — narrower than the readout row inside it.
+const double _singleColumnWidth = ShellChromeMetrics.shellLayoutBreakpoint;
 
 /// Lays [tiles] out across [kTonightGridColumns], wrapping when a row is full.
 class TonightGrid extends StatelessWidget {

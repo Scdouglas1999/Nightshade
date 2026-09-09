@@ -9,8 +9,6 @@ import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../../localization/nightshade_localizations.dart';
-import '../../../sequencer/widgets/run_dashboard/weather_safety_card.dart'
-    show RunDashboardSafetyBadge, runDashboardSafetyBadge;
 import '../standby/moon_card.dart' show MoonPainter;
 import 'tonight_night.dart';
 
@@ -93,6 +91,15 @@ class TonightMoonPanel extends ConsumerWidget {
 }
 
 /// Whether the mount will be parked for you, and the way to change that.
+///
+/// Deliberately reads the weather CONFIG (`weatherSettingsDataProvider`) and the
+/// weather DEVICE (`weatherStateProvider`), never `weatherSafetyProvider`.
+/// Watching the evaluator is what STARTS it: this panel is on screen in the
+/// first-run state, on a fresh install, before any equipment exists, and arming
+/// the safety loop there is how a rig with fail-closed set and no sensor ends up
+/// issuing a PARK a few minutes after the mount first connects. The safety
+/// panel in the connected grid watches the evaluator, because by then the
+/// sequencer has armed it anyway.
 class TonightWeatherPanel extends ConsumerWidget {
   const TonightWeatherPanel({super.key});
 
@@ -100,29 +107,16 @@ class TonightWeatherPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
-    final safety = ref.watch(weatherSafetyProvider);
+    final settings = ref.watch(weatherSettingsDataProvider).valueOrNull;
+    final device = ref.watch(weatherStateProvider);
+    final monitoring = settings?.weatherSafetyEnabled ?? false;
+    final haveSensor =
+        device.connectionState == DeviceConnectionState.connected;
 
-    final badge = runDashboardSafetyBadge(
-      status: safety.status,
-      monitoringEnabled: safety.monitoringEnabled,
-      dataSource: safety.dataSource,
-    );
-
-    final (String label, ChipTone tone) = switch (badge) {
-      RunDashboardSafetyBadge.safe => (l10n.text('tnSafe'), ChipTone.success),
-      RunDashboardSafetyBadge.unsafe => (l10n.text('tnUnsafe'), ChipTone.error),
-      RunDashboardSafetyBadge.snoozed => (
-          l10n.text('tnSnoozed'),
-          ChipTone.warning,
-        ),
-      RunDashboardSafetyBadge.notMonitored => (
-          l10n.text('tnNotMonitored'),
-          ChipTone.neutral,
-        ),
-      RunDashboardSafetyBadge.noData => (
-          l10n.text('tnNoWeatherData'),
-          ChipTone.warning,
-        ),
+    final (String label, ChipTone tone) = switch ((monitoring, haveSensor)) {
+      (false, _) => (l10n.text('tnNotMonitored'), ChipTone.neutral),
+      (true, false) => (l10n.text('tnNoWeatherData'), ChipTone.warning),
+      (true, true) => (l10n.text('tnMonitored'), ChipTone.success),
     };
 
     return NightshadePanel(
@@ -136,7 +130,7 @@ class TonightWeatherPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            safety.monitoringEnabled
+            monitoring
                 ? l10n.text('tnWeatherOnBody')
                 : l10n.text('tnWeatherOffBody'),
             style: NightshadeTypography.bodySm.copyWith(

@@ -245,7 +245,10 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitGuiding,
-    title: 'Guiding',
+    // Disambiguated from Tonight's own Guiding panel: the widget picker refuses
+    // two tiles with one name, and a user choosing between them has to be able
+    // to tell which is which.
+    title: 'Guiding (run panel)',
     subtitle: 'RMS error and guiding graph',
     icon: LucideIcons.crosshair,
     defaultZone: DashboardZone.secondary,

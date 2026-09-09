@@ -161,10 +161,7 @@ class _QuickStatItem extends StatelessWidget {
             Text(
               label,
               style: NightshadeTypography.glanceStyle(
-                TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  color: colors.textMuted,
-                ),
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
                 enabled: glance,
               ),
             ),

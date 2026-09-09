@@ -47,7 +47,7 @@ void main() {
       (tester) async {
     // Tall enough that the whole (lazily built) list is laid out at once.
     tester.view.devicePixelRatio = 1.0;
-    tester.view.physicalSize = const Size(900, 4200);
+    tester.view.physicalSize = const Size(900, 5200);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -79,7 +79,7 @@ void main() {
 
   testWidgets('the picker separates the two tile families', (tester) async {
     tester.view.devicePixelRatio = 1.0;
-    tester.view.physicalSize = const Size(900, 4200);
+    tester.view.physicalSize = const Size(900, 5200);
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();

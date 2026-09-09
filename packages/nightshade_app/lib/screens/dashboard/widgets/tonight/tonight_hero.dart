@@ -41,6 +41,19 @@ final tonightHeroStateProvider = Provider<TonightHeroState>((ref) {
       : TonightHeroState.nothingRunning;
 });
 
+/// Whether any of the four core devices is online.
+///
+/// Drives the one place the hero's primary would otherwise lie; the same four
+/// devices `dashboardStandbyProvider` consults.
+final anyCoreDeviceConnectedProvider = Provider<bool>((ref) {
+  bool up(ProviderListenable<DeviceConnectionState> state) =>
+      ref.watch(state) == DeviceConnectionState.connected;
+  return up(cameraStateProvider.select((s) => s.connectionState)) ||
+      up(mountStateProvider.select((s) => s.connectionState)) ||
+      up(guiderStateProvider.select((s) => s.connectionState)) ||
+      up(focuserStateProvider.select((s) => s.connectionState));
+});
+
 /// State eyebrow, the night's headline, one line of facts, and the ONE primary
 /// action for the state.
 class TonightHero extends ConsumerWidget {
@@ -168,7 +181,12 @@ class _Headline extends ConsumerWidget {
             if (alias != null)
               TextSpan(
                 text: ' · $alias',
-                style: const TextStyle(fontWeight: FontWeight.w400),
+                // The common name is the quiet half of the hero line: same
+                // `display` metrics, weight 400 (02 "weight contrast instead
+                // of size contrast").
+                style: NightshadeTypography.display.copyWith(
+                  fontWeight: FontWeight.w400,
+                ),
               ),
           ],
         ),
@@ -349,6 +367,12 @@ class _HeroActions extends ConsumerWidget {
         );
 
       case TonightHeroState.nothingRunning:
+        // 06 names "Connect equipment" as this state's primary, which is only
+        // true while nothing IS connected. Offering it to an operator whose
+        // camera and mount are already online is the app stating something
+        // untrue, so a connected rig with nothing loaded is sent to the
+        // Sequencer instead. Same state, same slot, honest verb.
+        final connected = ref.watch(anyCoreDeviceConnectedProvider);
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -359,13 +383,22 @@ class _HeroActions extends ConsumerWidget {
               onPressed: () => context.go('/planner'),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
-            NightshadeButton(
-              label: l10n.text('tnConnectEquipment'),
-              icon: LucideIcons.plug,
-              variant: ButtonVariant.primary,
-              size: ButtonSize.large,
-              onPressed: () => context.go('/equipment'),
-            ),
+            if (connected)
+              NightshadeButton(
+                label: l10n.text('tnBuildSequence'),
+                icon: LucideIcons.listOrdered,
+                variant: ButtonVariant.primary,
+                size: ButtonSize.large,
+                onPressed: () => context.go('/sequencer'),
+              )
+            else
+              NightshadeButton(
+                label: l10n.text('tnConnectEquipment'),
+                icon: LucideIcons.plug,
+                variant: ButtonVariant.primary,
+                size: ButtonSize.large,
+                onPressed: () => context.go('/equipment'),
+              ),
           ],
         );
     }

@@ -78,12 +78,8 @@ class _RunReportCard extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 'MORNING REPORT',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textMuted),
               ),
               const Spacer(),
               Icon(LucideIcons.chevronRight, size: 14, color: colors.textMuted),
@@ -250,12 +246,7 @@ class _Metric extends StatelessWidget {
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
         ),
         Text(
           value,

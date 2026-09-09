@@ -117,9 +117,8 @@ class CockpitRunControls extends ConsumerWidget {
           Expanded(
             child: Text(
               readyText,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -147,9 +146,8 @@ class CockpitRunControls extends ConsumerWidget {
           Expanded(
             child: Text(
               'Equipment connected — no sequence loaded.',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
             ),
@@ -286,12 +284,7 @@ class _ReadyBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'Ready',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w700,
-              color: colors.info,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.eyebrow.copyWith(color: colors.info),
           ),
         ],
       ),
@@ -323,12 +316,7 @@ class _OfflineBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'Offline',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w700,
-              color: colors.warning,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.eyebrow.copyWith(color: colors.warning),
           ),
         ],
       ),
@@ -506,12 +494,7 @@ class _StateBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.eyebrow.copyWith(color: color),
           ),
         ],
       ),

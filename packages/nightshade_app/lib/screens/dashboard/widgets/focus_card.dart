@@ -98,9 +98,8 @@ class FocusCard extends ConsumerWidget {
                     child: Center(
                       child: Text(
                         l10n.text('moveFocuserToSeeHistory'),
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize10,
-                            color: colors.textMuted),
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
                       ),
                     ),
                   ),
@@ -197,9 +196,8 @@ class _FocusPositionSparkline extends StatelessWidget {
         child: Center(
           child: Text(
             context.l10n.text('noData'),
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ),
       );
@@ -239,11 +237,9 @@ class _FocusPositionSparkline extends StatelessWidget {
             top: 2,
             child: Text(
               _formatPosition(maxVal),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize8,
-                color: colors.textMuted,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
 
@@ -253,11 +249,9 @@ class _FocusPositionSparkline extends StatelessWidget {
             bottom: 2,
             child: Text(
               _formatPosition(minVal),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize8,
-                color: colors.textMuted,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
 
@@ -276,12 +270,9 @@ class _FocusPositionSparkline extends StatelessWidget {
                 ),
                 child: Text(
                   _formatPosition(currentVal),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize9,
-                    fontWeight: FontWeight.w500,
-                    color: colors.accent,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                      color: colors.accent,
+                      fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
               ),
             ),
@@ -417,9 +408,8 @@ class _FineFocusControls extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             'Fine',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
           const SizedBox(width: 4),
           _FineStepButton(

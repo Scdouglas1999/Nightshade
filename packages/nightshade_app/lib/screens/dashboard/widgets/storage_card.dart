@@ -64,9 +64,8 @@ class StorageCard extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           'Set a capture directory in Settings → File Output to track free space.',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
       );
     }
@@ -83,37 +82,30 @@ class StorageCard extends ConsumerWidget {
           children: [
             Text(
               freeGb,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize22,
-                fontWeight: FontWeight.w700,
-                color: _freeColor(info, projection),
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: NightshadeTypography.pageTitle.copyWith(
+                  color: _freeColor(info, projection),
+                  fontFeatures: const [FontFeature.tabularFigures()]),
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 4, left: 4),
               child: Text(
                 'GB free',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
               ),
             ),
             const Spacer(),
             Text(
               'of $totalGb GB',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
           info.path,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textMuted),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 10),
@@ -126,20 +118,15 @@ class StorageCard extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             projection.headline,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: _severityColor(projection.severity),
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: _severityColor(projection.severity)),
           ),
         ] else if (projectionAsync.isLoading) ...[
           const SizedBox(height: 8),
           Text(
             'Calculating sequence storage…',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted,
-            ),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ] else if (projectionAsync.hasError) ...[
           const SizedBox(height: 8),
@@ -150,11 +137,8 @@ class StorageCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Sequence storage estimate unavailable',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.error,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.error),
                 ),
               ),
               TextButton(
@@ -198,8 +182,7 @@ class StorageCard extends ConsumerWidget {
                     error.kind == DiskSpaceFailureKind.pathMissing
                 ? 'Capture folder not found: ${error.path}'
                 : 'Disk query failed: $error',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11, color: colors.error),
+            style: NightshadeTypography.caption.copyWith(color: colors.error),
             overflow: TextOverflow.ellipsis,
             maxLines: 2,
           ),

@@ -145,9 +145,8 @@ class _WaitingRow extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             'Waiting for first frame…',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),

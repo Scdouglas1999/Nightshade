@@ -49,12 +49,8 @@ class CockpitNarrator extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 'NIGHT NARRATOR',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textMuted),
               ),
               const Spacer(),
               feed.maybeWhen(

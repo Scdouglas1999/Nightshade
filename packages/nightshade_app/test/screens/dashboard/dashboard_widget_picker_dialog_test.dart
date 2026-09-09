@@ -55,7 +55,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     final editButton = find.byWidgetPredicate(
-      (widget) => widget is NightshadeButton && widget.label == 'Edit',
+      (widget) => widget is NightshadeButton && widget.label == 'Edit layout',
     );
     expect(editButton, findsOneWidget);
 

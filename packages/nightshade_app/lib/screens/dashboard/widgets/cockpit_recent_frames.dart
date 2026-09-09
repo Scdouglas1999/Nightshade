@@ -85,21 +85,16 @@ class CockpitRecentFrames extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 'Recent Frames',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textSecondary,
-                  letterSpacing: 0.3,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textSecondary),
               ),
               const Spacer(),
               if (total > 0)
                 Text(
                   total == 1 ? '1 frame' : '$total frames',
                   style: NightshadeTypography.withTabular(
-                    TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
+                    NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
             ],
@@ -129,9 +124,8 @@ class _EmptyHint extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'No frames captured this session yet',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11_5,
-                color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -217,11 +211,7 @@ class _MoreBadge extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           '+$count',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w700,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       ),
     );
@@ -318,20 +308,16 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
               children: [
                 Text(
                   _filterLabel(),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     _exposureLabel(),
                     style: NightshadeTypography.withTabular(
-                      TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textMuted),
+                      NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -343,9 +329,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
             Text(
               _timeLabel(),
               style: NightshadeTypography.withTabular(
-                TextStyle(
-                    fontSize: NightshadeTypography.fontSize9,
-                    color: colors.textMuted),
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
               ),
             ),
           ],

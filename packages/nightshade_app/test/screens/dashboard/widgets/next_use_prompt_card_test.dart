@@ -325,7 +325,12 @@ void main() {
     );
   }
 
-  testWidgets('dashboard Stack mounts the NextUsePromptCard', (tester) async {
+  testWidgets('Tonight does NOT float the next-use prompt over the page',
+      (tester) async {
+    // 02 rule 5: setup guidance lives in ONE place, the first-light checklist
+    // on Tonight. The floating prompt used to be painted over the dashboard as
+    // a second, louder copy of the same nudges; the Observatory rebuild dropped
+    // it, and this guards the removal.
     // Drop the cosmetic RenderFlex overflow at the cramped test surface; any
     // other Flutter error still trips takeException.
     final defaultOnError = FlutterError.onError;
@@ -343,9 +348,6 @@ void main() {
       extraOverrides: [
         dashboardLayoutProvider
             .overrideWith(_AllDisabledDashboardLayoutNotifier.new),
-        // Keep the next-use prompt suppressed so its slide animation never has
-        // to settle; we are asserting the widget is *mounted in the Stack*, not
-        // that it renders a card.
         nextUsePromptProvider.overrideWithValue(null),
       ],
     );
@@ -355,6 +357,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
 
-    expect(find.byType(NextUsePromptCard), findsOneWidget);
+    expect(find.byType(NextUsePromptCard), findsNothing,
+        reason: 'The Tonight page carries no floating setup prompt; the '
+            'checklist is the one place a setup problem is stated.');
   });
 }

@@ -864,7 +864,13 @@ class DashboardLayout {
 
     return DashboardLayout(
       version: DashboardLayout.currentVersion,
-      tiles: tiles,
+      // `order` is renumbered from list position rather than written per
+      // entry: with the Observatory tiles inserted at the head, hand-written
+      // orders collided, and a duplicate order makes `reorder` move the wrong
+      // tile.
+      tiles: <DashboardTileConfig>[
+        for (var i = 0; i < tiles.length; i++) tiles[i].copyWith(order: i),
+      ],
       secondaryZoneWidth: 0.4,
     );
   }

@@ -55,11 +55,8 @@ class CockpitSkyContext extends ConsumerWidget {
             Expanded(
               child: Text(
                 _idleSummary(twilight, moon, clock),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12_5,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textSecondary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -93,12 +90,8 @@ class CockpitSkyContext extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 'SKY CONTEXT',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.eyebrow
+                    .copyWith(color: colors.textMuted),
               ),
             ],
           ),
@@ -246,12 +239,8 @@ class _StatTile extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9_5,
-                color: colors.textMuted,
-                letterSpacing: 0.3,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.eyebrow
+                  .copyWith(color: colors.textMuted),
             ),
           ],
         ),
@@ -259,11 +248,8 @@ class _StatTile extends StatelessWidget {
         Text(
           value,
           style: NightshadeTypography.withTabular(
-            TextStyle(
-              fontSize: NightshadeTypography.fontSize15,
-              fontWeight: FontWeight.w700,
-              color: valueColor ?? colors.textPrimary,
-            ),
+            NightshadeTypography.sectionTitle
+                .copyWith(color: valueColor ?? colors.textPrimary),
           ),
         ),
       ],

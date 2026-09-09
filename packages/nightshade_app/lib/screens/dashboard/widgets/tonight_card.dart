@@ -188,11 +188,8 @@ class TonightCard extends ConsumerWidget {
               optimization.rationale.first,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textSecondary,
-                height: 1.35,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ],
           if (optimizationAsync.hasError) ...[
@@ -202,10 +199,8 @@ class TonightCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Couldn’t generate tonight’s plan.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.error,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.error),
                   ),
                 ),
                 TextButton.icon(
@@ -221,10 +216,8 @@ class TonightCard extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               '+ ${optimization.alternates.length} more target${optimization.alternates.length == 1 ? '' : 's'}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ],
           if (optimization != null && optimization.hasRecommendation) ...[
@@ -589,10 +582,8 @@ class _TonightTargetActionsState extends State<_TonightTargetActions> {
             widget.target.catalogId ?? widget.target.targetName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: widget.colors.textMuted,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: widget.colors.textMuted),
           ),
         ),
         Tooltip(
@@ -669,9 +660,8 @@ class _TonightRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -139,9 +139,10 @@ class DashboardCardHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: TextStyle(
-              fontSize: DashboardCardStyle.headerTitleSizeFor(context),
-              fontWeight: FontWeight.w600,
+            // 03 §2: a card's title is one size on every device. The
+            // phone/desktop 12.5-vs-13 split was a second scale that only this
+            // card knew about.
+            style: NightshadeTypography.bodyStrong.copyWith(
               color: colors.textPrimary,
             ),
             overflow: TextOverflow.ellipsis,
@@ -196,9 +197,7 @@ class DashboardStatusChip extends StatelessWidget {
             ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: DashboardCardStyle.statusChipTextSize,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.eyebrow.copyWith(
           color: active ? tint : colors.textMuted,
         ),
       ),

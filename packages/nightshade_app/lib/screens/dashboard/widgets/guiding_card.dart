@@ -106,9 +106,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                       isConnected
                           ? l10n.text('clickStartToBegin')
                           : l10n.text('connectGuider'),
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          color: colors.textMuted),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ),
           ),
@@ -126,9 +125,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                       NightshadeChartColors.seriesRed, colors)),
               const SizedBox(width: 3),
               Text('$rmsRa"',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textSecondary)),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary)),
               const SizedBox(width: 8),
               Container(
                   width: 10,
@@ -137,9 +135,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                       NightshadeChartColors.seriesBlue, colors)),
               const SizedBox(width: 3),
               Text('$rmsDec"',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textSecondary)),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary)),
               const Spacer(),
               // Start/Stop button
               SizedBox(
