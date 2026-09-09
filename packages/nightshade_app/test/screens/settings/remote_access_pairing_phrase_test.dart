@@ -192,7 +192,7 @@ void main() {
           .getSize(
             find
                 .ancestor(
-                  of: find.text('Pair Remote Browsers'),
+                  of: find.text('Pair remote browsers'),
                   matching: find.byType(Container),
                 )
                 .first,

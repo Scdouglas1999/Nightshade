@@ -89,7 +89,7 @@ void main() {
   testWidgets('Cancel inside the countdown stops the start', (tester) async {
     await pump(tester);
 
-    await tester.tap(find.text('Cancel Sequence'));
+    await tester.tap(find.text('Cancel sequence'));
     await tester.pump();
 
     expect(cancelled, 1);
@@ -114,7 +114,7 @@ void main() {
 
     // The operator presses Cancel during the mount round-trip. This press used
     // to hit a disabled button and change nothing.
-    await tester.tap(find.text('Cancel Sequence'));
+    await tester.tap(find.text('Cancel sequence'));
     await tester.pump();
     expect(cancelled, 1);
 

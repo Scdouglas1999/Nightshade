@@ -150,44 +150,70 @@ class _PlannerControlsBar extends ConsumerWidget {
                 moreChip,
               ],
             )
-          : Row(
-              children: [
-                SizedBox(width: _kPlannerSearchWidth, child: searchField),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                // The chips scroll rather than wrap or overflow: the row is one
-                // strip in the mockup, and a second line of chips would push
-                // the candidate list down by 40px on every narrow desktop.
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _ObjectTypeMultiSelect(
-                          colors: colors,
-                          selected: filters.selectedObjectTypes,
-                        ),
-                        const SizedBox(width: NightshadeTokens.spaceSm),
-                        _MinAltitudeControl(
-                          colors: colors,
-                          value: filters.minCurrentAltitude,
-                        ),
-                        const SizedBox(width: NightshadeTokens.spaceSm),
-                        _MoonSeparationControl(
-                          colors: colors,
-                          value: filters.minMoonDistance,
-                        ),
-                        const SizedBox(width: NightshadeTokens.spaceSm),
-                        moreChip,
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                _SortDropdown(
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final sort = _SortDropdown(
                   colors: colors,
                   value: filters.plannerSort ?? PlannerSortMode.score,
-                ),
-              ],
+                );
+
+                // Below the desktop breakpoint the three inline chips do not
+                // fit beside a 300 px search field and the sort, and the
+                // horizontal scroll they used to live in simply SLICED the
+                // last one — "Alt now: any" was cut mid-chip with the sort
+                // apparently sitting on top of it, which reads as a broken
+                // layout rather than as something scrollable.
+                //
+                // So they collapse into the Filters sheet, which already
+                // carries all six controls (see _ControlsBarChips): nothing
+                // loses its control, and the row keeps the two things the
+                // mockup insists on, search and sort.
+                if (constraints.maxWidth < NightshadeTokens.breakpointDesktop) {
+                  return Row(
+                    children: [
+                      Expanded(child: searchField),
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      moreChip,
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      sort,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    SizedBox(width: _kPlannerSearchWidth, child: searchField),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _ObjectTypeMultiSelect(
+                              colors: colors,
+                              selected: filters.selectedObjectTypes,
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceSm),
+                            _MinAltitudeControl(
+                              colors: colors,
+                              value: filters.minCurrentAltitude,
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceSm),
+                            _MoonSeparationControl(
+                              colors: colors,
+                              value: filters.minMoonDistance,
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceSm),
+                            moreChip,
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    sort,
+                  ],
+                );
+              },
             ),
     );
   }

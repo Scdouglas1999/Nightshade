@@ -421,7 +421,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Plan Tonight'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Plan tonight'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -458,7 +458,7 @@ void main() {
     ));
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Plan Tonight'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Plan tonight'));
     await tester.pump();
     await activeNotifier.setActiveProject(6);
     await tester.pump();

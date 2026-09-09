@@ -162,32 +162,28 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       color: NightshadeColors.of(context).error,
                     )),
               ),
+              // Counts are measurements, so they are Readouts (05 §3): the
+              // uppercase label comes from the Readout itself, which is why
+              // these read "DARK FRAMES" without being written that way.
               data: (stats) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                padding: NightshadeTokens.paddingLg,
+                child: ReadoutRow(
                   children: [
-                    _StatCard(
+                    Readout(
                       label: 'Dark frames',
                       value: '${stats.darkCount}',
-                      icon: LucideIcons.moon,
                     ),
-                    const SizedBox(width: 12),
-                    _StatCard(
+                    Readout(
                       label: 'Bias frames',
                       value: '${stats.biasCount}',
-                      icon: LucideIcons.zap,
                     ),
-                    const SizedBox(width: 12),
-                    _StatCard(
+                    Readout(
                       label: 'Master darks',
                       value: '${stats.masterCount}',
-                      icon: LucideIcons.layers,
                     ),
-                    const SizedBox(width: 12),
-                    _StatCard(
+                    Readout(
                       label: 'Total',
                       value: '${stats.totalEntries}',
-                      icon: LucideIcons.database,
                     ),
                   ],
                 ),
@@ -451,7 +447,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Clear Dark Library'),
+          title: const Text('Clear dark library'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

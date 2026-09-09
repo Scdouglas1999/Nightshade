@@ -39,8 +39,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Load Previous Setup'), findsOneWidget);
-    expect(find.text('Resume Progress'), findsNothing);
-    expect(find.text('Start Fresh'), findsNothing);
+    expect(find.text('Resume progress'), findsNothing);
+    expect(find.text('Start fresh'), findsNothing);
   });
 
   testWidgets('real backend checkpoint offers fresh and resume actions',
@@ -48,8 +48,8 @@ void main() {
     await tester.pumpWidget(_host(_context(canResume: true)));
     await tester.pumpAndSettle();
 
-    expect(find.text('Start Fresh'), findsOneWidget);
-    expect(find.text('Resume Progress'), findsOneWidget);
+    expect(find.text('Start fresh'), findsOneWidget);
+    expect(find.text('Resume progress'), findsOneWidget);
     expect(find.text('Load Previous Setup'), findsNothing);
   });
 }

@@ -135,11 +135,11 @@ void main() {
       expect(find.text(title), findsOneWidget, reason: 'missing row "$title"');
     }
     for (final shouted in const [
-      'First Night Walkthrough',
-      'Generate Diagnostic Dump',
-      'Equipment Setup',
-      'Calibration Frames',
-      'Reset All Progress',
+      'First night walkthrough',
+      'Generate diagnostic dump',
+      'Equipment setup',
+      'Calibration frames',
+      'Reset all progress',
     ]) {
       expect(
         find.text(shouted),
@@ -205,7 +205,7 @@ void main() {
     expect(help, contains('Generate diagnostic dump'));
     expect(
       help,
-      isNot(contains('First Night Walkthrough')),
+      isNot(contains('First night walkthrough')),
       reason: 'a stale index makes the row unfindable by its visible name',
     );
   });

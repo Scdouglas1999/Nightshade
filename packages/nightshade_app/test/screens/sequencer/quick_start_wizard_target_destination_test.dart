@@ -91,7 +91,7 @@ void main() {
       reason: 'neither "Sky" nor "Planner" is a destination in this build',
     );
     expect(
-      find.textContaining('Plan Tonight'),
+      find.textContaining('Plan tonight'),
       findsOneWidget,
       reason: 'the empty-library branch must name the real screen that saves '
           'a target into the library',

@@ -136,7 +136,7 @@ void main() {
       expect(find.textContaining('40 frames'), findsOneWidget);
       expect(find.widgetWithText(NightshadeButton, 'Resume'), findsOneWidget);
       expect(
-          find.widgetWithText(NightshadeButton, 'Start Over'), findsOneWidget);
+          find.widgetWithText(NightshadeButton, 'Start over'), findsOneWidget);
     });
 
     testWidgets('hides banner when no checkpoint exists', (tester) async {
@@ -231,7 +231,7 @@ void main() {
       expect(
           find.byKey(const ValueKey('mosaic_resume_banner')), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(NightshadeButton, 'Start Over'));
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Start over'));
       await tester.pumpAndSettle();
 
       verify(() => backend.discardCheckpoint()).called(1);

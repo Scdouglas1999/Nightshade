@@ -192,7 +192,7 @@ void main() {
       findsNothing,
       reason: 'the deleted profile must not survive in the detail pane',
     );
-    expect(find.text('Set Active'), findsNothing);
+    expect(find.text('Set active'), findsNothing);
     expect(find.text('Select a profile'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -209,7 +209,7 @@ void main() {
 
     await tester.tap(find.text('Rig Two'));
     await tester.pump();
-    await tester.tap(find.text('Set Active'));
+    await tester.tap(find.text('Set active'));
     await tester.pump();
     await tester.pump();
 

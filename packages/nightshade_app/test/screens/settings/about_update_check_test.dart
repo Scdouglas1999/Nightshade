@@ -55,7 +55,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Software Update'), findsOneWidget);
+    expect(find.text('Software update'), findsOneWidget);
     expect(find.text('Version 6.1.0 (build 21)'), findsOneWidget);
 
     await tester.tap(find.text('Check for updates'));

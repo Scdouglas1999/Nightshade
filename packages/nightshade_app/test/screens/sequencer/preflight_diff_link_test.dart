@@ -180,7 +180,7 @@ void main() {
     expect(
       find.byWidgetPredicate((w) =>
           w is Text &&
-          (w.data == 'All Checks Passed' || w.data == 'Ready with Warnings')),
+          (w.data == 'All checks passed' || w.data == 'Ready with warnings')),
       findsOneWidget,
       reason: 'Empty validation result must surface a non-error summary tile '
           '(either "All Checks Passed" or "Ready with Warnings" depending '
@@ -215,7 +215,7 @@ void main() {
     expect(
       find.byWidgetPredicate((w) =>
           w is Text &&
-          (w.data == 'All Checks Passed' || w.data == 'Ready with Warnings')),
+          (w.data == 'All checks passed' || w.data == 'Ready with warnings')),
       findsOneWidget,
     );
     expect(find.textContaining('Sequence has changed'), findsNothing,

@@ -85,7 +85,7 @@ void main() {
       await _drain(tester);
 
       expect(find.text('RA Peak'), findsOneWidget);
-      expect(find.text('Dec Peak'), findsOneWidget);
+      expect(find.text('Dec peak'), findsOneWidget);
       expect(
         find.textContaining('0.00'),
         findsNothing,

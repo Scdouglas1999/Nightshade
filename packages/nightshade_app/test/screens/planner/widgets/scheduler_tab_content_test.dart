@@ -734,12 +734,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Unattended Autopilot'), findsOneWidget);
+    expect(find.text('Unattended autopilot'), findsOneWidget);
     expect(find.text('Scheduler queue'), findsOneWidget);
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
 
     final title = tester.renderObject<RenderParagraph>(
-      find.text('Unattended Autopilot'),
+      find.text('Unattended autopilot'),
     );
     expect(
       title.didExceedMaxLines,
@@ -790,7 +790,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    final titleFinder = find.text('Unattended Autopilot');
+    final titleFinder = find.text('Unattended autopilot');
     final title = tester.renderObject<RenderParagraph>(titleFinder);
     expect(
       title.didExceedMaxLines,

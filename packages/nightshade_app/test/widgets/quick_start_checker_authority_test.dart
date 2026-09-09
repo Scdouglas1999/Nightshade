@@ -83,7 +83,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(find.text('Start Fresh'), findsOneWidget);
+    expect(find.text('Start fresh'), findsOneWidget);
   });
 
   testWidgets('quick-start dialog closes and cannot discard after host switch',
@@ -119,15 +119,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
-    expect(find.text('Start Fresh'), findsOneWidget);
+    expect(find.text('Start fresh'), findsOneWidget);
 
     notifier.switchTo(hostB);
-    await tester.tap(find.text('Start Fresh'), warnIfMissed: false);
+    await tester.tap(find.text('Start fresh'), warnIfMissed: false);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(find.text('Start Fresh'), findsNothing);
+    expect(find.text('Start fresh'), findsNothing);
     expect(hostA.discardCalls, 0);
     expect(hostB.discardCalls, 0);
   });
@@ -169,8 +169,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Start Fresh'));
-    await tester.tap(find.text('Start Fresh'));
+    await tester.ensureVisible(find.text('Start fresh'));
+    await tester.tap(find.text('Start fresh'));
     await tester.pumpAndSettle();
 
     expect(
@@ -216,8 +216,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Start Fresh'));
-    await tester.tap(find.text('Start Fresh'));
+    await tester.ensureVisible(find.text('Start fresh'));
+    await tester.tap(find.text('Start fresh'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Nothing to load'), findsOneWidget);
@@ -267,8 +267,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Start Fresh'));
-    await tester.tap(find.text('Start Fresh'));
+    await tester.ensureVisible(find.text('Start fresh'));
+    await tester.tap(find.text('Start fresh'));
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(

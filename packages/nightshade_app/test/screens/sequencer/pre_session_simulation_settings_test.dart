@@ -209,7 +209,7 @@ void main() {
 
     expect(find.textContaining('never rises above'), findsOneWidget);
     expect(find.text('Cannot Start Sequence'), findsOneWidget);
-    expect(find.text('All Checks Passed'), findsNothing);
+    expect(find.text('All checks passed'), findsNothing);
 
     final startGesture = tester.widget<GestureDetector>(
       find.ancestor(

@@ -125,7 +125,7 @@ void main() {
           'useful if it is actually mounted there',
     );
     expect(find.text('Error: not connected to server'), findsOneWidget);
-    expect(find.text('Work Locally'), findsOneWidget);
+    expect(find.text('Work locally'), findsOneWidget);
 
     await _drain(tester);
   }, timeout: const Timeout(Duration(seconds: 60)));
@@ -145,7 +145,7 @@ void main() {
     );
 
     expect(find.text('Error: not connected to server'), findsOneWidget);
-    final workLocally = find.text('Work Locally');
+    final workLocally = find.text('Work locally');
     expect(
       workLocally,
       findsOneWidget,
@@ -180,6 +180,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Error: not connected to server'), findsNothing);
-    expect(find.text('Work Locally'), findsNothing);
+    expect(find.text('Work locally'), findsNothing);
   });
 }

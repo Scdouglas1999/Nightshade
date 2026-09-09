@@ -103,7 +103,7 @@ void main() {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownRow(
-              label: 'Frame Type',
+              label: 'Frame type',
               value: 'Light',
               items: const ['Light', 'Dark', 'Flat', 'Bias'],
               colors: NightshadeColors.dark,
@@ -123,7 +123,7 @@ void main() {
 
     final tree = _tree(tester);
     for (final pair in const [
-      ('Frame Type', 'Light'),
+      ('Frame type', 'Light'),
       ('Binning', '1x1'),
     ]) {
       expect(

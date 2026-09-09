@@ -1,4 +1,4 @@
-// About > System Information carries every fact a support conversation opens
+// About > System information carries every fact a support conversation opens
 // with — build number, where the data lives, what schema it is on, not just
 // Platform / OS Version / Dart Version — and the block copies in one action, so
 // none of it has to be retyped into a bug report.
@@ -57,7 +57,7 @@ void main() {
       (tester) async {
     await _pumpAbout(tester, facts: facts, dataFolder: dataFolder);
 
-    expect(find.text('System Information'), findsOneWidget);
+    expect(find.text('System information'), findsOneWidget);
     expect(find.text('6.1.0 (build 25)'), findsWidgets);
     expect(find.text('Database schema'), findsOneWidget);
     expect(find.text('57'), findsOneWidget);

@@ -86,7 +86,7 @@ void main() {
     await tester.tap(find.byIcon(NightshadeIcons.settings2));
     await tester.pumpAndSettle();
     final linkedChannels = find.descendant(
-      of: find.widgetWithText(NightshadeSwitchRow, 'Linked Channels'),
+      of: find.widgetWithText(NightshadeSwitchRow, 'Linked channels'),
       matching: find.byType(NightshadeSwitch),
     );
     await tester.tap(linkedChannels);
@@ -115,7 +115,7 @@ void main() {
     await tester.tap(find.byIcon(NightshadeIcons.settings2));
     await tester.pumpAndSettle();
     final linkedChannels = find.descendant(
-      of: find.widgetWithText(NightshadeSwitchRow, 'Linked Channels'),
+      of: find.widgetWithText(NightshadeSwitchRow, 'Linked channels'),
       matching: find.byType(NightshadeSwitch),
     );
     await tester.tap(linkedChannels);

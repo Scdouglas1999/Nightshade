@@ -62,7 +62,7 @@ void main() {
 
     expect(find.text('Location not configured'), findsOneWidget);
     expect(
-        find.widgetWithText(NightshadeButton, 'Open Settings'), findsOneWidget);
+        find.widgetWithText(NightshadeButton, 'Open settings'), findsOneWidget);
     // The hedge and the dead-end Refresh are both gone for this cause.
     expect(find.textContaining('may be below your horizon'), findsNothing);
     expect(find.widgetWithText(NightshadeButton, 'Refresh'), findsNothing);

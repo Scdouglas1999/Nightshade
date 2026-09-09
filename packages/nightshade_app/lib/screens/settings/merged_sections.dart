@@ -17,6 +17,8 @@ import 'widgets/predictive_af_settings.dart';
 class _MergedSection extends StatelessWidget {
   const _MergedSection({
     required this.isMobile,
+    required this.title,
+    required this.description,
     required this.firstLabel,
     required this.first,
     required this.secondLabel,
@@ -26,6 +28,13 @@ class _MergedSection extends StatelessWidget {
   });
 
   final bool isMobile;
+
+  /// The page title, and the ONE lead line a Settings page is allowed
+  /// (06 §Settings). A merged section is still a settings page: without these
+  /// it was the only one in Settings that opened straight onto a band label,
+  /// with nothing naming the screen.
+  final String title;
+  final String description;
   final String firstLabel;
   final Widget first;
   final String secondLabel;
@@ -39,10 +48,41 @@ class _MergedSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final third = this.third;
+    final colors = NightshadeColors.of(context);
+    final headerPadding = isMobile
+        ? NightshadeTokens.paddingLg
+        : const EdgeInsets.fromLTRB(
+            NightshadeTokens.space3xl,
+            NightshadeTokens.space2xl,
+            NightshadeTokens.space3xl,
+            NightshadeTokens.spaceLg,
+          );
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // The same title + one-line context every other settings page has.
+          Padding(
+            padding: headerPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: NightshadeTypography.pageTitle.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceXs),
+                Text(
+                  description,
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
           _SubHeader(label: firstLabel, isMobile: isMobile),
           first,
           _SubHeader(
@@ -113,6 +153,9 @@ class FilesAndStorageSettings extends StatelessWidget {
   Widget build(BuildContext context) {
     return _MergedSection(
       isMobile: isMobile,
+      title: 'Files & storage',
+      description:
+          'Where Nightshade writes captures, and how it backs your settings up.',
       firstLabel: 'FILE PATHS',
       first: FilePathSettings(isMobile: isMobile, embedded: true),
       secondLabel: 'AUTO-SAVE & BACKUPS',
@@ -140,6 +183,10 @@ class AutofocusMergedSettings extends StatelessWidget {
   Widget build(BuildContext context) {
     return _MergedSection(
       isMobile: isMobile,
+      title: 'Autofocus',
+      description:
+          'When Nightshade refocuses, how it predicts drift, and the focus '
+          'model it learns.',
       firstLabel: 'AUTOFOCUS',
       first: AutofocusSettingsPage(isMobile: isMobile, embedded: true),
       secondLabel: 'PREDICTIVE AUTOFOCUS',

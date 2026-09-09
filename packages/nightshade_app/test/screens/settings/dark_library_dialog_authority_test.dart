@@ -59,12 +59,12 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final clearLibrary = find.widgetWithText(NightshadeButton, 'Clear Library');
+    final clearLibrary = find.widgetWithText(NightshadeButton, 'Clear library');
     await tester.ensureVisible(clearLibrary);
     await tester.pump();
     await tester.tap(clearLibrary);
     await tester.pump();
-    expect(find.text('Clear Dark Library'), findsOneWidget);
+    expect(find.text('Clear dark library'), findsOneWidget);
 
     notifier.switchTo(hostB);
     await tester.pump();
@@ -78,7 +78,7 @@ void main() {
       find.text('Connected rig changed; dark-library action cancelled'),
       findsOneWidget,
     );
-    expect(find.text('Clear Dark Library'), findsNothing);
+    expect(find.text('Clear dark library'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

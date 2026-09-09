@@ -99,7 +99,7 @@ void main() {
     // The new peak row labels.
     expect(find.text('RA Peak'), findsOneWidget,
         reason: 'The RA peak tile must render alongside RA RMS.');
-    expect(find.text('Dec Peak'), findsOneWidget,
+    expect(find.text('Dec peak'), findsOneWidget,
         reason: 'The Dec peak tile must render alongside Dec RMS.');
 
     // The seeded peak values, formatted to two decimals. The seeded stats carry

@@ -215,7 +215,7 @@ void main() {
       final futureForced = showValidationIssueDialog(
         capturedContext,
         issues: issues,
-        operationName: 'Save Sequence',
+        operationName: 'Save sequence',
         forceLabel: 'Force save anyway',
       );
       await tester.pumpAndSettle();
@@ -266,7 +266,7 @@ void main() {
       final futureCancelled = showValidationIssueDialog(
         capturedContext,
         issues: issues,
-        operationName: 'Save Sequence',
+        operationName: 'Save sequence',
         forceLabel: 'Force save anyway',
       );
       await tester.pumpAndSettle();
