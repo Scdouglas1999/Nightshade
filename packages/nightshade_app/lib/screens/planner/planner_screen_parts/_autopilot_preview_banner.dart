@@ -69,15 +69,18 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
       );
     }
 
+    // ONE banner per problem (05 §11). An empty queue is already stated by the
+    // queue's own EmptyState directly below, which diagnoses WHY it is empty
+    // (empty catalog / empty active project / no integration goals) and carries
+    // the action. Saying it twice, once here in a warning banner and once
+    // there, is the duplication the sheet forbids — so this preview stays quiet
+    // and speaks only when it has something the queue does not.
+    if (queueEmpty) return const SizedBox.shrink();
+
     return NightshadeBanner(
-      title: queueEmpty
-          ? 'No targets in the scheduler queue'
-          : 'Nothing eligible right now',
-      message: queueEmpty
-          ? 'The autopilot runs targets from this queue. Add one with an '
-              'integration goal and it will pick it up.'
-          : 'The queue has targets, but none pass right now — still below the '
-              'horizon, or their filters are not in the active wheel.',
+      title: 'Nothing eligible right now',
+      message: 'The queue has targets, but none pass right now — still below '
+          'the horizon, or their filters are not in the active wheel.',
       tone: BannerTone.warning,
       icon: LucideIcons.radar,
     );

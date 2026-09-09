@@ -28,18 +28,16 @@ class FramingControlsSection extends ConsumerWidget {
         const SectionTitle(icon: NightshadeIcons.frame, title: 'Frame'),
 
         // Rotation (only useful with equipment). Slider + exact numeric entry +
-        // ±1/±90 steps — see [FramingRotationField].
-        FormRow(
-          label: 'Rotation',
-          child: FramingRotationField(
-            key: FramingTutorialKeys.rotation,
-            value: framingState.rotation,
-            colors: colors,
-            onChanged: hasEquipment
-                ? (value) =>
-                    ref.read(framingProvider.notifier).setRotation(value)
-                : null,
-          ),
+        // ±1/±90 steps — see [FramingRotationField]. Not wrapped in a FormRow:
+        // the field already carries its own label-left row, and a FormRow round
+        // it printed "Rotation" twice.
+        FramingRotationField(
+          key: FramingTutorialKeys.rotation,
+          value: framingState.rotation,
+          colors: colors,
+          onChanged: hasEquipment
+              ? (value) => ref.read(framingProvider.notifier).setRotation(value)
+              : null,
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
 
