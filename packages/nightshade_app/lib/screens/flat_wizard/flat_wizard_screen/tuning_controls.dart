@@ -28,16 +28,18 @@ class _HistogramTargetSlider extends StatelessWidget {
     final aduLabel = '~$targetAdu / ${config.maxAdu} ADU$depthLabel';
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              '${value.toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize24,
-                fontWeight: FontWeight.bold,
-                color: colors.textPrimary,
-              ),
+            // The value is a readout, not a 24px bold heading: numbers are
+            // loud and labels are quiet, and the unit rides on the number
+            // (02 rule 3).
+            Readout(
+              value: value.toStringAsFixed(0),
+              unit: '%',
+              size: ReadoutSize.sm,
             ),
             const Spacer(),
             Flexible(
@@ -45,28 +47,20 @@ class _HistogramTargetSlider extends StatelessWidget {
                 aduLabel,
                 textAlign: TextAlign.right,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
+                style: NightshadeTypography.monoCaption.copyWith(
                   color: colors.textMuted,
-                  fontFamily: 'monospace',
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        SliderTheme(
-          data: SliderThemeData(
-            activeTrackColor: colors.primary,
-            inactiveTrackColor: colors.surfaceAlt,
-            thumbColor: colors.primary,
-          ),
-          child: Slider(
-            value: value,
-            min: 10,
-            max: 90,
-            onChanged: onChanged,
-          ),
+        // The kit slider, so the track, thumb and disabled state come from the
+        // tokens instead of a per-call-site SliderTheme.
+        NightshadeSlider(
+          value: value,
+          min: 10,
+          max: 90,
+          onChanged: onChanged,
         ),
       ],
     );
@@ -88,18 +82,27 @@ class _CaptureConfigSummary extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
     final config = ref.watch(flatCameraConfigProvider);
     final lights = ref.watch(exposureSettingsProvider);
 
-    final parts = <String>[
-      config.canSetGain
-          ? 'Gain ${config.gain?.toString() ?? 'driver default'}'
-          : 'Gain n/a',
-      config.canSetOffset
-          ? 'Offset ${config.offset?.toString() ?? 'driver default'}'
-          : 'Offset n/a',
-      'Bin ${config.binX}×${config.binY}',
+    // An unknown value is an em dash, never 'n/a' (02 rule 3). 'driver
+    // default' stays: it is a real, distinct state — the camera WILL be
+    // commanded, just not with a number this screen chose.
+    const String driverDefault = 'driver default';
+    final rows = <(String, String)>[
+      (
+        'Gain',
+        config.canSetGain
+            ? (config.gain?.toString() ?? driverDefault)
+            : kReadoutUnknown,
+      ),
+      (
+        'Offset',
+        config.canSetOffset
+            ? (config.offset?.toString() ?? driverDefault)
+            : kReadoutUnknown,
+      ),
+      ('Binning', '${config.binX}×${config.binY}'),
     ];
 
     final mismatches = <String>[
@@ -117,70 +120,22 @@ class _CaptureConfigSummary extends ConsumerWidget {
     ];
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          parts.join('  ·  '),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textSecondary,
-            fontFamily: 'monospace',
-          ),
-        ),
+        // Key/value rows, not one run-on mono line reading
+        // "Gain n/a · Offset n/a · Bin 1×1".
+        KeyValueList(rows: rows),
         if (mismatches.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: NightshadeDecorations.emphasisSurface(
-              colors.warning,
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(NightshadeIcons.warning, size: 14, color: colors.warning),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'These flats will not match your light frames '
-                    '(${mismatches.join(', ')}). Flats are only usable with '
-                    'lights taken at the same gain, offset and binning.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.warning,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          // The one banner style (05 §11), not a bespoke emphasis surface.
+          NightshadeBanner(
+            tone: BannerTone.warning,
+            title: 'These flats will not match your lights',
+            message: '${mismatches.join(', ')}. Flats are only usable with '
+                'lights taken at the same gain, offset and binning.',
           ),
         ],
       ],
-    );
-  }
-}
-
-/// A caption for one control inside a multi-control group.
-///
-/// Quick Capture gives Histogram Target and Tolerance a `_SectionHeader` each,
-/// but the Multi-Filter Batch and Sky Flats tabs stack the same two sliders
-/// under one "Global Settings" heading — where they rendered as a bare "11%"
-/// above a bare "±10%", with nothing saying which was the target and which the
-/// tolerance.
-class _FieldLabel extends StatelessWidget {
-  final String text;
-
-  const _FieldLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        text,
-        style: NightshadeTypography.label.copyWith(color: colors.textMuted),
-      ),
     );
   }
 }
@@ -196,28 +151,20 @@ class _ToleranceSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
     return Row(
       children: [
-        Text(
-          '±${value.toStringAsFixed(0)}%',
-          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+        Readout(
+          value: '±${value.toStringAsFixed(0)}',
+          unit: '%',
+          size: ReadoutSize.sm,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: NightshadeTokens.spaceMd),
         Expanded(
-          child: SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: colors.primary,
-              inactiveTrackColor: colors.surfaceAlt,
-              thumbColor: colors.primary,
-            ),
-            child: Slider(
-              value: value,
-              min: 1,
-              max: 25,
-              onChanged: onChanged,
-            ),
+          child: NightshadeSlider(
+            value: value,
+            min: 1,
+            max: 25,
+            onChanged: onChanged,
           ),
         ),
       ],
@@ -301,80 +248,67 @@ class _FrameCountInputState extends State<_FrameCountInput> {
     widget.onChanged(next);
   }
 
+  /// Width of the typed count field: three digits plus the field's padding.
+  static const double _fieldWidth = 62;
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
-    // Keep ≥48px touch targets but let the label flex so the stepper fits a
-    // narrow phone controls column without overflowing.
+    // A stepper around a typed field: the count runs to 999, so the buttons
+    // alone would be 998 clicks. The label lives in the FormRow that wraps
+    // this, so the "Frames:" caption is gone.
+    //
+    // Flutter's default only drops focus on a tap outside on DESKTOP:
+    // `_EditableTextTapOutsideAction` deliberately ignores a touch on
+    // Android/iOS so a mobile keyboard stays up. That default is wrong for a
+    // numeric field the operator types into and then reaches straight for
+    // "Start capture": the tap would never unfocus, the commit would never
+    // fire, and the run would use the old count while the field on screen
+    // showed the new one. The TapRegion drops focus on every platform, so what
+    // the field says is what the run gets.
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Flexible(
-          child: Text(
-            'Frames:',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              color: colors.textSecondary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
+        NightshadeIconButton(
+          icon: LucideIcons.minus,
           tooltip: 'One fewer frame',
+          size: IconButtonSize.sm,
           onPressed: widget.value > _FrameCountInput.minFrames
               ? () => _step(-1)
               : null,
-          icon: const Icon(LucideIcons.minus, size: 18),
-          color: colors.textSecondary,
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         ),
-        SizedBox(
-          width: 62,
-          child: TextField(
-            controller: _controller,
-            focusNode: _focusNode,
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(3),
-            ],
-            onSubmitted: (_) => _commit(),
-            // Flutter's default only drops focus on a tap outside on DESKTOP:
-            // `_EditableTextTapOutsideAction` deliberately ignores a touch on
-            // Android/iOS so a mobile keyboard stays up. That default is wrong
-            // for a numeric field the operator types into and then reaches
-            // straight for "Start Capture": the tap would never unfocus, the
-            // commit would never fire, and the run would use the old count
-            // while the field on screen showed the new one. Drop focus on every
-            // platform so what the field says is what the run gets.
-            onTapOutside: (_) {
-              if (_focusNode.hasFocus) _focusNode.unfocus();
-            },
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: colors.surfaceAlt,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                borderSide: BorderSide.none,
+        const SizedBox(width: NightshadeTokens.spaceXs),
+        // Flexible, not a fixed width: FormRow squeezes its control column to
+        // 72px on a 360px phone, and a rigid field overflowed the row by 43px.
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _fieldWidth),
+            child: TapRegion(
+              onTapOutside: (_) {
+                if (_focusNode.hasFocus) _focusNode.unfocus();
+              },
+              child: NightshadeTextField(
+                controller: _controller,
+                focusNode: _focusNode,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                dense: true,
+                mono: true,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                ],
+                onSubmitted: (_) => _commit(),
               ),
             ),
           ),
         ),
-        IconButton(
+        const SizedBox(width: NightshadeTokens.spaceXs),
+        NightshadeIconButton(
+          icon: LucideIcons.plus,
           tooltip: 'One more frame',
+          size: IconButtonSize.sm,
           onPressed:
               widget.value < _FrameCountInput.maxFrames ? () => _step(1) : null,
-          icon: const Icon(LucideIcons.plus, size: 18),
-          color: colors.textSecondary,
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         ),
       ],
     );
@@ -444,34 +378,31 @@ class _TwilightOption extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+          color: isSelected ? colors.surfaceHover : colors.well,
+          borderRadius: NightshadeTokens.borderRadiusSm,
           border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-            width: isSelected ? 2 : 1,
+            color: isSelected ? colors.primary : colors.borderHighlight,
           ),
         ),
         child: Column(
           children: [
             Icon(
               icon,
-              size: 32,
-              color: isSelected ? colors.primary : colors.textSecondary,
+              size: NightshadeTokens.iconMd,
+              color: isSelected ? colors.primary : colors.textMuted,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               label,
-              style: NightshadeTypography.h5.copyWith(
-                  color: isSelected ? colors.primary : colors.textPrimary),
+              style: NightshadeTypography.bodyStrong.copyWith(
+                color: isSelected ? colors.textPrimary : colors.textSecondary,
+              ),
             ),
             Text(
               description,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
               ),
             ),

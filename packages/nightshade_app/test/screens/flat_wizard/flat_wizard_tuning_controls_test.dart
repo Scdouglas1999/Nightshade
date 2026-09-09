@@ -1,8 +1,8 @@
 // Flat wizard tuning controls: the frame count is TYPEABLE, and the two
 // sliders carry their captions on every tab.
 //
-// A read-only Frame Count between -/+ steppers costs 27 taps to walk from the
-// default 30 down to 3. And on Multi-Filter Batch / Sky Flats the histogram
+// A read-only frame count between -/+ steppers costs 27 taps to walk from the
+// default 30 down to 3. And on Multi-filter batch / Sky flats the histogram
 // target and tolerance sliders render as a bare "11%" over a bare "±10%" under
 // one "Global Settings" heading, with nothing saying which is which.
 
@@ -88,8 +88,8 @@ void main() {
 
     await tester.enterText(find.byType(TextField).first, '3');
     await tester.pump();
-    // Anywhere outside the field: the Start button, a caption, the background.
-    await tester.tap(find.text('Frame Count').first);
+    // Anywhere outside the field: the Start button, a label, the background.
+    await tester.tap(find.text('Frames').first);
     await tester.pump();
 
     expect(
@@ -112,16 +112,18 @@ void main() {
     expect(_frameField(tester).controller!.text, '6');
   });
 
-  for (final tab in const ['Multi-Filter Batch', 'Sky Flats']) {
-    testWidgets('$tab captions its global-settings sliders', (tester) async {
+  for (final tab in const ['Multi-filter batch', 'Sky flats']) {
+    testWidgets('$tab labels its capture-settings rows', (tester) async {
       await _pump(tester);
       await _openTab(tester, tab);
 
-      expect(find.text('Histogram Target'), findsWidgets,
+      // The labels live in the FormRow's left column now, not in a caption
+      // stacked above each control.
+      expect(find.text('Histogram target'), findsWidgets,
           reason: '$tab must say which slider is the target');
       expect(find.text('Tolerance'), findsWidgets,
           reason: '$tab must say which slider is the tolerance');
-      expect(find.text('Frame Count'), findsWidgets);
+      expect(find.text('Frames'), findsWidgets);
     });
   }
 }

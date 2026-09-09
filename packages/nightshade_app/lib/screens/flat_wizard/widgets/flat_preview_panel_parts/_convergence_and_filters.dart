@@ -16,36 +16,28 @@ class _AduConvergenceGraph extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
+    // The section title above already says "Convergence", so the panel does
+    // not repeat it as a head. An empty history is the one empty-state
+    // pattern, not a bare "No data" centred in a box.
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: NightshadeCard(
-        variant: CardVariant.subtle,
-        borderRadius: NightshadeTokens.radiusInline8,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ADU Convergence',
-              style: NightshadeTypography.labelStrongSm
-                  .copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: history.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No data',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textMuted,
-                        ),
-                      ),
-                    )
-                  : _buildChart(colors),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
+      child: NightshadePanel(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        // Scroll-safe like the frame's own placeholder: the phone controls
+        // sheet animates in, and a mid-animation frame hands this panel a
+        // 71px slot that the empty state cannot fit.
+        child: history.isEmpty
+            ? const SingleChildScrollView(
+                child: Center(
+                  child: EmptyState.compact(
+                    icon: LucideIcons.lineChart,
+                    title: 'No measurements yet',
+                    body: 'Each captured flat plots its ADU against '
+                        'the target.',
+                  ),
+                ),
+              )
+            : _buildChart(colors),
       ),
     );
   }
