@@ -257,8 +257,8 @@ agent, a route-only-screens agent and this docs pass. Every merge is recorded in
 | 3 — screens | `07b0f32e3` weather, `1aff434fa` plan, `827de2f27` settings, `5c14c7667` darkroom, `6b6ff4cce` guiding, `40b0aa67b` analytics, `ec7eb29c8` onboarding, `1d0dbf43a` imaging, `0c7ea6ec1` tonight, `544c0a704` equipment, `b87b839ce` + `1b8fd84ae` sequencer | Eleven screens onto the kit: PageHeader everywhere, underline tabs, panels and wells, readouts with `—`, tooltipped icon buttons, one banner per problem, the Tonight hero + night band + checklist, the Imaging edge-to-edge canvas with the glass HUD |
 | 4 — cleanup | `1e8706f71` screens phase 1, `4979e7a80` kit phase 1, then phase 2 | Token promotion, the bespoke select popover, 48 dp touch floors, `ReadoutRow` intrinsic widths, the gallery pruned to the Observatory kit, the Framing and Schedule panels, the `radiusInline*` fold and the deprecated-member deletion, the route-only screens (polar alignment, flat wizard, pairing, mosaic, diagnostics), and this documentation pass |
 
-`01-audit.md` now carries a **Resolved** column: of its 34 findings, 31 are resolved, 3 partially
-(C2, E4, E5 — each names what is left), 0 open. The column is marked provisional there until the
+`01-audit.md` now carries a **Resolved** column: of its 34 findings, 30 are resolved, 4 partially
+(B2, C2, E4, E5 — each names what is left), 0 open. The column is marked provisional there until the
 final screenshot set, `reports/observatory/final/<theme>-<screen>-<width>.png`, is captured and
 each row re-checked against its own image; today its verdicts rest on the code and on the drives
 in `reports/observatory/merge-log.md` / `integration-3/`.
@@ -309,4 +309,8 @@ in `reports/observatory/merge-log.md` / `integration-3/`.
      (01-audit E5, `sequencer/widgets/notes_panel/sentiment_and_prompt.dart:16`).
    - `first_light`, `science` and `transients` still use the deprecated `ScreenHeader` and its
      subtitle sentence (01-audit C2). They are route-only screens with no rail destination.
+   - The pre-flight and profile-editor dialogs and the Settings › Catalogs section were still on
+     the old bordered kit at the last integration drive (01-audit B2,
+     `reports/observatory/integration-3/g_preflight.png`, `g_profile.png`, `k01.png`, `k05.png`).
+     Dialog anatomy was a wave-2 deviation routed to the call sites; re-check at the final set.
    - Mobile (`apps/mobile/lib/screens/`) inherits the shell and the kit but was never driven.
