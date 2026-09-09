@@ -85,8 +85,10 @@ class _MountSiteReconciliationCardState
     final local = utc.add(Duration(minutes: (offset * 60).round()));
     final sign = offset < 0 ? '-' : '+';
     final hours = offset.abs().floor().toString().padLeft(2, '0');
-    final minutes =
-        ((offset.abs() - offset.abs().floor()) * 60).round().toString().padLeft(2, '0');
+    final minutes = ((offset.abs() - offset.abs().floor()) * 60)
+        .round()
+        .toString()
+        .padLeft(2, '0');
     return '${local.toIso8601String().substring(0, 19).replaceFirst('T', ' ')} '
         'UTC$sign$hours:$minutes';
   }
@@ -138,7 +140,7 @@ class _MountSiteReconciliationCardState
 
     return NightshadeDialog(
       title: 'Site and time differ',
-      icon: Icons.public,
+      icon: NightshadeIcons.globe,
       width: 560,
       showCloseButton: false,
       actions: [
@@ -197,7 +199,8 @@ class _MountSiteReconciliationCardState
                     _c.computerUtcSeconds,
                     _c.computerUtcOffsetHours,
                   ),
-                  mount: _formatClock(_c.mountUtcSeconds, _c.mountUtcOffsetHours),
+                  mount:
+                      _formatClock(_c.mountUtcSeconds, _c.mountUtcOffsetHours),
                 ),
             ],
           ),
@@ -212,8 +215,8 @@ class _MountSiteReconciliationCardState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        Icons.info_outline,
-                        size: 16,
+                        NightshadeIcons.info,
+                        size: NightshadeTokens.iconSm,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 8),
@@ -308,7 +311,8 @@ class _ComparisonTable extends StatelessWidget {
           Row(
             children: [
               const Expanded(flex: 2, child: SizedBox()),
-              Expanded(flex: 3, child: Text('This computer', style: headerStyle)),
+              Expanded(
+                  flex: 3, child: Text('This computer', style: headerStyle)),
               Expanded(flex: 3, child: Text('The mount', style: headerStyle)),
             ],
           ),
@@ -322,7 +326,8 @@ class _ComparisonTable extends StatelessWidget {
                     flex: 2,
                     child: Text(row.label, style: headerStyle),
                   ),
-                  Expanded(flex: 3, child: Text(row.computer, style: valueStyle)),
+                  Expanded(
+                      flex: 3, child: Text(row.computer, style: valueStyle)),
                   Expanded(flex: 3, child: Text(row.mount, style: valueStyle)),
                 ],
               ),
