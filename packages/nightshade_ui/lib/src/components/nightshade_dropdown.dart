@@ -1,15 +1,27 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/touch_target.dart';
 import 'nightshade_text_field.dart';
 
 /// A select on the Observatory scale: the same 32px [NightshadeDecorations.field]
 /// face as [NightshadeTextField], a 14px muted chevron, and an open list on the
-/// `popover` decoration.
-class NightshadeDropdown extends StatelessWidget {
+/// `popover` decoration with 32px rows.
+///
+/// The open list is this file's own popover, not Material's menu. Material's
+/// `DropdownButton` asserts a 48px floor on every entry, which is a TOUCH
+/// figure applied to a pointer control: it made the open list a third taller
+/// than the sheet asks for (05 §8) and half again as tall as the field that
+/// opened it. The floor is still honoured where it means something — on a
+/// touch platform every row grows to [NightshadeTokens.minTouchTarget], the
+/// same rule `NightshadeIconButton` follows.
+class NightshadeDropdown extends StatefulWidget {
   final String? value;
   final String? hint;
   final List<String> items;
@@ -59,125 +71,479 @@ class NightshadeDropdown extends StatelessWidget {
   /// The control's height in logical pixels.
   double get height => dense ? fieldHeightDense : fieldHeight;
 
-  String _labelFor(int index) =>
-      itemLabels != null && index < itemLabels!.length
+  String labelFor(int index) => itemLabels != null && index < itemLabels!.length
       ? itemLabels![index]
       : items[index];
 
   @override
+  State<NightshadeDropdown> createState() => _NightshadeDropdownState();
+}
+
+class _NightshadeDropdownState extends State<NightshadeDropdown> {
+  final GlobalKey _fieldKey = GlobalKey();
+  bool _open = false;
+  bool _focused = false;
+
+  bool get _isEnabled => widget.onChanged != null && widget.items.isNotEmpty;
+
+  Future<void> _openMenu() async {
+    if (!_isEnabled || _open) return;
+    final navigator = Navigator.maybeOf(context);
+    final overlay =
+        navigator?.overlay?.context.findRenderObject() as RenderBox?;
+    final field = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+    if (navigator == null ||
+        overlay == null ||
+        field == null ||
+        !field.hasSize ||
+        !overlay.hasSize) {
+      return;
+    }
+
+    // The anchor is measured in the OVERLAY's coordinate space, which is the
+    // space the route lays out in. Measuring in global coordinates instead
+    // puts the menu a title bar's height too low inside any app whose overlay
+    // does not start at the top of the window.
+    final anchor =
+        field.localToGlobal(Offset.zero, ancestor: overlay) & field.size;
+
+    setState(() => _open = true);
+    final chosen = await navigator.push<String>(
+      _DropdownMenuRoute(
+        anchor: anchor,
+        items: List<String>.unmodifiable(widget.items),
+        labels: List<String>.unmodifiable(<String>[
+          for (var i = 0; i < widget.items.length; i++) widget.labelFor(i),
+        ]),
+        value: widget.value,
+        // The menu is a route, so it is built outside this subtree and would
+        // otherwise lose any Theme (and with it `NightshadeColors`) that a
+        // caller wrapped this control in — a select inside `Glass` would come
+        // back light.
+        capturedThemes: InheritedTheme.capture(
+          from: context,
+          to: navigator.context,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _open = false);
+    if (chosen != null && chosen != widget.value) {
+      widget.onChanged?.call(chosen);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
-    final isEnabled = onChanged != null;
 
     // The closed control is ONE control, and it says so here rather than
     // leaving the role to Material.
     //
-    // `DropdownButton` publishes `button` only when it believes the child on
-    // screen does not: it sets `button: !childHasButtonSemantic`, and
-    // `childHasButtonSemantic` is true as soon as a `hint` is supplied —
-    // whether or not the hint is the thing being shown. With a `hint` AND a
-    // value the closed control shows the value, built by `selectedItemBuilder`,
-    // which carries no role of its own, so the whole control reached AT-SPI as
-    // ROLE_PANEL: a screen reader was never told the picker was operable. The
-    // export sheet's step picker is exactly that shape. Every settings dropdown
-    // escaped it only because `SettingRow` merges the row into a node that has
-    // a role of its own.
-    //
-    // Merging is what makes the annotation safe in BOTH shapes: with no hint
-    // Material sets the same flag, and two fragments that set one flag are held
-    // incompatible and split into two nodes — one named, one operable. Under
-    // the merge those fragments land on one node carrying the role, the enabled
-    // state and the value's own words, so the platform sees a single button
-    // named for what it is showing. The open menu is a route of its own and is
-    // untouched by this.
+    // Everything the operator can perceive about the control — the value's
+    // words, the button role, the enabled state — has to arrive on ONE node.
+    // Split across two, assistive tech gets one node it can read and another
+    // it can press, and announces neither usefully; that is how the export
+    // sheet's step picker reached AT-SPI as ROLE_PANEL. `MergeSemantics` is
+    // what folds the `Text` below into the annotation above it.
     return MergeSemantics(
       child: Semantics(
         button: true,
-        enabled: isEnabled,
+        enabled: _isEnabled,
         child: LayoutBuilder(
-          builder: (context, constraints) => _closed(
+          builder: (context, constraints) => _control(
             colors,
-            isEnabled: isEnabled,
             // A select is a FIELD: given a width it fills it, so the value
             // reads from the leading edge and the chevron sits at the trailing
             // one. Where the width is UNBOUNDED — a shrink-wrapping Row, which
             // is how a settings row hosts one — filling is not a thing a box
-            // can do, and asking Material to try throws.
-            expand: isExpanded || constraints.hasBoundedWidth,
+            // can do.
+            expand: widget.isExpanded || constraints.hasBoundedWidth,
           ),
         ),
       ),
     );
   }
 
-  Widget _closed(
-    NightshadeColors colors, {
-    required bool isEnabled,
-    required bool expand,
-  }) {
+  Widget _control(NightshadeColors colors, {required bool expand}) {
+    final Widget field = _closed(colors, expand: expand);
+
+    // 32 is a desktop POINTER size (03 §3.3). A finger needs 48, so on a touch
+    // platform the interactive box grows to it while the painted field stays
+    // the height the sheet specifies — the same split `NightshadeIconButton`
+    // makes, and the reason the mobile tap-target audit measured this control
+    // at 24px tall.
+    final double box = math.max(
+      widget.height,
+      NightshadeTouchTarget.minExtent(context),
+    );
+    final Widget sized = box == widget.height
+        ? field
+        : SizedBox(
+            height: box,
+            child: Center(child: field),
+          );
+
+    return FocusableActionDetector(
+      enabled: _isEnabled,
+      onShowFocusHighlight: (value) {
+        if (!mounted || _focused == value) return;
+        setState(() => _focused = value);
+      },
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            _openMenu();
+            return null;
+          },
+        ),
+        ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+          onInvoke: (_) {
+            _openMenu();
+            return null;
+          },
+        ),
+      },
+      mouseCursor: _isEnabled
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _isEnabled ? _openMenu : null,
+        child: sized,
+      ),
+    );
+  }
+
+  Widget _closed(NightshadeColors colors, {required bool expand}) {
+    final index = widget.value == null
+        ? -1
+        : widget.items.indexOf(widget.value!);
+    final bool showsHint = index < 0;
+    final String text = showsHint
+        ? (widget.hint ?? '')
+        : widget.labelFor(index);
+
+    final Widget label = Text(
+      text,
+      style: NightshadeDropdown.labelStyle.copyWith(
+        color: !_isEnabled || showsHint ? colors.textMuted : colors.textPrimary,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+    );
+
     return Container(
-      height: height,
-      // centerLEFT: a select reads from the leading edge like every other
-      // field, and expanding to the incoming width is what a field does.
+      key: _fieldKey,
+      height: widget.height,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: fieldHorizontalPadding),
-      decoration: NightshadeDecorations.field(colors),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          hint: hint != null
-              ? Text(hint!, style: labelStyle.copyWith(color: colors.textMuted))
-              : null,
-          isExpanded: expand,
-          // Always dense: the control's height is set by the box above, so
-          // Material's 48px button floor would only overflow it.
-          isDense: true,
-          icon: Icon(
+      decoration: NightshadeDecorations.field(
+        colors,
+        focused: _open || _focused,
+      ),
+      child: Row(
+        mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+        children: <Widget>[
+          Flexible(fit: expand ? FlexFit.tight : FlexFit.loose, child: label),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Icon(
             LucideIcons.chevronDown,
             size: fieldIconSize,
             color: colors.textMuted,
           ),
-          dropdownColor: colors.surfaceElevated,
-          borderRadius: NightshadeTokens.borderRadiusXl,
-          style: labelStyle.copyWith(color: colors.textPrimary),
-          items: List.generate(items.length, (index) {
-            final item = items[index];
-            return DropdownMenuItem<String>(
-              value: item,
-              // A menu of mutually exclusive options is a radio group, and
-              // CHECKED is the state that role publishes — set on every
-              // entry so the unchosen ones say "not checked" rather than
-              // nothing. `selected` alone is not enough: AT-SPI carries it
-              // as SELECTED, which no menu consumer reads, so every option
-              // announces as a bare button with nothing marking the one in
-              // force.
-              child: Semantics(
-                enabled: isEnabled,
-                selected: item == value,
-                checked: item == value,
-                child: Text(_labelFor(index), overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+}
+
+/// The open list: a popover anchored to the field, not a Material menu.
+class _DropdownMenuRoute extends PopupRoute<String> {
+  _DropdownMenuRoute({
+    required this.anchor,
+    required this.items,
+    required this.labels,
+    required this.value,
+    required this.capturedThemes,
+  });
+
+  /// The closed control's rect in the overlay's coordinate space.
+  final Rect anchor;
+  final List<String> items;
+  final List<String> labels;
+  final String? value;
+  final CapturedThemes capturedThemes;
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  String? get barrierLabel => 'Dismiss menu';
+
+  @override
+  Duration get transitionDuration => NightshadeTokens.durationFast;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return CustomSingleChildLayout(
+      delegate: _DropdownMenuLayout(anchor: anchor),
+      child: capturedThemes.wrap(
+        _DropdownMenu(items: items, labels: labels, value: value),
+      ),
+    );
+  }
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: animation,
+        curve: NightshadeTokens.curveStandard,
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Puts the menu under the field, or above it when there is no room below.
+class _DropdownMenuLayout extends SingleChildLayoutDelegate {
+  _DropdownMenuLayout({required this.anchor});
+
+  final Rect anchor;
+
+  /// Gap between the field and its menu.
+  static const double gap = NightshadeTokens.spaceXs;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final below = constraints.maxHeight - anchor.bottom - gap;
+    final above = anchor.top - gap;
+    return BoxConstraints(
+      minWidth: math.min(anchor.width, constraints.maxWidth),
+      maxWidth: constraints.maxWidth,
+      maxHeight: math.max(0.0, math.max(below, above)),
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    double y = anchor.bottom + gap;
+    if (y + childSize.height > size.height) {
+      final double above = anchor.top - gap - childSize.height;
+      y = above >= 0 ? above : math.max(0.0, size.height - childSize.height);
+    }
+    double x = anchor.left;
+    if (x + childSize.width > size.width) {
+      x = math.max(0.0, size.width - childSize.width);
+    }
+    return Offset(x, y);
+  }
+
+  @override
+  bool shouldRelayout(_DropdownMenuLayout oldDelegate) =>
+      oldDelegate.anchor != anchor;
+}
+
+class _DropdownMenu extends StatefulWidget {
+  const _DropdownMenu({
+    required this.items,
+    required this.labels,
+    required this.value,
+  });
+
+  final List<String> items;
+  final List<String> labels;
+  final String? value;
+
+  @override
+  State<_DropdownMenu> createState() => _DropdownMenuState();
+}
+
+class _DropdownMenuState extends State<_DropdownMenu> {
+  final ScrollController _scroll = ScrollController();
+  late int _highlighted;
+
+  @override
+  void initState() {
+    super.initState();
+    final index = widget.value == null
+        ? -1
+        : widget.items.indexOf(widget.value!);
+    _highlighted = index < 0 ? 0 : index;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Row height: the sheet's 32 for a pointer, [NightshadeTokens.minTouchTarget]
+  /// for a finger.
+  double _rowHeight(BuildContext context) => math.max(
+    NightshadeTokens.buttonHeight,
+    NightshadeTouchTarget.minExtent(context),
+  );
+
+  void _reveal() {
+    if (!mounted || !_scroll.hasClients) return;
+    final row = _rowHeight(context);
+    final target = (_highlighted * row).clamp(
+      _scroll.position.minScrollExtent,
+      _scroll.position.maxScrollExtent,
+    );
+    _scroll.jumpTo(target);
+  }
+
+  void _move(int delta) {
+    final next = (_highlighted + delta).clamp(0, widget.items.length - 1);
+    if (next == _highlighted) return;
+    setState(() => _highlighted = next);
+    _reveal();
+  }
+
+  void _choose(int index) => Navigator.of(context).pop(widget.items[index]);
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.home) {
+      _move(-widget.items.length);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.end) {
+      _move(widget.items.length);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.space) {
+      _choose(_highlighted);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      Navigator.of(context).maybePop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final row = _rowHeight(context);
+
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: Container(
+        decoration: NightshadeDecorations.popover(colors),
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
+        child: SingleChildScrollView(
+          controller: _scroll,
+          child: IntrinsicWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (var index = 0; index < widget.items.length; index++)
+                  _row(colors, index, row),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(NightshadeColors colors, int index, double height) {
+    final bool chosen = widget.items[index] == widget.value;
+    final bool highlighted = index == _highlighted;
+
+    // A menu of mutually exclusive options is a radio group, and CHECKED is
+    // the state that role publishes — set on every entry so the unchosen ones
+    // say "not checked" rather than nothing. `selected` alone is not enough:
+    // AT-SPI carries it as SELECTED, which no menu consumer reads.
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        enabled: true,
+        selected: chosen,
+        checked: chosen,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) {
+            if (!mounted || _highlighted == index) return;
+            setState(() => _highlighted = index);
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _choose(index),
+            child: Container(
+              // Keyed so a test can measure the row it means without
+              // reaching into a private widget type.
+              key: ValueKey<String>('nightshadeDropdownRow$index'),
+              height: height,
+              alignment: AlignmentDirectional.centerStart,
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.inputPaddingHorizontal,
               ),
-            );
-          }),
-          // The closed control renders the chosen item, so left to itself
-          // it inherits that item's `selected` state and announces itself
-          // as a selected menu entry. This mirrors DropdownMenuItem's own
-          // layout (48px min height, start-aligned) so nothing moves, and
-          // carries no semantics of its own: the role and the enabled state
-          // are on the merged node above, and the value's words come from
-          // this Text. The min height is the FIELD height, not Material's
-          // 48px menu-item floor: the closed control is a 32px field.
-          selectedItemBuilder: (context) => List.generate(
-            items.length,
-            (index) => ConstrainedBox(
-              constraints: BoxConstraints(minHeight: height),
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(_labelFor(index), overflow: TextOverflow.ellipsis),
+              decoration: BoxDecoration(
+                color: highlighted ? colors.surfaceHover : Colors.transparent,
+                borderRadius: NightshadeTokens.borderRadiusSm,
+              ),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      widget.labels[index],
+                      style: NightshadeDropdown.labelStyle.copyWith(
+                        color: chosen ? colors.primary : colors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
+                  ),
+                  if (chosen) ...<Widget>[
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    Icon(
+                      LucideIcons.check,
+                      size: NightshadeTokens.iconPillGlyph,
+                      color: colors.primary,
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
-          onChanged: onChanged,
         ),
       ),
     );

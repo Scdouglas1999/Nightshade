@@ -118,26 +118,24 @@ void main() {
 
     expect(
       tester
-          .widget<DropdownButton<String>>(
-            find.descendant(
-              of: find.byKey(const ValueKey('gallery-dropdown')),
-              matching: find.byType(DropdownButton<String>),
-            ),
+          .widget<NightshadeDropdown>(
+            find.byKey(const ValueKey('gallery-dropdown')),
           )
           .value,
       'Camera',
     );
+    // `pump`, never `pumpAndSettle`: the gallery renders a shimmer, which by
+    // design never settles. The extra frame is the popover's 120ms fade.
     await tester.tap(find.byKey(const ValueKey('gallery-dropdown')));
     await tester.pump();
+    await tester.pump(NightshadeTokens.durationSmooth);
     await tester.tap(find.text('Mount').last);
     await tester.pump();
+    await tester.pump(NightshadeTokens.durationSmooth);
     expect(
       tester
-          .widget<DropdownButton<String>>(
-            find.descendant(
-              of: find.byKey(const ValueKey('gallery-dropdown')),
-              matching: find.byType(DropdownButton<String>),
-            ),
+          .widget<NightshadeDropdown>(
+            find.byKey(const ValueKey('gallery-dropdown')),
           )
           .value,
       'Mount',
