@@ -115,6 +115,7 @@ class _SequencerPageHeader extends ConsumerWidget {
         if (blocking > 0)
           Semantics(
             button: true,
+            enabled: true,
             label: countLabel(blocking, 'preflight issue'),
             child: ExcludeSemantics(
               child: NightshadeChip(

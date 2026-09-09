@@ -50,7 +50,12 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
 
   /// The narrowest canvas that can still afford labelled Timeline / Map
   /// buttons. Below it they fall back to glyphs with the same tooltips.
-  static const double _labelledToolbarWidth = 720.0;
+  ///
+  /// Measured against the summary chip, which is worth more than two words:
+  /// at 816 px (a 1600 px window with the rail expanded and both side panels
+  /// open) the labels and the summary cannot both fit, and the summary is the
+  /// one carrying facts.
+  static const double _labelledToolbarWidth = 900.0;
 
   /// The narrowest canvas that can afford anything but the name and the menu.
   static const double _narrowBarWidth = 400.0;
@@ -59,17 +64,6 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// Below it they move into the overflow menu with the rest of the actions,
   /// so the bar shrinks by a whole group instead of overflowing.
   static const double _toggleToolbarWidth = 560.0;
-
-  /// The narrowest canvas that can still afford the summary chip
-  /// ("1 target · 27 nodes · ~2 h 54 m").
-  ///
-  /// It is the one chip in the bar that is informational rather than
-  /// actionable, so it is the first thing dropped — a clipped summary reading
-  /// "~2h 54" is worse than no summary, and the counts beside it open the
-  /// issue list. Measured: at a 1280 px window with both side panels open the
-  /// canvas is ~496 px, which cannot hold the name, both counts, the summary
-  /// AND the toolbar.
-  static const double _summaryChipWidth = 900.0;
 
   /// The most of the bar the sequence name may take before it ellipsises.
   ///
@@ -687,7 +681,6 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // the glyphs keep the tooltips and the menu entries keep the words.
           final labelledToggles = constraints.maxWidth >= _labelledToolbarWidth;
           final inlineToggles = constraints.maxWidth >= _toggleToolbarWidth;
-          final showSummary = constraints.maxWidth >= _summaryChipWidth;
 
           // When the bar cannot hold the toggle group, the toggles do not
           // vanish — they join the menu, with the words the buttons had.
@@ -805,7 +798,6 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                     sequence: sequence,
                     validation: validation,
                     inSimulation: executorInSimulation,
-                    showSummary: showSummary,
                   ),
                 ),
               ),
@@ -963,14 +955,10 @@ class _CanvasBarMeta extends ConsumerWidget {
     required this.sequence,
     required this.validation,
     required this.inSimulation,
-    required this.showSummary,
   });
 
   final Sequence? sequence;
   final LiveValidationState validation;
-
-  /// Whether the bar is wide enough for the informational summary chip.
-  final bool showSummary;
 
   /// What the EXECUTOR is driving, not what anyone asked for. A run against
   /// simulated devices has to say so on the surface the operator is watching,
@@ -995,6 +983,56 @@ class _CanvasBarMeta extends ConsumerWidget {
         '~${DurationFormat.seconds(totalSecs.toDouble(), style: DurationStyle.compact, rounding: DurationRounding.truncate)}',
     ].join(' · ');
 
+    // The summary is the one chip here that is informational rather than
+    // actionable, so it is the first thing dropped when the bar is tight — and
+    // it is dropped WHOLE. A clipped summary reading "1 target" (or "~2h 54"
+    // with the m cut) states something the sequence does not.
+    //
+    // Measured, not tiered: the width this row gets depends on how long the
+    // operator called their sequence, so a breakpoint guesses wrong in both
+    // directions. The counts are fixed-width; only the summary has to be
+    // measured, and only when it is present.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final counts = (validation.errorCount > 0 ? _countChipWidth : 0.0) +
+            (validation.warningCount > 0 ? _countChipWidth : 0.0) +
+            (inSimulation ? _simulationChipWidth : 0.0);
+        final summaryWidth = _chipWidth(context, summary);
+        final showSummary = constraints.hasBoundedWidth &&
+            counts + summaryWidth <= constraints.maxWidth;
+        return _chips(context, summary: summary, showSummary: showSummary);
+      },
+    );
+  }
+
+  /// A count chip: two digits at most, plus its glyph, padding and the gap
+  /// after it. Fixed by construction, so it does not need measuring.
+  static const double _countChipWidth = 52;
+
+  /// The SIMULATION chip, which carries a word rather than a numeral.
+  static const double _simulationChipWidth = 104;
+
+  /// [text] as a [NightshadeChip] would lay it out, plus the gap after it.
+  double _chipWidth(BuildContext context, String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: NightshadeChip.textStyle()),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width +
+        NightshadeChip.horizontalPadding * 2 +
+        NightshadeTokens.spaceXs +
+        2;
+  }
+
+  Widget _chips(
+    BuildContext context, {
+    required String summary,
+    required bool showSummary,
+  }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1007,6 +1045,7 @@ class _CanvasBarMeta extends ConsumerWidget {
         if (validation.errorCount > 0) ...[
           Semantics(
             button: true,
+            enabled: true,
             label: countLabel(validation.errorCount, 'error'),
             child: ExcludeSemantics(
               child: NightshadeChip(
@@ -1022,6 +1061,7 @@ class _CanvasBarMeta extends ConsumerWidget {
         if (validation.warningCount > 0) ...[
           Semantics(
             button: true,
+            enabled: true,
             label: countLabel(validation.warningCount, 'warning'),
             child: ExcludeSemantics(
               child: NightshadeChip(
