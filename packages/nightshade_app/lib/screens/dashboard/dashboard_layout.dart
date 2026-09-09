@@ -33,6 +33,14 @@ extension DashboardZoneX on DashboardZone {
   /// Get the default zone for a widget ID (used for migration from v2 layouts)
   static DashboardZone defaultForWidget(DashboardWidgetId widgetId) {
     return switch (widgetId) {
+      // The Observatory Tonight grid is one flow, not three zones; `primary`
+      // is the only zone it ever reports.
+      DashboardWidgetId.tonightPreview => DashboardZone.primary,
+      DashboardWidgetId.tonightEquipment => DashboardZone.primary,
+      DashboardWidgetId.tonightGuiding => DashboardZone.primary,
+      DashboardWidgetId.tonightProgress => DashboardZone.primary,
+      DashboardWidgetId.tonightSafety => DashboardZone.primary,
+
       // Merged cockpit tiles live in the hero column.
       DashboardWidgetId.cockpitNowImaging => DashboardZone.primary,
       DashboardWidgetId.cockpitFrames => DashboardZone.primary,
@@ -86,6 +94,15 @@ extension DashboardZoneX on DashboardZone {
 }
 
 enum DashboardWidgetId {
+  // Observatory wave 3 — the five panels 06 §Tonight lays out in the grid.
+  // They are registry tiles, not hard-coded children, so Edit layout can still
+  // reorder, resize and hide them.
+  tonightPreview,
+  tonightEquipment,
+  tonightGuiding,
+  tonightProgress,
+  tonightSafety,
+
   // Merged cockpit tiles (density pass 2026-06-01). These supersede the four
   // individual panels below and are the enabled-by-default monitoring surface.
   cockpitNowImaging,
@@ -146,6 +163,11 @@ enum DashboardWidgetId {
 extension DashboardWidgetIdX on DashboardWidgetId {
   String get storageKey {
     return switch (this) {
+      DashboardWidgetId.tonightPreview => 'tonightPreview',
+      DashboardWidgetId.tonightEquipment => 'tonightEquipment',
+      DashboardWidgetId.tonightGuiding => 'tonightGuiding',
+      DashboardWidgetId.tonightProgress => 'tonightProgress',
+      DashboardWidgetId.tonightSafety => 'tonightSafety',
       DashboardWidgetId.cockpitNowImaging => 'cockpitNowImaging',
       DashboardWidgetId.cockpitFrames => 'cockpitFrames',
       DashboardWidgetId.cockpitTargetHeader => 'cockpitTargetHeader',
@@ -190,6 +212,11 @@ extension DashboardWidgetIdX on DashboardWidgetId {
 
   static DashboardWidgetId fromStorageKey(String value) {
     return switch (value) {
+      'tonightPreview' => DashboardWidgetId.tonightPreview,
+      'tonightEquipment' => DashboardWidgetId.tonightEquipment,
+      'tonightGuiding' => DashboardWidgetId.tonightGuiding,
+      'tonightProgress' => DashboardWidgetId.tonightProgress,
+      'tonightSafety' => DashboardWidgetId.tonightSafety,
       'cockpitNowImaging' => DashboardWidgetId.cockpitNowImaging,
       'cockpitFrames' => DashboardWidgetId.cockpitFrames,
       'cockpitTargetHeader' => DashboardWidgetId.cockpitTargetHeader,
@@ -262,6 +289,19 @@ extension DashboardTileSizeX on DashboardTileSize {
       DashboardTileSize.small => 1,
       DashboardTileSize.medium => 2,
       DashboardTileSize.large => 3,
+    };
+  }
+
+  /// The tile's width in the Observatory 12-column grid (06 §Tonight).
+  ///
+  /// 06 only needs 8 (the live preview) and 4 (everything beside it); `small`
+  /// gets 3 so the resize cycle a user drives from Edit layout still visibly
+  /// changes something.
+  int get columnSpan {
+    return switch (this) {
+      DashboardTileSize.small => 3,
+      DashboardTileSize.medium => 4,
+      DashboardTileSize.large => 8,
     };
   }
 
@@ -370,7 +410,11 @@ class DashboardLayout {
   /// Schema version of a persisted layout. Bumped whenever the default tile
   /// set gains or retires tiles; `_migrateToCurrentVersion` is the authority on
   /// what a bump does to a stored layout.
-  static const int currentVersion = 6;
+  /// 7 = the Observatory Tonight grid (06 §Tonight). The five `tonight*` tiles
+  /// become the default surface and the cockpit tiles they replace are
+  /// force-disabled by the migration in `dashboard_layout_provider.dart`; a
+  /// user who wants one back re-enables it from the widget picker.
+  static const int currentVersion = 7;
 
   final int version;
   final List<DashboardTileConfig> tiles;
@@ -478,29 +522,67 @@ class DashboardLayout {
 
   static DashboardLayout defaultLayout() {
     final tiles = <DashboardTileConfig>[
-      // Merged cockpit tiles — the dense default monitoring surface.
-
-      // Primary zone (hero column): the compact "now imaging" status strip,
-      // the capped live frame + recent-strip tile, then guiding.
+      // The Observatory grid (06 §Tonight): live preview c8, then equipment,
+      // guiding, progress and safety at c4 each. `order` IS the reading order
+      // of the grid, and `zone` is vestigial here — the Tonight grid is one
+      // flow — so every default tile sits in `primary`.
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.cockpitNowImaging,
+        widgetId: DashboardWidgetId.tonightPreview,
         size: DashboardTileSize.large,
         enabled: true,
         order: 0,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.cockpitFrames,
-        size: DashboardTileSize.large,
+        widgetId: DashboardWidgetId.tonightEquipment,
+        size: DashboardTileSize.medium,
         enabled: true,
         order: 1,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.cockpitGuiding,
+        widgetId: DashboardWidgetId.tonightGuiding,
         size: DashboardTileSize.medium,
         enabled: true,
         order: 2,
+        zone: DashboardZone.primary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.tonightProgress,
+        size: DashboardTileSize.medium,
+        enabled: true,
+        order: 3,
+        zone: DashboardZone.primary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.tonightSafety,
+        size: DashboardTileSize.medium,
+        enabled: true,
+        order: 4,
+        zone: DashboardZone.primary,
+      ),
+
+      // The cockpit tiles the five above replace. Still registered, still
+      // reachable from the widget picker, off by default.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitNowImaging,
+        size: DashboardTileSize.large,
+        enabled: false,
+        order: 5,
+        zone: DashboardZone.primary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitFrames,
+        size: DashboardTileSize.large,
+        enabled: false,
+        order: 6,
+        zone: DashboardZone.primary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitGuiding,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 7,
         zone: DashboardZone.primary,
       ),
 
@@ -508,14 +590,14 @@ class DashboardLayout {
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitEquipmentTelemetry,
         size: DashboardTileSize.medium,
-        enabled: true,
+        enabled: false,
         order: 3,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitWeatherSafety,
         size: DashboardTileSize.medium,
-        enabled: true,
+        enabled: false,
         order: 4,
         zone: DashboardZone.secondary,
       ),
@@ -525,14 +607,14 @@ class DashboardLayout {
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitQuality,
         size: DashboardTileSize.medium,
-        enabled: true,
+        enabled: false,
         order: 5,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitTriggerFeed,
         size: DashboardTileSize.medium,
-        enabled: true,
+        enabled: false,
         order: 6,
         zone: DashboardZone.secondary,
       ),
@@ -607,7 +689,7 @@ class DashboardLayout {
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitLightCurve,
         size: DashboardTileSize.medium,
-        enabled: true,
+        enabled: false,
         order: 16,
         zone: DashboardZone.secondary,
       ),

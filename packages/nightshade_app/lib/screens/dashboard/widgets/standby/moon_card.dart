@@ -194,10 +194,10 @@ class _TimeRow extends StatelessWidget {
 /// Paints a moon disc lit from one side. The terminator is an ellipse whose
 /// width tracks the illuminated fraction; `waxing` flips which limb is lit.
 ///
-/// Public so a test can read the colours the card hands it: the lit limb is the
-/// largest solid fill on the dashboard and was a fixed off-white in every
+/// Public because two surfaces draw the same disc — Tonight's moon panel and
+/// this card — and a test reads the colours it is handed: the lit limb is the
+/// largest solid fill on the page and was once a fixed off-white in every
 /// theme.
-@visibleForTesting
 class MoonPainter extends CustomPainter {
   final double illumination; // 0..100
   final bool waxing;

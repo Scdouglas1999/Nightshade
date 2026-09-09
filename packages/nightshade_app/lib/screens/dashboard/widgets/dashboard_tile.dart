@@ -275,6 +275,8 @@ class _DragHandleIndicator extends StatelessWidget {
   }
 }
 
+/// The one loading pattern (07 wave 3 checklist): a centred spinner, no card,
+/// no sentence explaining that something is loading.
 class DashboardLoading extends StatelessWidget {
   const DashboardLoading({super.key});
 
@@ -282,13 +284,16 @@ class DashboardLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Center(
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+        padding: EdgeInsets.symmetric(vertical: NightshadeTokens.space4xl),
         child: CircularProgressIndicator(),
       ),
     );
   }
 }
 
+/// The one error pattern: an [EmptyState] with ONE button (05 §12). It replaced
+/// a bordered glass card with its own title row, which was a second error style
+/// on a screen that already had one.
 class DashboardLayoutError extends StatelessWidget {
   final Object error;
   final VoidCallback onReset;
@@ -299,80 +304,22 @@ class DashboardLayoutError extends StatelessWidget {
     super.key,
     required this.error,
     required this.onReset,
-    this.title = 'Dashboard Layout Error',
-    this.buttonLabel = 'Reset Layout',
+    this.title = 'The dashboard layout could not be read',
+    this.buttonLabel = 'Reset layout',
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return DashboardGlassCardInline(
-      colors: colors,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.alertTriangle, color: colors.warning, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: NightshadeTypography.h5.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            error.toString(),
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: NightshadeButton(
-              label: buttonLabel,
-              icon: LucideIcons.refreshCw,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.medium,
-              onPressed: onReset,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Inline glass card used by DashboardLayoutError (avoids circular import with glass_card.dart)
-class DashboardGlassCardInline extends StatelessWidget {
-  final NightshadeColors colors;
-  final Widget child;
-  final EdgeInsets padding;
-
-  const DashboardGlassCardInline({
-    super.key,
-    required this.colors,
-    required this.child,
-    this.padding = const EdgeInsets.all(16),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-        boxShadow: NightshadeTokens.elevationLevel1,
-      ),
-      child: Padding(
-        padding: padding,
-        child: child,
+    return EmptyState(
+      icon: LucideIcons.alertTriangle,
+      title: title,
+      body: '$error',
+      action: NightshadeButton(
+        label: buttonLabel,
+        icon: LucideIcons.refreshCw,
+        variant: ButtonVariant.secondary,
+        size: ButtonSize.small,
+        onPressed: onReset,
       ),
     );
   }
