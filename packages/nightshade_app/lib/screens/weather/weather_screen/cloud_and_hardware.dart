@@ -66,7 +66,9 @@ class _WeatherConditions extends ConsumerWidget {
         if (weatherState.skyQuality != null)
           (
             'Sky quality',
-            '${weatherState.skyQuality!.toStringAsFixed(2)} mag/□″',
+            // "mag/arcsec²", spelled out: the squared-arcsecond glyph is not
+            // in Spline Sans Mono and rendered as a tofu box on screen.
+            '${weatherState.skyQuality!.toStringAsFixed(2)} mag/arcsec²',
           ),
         if (weatherState.rainRate != null && weatherState.rainRate! > 0)
           ('Rain', '${weatherState.rainRate!.toStringAsFixed(1)} mm/hr'),
