@@ -18,6 +18,19 @@ abstract final class PreviewReadoutInsets {
   static const double bottomRight = 14 + 104 + 8;
 }
 
+/// Ink for text painted directly onto the frame.
+///
+/// image-anchored: painted over the frame, theme-blind by design (05 §14).
+/// The same rule that makes glass borrow the dark palette applies to a label
+/// drawn straight onto a photograph — there is no surface behind it to take a
+/// colour from.
+const Color _overlayInk = Color(0xFFFFFFFF);
+
+/// The drop shadow that keeps [_overlayInk] legible over a bright nebula.
+///
+/// image-anchored: painted over the frame, theme-blind by design (05 §14).
+const Color _overlayShadow = Color(0xFF000000);
+
 /// Compass rose: the North axis.
 @visibleForTesting
 const Color namedCompassNorth = Color(0xFFFF4444);
@@ -170,8 +183,8 @@ class CompassOverlayPainter extends CustomPainter {
       text: text,
       style: NightshadeTypography.bodySm
           .copyWith(fontWeight: FontWeight.w700, color: color, shadows: const [
-        Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
-        Shadow(blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
+        Shadow(blurRadius: 4, color: _overlayShadow, offset: Offset(0, 0)),
+        Shadow(blurRadius: 2, color: _overlayShadow, offset: Offset(1, 1)),
       ]),
     );
     final textPainter = TextPainter(
@@ -300,15 +313,11 @@ class ScaleBarPainter extends CustomPainter {
     // Measure text first so we can size the background
     final textSpan = TextSpan(
       text: bestLabel,
-      style: NightshadeTypography.caption.copyWith(
-          fontWeight: FontWeight.w600,
-          color: Color(0xFFFFFFFF),
-          shadows: [
-            Shadow(
-                blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
-            Shadow(
-                blurRadius: 2, color: Color(0xFF000000), offset: Offset(1, 1)),
-          ]),
+      style: NightshadeTypography.caption
+          .copyWith(fontWeight: FontWeight.w600, color: _overlayInk, shadows: [
+        Shadow(blurRadius: 4, color: _overlayShadow, offset: Offset(0, 0)),
+        Shadow(blurRadius: 2, color: _overlayShadow, offset: Offset(1, 1)),
+      ]),
     );
     final textPainter = TextPainter(
       text: textSpan,
@@ -335,7 +344,7 @@ class ScaleBarPainter extends CustomPainter {
 
     // Draw the horizontal bar
     final barPaint = Paint()
-      ..color = const Color(0xFFFFFFFF)
+      ..color = _overlayInk
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.square;
