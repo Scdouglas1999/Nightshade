@@ -151,9 +151,11 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     final longitude = appSettings?.longitude ?? 0.0;
     final hasLocation = !(latitude == 0.0 && longitude == 0.0);
 
-    // Get weather settings for alert radius
+    // Get weather settings for alert radius. The map needs a number and reads
+    // 0 as "draw no ring"; the readout must NOT — a settings store that has not
+    // answered yet is an unknown radius, which is an em dash, not "0 km".
     final weatherSettingsData = weatherSettingsAsync.valueOrNull;
-    final alertRadiusKm = weatherSettingsData?.triggerDistanceKm ?? 0;
+    final alertRadiusKm = weatherSettingsData?.triggerDistanceKm;
 
     final radarFrames = weatherStatus.radarFrames;
     final motion = motionAsync.valueOrNull;
@@ -226,7 +228,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
   Widget _buildRadarBody({
     required double latitude,
     required double longitude,
-    required double alertRadiusKm,
+    required double? alertRadiusKm,
     required List<RadarFrame> radarFrames,
     required CloudMotion? motion,
     required WeatherAlert? alert,
@@ -257,7 +259,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
           currentFrame: currentFrame,
           latitude: latitude,
           longitude: longitude,
-          alertRadiusKm: alertRadiusKm,
+          alertRadiusKm: alertRadiusKm ?? 0,
           radarOpacity: _radarOpacity,
           contrastLevel: _radarContrast,
           motionDirection: motion?.directionDegrees,
