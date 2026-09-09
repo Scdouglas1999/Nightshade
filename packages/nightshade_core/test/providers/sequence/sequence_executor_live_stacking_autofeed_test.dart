@@ -20,6 +20,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:drift/native.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -220,6 +222,14 @@ void main() {
   ProviderContainer buildContainer() {
     final container = ProviderContainer(
       overrides: [
+        // Never the real on-disk database: with several suites running at
+        // once the shared file reports "database is locked" and the test
+        // fails for a reason that has nothing to do with autofeed.
+        databaseProvider.overrideWith((ref) {
+          final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+          ref.onDispose(db.close);
+          return db;
+        }),
         backendProvider.overrideWith(
           (ref) => _TestBackendNotifier(ref, backend),
         ),
