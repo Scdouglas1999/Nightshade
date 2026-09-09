@@ -129,7 +129,10 @@ class NightshadeChip extends StatelessWidget {
                 alpha: NightshadeTokens.opacityDisabled,
               ),
             ),
-      alignment: Alignment.center,
+      // NO `alignment:` — a Container with an alignment EXPANDS to its
+      // parent's constraints, which turned every chip in a Wrap into a
+      // full-width bar. The fixed height plus a min-size Row is what centres
+      // the content, and it leaves the chip its own width.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -264,7 +267,6 @@ class _NightshadeFilterChipState extends State<NightshadeFilterChip> {
       decoration: NightshadeDecorations.filterChip(
         colors,
       ).copyWith(color: _hovered && !disabled ? colors.surfaceHover : null),
-      alignment: Alignment.center,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[

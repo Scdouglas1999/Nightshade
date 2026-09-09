@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
@@ -80,8 +81,8 @@ class NightBand extends StatelessWidget {
   /// The legend's height (two rows: the event labels and the "now" line).
   static const double legendHeight = 30;
 
-  /// The second legend row, which carries "▲ now hh:mm" so it can never
-  /// collide with an event label.
+  /// The second legend row, which carries the caret and "now hh:mm" so it can
+  /// never collide with an event label.
   static const double nowRowHeight = 15;
 
   /// The imageable-window bar's thickness.
@@ -162,10 +163,15 @@ class NightBand extends StatelessWidget {
     );
   }
 
+  /// The "now hh:mm" label, WITHOUT a leading caret glyph.
+  ///
+  /// The caret is drawn as a Lucide icon beside it rather than as a "▲" in the
+  /// string: neither bundled font carries U+25B2, and the golden showed it as a
+  /// tofu box.
   String _formatNow() {
     final hh = now.hour.toString().padLeft(2, '0');
     final mm = now.minute.toString().padLeft(2, '0');
-    return '▲ now $hh:$mm';
+    return 'now $hh:$mm';
   }
 }
 
@@ -320,8 +326,16 @@ class _NightBandPainter extends CustomPainter {
       oldDelegate.windowEnd != windowEnd;
 }
 
+/// Where a legend label sits relative to the time it names.
+enum _LabelAnchor { start, centre, end }
+
 /// The legend: event labels on the first row at their own times, and the "now"
 /// label on a second row so the two can never collide.
+///
+/// Labels are NEVER put in a fixed-width box. The first golden did exactly
+/// that and clipped "20:48 astro dark" to "20:48 astro dar"; a label sizes
+/// itself and is then slid into place, which is the only way a variable-length
+/// string can be centred on a point.
 class _NightBandLegend extends StatelessWidget {
   const _NightBandLegend({
     required this.colors,
@@ -335,9 +349,8 @@ class _NightBandLegend extends StatelessWidget {
   final double nowFraction;
   final String nowLabel;
 
-  /// Rough width a legend label is allowed, so a centred one does not run off
-  /// the canvas.
-  static const double labelSlot = 96;
+  /// The caret drawn before the "now" label, in logical pixels.
+  static const double caretSize = 10;
 
   @override
   Widget build(BuildContext context) {
@@ -345,6 +358,7 @@ class _NightBandLegend extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         return Stack(
+          clipBehavior: Clip.none,
           children: <Widget>[
             for (var i = 0; i < labels.length; i++)
               _positioned(
@@ -353,34 +367,44 @@ class _NightBandLegend extends StatelessWidget {
                 // The first label is left-aligned and the last right-aligned,
                 // so neither hangs off the end of the band; the rest are
                 // centred on their own time.
-                alignment: i == 0
-                    ? Alignment.centerLeft
+                anchor: i == 0
+                    ? _LabelAnchor.start
                     : (i == labels.length - 1
-                          ? Alignment.centerRight
-                          : Alignment.center),
+                          ? _LabelAnchor.end
+                          : _LabelAnchor.centre),
                 child: Text(
                   labels[i].$2,
                   style: NightshadeTypography.monoCaption.copyWith(
                     color: colors.textMuted,
                   ),
                   maxLines: 1,
-                  overflow: TextOverflow.clip,
                   softWrap: false,
                 ),
               ),
             _positioned(
               width: width,
               fraction: nowFraction,
-              alignment: Alignment.center,
+              anchor: _LabelAnchor.centre,
               top: NightBand.legendHeight - NightBand.nowRowHeight,
-              child: Text(
-                nowLabel,
-                style: NightshadeTypography.monoCaption.copyWith(
-                  color: colors.primary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                softWrap: false,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  // A Lucide glyph, not "▲": neither bundled font carries
+                  // U+25B2, and the first golden drew it as a tofu box.
+                  Icon(
+                    LucideIcons.chevronUp,
+                    size: caretSize,
+                    color: colors.primary,
+                  ),
+                  Text(
+                    nowLabel,
+                    style: NightshadeTypography.monoCaption.copyWith(
+                      color: colors.primary,
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ],
               ),
             ),
           ],
@@ -392,28 +416,24 @@ class _NightBandLegend extends StatelessWidget {
   Widget _positioned({
     required double width,
     required double fraction,
-    required Alignment alignment,
+    required _LabelAnchor anchor,
     required Widget child,
     double top = 0,
   }) {
-    final centre = fraction.clamp(0.0, 1.0) * width;
-    double left;
-    if (alignment == Alignment.centerLeft) {
-      left = 0;
-    } else if (alignment == Alignment.centerRight) {
-      left = (width - labelSlot).clamp(0.0, width);
-    } else {
-      left = (centre - labelSlot / 2).clamp(
-        0.0,
-        (width - labelSlot).clamp(0.0, width),
-      );
-    }
-    return Positioned(
-      left: left,
-      top: top,
-      width: labelSlot,
-      height: NightBand.nowRowHeight,
-      child: Align(alignment: alignment, child: child),
-    );
+    final x = fraction.clamp(0.0, 1.0) * width;
+    return switch (anchor) {
+      _LabelAnchor.start => Positioned(left: 0, top: top, child: child),
+      _LabelAnchor.end => Positioned(right: 0, top: top, child: child),
+      // The label sizes itself, then slides half its own width left so its
+      // CENTRE lands on the time. A fixed box cannot do that without clipping.
+      _LabelAnchor.centre => Positioned(
+        left: x,
+        top: top,
+        child: FractionalTranslation(
+          translation: const Offset(-0.5, 0),
+          child: child,
+        ),
+      ),
+    };
   }
 }

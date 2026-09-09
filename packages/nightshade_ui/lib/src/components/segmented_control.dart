@@ -110,17 +110,21 @@ class _SegmentState extends State<_Segment> {
               padding: const EdgeInsets.symmetric(
                 horizontal: SegmentedControl.segmentPadding,
               ),
-              alignment: Alignment.center,
+              // No `alignment:` — it would make the segment expand to the
+              // width of the row instead of to its own label.
               decoration: BoxDecoration(
                 color: widget.selected || _hovered
                     ? colors.surfaceHover
                     : Colors.transparent,
                 borderRadius: NightshadeTokens.borderRadiusSm,
               ),
-              child: Text(
-                widget.label,
-                style: NightshadeTypography.buttonSm.copyWith(
-                  color: foreground,
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  widget.label,
+                  style: NightshadeTypography.buttonSm.copyWith(
+                    color: foreground,
+                  ),
                 ),
               ),
             ),

@@ -6,6 +6,7 @@ import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_icons.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/touch_target.dart';
 import 'nightshade_chip.dart';
 
 /// One tab in an [AdaptiveTabBar].
@@ -480,10 +481,19 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
           behavior: HitTestBehavior.opaque,
           child: Stack(
             children: [
-              // Generous min height keeps the touch target honest on phone;
-              // the tab still stretches to the header when it is given one.
+              // A tab's 2px padding is a DESKTOP measurement: an icon-only tab
+              // collapsed on a phone is 19px wide inside it, well under the
+              // 48dp Android minimum, and `mobile_tap_target_test` counts it.
+              // The floor is applied only on touch platforms, so a pointer
+              // keeps the dense strip the header was designed around.
               ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: _tabMinHeight),
+                constraints: BoxConstraints(
+                  minWidth: NightshadeTouchTarget.minExtent(context),
+                  minHeight: NightshadeTouchTarget.minExtent(
+                    context,
+                    desktopExtent: _tabMinHeight,
+                  ),
+                ),
                 child: Center(widthFactor: 1, child: content),
               ),
               // The indicator spans the tab's whole box — the label plus its
@@ -525,11 +535,15 @@ class _TabCount extends StatelessWidget {
     return Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: _tabCountPadding),
-      alignment: Alignment.center,
       decoration: NightshadeDecorations.chip(colors),
-      child: Text(
-        count,
-        style: NightshadeChip.textStyle().copyWith(color: tone),
+      // `Center(widthFactor: 1)` rather than the Container's own `alignment`,
+      // which would expand the chip to the width the tab was offered.
+      child: Center(
+        widthFactor: 1,
+        child: Text(
+          count,
+          style: NightshadeChip.textStyle().copyWith(color: tone),
+        ),
       ),
     );
   }

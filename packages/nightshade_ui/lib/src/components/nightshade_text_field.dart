@@ -162,6 +162,9 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
       textAlign: widget.textAlign,
       maxLines: widget.maxLines,
       enabled: widget.enabled,
+      // The value sits on the field's centre line, not on Material's dense
+      // baseline, which rides high in a fixed 32px box.
+      textAlignVertical: TextAlignVertical.center,
       style: textStyle,
       decoration: InputDecoration(
         isDense: true,
@@ -185,9 +188,16 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
         ),
         filled: true,
         fillColor: decoration.color,
+        // Symmetric vertical padding of ZERO with `isDense` leaves Material to
+        // centre the text in the box the SizedBox below fixes. A non-zero top
+        // or bottom (or Material's default asymmetric dense padding) parks the
+        // value high in a 32px field, which the first golden showed on "120".
         contentPadding: const EdgeInsets.symmetric(
           horizontal: fieldHorizontalPadding,
         ),
+        // The counter and helper rows are what push a dense field's text off
+        // centre; neither is used here.
+        counterText: '',
         border: outline(ring),
         enabledBorder: outline(ring),
         focusedBorder: outline(ring),

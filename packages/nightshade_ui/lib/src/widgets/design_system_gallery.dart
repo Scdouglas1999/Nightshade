@@ -1155,7 +1155,19 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
                 trailingIcon: LucideIcons.chevronDown,
                 onTap: () {},
               ),
-              StatusDot(color: colors.success, live: true),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StatusDot(color: colors.success, live: true),
+                  const SizedBox(width: NightshadeChip.innerGap),
+                  Text(
+                    'Live dot',
+                    style: NightshadeChip.textStyle().copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -1365,7 +1377,7 @@ class _ObservatorySectionsState extends State<_ObservatorySections> {
               child: Candidate(
                 score: '94',
                 name: 'M51 Whirlpool Galaxy',
-                detail: 'Galaxy · 11.2′ · mag 8.4',
+                detail: 'Galaxy · 11.2 arcmin · mag 8.4',
                 readouts: const [
                   Readout(value: '61', unit: '°', label: 'Alt'),
                   Readout(value: '01:08', label: 'Transit'),
