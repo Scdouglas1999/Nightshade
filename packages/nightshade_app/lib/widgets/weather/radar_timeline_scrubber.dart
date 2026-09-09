@@ -493,24 +493,33 @@ class _ScrubTrack extends StatelessWidget {
         // width varies — so the frame landed on would not match the thumb
         // dragged.
         final trackWidth = constraints.maxWidth;
-        return GestureDetector(
-          onHorizontalDragStart: (_) => onDragStart(),
-          onHorizontalDragUpdate: (details) {
-            if (frames.isEmpty || trackWidth <= 0) return;
-            final fraction =
-                (details.localPosition.dx / trackWidth).clamp(0.0, 1.0);
-            final newIndex =
-                (fraction * frames.length).floor().clamp(0, frames.length - 1);
-            if (newIndex != currentIndex) onFrameChanged(newIndex);
-          },
-          onHorizontalDragEnd: (_) => onDragEnd(),
-          child: CustomPaint(
-            size: const Size(double.infinity, _height),
-            painter: _TimelineTrackPainter(
-              frames: frames,
-              currentIndex: currentIndex,
-              nowIndex: nowIndex,
-              colors: colors,
+        // A bare GestureDetector publishes no role and no name, so assistive
+        // tech read the scrub track as inert decoration. It is the screen's
+        // main control; give it a name and a value.
+        return Semantics(
+          slider: true,
+          label: 'Radar frame',
+          value: 'Frame ${currentIndex + 1} of ${frames.length}',
+          child: GestureDetector(
+            onHorizontalDragStart: (_) => onDragStart(),
+            onHorizontalDragUpdate: (details) {
+              if (frames.isEmpty || trackWidth <= 0) return;
+              final fraction =
+                  (details.localPosition.dx / trackWidth).clamp(0.0, 1.0);
+              final newIndex = (fraction * frames.length)
+                  .floor()
+                  .clamp(0, frames.length - 1);
+              if (newIndex != currentIndex) onFrameChanged(newIndex);
+            },
+            onHorizontalDragEnd: (_) => onDragEnd(),
+            child: CustomPaint(
+              size: const Size(double.infinity, _height),
+              painter: _TimelineTrackPainter(
+                frames: frames,
+                currentIndex: currentIndex,
+                nowIndex: nowIndex,
+                colors: colors,
+              ),
             ),
           ),
         );
@@ -533,11 +542,14 @@ class _SpeedSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     return PopupMenuButton<double>(
       initialValue: speed,
       onSelected: onChanged,
       tooltip: 'Playback speed',
+      // The menu opens in an overlay OUTSIDE the glass, so its contents take
+      // the ambient theme's ink, not the dark palette the glass imposes on the
+      // chip. Leaving the check uncoloured is what keeps it legible on a white
+      // menu in the light theme.
       itemBuilder: (context) => [
         for (final value in _speeds)
           PopupMenuItem<double>(
@@ -545,11 +557,7 @@ class _SpeedSelector extends StatelessWidget {
             child: Row(
               children: [
                 if (value == speed)
-                  Icon(
-                    LucideIcons.check,
-                    size: NightshadeTokens.iconXs,
-                    color: colors.primary,
-                  )
+                  const Icon(LucideIcons.check, size: NightshadeTokens.iconXs)
                 else
                   const SizedBox(width: NightshadeTokens.iconXs),
                 const SizedBox(width: NightshadeTokens.spaceSm),
