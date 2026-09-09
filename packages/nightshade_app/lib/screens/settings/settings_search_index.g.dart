@@ -459,7 +459,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Generic webhook',
     'Guiding lost',
     'Headers',
-    'Home assistant',
+    'Home Assistant',
     'Home Assistant (imaging host)',
     'Host configuration unavailable',
     'Host MQTT broker',

@@ -158,7 +158,7 @@ void main() {
     expect(find.text('No projects yet'), findsOneWidget);
     expect(find.textContaining('campaign'), findsNothing);
     expect(
-        find.widgetWithText(NightshadeButton, 'New Project'), findsOneWidget);
+        find.widgetWithText(NightshadeButton, 'New project'), findsOneWidget);
   });
 
   testWidgets(
@@ -255,7 +255,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(DropdownButton<String>));
+    // The kit's select owns its own popover now (it replaced Material's
+    // DropdownButton, whose 48 px entry floor it could not honour), so the
+    // finder is the kit type rather than the Material one.
+    await tester.tap(find.byType(NightshadeDropdown));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Galaxy Season').last);
     await tester.pumpAndSettle();
@@ -277,12 +280,12 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'New Project'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'New project'));
     await tester.pumpAndSettle();
 
     // The dialog scaffold shows its title and name field.
     expect(
-        find.widgetWithText(NightshadeDialog, 'New Project'), findsOneWidget);
+        find.widgetWithText(NightshadeDialog, 'New project'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Create'), findsOneWidget);
     expect(find.byIcon(LucideIcons.folder), findsWidgets);
   });
@@ -305,7 +308,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'New Project'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'New project'));
     await tester.pumpAndSettle();
 
     // Type a name into the name field (the first text field in the dialog).
@@ -337,7 +340,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'New Project'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'New project'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Slow Project');
     await tester.tap(find.widgetWithText(NightshadeButton, 'Create'));
@@ -345,13 +348,13 @@ void main() {
 
     expect(service.createCallCount, 1);
     final busyButton = tester.widget<NightshadeButton>(
-      find.widgetWithText(NightshadeButton, 'New Project'),
+      find.widgetWithText(NightshadeButton, 'New project'),
     );
     expect(busyButton.isLoading, isTrue);
     expect(busyButton.onPressed, isNull);
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'New Project'),
+      find.widgetWithText(NightshadeButton, 'New project'),
       warnIfMissed: false,
     );
     await tester.pump();

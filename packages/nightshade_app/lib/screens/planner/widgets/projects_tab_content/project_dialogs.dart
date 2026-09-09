@@ -51,7 +51,7 @@ class _ProjectFormDialogState extends State<_ProjectFormDialog> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return NightshadeDialog(
-      title: _isEdit ? 'Edit Project' : 'New Project',
+      title: _isEdit ? 'Edit project' : 'New project',
       icon: _isEdit ? LucideIcons.pencil : LucideIcons.folderPlus,
       width: 480,
       actions: [

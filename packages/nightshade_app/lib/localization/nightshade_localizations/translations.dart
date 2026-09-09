@@ -595,7 +595,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabRecommendation': 'Recommendation',
     'plannerTabProjects': 'Projects',
     'plannerTabTargetQueue': 'Target queue',
-    'plannerTabThisWeek': 'This Week',
+    'plannerTabThisWeek': 'This week',
     'plannerTabProgress': 'Progress',
     'plannerTabSchedule': 'Schedule',
     'plannerTabFraming': 'Framing',
