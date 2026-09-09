@@ -31,27 +31,32 @@ void main() {
     expect(find.text('Typography'), findsOneWidget);
     expect(find.text('Telemetry Lg — Hero live values'), findsOneWidget);
     expect(find.text('Buttons'), findsOneWidget);
-    expect(find.text('Cards'), findsOneWidget);
     expect(find.text('Inputs'), findsOneWidget);
-    expect(find.text('Tabs'), findsOneWidget);
-    expect(find.text('Navigation'), findsOneWidget);
-    expect(find.text('Chips and Status Pills'), findsOneWidget);
-    expect(find.text('Alerts'), findsOneWidget);
+    expect(find.text('Status Dots'), findsOneWidget);
+    // Every remaining section is a component from 05; the pre-Observatory
+    // ones (Cards, the pill Tabs, Navigation, Decorations, the old chips and
+    // Alerts) are gone, and the sheet's own sections are what the gallery
+    // shows in their place.
+    expect(find.text('Cards'), findsNothing);
+    expect(find.text('Tabs'), findsNothing);
+    expect(find.text('Navigation'), findsNothing);
+    expect(find.text('Decorations'), findsNothing);
+    expect(find.text('Chips and Status Pills'), findsNothing);
+    expect(find.text('Alerts'), findsNothing);
+    expect(find.text('Panels and wells'), findsOneWidget);
+    expect(find.text('Readouts'), findsOneWidget);
+    expect(find.text('Underline tabs'), findsOneWidget);
+    expect(find.text('Chips and status dots'), findsOneWidget);
+    expect(find.text('Banner'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('gallery-button-primary')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('gallery-dropdown')), findsOneWidget);
-    expect(find.byKey(const ValueKey('gallery-status-active')), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('gallery-status-success')),
+      find.byKey(const ValueKey('gallery-instrument-pill')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('gallery-status-inactive')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('gallery-alert-info')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -64,7 +69,7 @@ void main() {
 
     expect(find.text('Buttons'), findsOneWidget);
     expect(find.text('Inputs'), findsOneWidget);
-    expect(find.text('Alerts'), findsOneWidget);
+    expect(find.text('Banner'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -75,8 +80,8 @@ void main() {
       size: const Size(900, 900),
     );
 
-    expect(find.text('Chips and Status Pills'), findsOneWidget);
-    expect(find.text('Self-test complete'), findsOneWidget);
+    expect(find.text('Chips and status dots'), findsOneWidget);
+    expect(find.text('Night band'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -93,28 +98,9 @@ void main() {
     await tester.pump();
     expect(find.text('Sample actions: 1'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('gallery-status-active')));
+    await tester.tap(find.byKey(const ValueKey('gallery-button-secondary')));
     await tester.pump();
     expect(find.text('Sample actions: 2'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(NightshadeButton, 'View'));
-    await tester.pump();
-    expect(find.text('Sample actions: 3'), findsOneWidget);
-
-    expect(
-      tester
-          .widget<SubTabButton>(find.widgetWithText(SubTabButton, 'Guiding'))
-          .isSelected,
-      isFalse,
-    );
-    await tester.tap(find.widgetWithText(SubTabButton, 'Guiding'));
-    await tester.pump();
-    expect(
-      tester
-          .widget<SubTabButton>(find.widgetWithText(SubTabButton, 'Guiding'))
-          .isSelected,
-      isTrue,
-    );
 
     expect(
       tester

@@ -2,18 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '_design_showcase_primitives.dart';
-import '../components/nightshade_alert.dart';
 import '../components/nightshade_button.dart';
-import '../components/nightshade_card.dart';
 import '../components/nightshade_checkbox.dart';
 import '../components/nightshade_dropdown.dart';
 import '../components/nightshade_switch.dart';
 import '../components/nightshade_switch_row.dart';
 import '../components/nightshade_text_field.dart';
-import '../components/nav_item.dart';
-import '../components/status_pill.dart';
 import '../components/status_dot.dart';
-import '../components/sub_tab_button.dart';
 // Observatory wave 1
 import '../components/instrument_pill.dart';
 import '../components/page_header.dart';
@@ -56,9 +51,6 @@ class _NightshadeDesignSystemGalleryState
   bool _checkboxValue = true;
   bool _switchValue = true;
   String? _dropdownValue = 'Camera';
-  int _selectedTab = 0;
-  int _selectedNavItem = 0;
-  bool _navExpanded = true;
   int _actionCount = 0;
   int _statusDotAttentionSeed = 0;
 
@@ -208,6 +200,7 @@ class _NightshadeDesignSystemGalleryState
                           onPressed: _recordAction,
                         ),
                         NightshadeButton(
+                          key: const ValueKey('gallery-button-secondary'),
                           label: 'Secondary',
                           icon: LucideIcons.settings,
                           variant: ButtonVariant.outline,
@@ -236,39 +229,6 @@ class _NightshadeDesignSystemGalleryState
                           icon: LucideIcons.lock,
                         ),
                       ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Cards',
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = constraints.maxWidth < 760 ? 1 : 3;
-                        return GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: columns,
-                          crossAxisSpacing: NightshadeTokens.spaceMd,
-                          mainAxisSpacing: NightshadeTokens.spaceMd,
-                          childAspectRatio: columns == 1 ? 3.8 : 2.1,
-                          children: const [
-                            _GalleryCardSpecimen(
-                              title: 'Standard',
-                              value: 'Ready',
-                              variant: CardVariant.standard,
-                            ),
-                            _GalleryCardSpecimen(
-                              title: 'Elevated',
-                              value: 'Guiding',
-                              variant: CardVariant.elevated,
-                            ),
-                            _GalleryCardSpecimen(
-                              title: 'Selected',
-                              value: 'Profile A',
-                              isSelected: true,
-                            ),
-                          ],
-                        );
-                      },
                     ),
                   ),
                   ShowcaseSection.plain(
@@ -338,193 +298,6 @@ class _NightshadeDesignSystemGalleryState
                     ),
                   ),
                   ShowcaseSection.plain(
-                    title: 'Tabs',
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final entry in const [
-                            MapEntry(0, 'Capture'),
-                            MapEntry(1, 'Focus'),
-                            MapEntry(2, 'Guiding'),
-                          ])
-                            SubTabButton(
-                              label: entry.value,
-                              isSelected: _selectedTab == entry.key,
-                              onTap: () {
-                                setState(() => _selectedTab = entry.key);
-                              },
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Navigation',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: NightshadeTokens.spaceMd,
-                          runSpacing: NightshadeTokens.spaceSm,
-                          children: [
-                            NightshadeButton(
-                              label: _navExpanded
-                                  ? 'Collapse nav'
-                                  : 'Expand nav',
-                              icon: LucideIcons.panelLeftClose,
-                              variant: ButtonVariant.outline,
-                              onPressed: () {
-                                setState(() => _navExpanded = !_navExpanded);
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: NightshadeTokens.spaceMd),
-                        Container(
-                          width: _navExpanded ? 240 : 72,
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: NightshadeTokens.borderRadiusMd,
-                            border: Border.all(color: colors.border),
-                          ),
-                          child: Column(
-                            children: [
-                              for (final entry in const [
-                                MapEntry(0, (LucideIcons.moonStar, 'Tonight')),
-                                MapEntry(1, (LucideIcons.camera, 'Imaging')),
-                                MapEntry(2, (
-                                  LucideIcons.listOrdered,
-                                  'Sequencer',
-                                )),
-                              ])
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    NightshadeTokens.spaceSm,
-                                    NightshadeTokens.spaceXs,
-                                    NightshadeTokens.spaceSm,
-                                    0,
-                                  ),
-                                  child: NavItem(
-                                    key: ValueKey(
-                                      'gallery-nav-${entry.key}-'
-                                      '${_navExpanded ? 'expanded' : 'collapsed'}',
-                                    ),
-                                    icon: entry.value.$1,
-                                    label: entry.value.$2,
-                                    isSelected: _selectedNavItem == entry.key,
-                                    isExpanded: _navExpanded,
-                                    onTap: () {
-                                      setState(
-                                        () => _selectedNavItem = entry.key,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              const SizedBox(height: NightshadeTokens.spaceSm),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Decorations',
-                    child: Wrap(
-                      spacing: NightshadeTokens.spaceMd,
-                      runSpacing: NightshadeTokens.spaceMd,
-                      children: [
-                        _DecorationSpecimen(
-                          label: 'Nav Selected',
-                          decoration: NightshadeDecorations.navSelected(colors),
-                          width: 140,
-                          height: 40,
-                        ),
-                        _DecorationSpecimen(
-                          label: 'Card Selected',
-                          decoration: NightshadeDecorations.cardSelected(
-                            colors.primary,
-                            background: colors.surface,
-                          ),
-                          width: 140,
-                          height: 72,
-                        ),
-                        _DecorationSpecimen(
-                          label: 'Card Hover',
-                          decoration: NightshadeDecorations.cardHover(colors),
-                          width: 140,
-                          height: 72,
-                        ),
-                        _DecorationSpecimen(
-                          label: 'Drag Feedback',
-                          decoration: NightshadeDecorations.dragFeedback(
-                            colors,
-                          ),
-                          width: 140,
-                          height: 72,
-                        ),
-                        _DecorationSpecimen(
-                          label: 'KPI Badge',
-                          decoration: NightshadeDecorations.kpiBadge(
-                            colors.success,
-                          ),
-                          width: 44,
-                          height: 44,
-                        ),
-                      ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
-                    title: 'Chips and Status Pills',
-                    child: Wrap(
-                      spacing: NightshadeTokens.spaceMd,
-                      runSpacing: NightshadeTokens.spaceMd,
-                      children: [
-                        _GalleryChip(label: 'Luminance', color: colors.primary),
-                        _GalleryChip(label: 'Ha', color: colors.error),
-                        _GalleryChip(label: 'OIII', color: colors.info),
-                        StatusPill(
-                          key: const ValueKey('gallery-status-active'),
-                          icon: LucideIcons.radio,
-                          label: 'Camera',
-                          value: 'Connected',
-                          status: StatusPillStatus.active,
-                          onTap: _recordAction,
-                        ),
-                        StatusPill(
-                          key: const ValueKey('gallery-status-success'),
-                          icon: LucideIcons.checkCircle2,
-                          label: 'Solver',
-                          value: 'Solved',
-                          status: StatusPillStatus.success,
-                          onTap: _recordAction,
-                        ),
-                        StatusPill(
-                          icon: LucideIcons.cloudRain,
-                          label: 'Weather',
-                          value: 'Warning',
-                          status: StatusPillStatus.warning,
-                          onTap: _recordAction,
-                        ),
-                        StatusPill(
-                          icon: LucideIcons.wifiOff,
-                          label: 'Mount',
-                          value: 'Offline',
-                          status: StatusPillStatus.error,
-                          onTap: _recordAction,
-                        ),
-                        StatusPill(
-                          key: const ValueKey('gallery-status-inactive'),
-                          icon: LucideIcons.circleDashed,
-                          label: 'Rotator',
-                          value: 'Idle',
-                          status: StatusPillStatus.inactive,
-                          onTap: _recordAction,
-                        ),
-                      ],
-                    ),
-                  ),
-                  ShowcaseSection.plain(
                     title: 'Status Dots',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceLg,
@@ -571,42 +344,6 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  ShowcaseSection.plain(
-                    title: 'Alerts',
-                    child: Column(
-                      children: [
-                        NightshadeAlert(
-                          key: const ValueKey('gallery-alert-info'),
-                          title: 'Self-test complete',
-                          message:
-                              'Backend, storage, and route metadata passed.',
-                          severity: NightshadeAlertSeverity.info,
-                          compact: true,
-                          action: NightshadeButton(
-                            label: 'View',
-                            size: ButtonSize.small,
-                            variant: ButtonVariant.outline,
-                            onPressed: _recordAction,
-                          ),
-                        ),
-                        const SizedBox(height: NightshadeTokens.spaceMd),
-                        const NightshadeAlert(
-                          title: 'Unsafe weather',
-                          message:
-                              'Sequence start is blocked until safety clears.',
-                          severity: NightshadeAlertSeverity.warning,
-                          compact: true,
-                        ),
-                        const SizedBox(height: NightshadeTokens.spaceMd),
-                        const NightshadeAlert(
-                          title: 'Restore failed',
-                          message: 'Backup file is missing a version field.',
-                          severity: NightshadeAlertSeverity.error,
-                          compact: true,
-                        ),
-                      ],
-                    ),
-                  ),
                   // Observatory wave 2
                   const _ObservatorySections(),
 
@@ -634,6 +371,7 @@ class _NightshadeDesignSystemGalleryState
                             ),
                             children: [
                               InstrumentPill(
+                                key: const ValueKey('gallery-instrument-pill'),
                                 dotTone: InstrumentTone.success,
                                 value: 'Running',
                                 live: true,
@@ -711,33 +449,6 @@ class _NightshadeDesignSystemGalleryState
   }
 }
 
-class _GalleryChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _GalleryChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: NightshadeDecorations.emphasisSurface(
-        color,
-        borderRadius: NightshadeTokens.borderRadiusSm,
-      ),
-      child: Text(
-        label,
-        style: NightshadeTypography.caption.copyWith(color: colors.textPrimary),
-      ),
-    );
-  }
-}
-
 class _ControlRow extends StatelessWidget {
   final String label;
   final Widget child;
@@ -759,39 +470,6 @@ class _ControlRow extends StatelessWidget {
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
         child,
-      ],
-    );
-  }
-}
-
-class _DecorationSpecimen extends StatelessWidget {
-  final String label;
-  final BoxDecoration decoration;
-  final double width;
-  final double height;
-
-  const _DecorationSpecimen({
-    required this.label,
-    required this.decoration,
-    required this.width,
-    required this.height,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(width: width, height: height, decoration: decoration),
-        const SizedBox(height: NightshadeTokens.spaceXs),
-        Text(
-          label,
-          style: NightshadeTypography.caption.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
       ],
     );
   }
@@ -857,48 +535,6 @@ class _TypographySpecimen extends StatelessWidget {
             style: style.copyWith(
               color: muted ? colors.textMuted : colors.textPrimary,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GalleryCardSpecimen extends StatelessWidget {
-  final String title;
-  final String value;
-  final CardVariant variant;
-  final bool isSelected;
-
-  const _GalleryCardSpecimen({
-    required this.title,
-    required this.value,
-    this.variant = CardVariant.standard,
-    this.isSelected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return NightshadeCard(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      variant: variant,
-      isSelected: isSelected,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: NightshadeTypography.label.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Text(
-            value,
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
         ],
       ),
