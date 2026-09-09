@@ -45,24 +45,20 @@ class FrameStatsHud extends ConsumerWidget {
           ),
           Readout(value: ecc?.toStringAsFixed(2), label: 'Ecc'),
           Readout(value: stats?.starCount?.toString(), label: 'Stars'),
-          Readout(value: _thousands(stats?.median), label: 'Median'),
-          Readout(value: _thousands(stats?.mean), label: 'Mean'),
+          Readout(value: _whole(stats?.median), label: 'Median'),
+          Readout(value: _whole(stats?.mean), label: 'Mean'),
         ],
       ),
     );
   }
 
-  /// Figures with a thin space every three digits (06 "Copy rules").
-  static String? _thousands(double? value) {
-    if (value == null) return null;
-    final digits = value.round().abs().toString();
-    final buffer = StringBuffer(value.isNegative ? '-' : '');
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(' ');
-      buffer.write(digits[i]);
-    }
-    return buffer.toString();
-  }
+  /// A whole-number reading, unseparated.
+  ///
+  /// 06 "Copy rules" asked for a thin space every three digits; the bundled
+  /// fonts carry no U+2009, so the separator rendered as a tofu box inside the
+  /// number it was meant to make readable.
+  static String? _whole(double? value) =>
+      value == null ? null : value.round().toString();
 }
 
 /// Top-right: what the frame on screen is, and when it landed.
@@ -192,7 +188,7 @@ class HistogramHud extends ConsumerWidget {
                   children: <Widget>[
                     Text('0', style: endpoints),
                     Text(caption, style: endpoints),
-                    Text('65 535', style: endpoints),
+                    Text('$fullWell', style: endpoints),
                   ],
                 ),
               ],

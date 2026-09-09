@@ -361,18 +361,27 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                     padding: const EdgeInsets.only(
                                       bottom: _cornerReadoutBandHeight,
                                     ),
-                                    child: EmptyState(
-                                      icon: isConnected
-                                          ? NightshadeIcons.imageOff
-                                          : NightshadeIcons.cameraOff,
-                                      title: isConnected
-                                          ? 'No frames yet'
-                                          : 'No camera connected',
-                                      body: isConnected
-                                          ? 'Take a snapshot or start a loop '
-                                              'and the frame appears here.'
-                                          : 'Connect a camera in Equipment to '
-                                              'start imaging.',
+                                    // The empty state sits ON the canvas, and
+                                    // the canvas is image-anchored dark in
+                                    // every theme (05 §14). Left on the app
+                                    // palette its ink was light-theme grey on
+                                    // near-black — the same grey-on-grey that
+                                    // got a white glass over a black frame
+                                    // rejected.
+                                    child: _OnCanvas(
+                                      child: EmptyState(
+                                        icon: isConnected
+                                            ? NightshadeIcons.imageOff
+                                            : NightshadeIcons.cameraOff,
+                                        title: isConnected
+                                            ? 'No frames yet'
+                                            : 'No camera connected',
+                                        body: isConnected
+                                            ? 'Take a snapshot or start a loop '
+                                                'and the frame appears here.'
+                                            : 'Connect a camera in Equipment '
+                                                'to start imaging.',
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -807,6 +816,30 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Resolves the DARK palette for anything drawn straight onto the canvas.
+///
+/// The canvas is a photograph of the night sky, dark in every theme, so text
+/// over it takes its colours from the dark ladder exactly as [Glass] does.
+/// Red night is the one exception and outranks the rule: the wavelength
+/// constraint applies to every pixel on the screen.
+class _OnCanvas extends StatelessWidget {
+  const _OnCanvas({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final inner = colors.isRedNight ? colors : NightshadeColors.dark;
+    return Theme(
+      data: Theme.of(
+        context,
+      ).copyWith(extensions: <ThemeExtension<dynamic>>[inner]),
+      child: child,
     );
   }
 }

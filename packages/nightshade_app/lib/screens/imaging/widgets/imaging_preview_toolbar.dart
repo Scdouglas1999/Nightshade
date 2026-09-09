@@ -206,7 +206,7 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
   }
 }
 
-/// `6248 × 4176 · Bin 1×1 · Zoom 55% · Sky 19.8 mag/″²` — mono 12, values in
+/// `6248 × 4176 · Bin 1×1 · Zoom 55% · Sky 19.8 mag/"2` — mono 12, values in
 /// `textPrimary`, their qualifiers in `textSecondary`, 14 px apart.
 class _ViewerMeta extends StatelessWidget {
   const _ViewerMeta({
@@ -263,7 +263,7 @@ class _ViewerMeta extends StatelessWidget {
       );
     }
 
-    // A segment whose value is unknown says "Sky —", never "Sky — mag/″²":
+    // A segment whose value is unknown says "Sky —", never "Sky — mag/\"2":
     // a unit on a value that does not exist describes nothing. The frame size
     // and the zoom drop out entirely with no frame on the canvas, because an
     // em dash is worth a slot only when the slot is permanent.
@@ -271,7 +271,9 @@ class _ViewerMeta extends StatelessWidget {
       if (resolution != null) segment(null, resolution),
       segment('Bin', binning),
       if (resolution != null) segment('Zoom', zoom),
-      segment('Sky', sky, sky == null ? null : 'mag/″²'),
+      // ASCII quote, not U+2033: the bundled fonts have no prime glyph and
+      // an arcsecond mark rendered as a tofu box on the toolbar.
+      segment('Sky', sky, sky == null ? null : 'mag/sq"'),
     ];
 
     return Row(
