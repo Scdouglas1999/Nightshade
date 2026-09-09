@@ -24,7 +24,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
 
     return SettingsPage(
       key: SettingsTutorialKeys.help,
-      title: 'Help & Tutorials',
+      title: 'Help & tutorials',
       description: 'Guided tours and learning resources',
       isMobile: isMobile,
       hideHeader: isMobile,

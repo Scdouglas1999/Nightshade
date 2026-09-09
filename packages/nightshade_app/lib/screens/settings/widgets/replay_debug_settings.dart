@@ -110,7 +110,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
         isRemote ? ref.watch(backendProvider) : ref.watch(databaseProvider);
 
     return SettingsPage(
-      title: 'Replay & Debug',
+      title: 'Replay & debug',
       description: isRemote
           ? 'How long the imaging host keeps the record of every decision a '
               'run made, so you can replay a night afterwards. Older entries '

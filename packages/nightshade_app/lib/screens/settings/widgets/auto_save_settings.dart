@@ -140,7 +140,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
     if (isRemoteClient) {
       return SettingsPage(
-        title: 'Automatic Backups',
+        title: 'Automatic backups',
         description: 'Backups run on the imaging host',
         isMobile: isMobile,
         hideHeader: isMobile || widget.embedded,
@@ -200,7 +200,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
         ref.watch(autoSaveStatusProvider).valueOrNull ?? service.status;
 
     return SettingsPage(
-      title: 'Automatic Backups',
+      title: 'Automatic backups',
       description: 'Schedule recurring backups of Nightshade data',
       isMobile: isMobile,
       hideHeader: isMobile || widget.embedded,
@@ -252,7 +252,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
         // Backup section
         SettingsSection(
-          title: 'Automatic Backups',
+          title: 'Automatic backups',
           isMobile: isMobile,
           children: [
             SettingRow(

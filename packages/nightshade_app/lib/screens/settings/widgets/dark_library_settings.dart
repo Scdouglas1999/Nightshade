@@ -42,7 +42,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
     final uiState = ref.watch(darkLibraryNotifierProvider);
 
     return SettingsPage(
-      title: 'Dark Library',
+      title: 'Dark library',
       description: 'Manage dark and bias calibration frames',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,

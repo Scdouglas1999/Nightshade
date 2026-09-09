@@ -272,7 +272,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
         final authority = ref.watch(backendProvider);
 
         return SettingsPage(
-          title: 'PHD2 Guiding',
+          title: 'PHD2 guiding',
           description: 'Configure PHD2 guiding software connection',
           children: [
             SettingsSection(

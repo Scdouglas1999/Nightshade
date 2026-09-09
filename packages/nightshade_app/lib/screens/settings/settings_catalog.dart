@@ -648,7 +648,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'backup',
-          label: 'Backup & Restore',
+          label: 'Backup & restore',
           icon: LucideIcons.archive,
           keywords: const [
             'backup',
@@ -663,7 +663,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'updates',
-          label: 'Appliance Updates',
+          label: 'Appliance updates',
           icon: LucideIcons.downloadCloud,
           keywords: const [
             'update',
@@ -678,7 +678,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'rig-catalogs',
-          label: 'Appliance Catalogs',
+          label: 'Appliance catalogs',
           icon: LucideIcons.library,
           keywords: const [
             'catalog',
@@ -693,7 +693,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'captured-images',
-          label: 'Captured Images',
+          label: 'Captured images',
           icon: LucideIcons.image,
           keywords: const [
             'gallery',

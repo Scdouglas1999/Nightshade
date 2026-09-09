@@ -158,7 +158,7 @@ class _PredictiveAfSettingsPageState
     final controller = ref.watch(predictiveAfSettingsControllerProvider);
 
     return SettingsPage(
-      title: 'Predictive Autofocus',
+      title: 'Predictive autofocus',
       description:
           'Learn per-filter focus/temperature slope across sessions and skip '
           'manual autofocus when the model is confident.',

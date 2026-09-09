@@ -68,7 +68,7 @@ class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
         final authority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
         return SettingsPage(
-          title: 'Pre-flight Checks',
+          title: 'Pre-flight checks',
           description:
               'How strict should Nightshade be about issues raised before a sequence starts?',
           isMobile: widget.isMobile,

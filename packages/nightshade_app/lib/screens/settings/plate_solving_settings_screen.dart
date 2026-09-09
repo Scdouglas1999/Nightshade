@@ -337,7 +337,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
     required NightshadeBackend authority,
   }) {
     return SettingsPage(
-      title: 'Plate Solving',
+      title: 'Plate solving',
       description:
           'Configure ASTAP / Astrometry.net for centering, framing, and '
           'polar alignment.',

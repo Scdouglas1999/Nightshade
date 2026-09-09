@@ -105,7 +105,7 @@ class _AdaptiveExposureSettingsState
         final notifier = ref.read(appSettingsProvider.notifier);
         final enabled = settings.adaptiveExposureEnabled;
         return SettingsPage(
-          title: 'Adaptive Exposure',
+          title: 'Adaptive exposure',
           description:
               'Lengthens or shortens each frame automatically when the sky is '
               'brighter or darker than your reference, so signal-to-noise stays '

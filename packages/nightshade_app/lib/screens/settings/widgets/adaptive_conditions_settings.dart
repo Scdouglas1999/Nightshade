@@ -69,7 +69,7 @@ class _AdaptiveConditionsSettingsState
         );
 
         return SettingsPage(
-          title: 'Adaptive Conditions',
+          title: 'Adaptive conditions',
           description:
               'Defaults for sky-conditions target swapping in new scheduler nodes',
           isMobile: widget.isMobile,

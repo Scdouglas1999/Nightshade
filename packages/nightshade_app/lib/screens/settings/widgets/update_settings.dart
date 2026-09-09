@@ -389,7 +389,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     final backend = _backend;
 
     return SettingsPage(
-      title: 'Appliance Updates',
+      title: 'Appliance updates',
       description: 'Check for, stage, and apply updates to the connected rig',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,

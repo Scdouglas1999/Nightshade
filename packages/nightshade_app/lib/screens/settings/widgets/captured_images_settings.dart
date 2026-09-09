@@ -162,7 +162,7 @@ class _CapturedImagesSettingsState
     final backend = _backend;
 
     return SettingsPage(
-      title: 'Captured Images',
+      title: 'Captured images',
       description: 'Browse frames captured on the connected appliance',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,

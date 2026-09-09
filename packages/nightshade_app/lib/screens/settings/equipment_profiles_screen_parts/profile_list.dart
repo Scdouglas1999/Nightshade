@@ -37,7 +37,7 @@ class _ProfileList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Equipment Profiles',
+                  'Equipment profiles',
                   style: NightshadeTypography.pageTitle.copyWith(
                     color: colors.textPrimary,
                   ),

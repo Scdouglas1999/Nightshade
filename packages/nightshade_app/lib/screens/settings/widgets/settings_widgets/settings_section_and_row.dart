@@ -208,6 +208,14 @@ class SettingRow extends StatelessWidget {
   /// the imaging-panel rows); leave null for self-evident rows.
   final FieldHelpId? helpId;
 
+  /// How much of the row the control column may take, against the label's 1.
+  ///
+  /// Default 1: label and control split the row, which is right for a switch or
+  /// a 160 px dropdown. A wider control says so — the three 132 px theme cards
+  /// need 416 px and wrapped onto a second row at an even split, and a picker
+  /// that reflows is not the one the mockup shows.
+  final int controlFlex;
+
   const SettingRow({
     super.key,
     required this.icon,
@@ -219,6 +227,7 @@ class SettingRow extends StatelessWidget {
     this.isMobile = false,
     this.stackOnMobile = false,
     this.helpId,
+    this.controlFlex = 1,
   });
 
   /// The title text plus an optional trailing help affordance. Extracted so
@@ -318,6 +327,7 @@ class SettingRow extends StatelessWidget {
         // coincidence and stranded every control mid-screen with ~2100px of
         // empty panel beside it on an ultrawide monitor (audit 2026-07-29).
         Flexible(
+          flex: controlFlex,
           child: Align(alignment: Alignment.centerRight, child: trailing),
         ),
       ],

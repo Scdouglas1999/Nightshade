@@ -80,6 +80,10 @@ class AppearanceSettings extends ConsumerWidget {
                     onSelected: (value) =>
                         ref.read(appSettingsProvider.notifier).setTheme(value),
                   ),
+                  // Three 132 px cards plus two 10 px gaps is 416 px; an even
+                  // split of an 880 px page leaves 412 and drops Red night onto
+                  // a second row.
+                  controlFlex: 2,
                   isMobile: isMobile,
                   stackOnMobile: isMobile,
                 ),

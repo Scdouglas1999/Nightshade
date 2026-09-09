@@ -141,7 +141,7 @@ class _CalibrationLibrarySettingsState
     final isRemote = backend is NetworkBackend;
 
     return SettingsPage(
-      title: 'Calibration Library',
+      title: 'Calibration library',
       description: 'Browse, tag, and auto-match master darks, flats, '
           'biases, and defect maps',
       isMobile: widget.isMobile,

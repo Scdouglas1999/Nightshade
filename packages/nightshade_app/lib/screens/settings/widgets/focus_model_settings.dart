@@ -173,7 +173,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
     final m = model?['model'] as Map<String, dynamic>?;
 
     return SettingsPage(
-      title: 'Focus Model',
+      title: 'Focus model',
       description: 'Temperature-compensation focus model on the connected rig',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile || widget.embedded,

@@ -166,7 +166,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
         final enabled = settings.enableImageGrading;
 
         return SettingsPage(
-          title: 'Image Grading',
+          title: 'Image grading',
           description:
               'Auto-reject blurry / trailed / clouded frames at capture time',
           isMobile: widget.isMobile,

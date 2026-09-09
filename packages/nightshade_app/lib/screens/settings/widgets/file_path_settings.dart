@@ -326,7 +326,7 @@ class FilePathSettings extends ConsumerWidget {
         final hostHint = isRemoteMode ? ' (on imaging host)' : '';
         return SettingsPage(
           key: SettingsTutorialKeys.filePaths,
-          title: 'File Paths',
+          title: 'File paths',
           description: isRemoteMode
               ? 'Storage locations on the connected imaging host'
               : 'Configure storage locations',

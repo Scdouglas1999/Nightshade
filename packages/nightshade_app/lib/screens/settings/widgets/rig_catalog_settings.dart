@@ -337,7 +337,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     final backend = _backend;
 
     return SettingsPage(
-      title: 'Appliance Catalogs',
+      title: 'Appliance catalogs',
       description: 'Download and verify the rig\'s plate-solve / star catalogs',
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
