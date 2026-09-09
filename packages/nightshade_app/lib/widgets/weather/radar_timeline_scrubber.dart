@@ -76,6 +76,10 @@ class RadarTimelineScrubber extends ConsumerStatefulWidget {
   /// Callback when playback speed changes
   final ValueChanged<double>? onSpeedChanged;
 
+  /// Put the readouts on their own row beneath the transport instead of
+  /// beside it. Set when the control bar is too narrow for one row.
+  final bool stacked;
+
   const RadarTimelineScrubber({
     super.key,
     required this.frames,
@@ -85,6 +89,7 @@ class RadarTimelineScrubber extends ConsumerStatefulWidget {
     required this.onPlayPauseToggle,
     this.playbackSpeed = 1.0,
     this.onSpeedChanged,
+    this.stacked = false,
   });
 
   @override
@@ -252,33 +257,25 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = NightshadeColors.of(context);
 
     if (widget.frames.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.cloudOff,
-              size: 16,
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            LucideIcons.cloudOff,
+            size: NightshadeTokens.iconSm,
+            color: colors.textMuted,
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Text(
+            'No radar frames',
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textMuted,
             ),
-            const SizedBox(width: 8),
-            Text(
-              'No radar frames available',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.textMuted,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
@@ -289,209 +286,89 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
     // the one frame's timestamp. Multi-frame sources (NOAA NEXRAD, RainViewer)
     // get the full animated timeline below.
     if (widget.frames.length == 1) {
-      return _buildSingleFrame(context, colors, widget.frames.first);
+      return _buildSingleFrame(colors, widget.frames.first);
     }
 
     final currentIndex = _safeCurrentIndex;
     final currentFrame = widget.frames[currentIndex];
     final nowIndex = _findNowIndex();
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
+    final transport = <Widget>[
+      NightshadeIconButton(
+        icon: widget.isPlaying ? NightshadeIcons.pause : NightshadeIcons.play,
+        tooltip: widget.isPlaying ? 'Pause' : 'Play',
+        size: IconButtonSize.sm,
+        onPressed: widget.onPlayPauseToggle,
       ),
-      child: Column(
+      NightshadeIconButton(
+        icon: LucideIcons.skipBack,
+        tooltip: 'Previous frame',
+        size: IconButtonSize.sm,
+        onPressed: _stepBackward,
+      ),
+      NightshadeIconButton(
+        icon: LucideIcons.skipForward,
+        tooltip: 'Next frame',
+        size: IconButtonSize.sm,
+        onPressed: _stepForward,
+      ),
+    ];
+
+    final readouts = <Widget>[
+      _FrameTime(
+        frame: currentFrame,
+        label: _formatTimestamp(currentFrame.timestamp),
+      ),
+      const SizedBox(width: NightshadeTokens.spaceLg),
+      _FrameCounter(index: currentIndex, total: widget.frames.length),
+      if (widget.onSpeedChanged != null) ...[
+        const SizedBox(width: NightshadeTokens.spaceLg),
+        _SpeedSelector(
+          speed: widget.playbackSpeed,
+          onChanged: widget.onSpeedChanged!,
+        ),
+      ],
+    ];
+
+    final track = _ScrubTrack(
+      frames: widget.frames,
+      currentIndex: currentIndex,
+      nowIndex: nowIndex,
+      colors: colors,
+      onDragStart: () => setState(() => _isDragging = true),
+      onDragEnd: () {
+        setState(() => _isDragging = false);
+        _updateAnimationTimer();
+      },
+      onFrameChanged: widget.onFrameChanged,
+    );
+
+    if (widget.stacked) {
+      return Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Controls row
           Row(
             children: [
-              // Play/Pause button
-              IconButton(
-                onPressed: widget.onPlayPauseToggle,
-                icon: Icon(
-                  widget.isPlaying ? LucideIcons.pause : LucideIcons.play,
-                  size: 20,
-                ),
-                color: colors.textPrimary,
-                tooltip: widget.isPlaying ? 'Pause' : 'Play',
-              ),
-
-              const SizedBox(width: 8),
-
-              // Step backward
-              IconButton(
-                onPressed: _stepBackward,
-                icon: const Icon(LucideIcons.skipBack, size: 18),
-                color: colors.textSecondary,
-                tooltip: 'Previous frame',
-              ),
-
-              // Slider track
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Scrub against the TRACK's own width. Measuring off the
-                    // whole control row needs a hardcoded correction for the
-                    // transport buttons, which is only ever an estimate — the
-                    // speed selector is optional and its label width varies —
-                    // so the frame landed on would not match the thumb dragged.
-                    final trackWidth = constraints.maxWidth;
-                    return GestureDetector(
-                      onHorizontalDragStart: (_) {
-                        setState(() {
-                          _isDragging = true;
-                        });
-                      },
-                      onHorizontalDragUpdate: (details) {
-                        if (widget.frames.isEmpty || trackWidth <= 0) return;
-
-                        final fraction = (details.localPosition.dx / trackWidth)
-                            .clamp(0.0, 1.0);
-                        final newIndex = (fraction * widget.frames.length)
-                            .floor()
-                            .clamp(0, widget.frames.length - 1);
-
-                        if (newIndex != currentIndex) {
-                          widget.onFrameChanged(newIndex);
-                        }
-                      },
-                      onHorizontalDragEnd: (_) {
-                        setState(() {
-                          _isDragging = false;
-                        });
-                        _updateAnimationTimer();
-                      },
-                      child: CustomPaint(
-                        size: const Size(double.infinity, 40),
-                        painter: _TimelineTrackPainter(
-                          frames: widget.frames,
-                          currentIndex: currentIndex,
-                          nowIndex: nowIndex,
-                          colors: colors,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // Step forward
-              IconButton(
-                onPressed: _stepForward,
-                icon: const Icon(LucideIcons.skipForward, size: 18),
-                color: colors.textSecondary,
-                tooltip: 'Next frame',
-              ),
-
-              const SizedBox(width: 8),
-
-              // Speed selector
-              if (widget.onSpeedChanged != null)
-                PopupMenuButton<double>(
-                  initialValue: widget.playbackSpeed,
-                  onSelected: widget.onSpeedChanged,
-                  tooltip: 'Playback speed',
-                  itemBuilder: (context) => [
-                    _buildSpeedMenuItem(0.5, '0.5x'),
-                    _buildSpeedMenuItem(1.0, '1x'),
-                    _buildSpeedMenuItem(2.0, '2x'),
-                    _buildSpeedMenuItem(4.0, '4x'),
-                  ],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusXs),
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${widget.playbackSpeed}x',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          LucideIcons.chevronsUpDown,
-                          size: 12,
-                          color: colors.textMuted,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              const SizedBox(width: 12),
-
-              // Time display
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: currentFrame.isForecast
-                    ? NightshadeDecorations.emphasisSurface(
-                        colors.warning,
-                        borderRadius:
-                            BorderRadius.circular(NightshadeTokens.radiusXs),
-                      )
-                    : BoxDecoration(
-                        color: colors.surfaceAlt,
-                        borderRadius:
-                            BorderRadius.circular(NightshadeTokens.radiusXs),
-                        border: Border.all(color: colors.border),
-                      ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (currentFrame.isForecast) ...[
-                      Icon(
-                        LucideIcons.clock,
-                        size: 12,
-                        color: colors.warning,
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    Text(
-                      _formatTimestamp(currentFrame.timestamp),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: currentFrame.isForecast
-                            ? colors.warning
-                            : colors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                        fontFeatures: const [
-                          FontFeature.tabularFigures(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ...transport,
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(child: track),
             ],
           ),
-
-          // Frame counter
-          const SizedBox(height: 4),
-          Text(
-            'Frame ${currentIndex + 1} of ${widget.frames.length}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.textMuted,
-              fontSize: 11,
-            ),
-          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Row(children: readouts),
         ],
-      ),
+      );
+    }
+
+    return Row(
+      children: [
+        ...transport,
+        const SizedBox(width: NightshadeTokens.spaceMd),
+        Expanded(child: track),
+        const SizedBox(width: NightshadeTokens.spaceMd),
+        ...readouts,
+      ],
     );
   }
 
@@ -499,89 +376,191 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
   ///
   /// Shows the frame's capture time and a "latest image" note instead of dead
   /// play/scrub controls, which would do nothing with only one frame.
-  Widget _buildSingleFrame(
-    BuildContext context,
-    NightshadeColors colors,
-    RadarFrame frame,
-  ) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            frame.isForecast ? LucideIcons.clock : LucideIcons.satellite,
-            size: 16,
-            color: frame.isForecast ? colors.warning : colors.success,
+  Widget _buildSingleFrame(NightshadeColors colors, RadarFrame frame) {
+    return Row(
+      children: [
+        Icon(
+          frame.isForecast ? NightshadeIcons.clock : LucideIcons.satellite,
+          size: NightshadeTokens.iconSm,
+          color: frame.isForecast ? colors.warning : colors.success,
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        Expanded(
+          child: Text(
+            frame.isForecast
+                ? 'Forecast snapshot — this source gives one frame, so there '
+                    'is no loop to play.'
+                : 'Latest image — this source gives one frame, so there is no '
+                    'loop to play.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        const SizedBox(width: NightshadeTokens.spaceMd),
+        _FrameTime(frame: frame, label: _formatTimestamp(frame.timestamp)),
+      ],
+    );
+  }
+}
+
+/// The frame's capture time. A forecast frame says so in `warning`, because a
+/// predicted sky drawn as a measured one is the whole reason this screen
+/// exists.
+class _FrameTime extends StatelessWidget {
+  final RadarFrame frame;
+  final String label;
+
+  const _FrameTime({required this.frame, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (frame.isForecast) ...[
+          Icon(
+            NightshadeIcons.clock,
+            size: NightshadeTokens.iconXs,
+            color: colors.warning,
+          ),
+          const SizedBox(width: NightshadeTokens.spaceXs),
+        ],
+        Readout(
+          value: label,
+          label: frame.isForecast ? 'Forecast' : 'Frame time',
+          size: ReadoutSize.sm,
+          valueColor: frame.isForecast ? colors.warning : null,
+        ),
+      ],
+    );
+  }
+}
+
+/// Which frame of the loop is on screen.
+///
+/// The sentence form is what the weather tour and the regression tests read,
+/// so it stays a sentence: "Frame 13 of 13".
+class _FrameCounter extends StatelessWidget {
+  final int index;
+  final int total;
+
+  const _FrameCounter({required this.index, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Text(
+      'Frame ${index + 1} of $total',
+      style: NightshadeTypography.monoCaption.copyWith(color: colors.textMuted),
+    );
+  }
+}
+
+/// The scrub track: frame ticks, the now marker, the played span and a thumb.
+class _ScrubTrack extends StatelessWidget {
+  final List<RadarFrame> frames;
+  final int currentIndex;
+  final int? nowIndex;
+  final NightshadeColors colors;
+  final VoidCallback onDragStart;
+  final VoidCallback onDragEnd;
+  final ValueChanged<int> onFrameChanged;
+
+  const _ScrubTrack({
+    required this.frames,
+    required this.currentIndex,
+    required this.nowIndex,
+    required this.colors,
+    required this.onDragStart,
+    required this.onDragEnd,
+    required this.onFrameChanged,
+  });
+
+  /// Canvas height: the track, its ticks and the NOW label above them.
+  static const double _height = 36;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Scrub against the TRACK's own width. Measuring off the whole control
+        // row needs a hardcoded correction for the transport buttons, which is
+        // only ever an estimate — the speed selector is optional and its label
+        // width varies — so the frame landed on would not match the thumb
+        // dragged.
+        final trackWidth = constraints.maxWidth;
+        return GestureDetector(
+          onHorizontalDragStart: (_) => onDragStart(),
+          onHorizontalDragUpdate: (details) {
+            if (frames.isEmpty || trackWidth <= 0) return;
+            final fraction =
+                (details.localPosition.dx / trackWidth).clamp(0.0, 1.0);
+            final newIndex =
+                (fraction * frames.length).floor().clamp(0, frames.length - 1);
+            if (newIndex != currentIndex) onFrameChanged(newIndex);
+          },
+          onHorizontalDragEnd: (_) => onDragEnd(),
+          child: CustomPaint(
+            size: const Size(double.infinity, _height),
+            painter: _TimelineTrackPainter(
+              frames: frames,
+              currentIndex: currentIndex,
+              nowIndex: nowIndex,
+              colors: colors,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Playback speed, as a chip that opens the four speeds.
+class _SpeedSelector extends StatelessWidget {
+  final double speed;
+  final ValueChanged<double> onChanged;
+
+  const _SpeedSelector({required this.speed, required this.onChanged});
+
+  static const _speeds = <double>[0.5, 1.0, 2.0, 4.0];
+
+  static String _label(double value) =>
+      value == value.roundToDouble() ? '${value.toInt()}×' : '$value×';
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return PopupMenuButton<double>(
+      initialValue: speed,
+      onSelected: onChanged,
+      tooltip: 'Playback speed',
+      itemBuilder: (context) => [
+        for (final value in _speeds)
+          PopupMenuItem<double>(
+            value: value,
+            child: Row(
               children: [
-                Text(
-                  frame.isForecast ? 'Forecast snapshot' : 'Latest image',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'This source provides a single live frame — no loop to play.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.textMuted,
-                    fontSize: 11,
-                  ),
-                ),
+                if (value == speed)
+                  Icon(
+                    LucideIcons.check,
+                    size: NightshadeTokens.iconXs,
+                    color: colors.primary,
+                  )
+                else
+                  const SizedBox(width: NightshadeTokens.iconXs),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Text(_label(value)),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
-              border: Border.all(color: colors.border),
-            ),
-            child: Text(
-              _formatTimestamp(frame.timestamp),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  PopupMenuItem<double> _buildSpeedMenuItem(double value, String label) {
-    final colors = NightshadeColors.of(context);
-
-    return PopupMenuItem<double>(
-      value: value,
-      child: Row(
-        children: [
-          if (value == widget.playbackSpeed)
-            Icon(
-              LucideIcons.check,
-              size: 14,
-              color: colors.primary,
-            )
-          else
-            const SizedBox(width: 14),
-          const SizedBox(width: 8),
-          Text(label),
-        ],
+      ],
+      child: NightshadeChip(
+        label: _label(speed),
+        icon: LucideIcons.chevronsUpDown,
       ),
     );
   }
@@ -626,7 +605,7 @@ class _TimelineTrackPainter extends CustomPainter {
     );
 
     final trackPaint = Paint()
-      ..color = colors.surfaceAlt
+      ..color = colors.well
       ..style = PaintingStyle.fill;
 
     canvas.drawRRect(trackRect, trackPaint);
@@ -670,10 +649,8 @@ class _TimelineTrackPainter extends CustomPainter {
       // Draw "NOW" label
       final textSpan = TextSpan(
         text: 'NOW',
-        style: TextStyle(
+        style: NightshadeTypography.readoutLabel.copyWith(
           color: colors.success,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
         ),
       );
       final textPainter = TextPainter(

@@ -1,14 +1,19 @@
 part of '../weather_screen.dart';
 
-/// Header with title, refresh button, and settings access
+/// The page header: `cloud-sun` · "Weather" · safety chip · refresh · settings.
+///
+/// The chip rides in [PageHeader.actions] rather than beside the title because
+/// `PageHeader` takes only a `String context` there; see notes.md deviation 1.
 class _WeatherHeader extends StatelessWidget {
-  final NightshadeColors colors;
+  final WeatherSafetyStatus status;
+  final bool monitoring;
   final VoidCallback onRefresh;
   final VoidCallback onSettingsTap;
   final bool isLoading;
 
   const _WeatherHeader({
-    required this.colors,
+    required this.status,
+    required this.monitoring,
     required this.onRefresh,
     required this.onSettingsTap,
     required this.isLoading,
@@ -16,94 +21,178 @@ class _WeatherHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPhone = Responsive.isPhone(context);
-
-    final refreshButton = IconButton(
-      key: WeatherTutorialKeys.refreshBtn,
-      onPressed: isLoading ? null : onRefresh,
-      icon: isLoading
-          ? SizedBox(
-              width: NightshadeTokens.iconMd,
-              height: NightshadeTokens.iconMd,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(colors.primary),
-              ),
-            )
-          : const Icon(NightshadeIcons.refresh, size: NightshadeTokens.iconMd),
-      color: colors.textSecondary,
-      tooltip: 'Refresh radar data',
-    );
-
-    final settingsButton = IconButton(
-      onPressed: onSettingsTap,
-      icon: const Icon(NightshadeIcons.settings, size: NightshadeTokens.iconMd),
-      color: colors.textSecondary,
-      tooltip: 'Weather settings',
-    );
-
-    // Canonical screen chrome: title, subtitle, and trailing actions route
-    // through the shared [ScreenHeader] (typography + divider from the design
-    // system) instead of a hand-rolled title row. The top safe-area inset is
-    // preserved by wrapping the header — the outer Scaffold only handles the
-    // bottom inset.
     return SafeArea(
       bottom: false,
-      child: ScreenHeader(
-        icon: NightshadeIcons.rain,
-        title: 'Weather Radar',
-        subtitle: 'Live cloud tracking and safety monitoring',
-        padding: EdgeInsets.symmetric(
-          horizontal:
-              isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
-          vertical: NightshadeTokens.spaceMd,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            refreshButton,
-            settingsButton,
-          ],
-        ),
+      child: PageHeader(
+        icon: NightshadeIcons.weather,
+        title: 'Weather',
+        actions: [
+          NightshadeChip(
+            label: weatherSafetyChipLabel(
+              status: status,
+              monitoring: monitoring,
+            ),
+            tone: weatherSafetyChipTone(status: status, monitoring: monitoring),
+            dot: true,
+          ),
+          NightshadeIconButton(
+            key: WeatherTutorialKeys.refreshBtn,
+            icon: NightshadeIcons.refresh,
+            tooltip: 'Refresh radar data',
+            onPressed: isLoading ? null : onRefresh,
+          ),
+          NightshadeIconButton(
+            icon: NightshadeIcons.settings,
+            tooltip: 'Weather settings',
+            onPressed: onSettingsTap,
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Combined radar controls row with opacity and contrast sliders
-class _RadarControlsRow extends StatelessWidget {
-  final NightshadeColors colors;
-  final double opacity;
-  final double contrast;
-  final ValueChanged<double> onOpacityChanged;
-  final ValueChanged<double> onContrastChanged;
+/// The screen's ONE banner slot.
+///
+/// A stale fetch outranks a stranded auto-park policy: the first means the
+/// numbers on screen may be wrong, the second means a policy will not fire.
+/// Everything else the screen has to say about safety is said by the header
+/// chip and the conditions HUD, so it never becomes a second banner.
+class _WeatherBanner extends StatelessWidget {
+  final bool showFetchFailure;
+  final bool autoParkStranded;
+  final VoidCallback onRetry;
+  final VoidCallback onOpenSettings;
 
-  const _RadarControlsRow({
-    required this.colors,
-    required this.opacity,
-    required this.contrast,
-    required this.onOpacityChanged,
-    required this.onContrastChanged,
+  const _WeatherBanner({
+    required this.showFetchFailure,
+    required this.autoParkStranded,
+    required this.onRetry,
+    required this.onOpenSettings,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Static controls panel routed through the design-system [NightshadeCard]
-    // (subtle variant = surface background + token border) rather than a
-    // hand-rolled Container(BoxDecoration). The responsive inset is preserved
-    // via the card padding.
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      padding: EdgeInsets.all(
-        Responsive.isPhone(context)
-            ? NightshadeTokens.spaceMd
-            : NightshadeTokens.spaceLg,
+    if (!showFetchFailure && !autoParkStranded) {
+      return const SizedBox.shrink();
+    }
+
+    final banner = showFetchFailure
+        ? NightshadeBanner(
+            title: 'Weather data unavailable',
+            message: 'Conditions may be out of date. Check your connection.',
+            tone: BannerTone.error,
+            action: NightshadeButton(
+              label: 'Retry',
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: onRetry,
+            ),
+          )
+        : NightshadeBanner(
+            title: 'Auto-park will not fire',
+            message: 'It also needs "Park on unsafe weather" in Automation '
+                '& safety, which is off.',
+            tone: BannerTone.warning,
+            action: NightshadeButton(
+              label: 'Open settings',
+              variant: ButtonVariant.secondary,
+              size: ButtonSize.small,
+              onPressed: onOpenSettings,
+            ),
+          );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.space2xl,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.space2xl,
+        0,
       ),
-      child: Column(
-        children: [
-          // Opacity slider
-          _SliderRow(
-            colors: colors,
+      child: banner,
+    );
+  }
+}
+
+/// The radar control bar that floats over the bottom of the map.
+///
+/// One glass element carrying everything the loop needs: the satellite legend
+/// (wide only), the transport and scrub track, the frame's time, the playback
+/// speed, and a toggle that reveals the opacity and contrast sliders in place
+/// rather than opening a fifth glass panel.
+class _RadarControlBar extends StatelessWidget {
+  final bool wide;
+  final bool showLegend;
+  final List<RadarFrame> frames;
+  final int currentIndex;
+  final ValueChanged<int> onFrameChanged;
+  final bool isPlaying;
+  final VoidCallback onPlayPauseToggle;
+  final double playbackSpeed;
+  final ValueChanged<double> onSpeedChanged;
+  final double opacity;
+  final double contrast;
+  final ValueChanged<double> onOpacityChanged;
+  final ValueChanged<double> onContrastChanged;
+  final bool displayControlsOpen;
+  final VoidCallback onDisplayControlsToggle;
+
+  const _RadarControlBar({
+    required this.wide,
+    required this.showLegend,
+    required this.frames,
+    required this.currentIndex,
+    required this.onFrameChanged,
+    required this.isPlaying,
+    required this.onPlayPauseToggle,
+    required this.playbackSpeed,
+    required this.onSpeedChanged,
+    required this.opacity,
+    required this.contrast,
+    required this.onOpacityChanged,
+    required this.onContrastChanged,
+    required this.displayControlsOpen,
+    required this.onDisplayControlsToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            if (showLegend) ...[
+              const SatelliteLegend(compact: true),
+              const SizedBox(width: NightshadeTokens.spaceLg),
+            ],
+            Expanded(
+              child: RadarTimelineScrubber(
+                key: WeatherTutorialKeys.timeline,
+                frames: frames,
+                currentIndex: currentIndex,
+                onFrameChanged: onFrameChanged,
+                isPlaying: isPlaying,
+                onPlayPauseToggle: onPlayPauseToggle,
+                playbackSpeed: playbackSpeed,
+                onSpeedChanged: onSpeedChanged,
+                stacked: !wide,
+              ),
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            NightshadeIconButton(
+              icon: NightshadeIcons.sliders,
+              tooltip: 'Radar display',
+              size: IconButtonSize.sm,
+              selected: displayControlsOpen,
+              onPressed: onDisplayControlsToggle,
+            ),
+          ],
+        ),
+        if (displayControlsOpen) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          _RadarSliderRow(
             icon: NightshadeIcons.layers,
             label: 'Opacity',
             value: opacity,
@@ -112,24 +201,22 @@ class _RadarControlsRow extends StatelessWidget {
             displayValue: '${(opacity * 100).toInt()}%',
             onChanged: onOpacityChanged,
           ),
-          const SizedBox(height: 12),
-          // Contrast slider
-          _SliderRow(
-            colors: colors,
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          _RadarSliderRow(
             icon: LucideIcons.contrast,
             label: 'Contrast',
             value: contrast,
             min: 0.0,
             max: 2.5,
-            displayValue: _getContrastLabel(contrast),
+            displayValue: _contrastLabel(contrast),
             onChanged: onContrastChanged,
           ),
         ],
-      ),
+      ],
     );
   }
 
-  String _getContrastLabel(double value) {
+  static String _contrastLabel(double value) {
     if (value <= 0.2) return 'Off';
     if (value <= 0.8) return 'Low';
     if (value <= 1.3) return 'Medium';
@@ -138,9 +225,8 @@ class _RadarControlsRow extends StatelessWidget {
   }
 }
 
-/// Individual slider row widget
-class _SliderRow extends StatelessWidget {
-  final NightshadeColors colors;
+/// One labelled slider inside the control bar.
+class _RadarSliderRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final double value;
@@ -149,8 +235,7 @@ class _SliderRow extends StatelessWidget {
   final String displayValue;
   final ValueChanged<double> onChanged;
 
-  const _SliderRow({
-    required this.colors,
+  const _RadarSliderRow({
     required this.icon,
     required this.label,
     required this.value,
@@ -160,51 +245,45 @@ class _SliderRow extends StatelessWidget {
     required this.onChanged,
   });
 
+  /// Label column, wide enough for "Contrast" at `bodySm`.
+  static const double _labelWidth = 68;
+
+  /// Value column, wide enough for "100%" and "Medium".
+  static const double _valueWidth = 56;
+
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: colors.textSecondary,
-        ),
-        const SizedBox(width: 12),
+        Icon(icon, size: NightshadeTokens.iconSm, color: colors.textMuted),
+        const SizedBox(width: NightshadeTokens.spaceSm),
         SizedBox(
-          width: 70,
+          width: _labelWidth,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),
         ),
         Expanded(
-          child: SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: colors.primary,
-              inactiveTrackColor: colors.surfaceAlt,
-              thumbColor: colors.primary,
-              overlayColor: colors.primary.withValues(alpha: 0.2),
-              trackHeight: 4,
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              onChanged: onChanged,
-            ),
+          child: NightshadeSlider(
+            value: value,
+            min: min,
+            max: max,
+            onChanged: onChanged,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: NightshadeTokens.spaceSm),
         SizedBox(
-          width: 50,
+          width: _valueWidth,
           child: Text(
             displayValue,
-            style: NightshadeTypography.labelSm
-                .copyWith(color: colors.textPrimary),
             textAlign: TextAlign.end,
+            style: NightshadeTypography.readoutSm.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
         ),
       ],
@@ -212,163 +291,101 @@ class _SliderRow extends StatelessWidget {
   }
 }
 
-/// Content shown when location is not configured
-class _NoLocationContent extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _NoLocationContent({required this.colors});
+/// The single loading pattern for this screen.
+class _WeatherLoadingBody extends StatelessWidget {
+  const _WeatherLoadingBody();
 
   @override
   Widget build(BuildContext context) {
-    // Phone tier tightens the card's rhythm. Measured at 360x640 the desktop
-    // spacing made this card 695dp tall, so the "Open Location Settings" CTA
-    // landed at y=599 and its 48dp button clipped to a 41dp tap target at the
-    // bottom edge — the only action on the screen, half off it. Scrolling did
-    // not save it: nothing signals that the card continues below the fold.
-    final isPhone = Responsive.isPhone(context);
-    final cardPad = isPhone ? 20.0 : 32.0;
-    final iconPad = isPhone ? 12.0 : 16.0;
-    final gapLg = isPhone ? 16.0 : 24.0;
-    final gapSm = isPhone ? 8.0 : 12.0;
-    return SingleChildScrollView(
-      // Scrollable so the centered card never overflows when a phone is held
-      // in landscape and the viewport is short.
-      padding: const EdgeInsets.all(16),
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+/// No observing site: the radar is the only thing that needs one.
+///
+/// A connected weather station or safety monitor reports without knowing where
+/// it is, and hiding those readings behind a location setting they have nothing
+/// to do with was the 2026-07-29 defect this layout keeps fixed. So the empty
+/// state owns the body and the sensors follow only when a device is actually
+/// connected.
+class _NoLocationBody extends ConsumerWidget {
+  const _NoLocationBody();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final hasSensors = ref.watch(weatherStateProvider).connectionState ==
+            DeviceConnectionState.connected ||
+        ref.watch(safetyMonitorStateProvider).connectionState ==
+            DeviceConnectionState.connected;
+
+    return Padding(
+      padding: const EdgeInsets.all(NightshadeTokens.space2xl),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: dialogMaxWidth(context, 400),
-              ),
-              child: NightshadeCard(
-                variant: CardVariant.subtle,
-                borderRadius: NightshadeTokens.radiusInline8,
-                padding: EdgeInsets.all(cardPad),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(iconPad),
-                      decoration: BoxDecoration(
-                        color: colors.warning.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        NightshadeIcons.location,
-                        size: 48,
-                        color: colors.warning,
-                      ),
-                    ),
-                    SizedBox(height: gapLg),
-                    Text(
-                      'Location Not Configured',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize20,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: gapSm),
-                    Text(
-                      'Weather radar requires your observation location to display relevant data. Please configure your location in Settings.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        color: colors.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
-                    SizedBox(height: gapLg),
-                    NightshadeButton(
-                      label: 'Open Location Settings',
-                      icon: NightshadeIcons.location,
-                      variant: ButtonVariant.primary,
-                      onPressed: () => context.go('/settings?section=location'),
-                    ),
-                  ],
+          Expanded(
+            child: DecoratedBox(
+              decoration: NightshadeDecorations.well(colors),
+              child: Center(
+                child: EmptyState(
+                  icon: NightshadeIcons.location,
+                  title: 'No observing site',
+                  body: 'Radar needs to know where you are before it can show '
+                      'the sky above you.',
+                  action: NightshadeButton(
+                    label: 'Set your location',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    onPressed: () => context.go('/settings?section=location'),
+                  ),
                 ),
               ),
             ),
           ),
-          // Only the radar needs a location. The sensors on the rig and the
-          // safety verdict do not, and gating the whole screen hid a connected
-          // weather station's live readings behind a setting they have nothing
-          // to do with.
-          SizedBox(height: gapLg),
-          Center(
-            child: ConstrainedBox(
-              constraints:
-                  BoxConstraints(maxWidth: dialogMaxWidth(context, 560)),
-              child: Column(
-                children: [
-                  _HardwareSensorsCard(colors: colors),
-                  SizedBox(height: gapSm),
-                  _WeatherSafetyCard(colors: colors),
-                ],
+          if (hasSensors) ...[
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            const NightshadePanel(
+              head: PanelHead(
+                icon: NightshadeIcons.weather,
+                label: 'Conditions',
+              ),
+              child: _WeatherConditions(
+                alert: null,
+                motion: null,
+                lastUpdate: null,
+                cloudCoverPercent: null,
+                alertRadiusKm: null,
+                expanded: true,
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _SettingsUnavailableContent extends StatelessWidget {
-  final NightshadeColors colors;
+/// The settings store could not be read, so no verdict can be trusted.
+class _SettingsUnavailableBody extends StatelessWidget {
   final VoidCallback onRetry;
 
-  const _SettingsUnavailableContent({
-    required this.colors,
-    required this.onRetry,
-  });
+  const _SettingsUnavailableBody({required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: dialogMaxWidth(context, 400)),
-          child: NightshadeCard(
-            variant: CardVariant.subtle,
-            borderRadius: NightshadeTokens.radiusInline8,
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.alertTriangle,
-                  size: 44,
-                  color: colors.error,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Weather Settings Unavailable',
-                  textAlign: TextAlign.center,
-                  style: NightshadeTypography.h5.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Nightshade could not load the observing location or weather '
-                  'configuration. Weather conditions are unknown.',
-                  textAlign: TextAlign.center,
-                  style: NightshadeTypography.bodySm.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                NightshadeButton(
-                  label: 'Retry',
-                  icon: NightshadeIcons.refresh,
-                  onPressed: onRetry,
-                ),
-              ],
-            ),
-          ),
+      child: EmptyState(
+        icon: NightshadeIcons.warning,
+        title: 'Weather settings unavailable',
+        body: 'The observing location and weather configuration could not be '
+            'loaded, so conditions are unknown.',
+        action: NightshadeButton(
+          label: 'Retry',
+          icon: NightshadeIcons.refresh,
+          variant: ButtonVariant.secondary,
+          size: ButtonSize.small,
+          onPressed: onRetry,
         ),
       ),
     );

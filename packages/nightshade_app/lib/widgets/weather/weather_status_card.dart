@@ -1,14 +1,16 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../tutorial_keys/weather_keys.dart';
 
-/// Weather status card showing current conditions and alerts
-class WeatherStatusCard extends ConsumerStatefulWidget {
+/// The radar's own verdict, inside the Weather screen's conditions HUD.
+///
+/// It carries no container of its own: the caller decides whether this sits in
+/// [Glass] over the map or in a [NightshadePanel] under it, so there is one
+/// block rendered two ways rather than two blocks (02 rule 4).
+class WeatherStatusCard extends ConsumerWidget {
   /// Current weather alert (if any)
   final WeatherAlert? alert;
 
@@ -18,47 +20,33 @@ class WeatherStatusCard extends ConsumerStatefulWidget {
   /// Last data update time
   final DateTime? lastUpdate;
 
-  /// Whether to show expanded details
-  final bool expanded;
-
-  /// Callback to toggle expanded state
-  final VoidCallback? onExpandToggle;
-
   const WeatherStatusCard({
     super.key,
     this.alert,
     this.motion,
     this.lastUpdate,
-    this.expanded = true,
-    this.onExpandToggle,
   });
 
-  @override
-  ConsumerState<WeatherStatusCard> createState() => _WeatherStatusCardState();
-}
-
-class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
-  /// Get icon for alert level
-  IconData _getAlertIcon(AlertLevel level) {
+  /// Icon for an alert level.
+  static IconData _alertIcon(AlertLevel level) {
     switch (level) {
       case AlertLevel.clear:
-        return LucideIcons.checkCircle;
+        return NightshadeIcons.success;
       case AlertLevel.watch:
-        return LucideIcons.eye;
+        return NightshadeIcons.visible;
       case AlertLevel.warning:
-        return LucideIcons.alertTriangle;
+        return NightshadeIcons.warning;
       case AlertLevel.critical:
-        return LucideIcons.alertOctagon;
+        return NightshadeIcons.error;
     }
   }
 
-  /// Get color for alert level
-  Color _getAlertColor(AlertLevel level, NightshadeColors colors) {
+  /// Colour for an alert level.
+  static Color _alertColor(AlertLevel level, NightshadeColors colors) {
     switch (level) {
       case AlertLevel.clear:
         return colors.success;
       case AlertLevel.watch:
-        return colors.warning;
       case AlertLevel.warning:
         return colors.warning;
       case AlertLevel.critical:
@@ -66,8 +54,8 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
     }
   }
 
-  /// Get text label for alert level
-  String _getAlertLabel(AlertLevel level) {
+  /// Text label for an alert level.
+  static String _alertLabel(AlertLevel level) {
     switch (level) {
       case AlertLevel.clear:
         return 'Clear';
@@ -80,25 +68,18 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
     }
   }
 
-  /// Format ETA duration
-  String _formatEta(Duration eta) {
+  /// Format ETA duration.
+  static String _formatEta(Duration eta) {
     final minutes = eta.inMinutes;
-    if (minutes < 2) {
-      return 'Imminent';
-    } else if (minutes < 60) {
-      return '~$minutes min';
-    } else {
-      final hours = eta.inHours;
-      final remainingMinutes = minutes % 60;
-      return '~${hours}h ${remainingMinutes}m';
-    }
+    if (minutes < 2) return 'Imminent';
+    if (minutes < 60) return '~$minutes min';
+    final hours = eta.inHours;
+    return '~${hours}h ${minutes % 60}m';
   }
 
-  /// Convert degrees to cardinal direction
-  String _degreesToCardinal(double degrees) {
-    // Normalize to 0-360
+  /// Convert degrees to a cardinal direction.
+  static String _degreesToCardinal(double degrees) {
     final normalized = degrees % 360;
-
     const directions = [
       'N',
       'NNE',
@@ -115,367 +96,104 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
       'W',
       'WNW',
       'NW',
-      'NNW'
+      'NNW',
     ];
-    final index = ((normalized + 11.25) / 22.5).floor() % 16;
-    return directions[index];
+    return directions[((normalized + 11.25) / 22.5).floor() % 16];
   }
 
-  /// Format last update time as relative
-  String _formatLastUpdate(DateTime time) {
-    final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inSeconds < 60) {
-      return '${difference.inSeconds} sec ago';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} min ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hr ago';
-    } else {
-      return '${difference.inDays} days ago';
-    }
+  /// Format last update time as relative.
+  static String _formatLastUpdate(DateTime time) {
+    final difference = DateTime.now().difference(time);
+    if (difference.inSeconds < 60) return '${difference.inSeconds} sec ago';
+    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+    if (difference.inHours < 24) return '${difference.inHours} hr ago';
+    return '${difference.inDays} days ago';
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
 
     // Default to clear if no alert
-    final alertLevel = widget.alert?.level ?? AlertLevel.clear;
-    final alertIcon = _getAlertIcon(alertLevel);
-    final alertColor = _getAlertColor(alertLevel, colors);
-    final alertLabel = _getAlertLabel(alertLevel);
+    final level = alert?.level ?? AlertLevel.clear;
+    final tone = _alertColor(level, colors);
+    final eta = alert?.eta;
 
-    if (!widget.expanded) {
-      return _buildCollapsedView(colors, alertIcon, alertColor, alertLabel);
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: NightshadeDecorations.tintedBadge(
-                      alertColor,
-                    ),
-                    child: Icon(
-                      alertIcon,
-                      size: 16,
-                      color: alertColor,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    alertLabel,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              if (widget.onExpandToggle != null)
-                IconButton(
-                  icon: Icon(
-                    LucideIcons.chevronUp,
-                    size: 18,
-                    color: colors.textMuted,
-                  ),
-                  onPressed: widget.onExpandToggle,
-                  tooltip: 'Collapse',
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Alert message (if present)
-          if (widget.alert != null) ...[
-            Text(
-              widget.alert!.message,
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.textSecondary,
-                height: 1.4,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(_alertIcon(level), size: NightshadeTokens.iconSm, color: tone),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Expanded(
+              child: Text(
+                _alertLabel(level),
+                style: NightshadeTypography.bodyStrong.copyWith(color: tone),
               ),
             ),
-            const SizedBox(height: 16),
+            if (eta != null)
+              Readout(
+                value: _formatEta(eta.difference(DateTime.now())),
+                label: 'Arrives',
+                size: ReadoutSize.sm,
+                valueColor: tone,
+              ),
           ],
-
-          // ETA countdown (if approaching)
-          if (widget.alert?.eta != null) ...[
-            _buildEtaCountdown(colors, alertLevel),
-            const SizedBox(height: 16),
-          ],
-
-          // Cloud info section (if motion data available)
-          if (widget.motion != null) ...[
-            _buildCloudInfo(colors),
-            const SizedBox(height: 16),
-          ],
-
-          // Last updated. Null means no fetch has landed yet — say so instead
-          // of leaving the slot blank; an age is only printable once there is
-          // a real fetch time to age from.
+        ),
+        if (alert != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
-            widget.lastUpdate == null
-                ? 'Waiting for weather data'
-                : 'Updated ${_formatLastUpdate(widget.lastUpdate!)}',
-            style: TextStyle(
-              fontSize: 11,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build collapsed view
-  Widget _buildCollapsedView(
-    NightshadeColors colors,
-    IconData alertIcon,
-    Color alertColor,
-    String alertLabel,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(alertIcon, size: 16, color: alertColor),
-              const SizedBox(width: 8),
-              Text(
-                alertLabel,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textPrimary,
-                ),
-              ),
-              if (widget.alert?.eta != null) ...[
-                const SizedBox(width: 12),
-                Text(
-                  _formatEta(widget.alert!.eta!.difference(DateTime.now())),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (widget.onExpandToggle != null)
-            IconButton(
-              icon: Icon(
-                LucideIcons.chevronDown,
-                size: 18,
-                color: colors.textMuted,
-              ),
-              onPressed: widget.onExpandToggle,
-              tooltip: 'Expand',
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Build ETA countdown box
-  Widget _buildEtaCountdown(NightshadeColors colors, AlertLevel alertLevel) {
-    final eta = widget.alert!.eta!;
-    final now = DateTime.now();
-    final remaining = eta.difference(now);
-
-    // Critical/imminent arrivals stay static — no continuous pulse.
-    Widget content = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: NightshadeDecorations.emphasisSurface(
-        _getAlertColor(alertLevel, colors),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-      ),
-      child: Column(
-        children: [
-          Text(
-            _formatEta(remaining),
-            style: NightshadeTypography.telemetryMd.copyWith(
-              fontWeight: FontWeight.w700,
-              color: _getAlertColor(alertLevel, colors),
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'until arrival',
-            style: TextStyle(
-              fontSize: 12,
+            alert!.message,
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),
         ],
-      ),
-    );
-
-    return content;
-  }
-
-  /// Build cloud info section
-  Widget _buildCloudInfo(NightshadeColors colors) {
-    final motion = widget.motion!;
-    final cardinal = _degreesToCardinal(motion.directionDegrees);
-
-    return Column(
-      key: WeatherTutorialKeys.cloudMotion,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Cloud metrics row
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _CloudMetric(
-              label: 'Density',
-              value:
-                  '${widget.alert?.cloudDensityPercent.toStringAsFixed(0) ?? '0'}%',
-              colors: colors,
-            ),
-            _CloudMetric(
-              label: 'Distance',
-              value: '${motion.distanceKm.toStringAsFixed(1)} km',
-              colors: colors,
-            ),
-            _CloudMetric(
-              label: 'Speed',
-              value: '${motion.speedKmh.toStringAsFixed(1)} km/h',
-              colors: colors,
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        // Direction indicator
-        Row(
-          children: [
-            Icon(
-              LucideIcons.wind,
-              size: 14,
-              color: colors.textMuted,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Moving toward ',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
+        if (motion != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          ReadoutRow(
+            key: WeatherTutorialKeys.cloudMotion,
+            gap: NightshadeTokens.spaceXl,
+            children: [
+              Readout(
+                value: motion!.speedKmh.toStringAsFixed(1),
+                unit: 'km/h',
+                label: 'Speed',
+                size: ReadoutSize.sm,
               ),
-            ),
-            Text(
-              cardinal,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
+              Readout(
+                value: _degreesToCardinal(motion!.directionDegrees),
+                label: 'Toward',
+                size: ReadoutSize.sm,
               ),
-            ),
-            const SizedBox(width: 8),
-            _DirectionArrow(
-              directionDegrees: motion.directionDegrees,
-              color: colors.textMuted,
-            ),
-          ],
+              Readout(
+                value: motion!.distanceKm.toStringAsFixed(1),
+                unit: 'km',
+                label: 'Distance',
+                size: ReadoutSize.sm,
+              ),
+              Readout(
+                value: alert?.cloudDensityPercent.toStringAsFixed(0),
+                unit: '%',
+                label: 'Density',
+                size: ReadoutSize.sm,
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        // Null means no fetch has landed yet — say so instead of leaving the
+        // slot blank; an age is only printable once there is a real fetch time
+        // to age from.
+        Text(
+          lastUpdate == null
+              ? 'Waiting for weather data'
+              : 'Updated ${_formatLastUpdate(lastUpdate!)}',
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       ],
-    );
-  }
-}
-
-/// Cloud metric display
-class _CloudMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final NightshadeColors colors;
-
-  const _CloudMetric({
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: colors.textMuted,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Directional arrow showing cloud movement direction
-class _DirectionArrow extends StatelessWidget {
-  final double directionDegrees;
-  final Color color;
-
-  const _DirectionArrow({
-    required this.directionDegrees,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: (directionDegrees - 90) *
-          math.pi /
-          180, // Rotate arrow to point in direction
-      child: Icon(
-        LucideIcons.arrowRight,
-        size: 16,
-        color: color,
-      ),
     );
   }
 }

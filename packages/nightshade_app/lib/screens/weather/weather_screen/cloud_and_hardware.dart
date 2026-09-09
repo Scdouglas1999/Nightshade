@@ -1,373 +1,212 @@
 part of '../weather_screen.dart';
 
-/// Cloud cover percentage display card
-class _CloudCoverCard extends StatelessWidget {
+/// The conditions HUD.
+///
+/// One block, used twice: floated in [Glass] over the radar on a desktop-width
+/// window, and dropped into a [NightshadePanel] under the map when the window
+/// is too narrow for a floating panel or when there is no site and therefore no
+/// radar to float over. Same widgets either way — there is one of everything
+/// (02 rule 4).
+class _WeatherConditions extends ConsumerWidget {
+  /// Whether the radar-derived figures (cloud cover, alert level, motion) have
+  /// a site to have been measured for. Without one only the hardware sensors
+  /// and the safety verdict are real.
+  final bool radarAvailable;
+
+  final WeatherAlert? alert;
+  final CloudMotion? motion;
+  final DateTime? lastUpdate;
   final double? cloudCoverPercent;
-  final NightshadeColors colors;
+  final double? alertRadiusKm;
+  final bool expanded;
+  final VoidCallback? onExpandToggle;
 
-  const _CloudCoverCard({
+  const _WeatherConditions({
+    super.key,
+    this.radarAvailable = false,
+    required this.alert,
+    required this.motion,
+    required this.lastUpdate,
     required this.cloudCoverPercent,
-    required this.colors,
+    required this.alertRadiusKm,
+    required this.expanded,
+    this.onExpandToggle,
   });
-
-  Color _getCloudCoverColor(double percent) {
-    if (percent <= 20) return colors.success;
-    if (percent <= 40) return const Color(0xFF22C55E); // Green
-    if (percent <= 60) return colors.warning;
-    if (percent <= 80) return const Color(0xFFFB923C); // Orange
-    return colors.error;
-  }
-
-  String _getCloudCoverLabel(double percent) {
-    if (percent <= 10) return 'Clear';
-    if (percent <= 25) return 'Mostly Clear';
-    if (percent <= 50) return 'Partly Cloudy';
-    if (percent <= 75) return 'Mostly Cloudy';
-    if (percent <= 90) return 'Cloudy';
-    return 'Overcast';
-  }
-
-  IconData _getCloudCoverIcon(double percent) {
-    if (percent <= 20) return NightshadeIcons.sun;
-    if (percent <= 50) return NightshadeIcons.weather;
-    if (percent <= 80) return NightshadeIcons.cloud;
-    return LucideIcons.cloudFog;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasData = cloudCoverPercent != null;
-    final percent = cloudCoverPercent ?? 0.0;
-    final coverColor =
-        hasData ? _getCloudCoverColor(percent) : colors.textMuted;
-    final label = hasData ? _getCloudCoverLabel(percent) : 'Unknown';
-    final icon = hasData ? _getCloudCoverIcon(percent) : NightshadeIcons.cloud;
-
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: _weatherCardPadding(context),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: NightshadeDecorations.tintedBadge(
-              coverColor,
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-            ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: coverColor,
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cloud Cover',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      cloudCoverPercent != null ? '${percent.toInt()}%' : '--',
-                      style: NightshadeTypography.telemetryLg.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: coverColor,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Progress indicator
-          SizedBox(
-            width: 60,
-            height: 60,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: hasData ? percent / 100 : null,
-                  strokeWidth: 6,
-                  backgroundColor: colors.surfaceAlt,
-                  valueColor: AlwaysStoppedAnimation(coverColor),
-                ),
-                Text(
-                  cloudCoverPercent != null ? '${percent.toInt()}' : '--',
-                  style: NightshadeTypography.h5
-                      .copyWith(color: colors.textPrimary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Hardware weather and safety device sensors card
-/// Displays readings from connected hardware devices prominently
-class _HardwareSensorsCard extends ConsumerWidget {
-  final NightshadeColors colors;
-
-  const _HardwareSensorsCard({required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final weatherState = ref.watch(weatherStateProvider);
-    final safetyState = ref.watch(safetyMonitorStateProvider);
+    final safetyDeviceState = ref.watch(safetyMonitorStateProvider);
+    final settings = ref.watch(weatherSettingsProvider);
+    final safetyState = ref.watch(weatherSafetyProvider);
 
     final hasWeatherDevice =
         weatherState.connectionState == DeviceConnectionState.connected;
     final hasSafetyDevice =
-        safetyState.connectionState == DeviceConnectionState.connected;
+        safetyDeviceState.connectionState == DeviceConnectionState.connected;
 
-    // Don't show if no hardware devices connected
-    if (!hasWeatherDevice && !hasSafetyDevice) {
-      return const SizedBox.shrink();
-    }
+    final sensorRows = <(String, String)>[
+      if (hasSafetyDevice)
+        (
+          safetyDeviceState.deviceName ?? 'Safety monitor',
+          safetyDeviceState.isSafe ? 'Safe' : 'Unsafe',
+        ),
+      if (hasWeatherDevice) ...[
+        if (weatherState.temperature != null)
+          ('Temperature', '${weatherState.temperature!.toStringAsFixed(1)} °C'),
+        if (weatherState.humidity != null)
+          ('Humidity', '${weatherState.humidity!.toStringAsFixed(0)} %'),
+        if (weatherState.dewPoint != null)
+          ('Dew point', '${weatherState.dewPoint!.toStringAsFixed(1)} °C'),
+        if (weatherState.windSpeed != null)
+          ('Wind', '${weatherState.windSpeed!.toStringAsFixed(1)} m/s'),
+        if (weatherState.cloudCover != null)
+          ('Sensor cloud', '${weatherState.cloudCover!.toStringAsFixed(0)} %'),
+        if (weatherState.skyQuality != null)
+          (
+            'Sky quality',
+            '${weatherState.skyQuality!.toStringAsFixed(2)} mag/□″',
+          ),
+        if (weatherState.rainRate != null && weatherState.rainRate! > 0)
+          ('Rain', '${weatherState.rainRate!.toStringAsFixed(1)} mm/hr'),
+        if (weatherState.lastUpdated != null)
+          ('Updated', _relativeAge(weatherState.lastUpdated!)),
+      ],
+    ];
 
-    return NightshadeCard(
-      variant: CardVariant.subtle,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: _weatherCardPadding(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
+    final showHeadline =
+        radarAvailable && (cloudCoverPercent != null || alertRadiusKm != null);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showHeadline)
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.primary,
-                  borderRadius: NightshadeTokens.borderRadiusInline8,
-                ),
-                child: Icon(
-                  NightshadeIcons.cpu,
-                  size: 16,
-                  color: colors.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: ReadoutRow(
+                  gap: NightshadeTokens.space2xl,
                   children: [
-                    Text(
-                      'Hardware Sensors',
-                      style: NightshadeTypography.h5
-                          .copyWith(color: colors.textPrimary),
+                    Readout(
+                      value: cloudCoverPercent?.toStringAsFixed(0),
+                      unit: '%',
+                      label: 'Cloud cover',
+                      valueColor: _cloudCoverTone(colors, cloudCoverPercent),
                     ),
-                    Text(
-                      'Live readings from connected devices',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                      ),
+                    Readout(
+                      key: WeatherTutorialKeys.alertRadius,
+                      value: alertRadiusKm?.toStringAsFixed(0),
+                      unit: 'km',
+                      label: 'Alert radius',
+                      size: ReadoutSize.sm,
                     ),
                   ],
                 ),
               ),
+              if (onExpandToggle != null)
+                NightshadeIconButton(
+                  icon: expanded
+                      ? NightshadeIcons.chevronUp
+                      : NightshadeIcons.chevronDown,
+                  tooltip: expanded ? 'Collapse conditions' : 'Show conditions',
+                  size: IconButtonSize.sm,
+                  onPressed: onExpandToggle,
+                ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Safety monitor status (priority)
-          if (hasSafetyDevice) ...[
-            _SensorRow(
-              colors: colors,
-              icon: safetyState.isSafe
-                  ? NightshadeIcons.shieldOk
-                  : NightshadeIcons.shieldAlert,
-              label: 'Safety Monitor',
-              value: safetyState.isSafe ? 'SAFE' : 'UNSAFE',
-              valueColor: safetyState.isSafe ? colors.success : colors.error,
-              deviceName: safetyState.deviceName,
-            ),
-            if (hasWeatherDevice) const SizedBox(height: 12),
-          ],
-
-          // Weather device readings
-          if (hasWeatherDevice) ...[
-            if (weatherState.temperature != null)
-              _SensorRow(
-                colors: colors,
-                icon: NightshadeIcons.temperature,
-                label: 'Temperature',
-                value: '${weatherState.temperature!.toStringAsFixed(1)}°C',
-              ),
-            if (weatherState.humidity != null) ...[
-              const SizedBox(height: 8),
-              _SensorRow(
-                colors: colors,
-                icon: NightshadeIcons.humidity,
-                label: 'Humidity',
-                value: '${weatherState.humidity!.toStringAsFixed(0)}%',
-                valueColor: weatherState.humidity! > 80 ? colors.warning : null,
-              ),
-            ],
-            if (weatherState.dewPoint != null) ...[
-              const SizedBox(height: 8),
-              _SensorRow(
-                colors: colors,
-                icon: LucideIcons.droplet,
-                label: 'Dew Point',
-                value: '${weatherState.dewPoint!.toStringAsFixed(1)}°C',
-              ),
-            ],
-            if (weatherState.windSpeed != null) ...[
-              const SizedBox(height: 8),
-              _SensorRow(
-                colors: colors,
-                icon: NightshadeIcons.wind,
-                label: 'Wind Speed',
-                value: '${weatherState.windSpeed!.toStringAsFixed(1)} m/s',
-                valueColor:
-                    weatherState.windSpeed! > 15 ? colors.warning : null,
-              ),
-            ],
-            if (weatherState.cloudCover != null) ...[
-              const SizedBox(height: 8),
-              _SensorRow(
-                colors: colors,
-                icon: NightshadeIcons.cloud,
-                label: 'Cloud Cover',
-                value: '${weatherState.cloudCover!.toStringAsFixed(0)}%',
-                valueColor:
-                    weatherState.cloudCover! > 60 ? colors.warning : null,
-              ),
-            ],
-            if (weatherState.skyQuality != null) ...[
-              const SizedBox(height: 8),
-              _SensorRow(
-                colors: colors,
-                icon: NightshadeIcons.sparkle,
-                label: 'Sky Quality',
-                value:
-                    '${weatherState.skyQuality!.toStringAsFixed(2)} mag/arcsec²',
-              ),
-            ],
-            if (weatherState.rainRate != null &&
-                weatherState.rainRate! > 0) ...[
-              const SizedBox(height: 8),
-              _SensorRow(
-                colors: colors,
-                icon: NightshadeIcons.rain,
-                label: 'Rain',
-                value: '${weatherState.rainRate!.toStringAsFixed(1)} mm/hr',
-                valueColor: colors.error,
-              ),
-            ],
-          ],
-
-          // Last updated
-          if (weatherState.lastUpdated != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Last updated: ${_formatTime(weatherState.lastUpdated!)}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textSecondary.withValues(alpha: 0.7),
-              ),
+        if (expanded) ...[
+          if (radarAvailable) ...[
+            if (showHeadline) const SizedBox(height: NightshadeTokens.spaceMd),
+            WeatherStatusCard(
+              alert: alert,
+              motion: motion,
+              lastUpdate: lastUpdate,
             ),
           ],
+          if (sensorRows.isNotEmpty) ...[
+            const _ConditionsDivider(),
+            const _ConditionsEyebrow(label: 'Sensors'),
+            KeyValueList(rows: sensorRows),
+          ],
+          const _ConditionsDivider(),
+          KeyValueList(
+            rows: [
+              (
+                'Auto-park',
+                weatherPolicyArmedLabel(
+                  armed: safetyState.autoParkArmed,
+                  toggledOn: settings.autoParkEnabled,
+                ),
+              ),
+              (
+                'Auto-resume',
+                weatherPolicyArmedLabel(
+                  armed: safetyState.autoResumeArmed,
+                  toggledOn: settings.autoResumeEnabled,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          const _SafetyDisclosure(),
         ],
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final diff = now.difference(time);
-    if (diff.inSeconds < 60) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    return '${diff.inHours}h ago';
-  }
-}
-
-/// Single sensor reading row
-class _SensorRow extends StatelessWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
-  final String? deviceName;
-
-  const _SensorRow({
-    required this.colors,
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-    this.deviceName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: colors.textSecondary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textSecondary,
-                ),
-              ),
-              if (deviceName != null)
-                Text(
-                  deviceName!,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize9,
-                    color: colors.textSecondary.withValues(alpha: 0.6),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        Text(
-          value,
-          style: NightshadeTypography.labelStrong
-              .copyWith(color: valueColor ?? colors.textPrimary),
-        ),
       ],
     );
   }
+
+  /// The cloud-cover value carries status, so it takes a status colour: a
+  /// clear sky is `success`, an overcast one is `error`.
+  static Color? _cloudCoverTone(NightshadeColors colors, double? percent) {
+    if (percent == null) return null;
+    if (percent <= 25) return colors.success;
+    if (percent <= 60) return colors.warning;
+    return colors.error;
+  }
+}
+
+/// A hairline between blocks inside the conditions HUD.
+class _ConditionsDivider extends StatelessWidget {
+  const _ConditionsDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: NightshadeTokens.spaceMd,
+      ),
+      child: Container(height: 1, color: colors.border),
+    );
+  }
+}
+
+/// An 11px uppercase group label inside the conditions HUD. A [PanelHead] is
+/// for a panel; this is the same label at the same weight, one level in.
+class _ConditionsEyebrow extends StatelessWidget {
+  final String label;
+
+  const _ConditionsEyebrow({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+      child: Text(
+        label.toUpperCase(),
+        style: NightshadeTypography.eyebrow.copyWith(color: colors.textMuted),
+      ),
+    );
+  }
+}
+
+/// "just now" / "3m ago" / "2h ago".
+String _relativeAge(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff.inSeconds < 60) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  return '${diff.inHours}h ago';
 }
