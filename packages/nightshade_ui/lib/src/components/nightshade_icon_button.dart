@@ -167,44 +167,65 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
       button: true,
       enabled: !disabled,
       label: widget.tooltip,
-      child: NightshadeTooltip(
-        message: widget.tooltip,
-        child: MouseRegion(
-          onEnter: (_) => _setHovered(true),
-          onExit: (_) => _setHovered(false),
-          cursor: disabled
-              ? SystemMouseCursors.basic
-              : SystemMouseCursors.click,
-          child: FocusableActionDetector(
-            enabled: !disabled,
-            onShowFocusHighlight: (value) {
-              if (!mounted || _focused == value) return;
-              setState(() => _focused = value);
-            },
-            actions: <Type, Action<Intent>>{
-              ActivateIntent: CallbackAction<ActivateIntent>(
-                onInvoke: (_) {
-                  widget.onPressed?.call();
-                  return null;
+      // `find.byTooltip` is the finder every Flutter test reaches for, and it
+      // matches a Material `Tooltip` — not this control's own
+      // `NightshadeTooltip`, which is an OverlayPortal that exists only while
+      // the pointer is over the button. So the 178 icon controls wave 3
+      // migrated went invisible to it, and each screen grew a local
+      // `findByTooltip` helper that knew about both.
+      //
+      // The `Tooltip` below is a LABEL, not a second tooltip: `TooltipVisibility`
+      // stops it building any overlay of its own, and `excludeFromSemantics`
+      // keeps it out of the accessibility tree, where the `Semantics` above
+      // already publishes the same string as this button's name. What it does
+      // carry is the message, on the widget the standard finder looks for. It
+      // sits INSIDE the `Semantics` so that node stays this button's outermost
+      // one, which is what `tester.getSemantics` walks to.
+      child: TooltipVisibility(
+        visible: false,
+        child: Tooltip(
+          message: widget.tooltip,
+          excludeFromSemantics: true,
+          child: NightshadeTooltip(
+            message: widget.tooltip,
+            child: MouseRegion(
+              onEnter: (_) => _setHovered(true),
+              onExit: (_) => _setHovered(false),
+              cursor: disabled
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.click,
+              child: FocusableActionDetector(
+                enabled: !disabled,
+                onShowFocusHighlight: (value) {
+                  if (!mounted || _focused == value) return;
+                  setState(() => _focused = value);
                 },
-              ),
-              ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
-                onInvoke: (_) {
-                  widget.onPressed?.call();
-                  return null;
+                actions: <Type, Action<Intent>>{
+                  ActivateIntent: CallbackAction<ActivateIntent>(
+                    onInvoke: (_) {
+                      widget.onPressed?.call();
+                      return null;
+                    },
+                  ),
+                  ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+                    onInvoke: (_) {
+                      widget.onPressed?.call();
+                      return null;
+                    },
+                  ),
                 },
-              ),
-            },
-            // Every tap callback is dropped when disabled, not just onTap: a
-            // GestureDetector that keeps one wired publishes a live tap action
-            // beside a correct isEnabled=false flag, which the Linux AT-SPI
-            // bridge reports as an enabled button.
-            child: GestureDetector(
-              onTap: disabled ? null : widget.onPressed,
-              child: ExcludeSemantics(
-                child: Opacity(
-                  opacity: disabled ? NightshadeTokens.opacityDisabled : 1,
-                  child: button,
+                // Every tap callback is dropped when disabled, not just onTap: a
+                // GestureDetector that keeps one wired publishes a live tap action
+                // beside a correct isEnabled=false flag, which the Linux AT-SPI
+                // bridge reports as an enabled button.
+                child: GestureDetector(
+                  onTap: disabled ? null : widget.onPressed,
+                  child: ExcludeSemantics(
+                    child: Opacity(
+                      opacity: disabled ? NightshadeTokens.opacityDisabled : 1,
+                      child: button,
+                    ),
+                  ),
                 ),
               ),
             ),

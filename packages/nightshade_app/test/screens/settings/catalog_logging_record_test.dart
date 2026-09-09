@@ -20,7 +20,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../harness/harness.dart';
-import 'settings_finders.dart';
 
 Future<void> _finishCatalogLoad(WidgetTester tester) async {
   for (var attempt = 0; attempt < 20; attempt++) {
@@ -28,9 +27,9 @@ Future<void> _finishCatalogLoad(WidgetTester tester) async {
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );
     await tester.pump();
-    if (findByTooltip('Import from file').evaluate().isNotEmpty) return;
+    if (find.byTooltip('Import from file').evaluate().isNotEmpty) return;
   }
-  expect(findByTooltip('Import from file'), findsWidgets);
+  expect(find.byTooltip('Import from file'), findsWidgets);
 }
 
 void main() {
@@ -66,7 +65,7 @@ void main() {
     );
     await _finishCatalogLoad(tester);
 
-    await tester.tap(findByTooltip('Import from file').first);
+    await tester.tap(find.byTooltip('Import from file').first);
     await tester.pump();
     await tester.pump();
 
@@ -103,7 +102,7 @@ void main() {
     );
     await _finishCatalogLoad(tester);
 
-    await tester.tap(findByTooltip('Import from file').first);
+    await tester.tap(find.byTooltip('Import from file').first);
     await tester.pump();
     await tester.pump();
     await tester.pump();

@@ -7,7 +7,6 @@ import 'package:nightshade_app/screens/settings/equipment_profiles_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
-import 'settings_finders.dart';
 
 class _SwappableBackendNotifier extends BackendNotifier {
   _SwappableBackendNotifier(super.ref, NightshadeBackend backend) {
@@ -67,8 +66,8 @@ void main() {
       ],
     );
 
-    await tester.tap(findByTooltip('Import profiles'));
-    await tester.tap(findByTooltip('Import profiles'));
+    await tester.tap(find.byTooltip('Import profiles'));
+    await tester.tap(find.byTooltip('Import profiles'));
     await tester.pump();
     expect(pickerCalls, 1);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -85,7 +84,7 @@ void main() {
 
     expect(readerCalls, 0);
     expect(importerCalls, 0);
-    expect(findByTooltip('Import profiles'), findsOneWidget);
+    expect(find.byTooltip('Import profiles'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -106,7 +105,7 @@ void main() {
       ],
     );
 
-    await tester.tap(findByTooltip('Import profiles'));
+    await tester.tap(find.byTooltip('Import profiles'));
     await tester.pump();
     await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
 
@@ -130,12 +129,12 @@ void main() {
       ],
     );
 
-    await tester.tap(findByTooltip('Import profiles'));
+    await tester.tap(find.byTooltip('Import profiles'));
     await tester.pump();
     await tester.pump();
 
     expect(find.textContaining('picker unavailable'), findsOneWidget);
-    expect(findByTooltip('Import profiles'), findsOneWidget);
+    expect(find.byTooltip('Import profiles'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -161,7 +160,7 @@ void main() {
       ],
     );
 
-    await tester.tap(findByTooltip('Import profiles'));
+    await tester.tap(find.byTooltip('Import profiles'));
     await tester.pump();
     await tester.pump();
 

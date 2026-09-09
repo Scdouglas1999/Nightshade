@@ -37,7 +37,6 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
-import 'settings_finders.dart';
 
 /// Drops "overflowed" layout exceptions for the current test; re-forwards the
 /// rest to the default presenter. The delivery rows are multi-line and a long
@@ -176,7 +175,7 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(findByTooltip('Edit nas'));
+      await tester.tap(find.byTooltip('Edit nas'));
       await tester.pumpAndSettle();
       await tester.enterText(_dialogTextFields().at(0), 'office-nas');
       await tester.tap(find.text('Save'));
@@ -190,7 +189,7 @@ void main() {
         reason: 'A rename must not drop the transport config.',
       );
 
-      await tester.tap(findByTooltip('Edit office-nas'));
+      await tester.tap(find.byTooltip('Edit office-nas'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
@@ -264,7 +263,7 @@ void main() {
         reason: 'The non-secret endpoint is what the row identifies.',
       );
 
-      await tester.tap(findByTooltip('Edit office-pc'));
+      await tester.tap(find.byTooltip('Edit office-pc'));
       await tester.pumpAndSettle();
 
       expect(
@@ -826,7 +825,7 @@ void main() {
       );
 
       await _pumpDelivery(tester, database);
-      await tester.tap(findByTooltip('Edit nas'));
+      await tester.tap(find.byTooltip('Edit nas'));
       await tester.pumpAndSettle();
       await tester.enterText(_dialogTextFields().at(1), '/mnt/right');
       await tester.tap(find.text('Save'));
@@ -1024,7 +1023,7 @@ void main() {
       // future editor field that smuggles a credential fails this test.
       assertNoSecretsInConfig(stored.single.configJson);
 
-      await tester.tap(findByTooltip('Edit office-pc'));
+      await tester.tap(find.byTooltip('Edit office-pc'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove stored key'));
       await tester.pumpAndSettle();

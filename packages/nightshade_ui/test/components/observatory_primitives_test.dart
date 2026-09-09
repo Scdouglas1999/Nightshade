@@ -279,5 +279,50 @@ void main() {
         NightshadeTokens.opacityDisabled,
       );
     });
+
+    // Wave 3 migrated 178 `IconButton(` call sites onto this control, and
+    // every one of them went invisible to `find.byTooltip` — the finder every
+    // screen test reaches for — because this button shows a `NightshadeTooltip`
+    // rather than Material's. Each screen then grew its own two-headed
+    // `findByTooltip` helper. The label is published where the standard finder
+    // looks, so those helpers can go.
+    testWidgets('answers find.byTooltip, and shows only one tooltip', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          NightshadeIconButton(
+            icon: LucideIcons.settings,
+            tooltip: 'Open settings',
+            onPressed: () {},
+          ),
+        ),
+      );
+
+      expect(find.byTooltip('Open settings'), findsOneWidget);
+      // The Material tooltip is a LABEL only: it must never build an overlay
+      // of its own beside the design system's.
+      expect(
+        tester
+            .widget<TooltipVisibility>(find.byType(TooltipVisibility))
+            .visible,
+        isFalse,
+      );
+      // Tapping through the finder reaches the button, which is the whole
+      // point of making it findable.
+      var pressed = 0;
+      await tester.pumpWidget(
+        _host(
+          NightshadeIconButton(
+            icon: LucideIcons.settings,
+            tooltip: 'Open settings',
+            onPressed: () => pressed++,
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('Open settings'));
+      await tester.pump();
+      expect(pressed, 1);
+    });
   });
 }
