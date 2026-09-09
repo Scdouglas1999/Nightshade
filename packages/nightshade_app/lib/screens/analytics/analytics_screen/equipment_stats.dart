@@ -19,8 +19,8 @@ ParsedRunStats? _parseRunStats(String json) {
   }
 }
 
-const String _kLoading = 'Loading…';
-const String _kUnavailable = 'Unavailable';
+/// The tab's four panels, in reading order, each with the glyph its device
+/// carries everywhere else in the app.
 
 class _EquipmentStatsTab extends ConsumerWidget {
   const _EquipmentStatsTab({super.key});
@@ -36,9 +36,12 @@ class _EquipmentStatsTab extends ConsumerWidget {
     // each run's stats blob — the same number the Morning Report and the run
     // history already print. The Mount card said "Not tracked" beside it.
     final runsAsync = ref.watch(sequenceRunsProvider);
-    final meridianFlips = runsAsync.when(
-      loading: () => _kLoading,
-      error: (_, __) => _kUnavailable,
+    // Null while the runs are loading or after they failed: a Readout says
+    // that with an em dash. 'Loading…' and 'Unavailable' were words parked in
+    // a value slot.
+    final String? meridianFlips = runsAsync.when(
+      loading: () => null,
+      error: (_, __) => null,
       data: (runs) => '${runs.fold<int>(
         0,
         (sum, run) {
@@ -49,30 +52,18 @@ class _EquipmentStatsTab extends ConsumerWidget {
     );
 
     return imagesAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.alertCircle, size: 48, color: colors.error),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load equipment stats',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    color: colors.error),
-              ),
-              const SizedBox(height: 12),
-              NightshadeButton(
-                label: 'Retry',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () => ref.invalidate(allDbImagesProvider),
-              ),
-            ],
+      loading: () => const Padding(
+        padding: EdgeInsets.all(NightshadeTokens.space2xl),
+        child: _AnalyticsLoading(height: _equipmentSkeletonHeight),
+      ),
+      error: (err, _) => Padding(
+        padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: _AnalyticsError(
+            title: 'Equipment stats did not load',
+            message: err.toString(),
+            onRetry: () => ref.invalidate(allDbImagesProvider),
           ),
         ),
       ),
@@ -118,9 +109,9 @@ class _EquipmentStatsTab extends ConsumerWidget {
             .map((i) => i.guidingRmsTotal)
             .whereType<double>()
             .where((value) => value.isFinite && value >= 0);
-        final autofocusRuns = sessionsAsync.when(
-          loading: () => _kLoading,
-          error: (_, __) => _kUnavailable,
+        final String? autofocusRuns = sessionsAsync.when(
+          loading: () => null,
+          error: (_, __) => null,
           data: (sessions) => '${sessions.fold<int>(
             0,
             (sum, session) => sum + session.autofocusCount,
@@ -128,82 +119,96 @@ class _EquipmentStatsTab extends ConsumerWidget {
         );
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(NightshadeTokens.space2xl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (sessionsAsync.hasError || runsAsync.hasError) ...[
-                NightshadeCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(LucideIcons.alertTriangle,
-                            size: 16, color: colors.warning),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Session-based equipment totals are unavailable.',
-                            style: NightshadeTypography.caption
-                                .copyWith(color: colors.textSecondary),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            if (sessionsAsync.hasError) {
-                              ref.invalidate(allSessionsProvider);
-                            }
-                            if (runsAsync.hasError) {
-                              ref.invalidate(sequenceRunsProvider);
-                            }
-                          },
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
+                // ONE banner for ONE problem (05 §11). It used to be a card
+                // with its own icon column, its own padding and a bare text
+                // button — a second banner style inside the screen that
+                // already has one.
+                NightshadeBanner(
+                  title: 'Session totals are unavailable',
+                  message: 'Meridian flips and autofocus runs come from the '
+                      'session and run records, which did not load.',
+                  tone: BannerTone.warning,
+                  action: NightshadeButton(
+                    label: 'Retry',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    onPressed: () {
+                      if (sessionsAsync.hasError) {
+                        ref.invalidate(allSessionsProvider);
+                      }
+                      if (runsAsync.hasError) {
+                        ref.invalidate(sequenceRunsProvider);
+                      }
+                    },
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: NightshadeTokens.spaceLg),
               ],
               ResponsiveCardGrid(children: [
-                _EquipmentStatCard(
+                _EquipmentStatPanel(
                   title: 'Camera',
-                  stats: [
-                    _Stat(label: 'Total Exposures', value: '$totalExposures'),
-                    _Stat(
-                      label: 'Accepted Integration',
+                  icon: LucideIcons.camera,
+                  readouts: [
+                    Readout(
+                      label: 'Total exposures',
+                      value: '$totalExposures',
+                      size: ReadoutSize.sm,
+                    ),
+                    Readout(
+                      label: 'Accepted integration',
                       value: _formatIntegration(acceptedIntegration),
+                      size: ReadoutSize.sm,
                     ),
-                    _Stat(
-                      label: 'Avg Temperature',
-                      value: _formatAvg(
-                          temps, (v) => '${v.toStringAsFixed(1)} °C'),
+                    Readout(
+                      label: 'Avg temperature',
+                      unit: '°C',
+                      value: _formatAvg(temps, (v) => v.toStringAsFixed(1)),
+                      size: ReadoutSize.sm,
                     ),
                   ],
                 ),
-                _EquipmentStatCard(
+                _EquipmentStatPanel(
                   title: 'Mount',
-                  stats: [
-                    _Stat(label: 'Meridian Flips', value: meridianFlips),
-                  ],
-                ),
-                _EquipmentStatCard(
-                  title: 'Focuser',
-                  stats: [
-                    _Stat(label: 'Autofocus Runs', value: autofocusRuns),
-                    _Stat(
-                      label: 'Avg HFR Achieved',
-                      value: _formatAvg(hfrs, (v) => v.toStringAsFixed(2)),
+                  icon: LucideIcons.compass,
+                  readouts: [
+                    Readout(
+                      label: 'Meridian flips',
+                      value: meridianFlips,
+                      size: ReadoutSize.sm,
                     ),
                   ],
                 ),
-                _EquipmentStatCard(
+                _EquipmentStatPanel(
+                  title: 'Focuser',
+                  icon: LucideIcons.focus,
+                  readouts: [
+                    Readout(
+                      label: 'Autofocus runs',
+                      value: autofocusRuns,
+                      size: ReadoutSize.sm,
+                    ),
+                    Readout(
+                      label: 'Avg HFR achieved',
+                      unit: 'px',
+                      value: _formatAvg(hfrs, (v) => v.toStringAsFixed(2)),
+                      size: ReadoutSize.sm,
+                    ),
+                  ],
+                ),
+                _EquipmentStatPanel(
                   title: 'Guider',
-                  stats: [
-                    _Stat(
+                  icon: LucideIcons.crosshair,
+                  readouts: [
+                    Readout(
                       label: 'Avg RMS',
-                      value:
-                          _formatAvg(rmss, (v) => '${v.toStringAsFixed(2)}"'),
+                      unit: '\u2033',
+                      value: _formatAvg(rmss, (v) => v.toStringAsFixed(2)),
+                      size: ReadoutSize.sm,
                     ),
                   ],
                 ),
@@ -233,80 +238,56 @@ class _EquipmentStatsTab extends ConsumerWidget {
     return '${s}s';
   }
 
-  /// Mean of the available samples via [format], or an empty marker when the
-  /// backing column exists but no frame recorded a value.
-  static String _formatAvg(
+  /// Mean of the available samples via [format], or null when the backing
+  /// column exists but no frame recorded a value — which a [Readout] renders
+  /// as the em dash.
+  static String? _formatAvg(
     Iterable<double> values,
     String Function(double) format,
   ) {
     final list = values.toList();
-    if (list.isEmpty) return 'No data';
+    if (list.isEmpty) return null;
     final mean = list.reduce((a, b) => a + b) / list.length;
     return format(mean);
   }
 }
 
-class _Stat {
-  final String label;
-  final String value;
+/// Height the equipment skeleton holds open while the frame catalogue loads.
+const double _equipmentSkeletonHeight = 260;
 
-  const _Stat({required this.label, required this.value});
-}
+/// Vertical gap between two readouts stacked in an equipment panel.
+const double _equipmentReadoutGap = NightshadeTokens.spaceMd;
 
-class _EquipmentStatCard extends StatelessWidget {
+/// One device's numbers: a panel head naming the device, then its readouts.
+///
+/// Was a card with a 15/600 title and a key/value table whose right column was
+/// a `labelSm`. Every one of those values is a measurement, so every one of
+/// them is a [Readout] now — the label sits under the number instead of
+/// competing with it across a gap.
+class _EquipmentStatPanel extends StatelessWidget {
   final String title;
-  final List<_Stat> stats;
+  final IconData icon;
+  final List<Readout> readouts;
 
-  const _EquipmentStatCard({required this.title, required this.stats});
+  const _EquipmentStatPanel({
+    required this.title,
+    required this.icon,
+    required this.readouts,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: NightshadeTypography.h5.copyWith(
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...stats.map((stat) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          stat.label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textSecondary),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          stat.value,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: NightshadeTypography.labelSm.copyWith(
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
+    return NightshadePanel(
+      head: PanelHead(icon: icon, label: title),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < readouts.length; i++) ...[
+            if (i > 0) const SizedBox(height: _equipmentReadoutGap),
+            readouts[i],
           ],
-        ),
+        ],
       ),
     );
   }

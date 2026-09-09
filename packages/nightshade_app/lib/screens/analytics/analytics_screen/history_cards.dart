@@ -10,7 +10,7 @@ class _ProjectsTab extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final isRemote = ref.watch(backendProvider) is NetworkBackend;
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(NightshadeTokens.space2xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -20,8 +20,14 @@ class _ProjectsTab extends ConsumerWidget {
           // the list is reachable even before any single target is tracked.
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
+            child: NightshadeButton(
               key: const ValueKey('mosaic_projects_entry'),
+              label: isRemote
+                  ? 'Mosaic projects on imaging host'
+                  : 'Mosaic projects',
+              icon: LucideIcons.layoutGrid,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
               onPressed: () {
                 if (isRemote) {
                   context.showInfoSnackBar(
@@ -31,20 +37,9 @@ class _ProjectsTab extends ConsumerWidget {
                 }
                 context.push('/mosaic');
               },
-              icon:
-                  Icon(LucideIcons.layoutGrid, size: 14, color: colors.accent),
-              label: Text(
-                isRemote
-                    ? 'Mosaic projects on imaging host'
-                    : 'Mosaic projects',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.accent,
-                ),
-              ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: NightshadeTokens.spaceSm),
           const Expanded(child: ProjectTrackingPanel()),
         ],
       ),
@@ -85,35 +80,26 @@ class _SessionHistoryCard extends ConsumerWidget {
             session.name ?? context.l10n.text('analyticsUnnamedSession'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: NightshadeTypography.h5.copyWith(
+            style: NightshadeTypography.bodyStrong.copyWith(
               color: colors.textPrimary,
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: _getStatusColor(session.status, colors),
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-          ),
-          child: Text(
-            session.status.toUpperCase(),
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize9,
-              fontWeight: FontWeight.w600,
-              color: colors.background,
-            ),
-          ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        // One chip component, one chip geometry. The old badge was a solid
+        // fill with 9 px text -- a size that 03 §2 says does not exist.
+        NightshadeChip(
+          label: session.status,
+          tone: _statusTone(session.status),
         ),
       ],
     );
 
     final dateText = Text(
       DateFormat('MMM d, yyyy HH:mm').format(session.startTime),
-      style: TextStyle(
-          fontSize: NightshadeTypography.fontSize12,
-          color: colors.textSecondary),
+      style: NightshadeTypography.bodySm.copyWith(
+        color: colors.textSecondary,
+      ),
     );
 
     // Stats reflow as a Wrap so a narrow phone column never overflows; on wide
@@ -121,142 +107,141 @@ class _SessionHistoryCard extends ConsumerWidget {
     // Every chip carries a caption. Four bare numbers behind icons ("4h 12m",
     // "206", "3.4h", "2.14") left the two durations indistinguishable and gave
     // no clue that the last figure was HFR in pixels.
-    final statChips = <Widget>[
-      _StatChip(
-        icon: LucideIcons.clock,
-        caption: elapsed.captionLabel,
-        label: elapsed.valueLabel,
-        colors: colors,
+    // Five measurements, so five Readouts (05 §3): a mono value over a quiet
+    // uppercase label. They used to be boxed icon+number chips, which is the
+    // chip component's job and not a measurement's.
+    final statReadouts = <Widget>[
+      Readout(
+        size: ReadoutSize.sm,
+        label: elapsed.captionLabel,
+        value: elapsed.valueLabel,
       ),
       // "frames returned", not "frames": the number is
       // `successful_exposures`, which counts what the CAMERA handed back. A
       // night whose every sub was culled still counts them all here, so the row
       // read `COMPLETED · 6 frames · 0 integration` — a good night with an odd
       // integration figure rather than a night that kept nothing.
-      _StatChip(
-        icon: LucideIcons.image,
-        caption: 'frames returned',
-        label: '${session.successfulExposures}',
-        colors: colors,
+      Readout(
+        size: ReadoutSize.sm,
+        label: 'Frames returned',
+        value: '${session.successfulExposures}',
       ),
       // The culling's own verdict, from `captured_images.is_accepted`, and only
       // when it threw something away: a night that kept everything is the
-      // common case and does not need a chip saying so, but a night that kept
-      // nothing must not look like one.
+      // common case and does not need a readout saying so, but a night that
+      // kept nothing must not look like one.
       if (grading != null && grading.rejected > 0)
-        _StatChip(
-          icon: LucideIcons.imageOff,
-          caption: 'rejected',
-          label: '${grading.rejected}',
-          colors: colors,
+        Readout(
+          size: ReadoutSize.sm,
+          label: 'Rejected',
+          value: '${grading.rejected}',
+          valueColor: colors.warning,
         ),
-      _StatChip(
-        icon: LucideIcons.timer,
-        caption: 'integration',
-        label: _formatIntegrationHours(session.totalIntegrationSecs),
-        colors: colors,
+      Readout(
+        size: ReadoutSize.sm,
+        label: 'Integration',
+        value: _formatIntegrationHours(session.totalIntegrationSecs),
       ),
-      if (session.avgHfr != null)
-        _StatChip(
-          icon: LucideIcons.focus,
-          caption: 'HFR px',
-          label: session.avgHfr!.toStringAsFixed(2),
-          colors: colors,
-        ),
+      Readout(
+        size: ReadoutSize.sm,
+        label: 'HFR',
+        unit: 'px',
+        value: session.avgHfr?.toStringAsFixed(2),
+      ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: NightshadeCard(
-        child: Semantics(
-            button: true,
-            enabled: true,
-            child: InkWell(
-              onTap: () => _showSessionDetail(context, ref, session),
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isPhone =
-                        constraints.maxWidth < BreakpointTokens.breakpointPhone;
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+      child: Semantics(
+        button: true,
+        enabled: true,
+        child: NightshadeCard(
+          // A tappable container IS a card (05 §1); what is forbidden is a
+          // card standing in for a panel. The InkWell that used to sit inside
+          // it made this one a panel wrapping a button.
+          onTap: () => _showSessionDetail(context, ref, session),
+          padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isPhone =
+                  constraints.maxWidth < BreakpointTokens.breakpointPhone;
 
-                    if (isPhone) {
-                      return Row(
+              if (isPhone) {
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                titleRow,
-                                const SizedBox(height: 4),
-                                dateText,
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: statChips,
-                                ),
-                              ],
-                            ),
+                          titleRow,
+                          const SizedBox(height: NightshadeTokens.spaceXs),
+                          dateText,
+                          const SizedBox(height: NightshadeTokens.spaceMd),
+                          Wrap(
+                            spacing: _historyReadoutGap,
+                            runSpacing: NightshadeTokens.spaceMd,
+                            children: statReadouts,
                           ),
-                          const SizedBox(width: 8),
-                          Icon(LucideIcons.chevronRight,
-                              size: 20, color: colors.textMuted),
                         ],
-                      );
-                    }
+                      ),
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    Icon(LucideIcons.chevronRight,
+                        size: NightshadeTokens.iconSm, color: colors.textMuted),
+                  ],
+                );
+              }
 
-                    return Row(
+              return Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              titleRow,
-                              const SizedBox(height: 4),
-                              dateText,
-                            ],
-                          ),
-                        ),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: statChips,
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(LucideIcons.chevronRight,
-                            size: 20, color: colors.textMuted),
+                        titleRow,
+                        const SizedBox(height: NightshadeTokens.spaceXs),
+                        dateText,
                       ],
-                    );
-                  },
-                ),
-              ),
-            )),
+                    ),
+                  ),
+                  Wrap(
+                    spacing: _historyReadoutGap,
+                    runSpacing: NightshadeTokens.spaceMd,
+                    children: statReadouts,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Icon(LucideIcons.chevronRight,
+                      size: NightshadeTokens.iconSm, color: colors.textMuted),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 
-  Color _getStatusColor(String status, NightshadeColors colors) {
+  /// A session's status as a chip tone. Status colours mean status (02);
+  /// an unknown status has no tone at all rather than an invented one.
+  static ChipTone _statusTone(String status) {
     switch (status.toLowerCase()) {
       case 'completed':
-        return colors.success;
+        return ChipTone.success;
       case 'active':
-        return colors.info;
+        return ChipTone.primary;
       case 'aborted':
-        return colors.warning;
+        return ChipTone.warning;
       case 'error':
-        return colors.error;
+        return ChipTone.error;
       default:
-        return colors.textMuted;
+        return ChipTone.neutral;
     }
   }
 
   /// Integration in hours, dropping to minutes and seconds below the point
   /// where "0.0h" stops carrying information.
-  static String _formatIntegrationHours(double seconds) {
-    if (!seconds.isFinite || seconds <= 0) return '0';
+  static String? _formatIntegrationHours(double seconds) {
+    if (!seconds.isFinite || seconds <= 0) return null;
     if (seconds >= 3600) return '${(seconds / 3600).toStringAsFixed(1)}h';
     if (seconds >= 60) return '${(seconds / 60).round()}m';
     return '${seconds.round()}s';
@@ -271,57 +256,7 @@ class _SessionHistoryCard extends ConsumerWidget {
   }
 }
 
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  /// What the number means. Without it a row of icon+number chips is a puzzle.
-  final String? caption;
-  final NightshadeColors colors;
-
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.colors,
-    this.caption,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: colors.textSecondary),
-          const SizedBox(width: 6),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: NightshadeTypography.labelSm.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-              if (caption != null)
-                Text(
-                  caption!,
-                  style: NightshadeTypography.caption.copyWith(
-                    color: colors.textMuted,
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
+/// Gap between two of a history card's [Readout]s.
+const double _historyReadoutGap = 20;
 
 /// Session detail dialog with export functionality
