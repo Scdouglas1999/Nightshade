@@ -141,7 +141,16 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'AstroBin'));
+    // Exports live behind the header's single overflow menu now (05 §5), so
+    // the tap is two steps: open it, then pick the row.
+    await tester.tap(find.byKey(const ValueKey('stack_result_export_menu')));
+    // Explicit pumps, not pumpAndSettle: this screen keeps a live preview
+    // ticking, so settling never arrives (the pumps above are here for the
+    // same reason).
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('AstroBin'));
+    await tester.pump();
     // The export writes real files, and dart:io futures only complete outside
     // the fake-async zone; each write needs its own turn of the real loop.
     for (var i = 0; i < 8; i++) {
