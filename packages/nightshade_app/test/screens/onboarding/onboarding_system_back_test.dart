@@ -122,6 +122,10 @@ void main() {
       reason: 'Precondition: the wizard is on step 2 of the flow.',
     );
 
+    // The wizard ignores input for one cooldown after a transition; let it
+    // expire so the gesture below is the thing under test.
+    await tester.pump(const Duration(milliseconds: 400));
+
     exit.install();
     await _systemBack(tester);
 

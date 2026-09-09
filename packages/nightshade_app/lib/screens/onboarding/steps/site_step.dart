@@ -396,78 +396,50 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
   /// error budget stated plainly. It is deliberately not written into the
   /// coordinate fields until the user presses "Use this": a value sitting in the
   /// field looks like a value the app knows, and this one is a guess.
-  Widget _buildIpEstimate(ThemeData theme, NightshadeColors colors) {
+  Widget _buildIpEstimate() {
     final estimate = _ipEstimate;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.primary,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(LucideIcons.globe, color: colors.primary, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: estimate == null
-                ? Text(
-                    _ipLookupRunning
-                        ? 'Looking up an approximate location…'
-                        : _ipLookupStarted
-                            ? 'Could not reach a geolocation service. Enter '
-                                'your coordinates below.'
-                            : 'No site on record yet. Nightshade can ask a '
-                                'third-party service to estimate your '
-                                'position from your public IP address — '
-                                'city-level, about 10 km. Nothing is sent '
-                                'until you ask.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: colors.textSecondary),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Approximate location from your IP address',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${_trimNumber(estimate.$1)}°, '
-                        '${_trimNumber(estimate.$2)}°'
-                        '${estimate.$3 != null ? ' — ${estimate.$3}' : ''}. '
-                        'This is where your internet provider appears to be, '
-                        'not where your telescope is, so it can be tens of '
-                        'kilometres out. Use it as a starting point and correct '
-                        'it if you can.',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-          ),
-          if (estimate != null) ...[
-            const SizedBox(width: 8),
-            NightshadeButton(
-              label: 'Use this',
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: () => unawaited(_applyIpEstimate()),
-            ),
-          ] else if (!_ipLookupRunning && !_ipLookupStarted) ...[
-            const SizedBox(width: 8),
-            NightshadeButton(
-              label: 'Estimate from IP',
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: () => unawaited(_lookUpIpEstimate()),
-            ),
-          ],
-        ],
+    if (estimate != null) {
+      return NightshadeBanner(
+        icon: LucideIcons.globe,
+        title: 'Approximate location from your IP address.',
+        message: '${_trimNumber(estimate.$1)}°, ${_trimNumber(estimate.$2)}°'
+            '${estimate.$3 != null ? ' — ${estimate.$3}' : ''}. '
+            'This is where your internet provider appears to be, not where '
+            'your telescope is, so it can be tens of kilometres out. Use it '
+            'as a starting point and correct it if you can.',
+        action: NightshadeButton(
+          label: 'Use this',
+          variant: ButtonVariant.secondary,
+          size: ButtonSize.small,
+          onPressed: () => unawaited(_applyIpEstimate()),
+        ),
+      );
+    }
+    if (_ipLookupRunning) {
+      return const NightshadeBanner(
+        icon: LucideIcons.globe,
+        title: 'Looking up an approximate location…',
+      );
+    }
+    if (_ipLookupStarted) {
+      return const NightshadeBanner(
+        icon: LucideIcons.globe,
+        tone: BannerTone.warning,
+        title: 'Could not reach a geolocation service.',
+        message: 'Enter your coordinates below.',
+      );
+    }
+    return NightshadeBanner(
+      icon: LucideIcons.globe,
+      title: 'No site on record yet.',
+      message: 'Nightshade can ask a third-party service to estimate your '
+          'position from your public IP address — city-level, about 10 km. '
+          'Nothing is sent until you ask.',
+      action: NightshadeButton(
+        label: 'Estimate from IP',
+        variant: ButtonVariant.secondary,
+        size: ButtonSize.small,
+        onPressed: () => unawaited(_lookUpIpEstimate()),
       ),
     );
   }
@@ -475,16 +447,16 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final settingsAsync = ref.watch(appSettingsProvider);
 
     return settingsAsync.when(
       loading: () => Center(
         child: CircularProgressIndicator(color: colors.primary),
       ),
-      error: (error, _) => Text(
-        'Could not load location settings: $error',
-        style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
+      error: (error, _) => NightshadeBanner(
+        tone: BannerTone.error,
+        title: 'Could not load location settings.',
+        message: '$error',
       ),
       data: (settings) {
         _seedFrom(settings);
@@ -492,76 +464,70 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Where do you observe?',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+              const SectionTitle(
+                icon: LucideIcons.mapPin,
+                title: 'Where do you observe?',
               ),
-              const SizedBox(height: 6),
               Text(
                 'Your site drives Tonight, the planner’s visibility and dark '
                 'windows, meridian-flip timing, and the weather radar. You can '
                 'change it any time in Settings → Location.',
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
               const SizedBox(height: NightshadeTokens.spaceLg),
               Row(
                 children: [
-                  NightshadeButton(
-                    icon: LucideIcons.locate,
-                    label: 'Use my current location',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    isLoading: _locating,
-                    onPressed:
-                        _locating ? null : () => _useDeviceLocation(settings),
+                  // Flexible so a phone column bounds the button and its label
+                  // ellipsizes; unbounded it takes its full intrinsic width and
+                  // overflows the row by 13 px at 390 px.
+                  Flexible(
+                    child: NightshadeButton(
+                      icon: LucideIcons.locate,
+                      label: 'Use my current location',
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      isLoading: _locating,
+                      onPressed:
+                          _locating ? null : () => _useDeviceLocation(settings),
+                    ),
                   ),
                 ],
               ),
               if (!_siteEntered || _ipLookupRunning || _ipEstimate != null) ...[
                 const SizedBox(height: NightshadeTokens.spaceMd),
-                _buildIpEstimate(theme, colors),
+                _buildIpEstimate(),
               ],
               const SizedBox(height: NightshadeTokens.spaceLg),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _CoordinateField(
-                      controller: _latController,
-                      label: 'Latitude',
-                      hint: 'e.g. 40.71',
-                      suffix: '°',
-                      helper: 'Positive for North, negative for South',
-                      errorText: _latError,
-                      onChanged: _onFieldChanged,
-                    ),
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  Expanded(
-                    child: _CoordinateField(
-                      controller: _lonController,
-                      label: 'Longitude',
-                      hint: 'e.g. -74.01',
-                      suffix: '°',
-                      helper: 'Positive for East, negative for West',
-                      errorText: _lonError,
-                      onChanged: _onFieldChanged,
-                    ),
-                  ),
-                ],
+              // One form, one label column: side by side, latitude and
+              // longitude left a 42 px field on a phone.
+              _CoordinateField(
+                controller: _latController,
+                label: 'Latitude',
+                hint: 'e.g. 40.71',
+                suffix: '°',
+                helper: 'Positive for North, negative for South',
+                errorText: _latError,
+                onChanged: _onFieldChanged,
               ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
+              const SizedBox(height: FormRow.rowGap),
+              _CoordinateField(
+                controller: _lonController,
+                label: 'Longitude',
+                hint: 'e.g. -74.01',
+                suffix: '°',
+                helper: 'Positive for East, negative for West',
+                errorText: _lonError,
+                onChanged: _onFieldChanged,
+              ),
+              const SizedBox(height: FormRow.rowGap),
               _CoordinateField(
                 controller: _elevController,
-                label: 'Elevation (optional)',
+                label: 'Elevation',
                 hint: 'e.g. 120',
                 suffix: 'm',
-                helper: 'Height above sea level, in metres',
+                helper: 'Optional. Height above sea level, in metres',
                 errorText: _elevError,
                 onChanged: _onFieldChanged,
               ),
@@ -597,42 +563,24 @@ class _CoordinateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
+    return FormRow(
+      label: label,
+      help: helper,
+      child: NightshadeTextField(
+        controller: controller,
+        hint: hint,
+        suffix: suffix,
+        errorText: errorText,
+        mono: true,
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
         ),
-        const SizedBox(height: NightshadeTokens.spaceXs + 2),
-        NightshadeTextField(
-          controller: controller,
-          hint: hint,
-          suffix: suffix,
-          errorText: errorText,
-          keyboardType: const TextInputType.numberWithOptions(
-            decimal: true,
-            signed: true,
-          ),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9\-\.]')),
-          ],
-          onChanged: (_) => onChanged(),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceXs),
-        Text(
-          helper,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colors.textMuted,
-          ),
-        ),
-      ],
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9\-\.]')),
+        ],
+        onChanged: (_) => onChanged(),
+      ),
     );
   }
 }

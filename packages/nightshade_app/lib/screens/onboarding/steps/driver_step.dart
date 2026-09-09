@@ -12,7 +12,6 @@ class OnboardingDriverStep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
     final available = ref.watch(availableOnboardingDriversProvider);
@@ -34,40 +33,41 @@ class OnboardingDriverStep extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Which drivers should we scan?',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
+          const SectionTitle(
+            icon: NightshadeIcons.connected,
+            title: 'Which drivers should we scan?',
           ),
-          const SizedBox(height: 6),
           Text(
-            "Pick everything that applies to your setup. You can change this later.",
-            style: theme.textTheme.bodyMedium?.copyWith(
+            'Pick everything that applies to your setup. You can change this '
+            'later.',
+            style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           ...displayOrder.where(available.contains).map((driver) => _DriverTile(
                 driver: driver,
                 selected: draft.selectedDrivers.contains(driver),
                 onToggle: () => notifier.toggleDriver(driver),
               )),
-          const SizedBox(height: 12),
           if (!available.contains(DriverType.ascom))
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(NightshadeIcons.info,
-                      size: 14, color: colors.textSecondary),
-                  const SizedBox(width: 8),
+                  Icon(
+                    NightshadeIcons.info,
+                    size: NightshadeTokens.iconXs,
+                    color: colors.textMuted,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
                   Expanded(
                     child: Text(
-                      'ASCOM COM drivers are Windows-only. Use Alpaca to reach an ASCOM server from this platform.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
+                      'ASCOM COM drivers are Windows-only. Use Alpaca to reach '
+                      'an ASCOM server from this platform.',
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.textMuted,
                       ),
                     ),
                   ),
@@ -101,13 +101,12 @@ class _DriverTileState extends State<_DriverTile> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final driver = widget.driver;
     final selected = widget.selected;
     final onToggle = widget.onToggle;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       // One accessible node for the whole row, describing what it actually is.
       //
       // Read off the live accessibility tree (GUI drive 2026-08-09), every
@@ -149,26 +148,29 @@ class _DriverTileState extends State<_DriverTile> {
             if (_focused == value) return;
             setState(() => _focused = value);
           },
-          borderRadius: NightshadeTokens.borderRadiusLg,
+          borderRadius: NightshadeTokens.borderRadiusSm,
           child: Container(
             foregroundDecoration: _focused
                 ? BoxDecoration(
-                    borderRadius: NightshadeTokens.borderRadiusLg,
+                    borderRadius: NightshadeTokens.borderRadiusSm,
                     border: Border.all(color: colors.primary, width: 2),
                   )
                 : null,
-            padding: const EdgeInsets.all(12),
-            decoration: selected
-                ? NightshadeDecorations.selectedSurface(
-                    colors.primary,
-                    borderRadius: NightshadeTokens.borderRadiusLg,
-                    fillAlpha: 0.08,
-                  )
-                : BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: NightshadeTokens.borderRadiusLg,
-                    border: Border.all(color: colors.border),
-                  ),
+            padding: NightshadeTokens.paddingMd,
+            // A tappable row inside the step panel: a `well` inset, with the
+            // selection carried by a `primary` ring rather than a second fill
+            // (05 §9 — panel → well is the deepest the ladder goes).
+            decoration: BoxDecoration(
+              color: colors.well,
+              borderRadius: NightshadeTokens.borderRadiusSm,
+              border: Border.all(
+                color: selected
+                    ? colors.primary.withValues(
+                        alpha: NightshadeTokens.opacitySelectedRing,
+                      )
+                    : Colors.transparent,
+              ),
+            ),
             child: ExcludeSemantics(
               // The row above carries the label, the checked state and the tap.
               // Leaving these in would make a screen reader read the driver name
@@ -180,22 +182,20 @@ class _DriverTileState extends State<_DriverTile> {
                     value: selected,
                     onChanged: (_) => onToggle(),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           driver.shortLabel,
-                          style: theme.textTheme.titleSmall?.copyWith(
+                          style: NightshadeTypography.bodyStrong.copyWith(
                             color: colors.textPrimary,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 2),
                         Text(
                           driver.description,
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          style: NightshadeTypography.bodySm.copyWith(
                             color: colors.textSecondary,
                           ),
                         ),

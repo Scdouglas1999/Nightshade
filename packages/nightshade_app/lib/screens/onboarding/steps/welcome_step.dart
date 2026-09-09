@@ -7,126 +7,102 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Welcome step — the entry point of the wizard.
 ///
 /// Detects whether the user already has equipment profiles. If they do
-/// the step offers both "Skip onboarding" (mark dismissed, return to
-/// dashboard) and "Run anyway" so the wizard never traps a returning
-/// user. For new users with zero profiles the call-to-action is just
-/// "Get started".
+/// the step says so in one banner so a returning user knows why the wizard
+/// appeared; the wizard's own "Skip onboarding" action is in the page header.
 class OnboardingWelcomeStep extends ConsumerWidget {
   const OnboardingWelcomeStep({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final profilesAsync = ref.watch(allProfilesProvider);
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: NightshadeDecorations.iconChip(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusLg),
-                ),
-                child: Icon(NightshadeIcons.sparkle,
-                    color: colors.primary, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome to Nightshade',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      // No stopwatch promise: the run is gated on device
-                      // discovery finding your gear, and "about 2 minutes" was
-                      // a specific number nothing measured.
-                      "Let's get your rig set up. You can leave and pick this "
-                      'back up at any point.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const SectionTitle(
+            icon: NightshadeIcons.sparkle,
+            title: 'Welcome to Nightshade',
           ),
-          const SizedBox(height: 24),
-          NightshadeCard(
-            variant: CardVariant.subtle,
-            borderRadius: NightshadeTokens.radiusLg,
-            padding: const EdgeInsets.all(16),
+          Text(
+            // No stopwatch promise: the run is gated on device discovery
+            // finding your gear, and "about 2 minutes" was a specific number
+            // nothing measured.
+            "Let's get your rig set up. You can leave and pick this back up at "
+            'any point.',
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Container(
+            decoration: NightshadeDecorations.well(colors),
+            padding: NightshadeTokens.paddingMd,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "What we'll cover",
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                  "What we'll cover".toUpperCase(),
+                  style: NightshadeTypography.eyebrow.copyWith(
+                    color: colors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 12),
-                _bullet(theme, colors, NightshadeIcons.connected,
-                    'Which device drivers to scan (ASCOM / INDI / Alpaca / Native)'),
-                _bullet(theme, colors, NightshadeIcons.camera,
-                    'Picking your camera, mount, focuser, filter wheel, and guider'),
-                _bullet(theme, colors, LucideIcons.ruler,
-                    'Optical train details: focal length, aperture, reducer'),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                _bullet(
+                  colors,
+                  NightshadeIcons.connected,
+                  'Which device drivers to scan (ASCOM / INDI / Alpaca / '
+                  'Native)',
+                ),
+                _bullet(
+                  colors,
+                  NightshadeIcons.camera,
+                  'Picking your camera, mount, focuser, filter wheel, and '
+                  'guider',
+                ),
+                _bullet(
+                  colors,
+                  LucideIcons.ruler,
+                  'Optical train details: focal length, aperture, reducer',
+                ),
                 // The list has to name every step that follows, or the wizard
                 // asks for things it said it would not — the observing site in
-                // particular is written to global settings, not just the profile.
-                _bullet(theme, colors, NightshadeIcons.sliders,
-                    'Capture defaults: gain, offset, binning, cooling'),
-                _bullet(theme, colors, NightshadeIcons.folder,
-                    'Where Nightshade will save captured images'),
-                _bullet(theme, colors, LucideIcons.mapPin,
-                    'Where you observe from (optional, powers Tonight and the planner)'),
+                // particular is written to global settings, not just the
+                // profile.
+                _bullet(
+                  colors,
+                  NightshadeIcons.sliders,
+                  'Capture defaults: gain, offset, binning, cooling',
+                ),
+                _bullet(
+                  colors,
+                  NightshadeIcons.folder,
+                  'Where Nightshade will save captured images',
+                ),
+                _bullet(
+                  colors,
+                  LucideIcons.mapPin,
+                  'Where you observe from (optional, powers Tonight and the '
+                  'planner)',
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
           profilesAsync.when(
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
             data: (profiles) {
               if (profiles.isEmpty) return const SizedBox.shrink();
               // Returning user — explain why the wizard appeared at all.
-              return Container(
-                padding: const EdgeInsets.all(12),
-                decoration: NightshadeDecorations.emphasisSurface(
-                  colors.warning,
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                ),
-                child: Row(
-                  children: [
-                    Icon(NightshadeIcons.info, color: colors.warning, size: 18),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'You already have ${profiles.length} equipment profile'
-                        '${profiles.length == 1 ? '' : 's'}. '
-                        'Running the wizard will create a new one — your existing profiles are not modified.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
+              return Padding(
+                padding: const EdgeInsets.only(top: NightshadeTokens.spaceLg),
+                child: NightshadeBanner(
+                  tone: BannerTone.warning,
+                  title: 'You already have ${profiles.length} equipment '
+                      'profile${profiles.length == 1 ? '' : 's'}.',
+                  message: 'Running the wizard creates a new one; the '
+                      'existing profiles are not modified.',
                 ),
               );
             },
@@ -136,23 +112,18 @@ class OnboardingWelcomeStep extends ConsumerWidget {
     );
   }
 
-  Widget _bullet(
-    ThemeData theme,
-    NightshadeColors colors,
-    IconData icon,
-    String text,
-  ) {
+  Widget _bullet(NightshadeColors colors, IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: colors.primary, size: 16),
-          const SizedBox(width: 10),
+          Icon(icon, color: colors.textMuted, size: NightshadeTokens.iconSm),
+          const SizedBox(width: NightshadeTokens.spaceMd),
           Expanded(
             child: Text(
               text,
-              style: theme.textTheme.bodySmall?.copyWith(
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
               ),
             ),

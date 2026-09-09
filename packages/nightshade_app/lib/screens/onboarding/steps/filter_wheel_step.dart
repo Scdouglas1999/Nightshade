@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_app/utils/confirm_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -48,6 +49,9 @@ class _OnboardingFilterWheelStepState
   // (connect failed AND the draft carries no prior names). The happy path
   // reads the actual slot count + names from the connected driver.
   static const int _fallbackSlots = 5;
+
+  /// Width of the slot-number gutter beside each filter field.
+  static const double _slotNumberWidth = 32;
 
   /// Upper bound used ONLY when the wheel's real position count is unknown.
   /// A connected wheel caps the editor at what it actually reports.
@@ -195,32 +199,17 @@ class _OnboardingFilterWheelStepState
     final isLast = index == _controllers.length - 1;
     if (!isLast) {
       final name = _controllers[index].text.trim();
-      final confirmed = await showDialog<bool>(
+      final confirmed = await ConfirmDialog.show(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Remove this slot?'),
-          content: Text(
+        title: 'Remove this slot?',
+        message:
             'Removing slot ${index + 1}${name.isEmpty ? '' : ' ($name)'} moves '
             'every slot below it up one position, so the filters after it will '
             'no longer sit on the positions you gave them.',
-          ),
-          actions: [
-            NightshadeButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-            ),
-            NightshadeButton(
-              label: 'Remove slot',
-              variant: ButtonVariant.destructive,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-            ),
-          ],
-        ),
+        confirmLabel: 'Remove slot',
+        isDestructive: true,
       );
-      if (confirmed != true || !mounted) return;
+      if (!confirmed || !mounted) return;
     }
     setState(() {
       _controllers[index].dispose();
@@ -262,7 +251,6 @@ class _OnboardingFilterWheelStepState
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
     final colors = NightshadeColors.of(context);
-    final theme = Theme.of(context);
     final hasWheel = draft.filterWheelId != null;
 
     // The wheel's own position count is the cap. Inventing slot 8 on a
@@ -276,182 +264,166 @@ class _OnboardingFilterWheelStepState
 
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final pickerHeight = hasWheel
-        ? clampPanelWidth(
+        ? panelWidthFromFraction(
             viewportHeight,
             fraction: 0.28,
             min: 180,
             max: 240,
           )
-        : clampPanelWidth(
+        : panelWidthFromFraction(
             viewportHeight,
             fraction: 0.45,
             min: 240,
             max: 380,
           );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          // Picker takes a viewport-fraction so the filter editor below has
-          // breathing room when the wheel is selected.
-          height: pickerHeight,
-          child: OnboardingDevicePickerBody(
-            title: 'Pick your filter wheel (optional)',
-            subtitle:
-                'Tell us what each slot holds so flats, autofocus, and offsets work per filter.',
-            icon: NightshadeIcons.filterWheel,
-            deviceType: DeviceType.filterWheel,
-            selectedDeviceId: draft.filterWheelId,
-            selectedDeviceName: draft.filterWheelName,
-            allowSkip: true,
-            onSelected: (device) {
-              notifier.setFilterWheel(
-                id: device.activeDeviceId,
-                name: device.displayName,
-              );
-              setState(() {});
-              // Connect the wheel and read its real slot count + filter names
-              // so the editor reflects the hardware (e.g. 8 slots), not a
-              // hardcoded default.
-              _seedSlotsFromDevice(device.activeDeviceId);
-            },
-            onCleared: () {
-              notifier.setFilterWheel(id: '');
-              setState(() {});
-            },
-          ),
-        ),
-        if (hasWheel) ...[
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Text(
-                'Filters',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              if (_loadingSlots) ...[
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: colors.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Reading wheel…',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: colors.textMuted),
-                ),
-                const SizedBox(width: 8),
-              ],
-              // At the cap there is no button at all.
-              //
-              // A disabled control still reads as a control, and the
-              // accessibility tree publishes it as a plain button with a tap
-              // action — so pressing "Add slot" on a full wheel gives no row,
-              // no toast and no message. A wheel with seven positions has no
-              // eighth to add, ever. Say that, and offer nothing to press.
-              if (atSlotCap)
-                Text(
-                  reportedSlots != null
-                      ? 'Wheel is full'
-                      : 'Filter limit reached',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.textMuted,
-                  ),
-                )
-              else
-                Tooltip(
-                  message: 'Add another filter slot',
-                  child: NightshadeButton(
-                    icon: NightshadeIcons.add,
-                    label: 'Add slot',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: _loadingSlots ? null : _addSlot,
-                  ),
-                ),
-            ],
-          ),
-          if (atSlotCap || reportedSlots != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              _slotCountCaption(
-                draft: draft,
-                reportedSlots: reportedSlots,
-                atSlotCap: atSlotCap,
-              ),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.textMuted,
-              ),
+    // Scrollable: a 12-slot wheel plus the picker exceeds the panel in a short
+    // window, and as a bare Column the surplus overflowed instead of scrolling.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            // Picker takes a viewport-fraction so the filter editor below has
+            // breathing room when the wheel is selected.
+            height: pickerHeight,
+            child: OnboardingDevicePickerBody(
+              title: 'Pick your filter wheel (optional)',
+              subtitle:
+                  'Tell us what each slot holds so flats, autofocus, and offsets work per filter.',
+              icon: NightshadeIcons.filterWheel,
+              deviceType: DeviceType.filterWheel,
+              selectedDeviceId: draft.filterWheelId,
+              selectedDeviceName: draft.filterWheelName,
+              allowSkip: true,
+              onSelected: (device) {
+                notifier.setFilterWheel(
+                  id: device.activeDeviceId,
+                  name: device.displayName,
+                );
+                setState(() {});
+                // Connect the wheel and read its real slot count + filter names
+                // so the editor reflects the hardware (e.g. 8 slots), not a
+                // hardcoded default.
+                _seedSlotsFromDevice(device.activeDeviceId);
+              },
+              onCleared: () {
+                notifier.setFilterWheel(id: '');
+                setState(() {});
+              },
             ),
-          ],
-          const SizedBox(height: 8),
-          // List of editable filter slots. We deliberately render inline
-          // (not in a separate Drift table) so the user sees their
-          // changes saved on Next without needing to confirm a sub-form.
-          ...List.generate(_controllers.length, (i) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
+          ),
+          if (hasWheel) ...[
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            SectionTitle(
+              icon: NightshadeIcons.filterWheel,
+              title: 'Filters',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    width: 32,
-                    child: Text(
-                      '${i + 1}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
+                  if (_loadingSlots) ...[
+                    SizedBox(
+                      width: NightshadeTokens.iconXs,
+                      height: NightshadeTokens.iconXs,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _controllers[i],
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
-                        hintText: 'L / R / G / B / Ha …',
-                        hintStyle: TextStyle(color: colors.textMuted),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.primary),
-                        ),
-                        filled: true,
-                        fillColor: colors.surface,
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    Text(
+                      'Reading wheel…',
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                  ],
+                  // At the cap there is no button at all.
+                  //
+                  // A disabled control still reads as a control, and the
+                  // accessibility tree publishes it as a plain button with a tap
+                  // action — so pressing "Add slot" on a full wheel gives no row,
+                  // no toast and no message. A wheel with seven positions has no
+                  // eighth to add, ever. Say that, and offer nothing to press.
+                  if (atSlotCap)
+                    Text(
+                      reportedSlots != null
+                          ? 'Wheel is full'
+                          : 'Filter limit reached',
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: colors.textMuted,
                       ),
-                      onChanged: (_) => _commitFilters(),
+                    )
+                  else
+                    NightshadeButton(
+                      icon: NightshadeIcons.add,
+                      label: 'Add slot',
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      onPressed: _loadingSlots ? null : _addSlot,
                     ),
-                  ),
-                  IconButton(
-                    onPressed:
-                        _controllers.length > 1 ? () => _removeSlot(i) : null,
-                    icon: Icon(
-                      NightshadeIcons.delete,
-                      size: 16,
-                      color: _controllers.length > 1
-                          ? colors.error
-                          : colors.textMuted,
-                    ),
-                  ),
                 ],
               ),
-            );
-          }),
+            ),
+            if (atSlotCap || reportedSlots != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(
+                  bottom: NightshadeTokens.spaceSm,
+                ),
+                child: Text(
+                  _slotCountCaption(
+                    draft: draft,
+                    reportedSlots: reportedSlots,
+                    atSlotCap: atSlotCap,
+                  ),
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+              ),
+            ],
+            // List of editable filter slots. We deliberately render inline
+            // (not in a separate Drift table) so the user sees their
+            // changes saved on Next without needing to confirm a sub-form.
+            ...List.generate(_controllers.length, (i) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: NightshadeTokens.spaceXs,
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: _slotNumberWidth,
+                      child: Text(
+                        '${i + 1}',
+                        style: NightshadeTypography.readoutSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: NightshadeTextField(
+                        controller: _controllers[i],
+                        hint: 'L / R / G / B / Ha …',
+                        onChanged: (_) => _commitFilters(),
+                      ),
+                    ),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    NightshadeIconButton(
+                      icon: NightshadeIcons.delete,
+                      tooltip: 'Remove slot ${i + 1}',
+                      size: IconButtonSize.sm,
+                      color: colors.error,
+                      onPressed:
+                          _controllers.length > 1 ? () => _removeSlot(i) : null,
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

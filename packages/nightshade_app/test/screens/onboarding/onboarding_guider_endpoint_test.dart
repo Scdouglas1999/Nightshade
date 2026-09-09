@@ -58,7 +58,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Host').first,
+      find.byKey(guiderHostFieldKey),
       '192.168.1.50',
     );
     await tester.pumpAndSettle();
@@ -78,7 +78,7 @@ void main() {
     // guider is unchanged, so the success line must go and the step must say
     // which endpoint is actually on record.
     await tester.enterText(
-      find.widgetWithText(TextField, 'Host').first,
+      find.byKey(guiderHostFieldKey),
       '192.168.1.60',
     );
     await tester.pumpAndSettle();
@@ -149,7 +149,7 @@ void main() {
     expect(find.textContaining('No response on'), findsOneWidget);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Port').first,
+      find.byKey(guiderPortFieldKey),
       '4401',
     );
     await tester.pumpAndSettle();

@@ -3,10 +3,9 @@
 // A fixed 240 px box for the device picker is less than the picker's own chrome
 // (heading, subtitle, Scan-again row, per-backend status row, footnote) needs:
 // on a virgin install at 1400x900 with no guider hardware the list slot
-// collapses and the "No devices found. Make sure your device is connected and
-// powered on, then try Scan again." empty state paints straight through the "No
-// matching device? You can skip this step..." footnote below it — two sentences
-// on one line, both unreadable.
+// collapses and the "No devices found" empty state paints straight through the
+// "No matching device? You can skip this step..." footnote below it — two
+// sentences on one line, both unreadable.
 //
 // Pinned here: no overflow and no overprint at the window sizes the wizard has
 // to survive.
@@ -27,9 +26,8 @@ class _EmptyDiscoveryNotifier extends UnifiedDiscoveryNotifier {
   }) async {}
 }
 
-const _emptyStateText =
-    'No devices found. Make sure your device is connected and powered on, '
-    'then try Scan again.';
+const _emptyStateText = 'Make sure the device is connected and powered on, '
+    'then scan again.';
 const _footnoteText =
     'No matching device? You can skip this step and add it later from the '
     'Equipment screen.';

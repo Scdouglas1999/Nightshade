@@ -54,10 +54,10 @@ void main() {
       findsNothing,
       reason: 'a focal ratio was rendered from out-of-range inputs',
     );
-    // The panel says it rejected the inputs rather than implying they are
-    // missing — the user did enter something.
-    expect(find.text('Check your inputs'), findsWidgets);
-    expect(find.text('Awaiting inputs…'), findsNothing);
+    // The readouts withhold every derived quantity: an em dash, never a
+    // number the optics cannot support. The reason is on the field itself,
+    // asserted below.
+    expect(find.text('\u2014'), findsWidgets);
 
     // Both offending fields carry the shared bound, so the user knows where the
     // edge is without pressing Next.
@@ -102,8 +102,8 @@ void main() {
     await _type(tester, _pixelSize, '3.76');
 
     expect(find.text('f/6.00'), findsOneWidget);
-    expect(find.text('600.0 mm'), findsOneWidget);
-    expect(find.text('Check your inputs'), findsNothing);
+    expect(find.textContaining('600.0'), findsOneWidget);
+    expect(find.text('\u2014'), findsNothing);
     expect(find.textContaining('Must be between'), findsNothing);
 
     final draft = handle.container.read(onboardingDraftProvider);
@@ -137,7 +137,7 @@ void main() {
     // A 500x "reducer" is a typo, not an accessory.
     await _type(tester, _reducer, '500');
     expect(find.textContaining('f/'), findsNothing);
-    expect(find.text('Check your inputs'), findsWidgets);
+    expect(find.text('\u2014'), findsWidgets);
     expect(
       find.text('Must be between ${OpticalTrainLimits.minReducerFactor} and '
           '${OpticalTrainLimits.maxReducerFactor.toInt()}.'),
@@ -147,6 +147,6 @@ void main() {
     // Back to a real 0.79x reducer: everything recomputes, nothing complains.
     await _type(tester, _reducer, '0.79');
     expect(find.text('f/4.74'), findsOneWidget);
-    expect(find.text('Check your inputs'), findsNothing);
+    expect(find.text('\u2014'), findsNothing);
   });
 }

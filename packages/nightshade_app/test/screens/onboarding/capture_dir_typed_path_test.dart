@@ -118,7 +118,12 @@ void main() {
     // Left in the box so it can be corrected rather than retyped.
     expect(
       tester
-          .widget<TextField>(find.byKey(onboardingCaptureDirFieldKey))
+          .widget<TextField>(
+            find.descendant(
+              of: find.byKey(onboardingCaptureDirFieldKey),
+              matching: find.byType(TextField),
+            ),
+          )
           .controller!
           .text,
       '/mnt/typo',
