@@ -390,15 +390,15 @@ void main() {
       onFramingNavigated: (url) => capturedUrl = url,
     );
 
-    // Find the first "Send to Framing" button and tap it. M31 was scrolled
-    // into view by default since the default page size is 25 and the list
-    // length is 10.
-    final sendButton = find.widgetWithText(NightshadeButton, 'Send to Framing');
-    expect(sendButton, findsWidgets);
-    // Tap the first one (NGC 7000, which is the highest-scoring candidate).
-    await tester.ensureVisible(sendButton.first);
+    // 06 §Plan moves framing onto the detail column, which describes the
+    // SELECTED candidate — NGC 7000, the highest-scoring one, by default. One
+    // button instead of one per row, acting on the target the column is
+    // describing.
+    final sendButton = find.widgetWithText(NightshadeButton, 'Frame it');
+    expect(sendButton, findsOneWidget);
+    await tester.ensureVisible(sendButton);
     await tester.pump();
-    await tester.tap(sendButton.first);
+    await tester.tap(sendButton);
     await tester.pumpAndSettle();
 
     expect(capturedUrl, isNotNull);

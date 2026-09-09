@@ -124,7 +124,10 @@ Future<void> _tapCandidateAction(
 /// where every target can reach it — including the only one when the list holds
 /// a single candidate.
 Future<void> _openObservingListDialog(WidgetTester tester) async {
-  final button = find.byTooltip('Add to observing list');
+  // By SEMANTICS, not `byTooltip`: NightshadeIconButton wraps its glyph in a
+  // NightshadeTooltip, which is not Material's Tooltip, and publishes the
+  // words on the node instead.
+  final button = find.bySemanticsLabel('Add to observing list');
   await tester.ensureVisible(button.first);
   await tester.pump();
   await tester.tap(button.first);
@@ -137,10 +140,30 @@ Future<void> _openObservingListDialog(WidgetTester tester) async {
 /// width, so a tab near the end can be scrolled out of view. Bring it in before
 /// tapping, or the gesture lands on the clip and the selection never changes.
 Future<void> _tapTab(WidgetTester tester, String label) async {
-  final tab = find.text(label);
-  await tester.ensureVisible(tab);
-  await tester.pump();
-  await tester.tap(tab, warnIfMissed: false);
+  final bar = find.byType(AdaptiveTabBar);
+  final tab = find.descendant(of: bar, matching: find.text(label));
+  final strip =
+      find.descendant(of: bar, matching: find.byType(Scrollable)).first;
+
+  // Scroll the strip until the tab is WHOLLY inside it, re-measuring each
+  // time. `ensureVisible` alone is not enough: the bar re-measures its edge
+  // affordances in a post-frame callback, and showing or hiding a chevron
+  // changes the viewport width, which moves every tab out from under the tap
+  // point that was just computed.
+  // Fixed pumps, never `pumpAndSettle`: the planner runs a 1s sky clock that
+  // never goes quiet, so settling here times out rather than waiting for the
+  // scroll.
+  for (var attempt = 0; attempt < 12; attempt++) {
+    await tester.pump(const Duration(milliseconds: 120));
+    final barRect = tester.getRect(bar);
+    final tabRect = tester.getRect(tab);
+    if (tabRect.left >= barRect.left && tabRect.right <= barRect.right) break;
+    await tester.drag(strip, const Offset(-80, 0));
+  }
+
+  await tester.pump(const Duration(milliseconds: 120));
+  await tester.tap(tab);
+  await tester.pump(const Duration(milliseconds: 200));
 }
 
 void main() {

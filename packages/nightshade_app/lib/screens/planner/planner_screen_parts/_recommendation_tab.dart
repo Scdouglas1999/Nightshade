@@ -326,9 +326,9 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
   Widget _buildErrorState(BuildContext context, Object error) {
     final l10n = context.l10n;
     final isLocationError = error is StateError;
-    return Center(
-      child: SingleChildScrollView(
-        child: isLocationError
+    return plannerCentredEmptyState(
+      Builder(
+        builder: (context) => isLocationError
             ? EmptyState(
                 icon: LucideIcons.mapPin,
                 title: l10n.text('plannerNoSiteTitle'),

@@ -22,8 +22,8 @@ class _PlannerFilteredEmptyState extends ConsumerWidget {
         ref.watch(catalogStateProvider).dsoCatalogStatus.isInstalled;
 
     if (breakdown.total == 0 && !catalogInstalled) {
-      return Center(
-        child: EmptyState(
+      return plannerCentredEmptyState(
+        EmptyState(
           icon: LucideIcons.download,
           title: l10n.text('plannerNoCatalogTitle'),
           body: l10n.text('plannerNoCatalogBody'),
@@ -37,8 +37,8 @@ class _PlannerFilteredEmptyState extends ConsumerWidget {
       );
     }
 
-    return Center(
-      child: EmptyState(
+    return plannerCentredEmptyState(
+      EmptyState(
         icon: LucideIcons.filterX,
         title: l10n.text('plannerNoMatchesTitle'),
         body: l10n.text(
@@ -63,4 +63,22 @@ class _PlannerFilteredEmptyState extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Centres an [EmptyState] when the viewport has room and scrolls it when it
+/// does not.
+///
+/// A phone in landscape with the software keyboard up leaves this tab under
+/// 150 px, which is shorter than an icon + title + sentence + button. Centred
+/// alone, that overflows and the button becomes unreachable — the state whose
+/// whole job is to offer the ONE fix.
+Widget plannerCentredEmptyState(Widget child) {
+  return LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: Center(child: child),
+      ),
+    ),
+  );
 }
