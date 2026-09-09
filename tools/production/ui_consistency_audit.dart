@@ -519,22 +519,50 @@ Map<String, Object?> _designSystemGalleryEvidence() {
     missing.add('package_export');
   }
 
+  // The Observatory kit, section by section (05 §18). The list used to name
+  // the PRE-overhaul library — Cards, the pill Tabs, Chips and Status Pills,
+  // Alerts, `SubTabButton`, `StatusPill`, `NightshadeAlert` — and wave 4
+  // deleted those sections from the gallery, so holding the gallery to them
+  // would have demanded the retired kit back.
   const requiredComponentMarkers = <String>[
     'Buttons',
-    'Cards',
     'Inputs',
-    'Tabs',
-    'Chips and Status Pills',
-    'Alerts',
+    'Panels and wells',
+    'Readouts',
+    'Underline tabs',
+    'Segmented control',
+    'Toolbar',
+    'Fields and form rows',
+    'Chips and status dots',
+    'Banner',
+    'Empty state',
+    'Dialog',
+    'Glass',
+    'Side panel',
+    'Candidate',
+    'Checklist',
+    'Night band',
     'NightshadeButton',
-    'NightshadeCard',
+    'NightshadeIconButton',
+    'NightshadePanel',
+    'PanelHead',
+    'Readout(',
+    'AdaptiveTabBar',
+    'SegmentedControl',
+    'NightshadeToolbar',
     'NightshadeTextField',
     'NightshadeDropdown',
-    'SubTabButton',
-    'StatusPill',
-    'StatusPillStatus.success',
-    'StatusPillStatus.inactive',
-    'NightshadeAlert',
+    'FormRow',
+    'NightshadeChip',
+    'StatusDot',
+    'InstrumentPill',
+    'NightshadeBanner',
+    'EmptyState',
+    'NightshadeDialog',
+    'SidePanel(',
+    'SectionTitle',
+    'Checklist(',
+    'NightBand(',
   ];
   for (final marker in requiredComponentMarkers) {
     final present = widgetContent.contains(marker);
@@ -548,20 +576,22 @@ Map<String, Object?> _designSystemGalleryEvidence() {
     missing.add('gallery_widget_test');
   }
 
+  // The keys the gallery test actually drives. `gallery-status-*` belonged to
+  // the deleted StatusPill row, `SubTabButton` to the deleted pill tabs, and
+  // `DropdownButton<String>` to Material's menu — `NightshadeDropdown` builds
+  // its own popover now (05 §8), so the test names the component instead.
   const requiredTestMarkers = <String>[
     'NightshadeTheme.dark',
     'NightshadeTheme.light',
     'NightshadeTheme.redNight',
     'gallery controls update representative states',
     'gallery-button-primary',
+    'gallery-button-secondary',
     'gallery-dropdown',
-    'gallery-status-active',
-    'gallery-status-success',
-    'gallery-status-inactive',
-    'DropdownButton<String>',
+    'gallery-switch',
+    'NightshadeDropdown',
     'NightshadeCheckbox',
     'NightshadeSwitch',
-    'SubTabButton',
   ];
   for (final marker in requiredTestMarkers) {
     final present = testContent.contains(marker);
