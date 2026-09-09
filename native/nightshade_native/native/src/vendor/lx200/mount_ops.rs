@@ -25,17 +25,8 @@ impl NativeMount for Lx200Mount {
             return Err(NativeError::SdkError("Failed to set Dec target".into()));
         }
 
-        let response = self.send_command(commands::SLEW_TO_TARGET)?;
-        if response != "0" && !response.is_empty() {
-            match response.chars().next() {
-                Some('1') => return Err(NativeError::SdkError("Object is below horizon".into())),
-                Some('2') => {
-                    return Err(NativeError::SdkError(
-                        "Object is below altitude limit".into(),
-                    ))
-                }
-                _ => return Err(NativeError::SdkError(format!("Slew failed: {}", response))),
-            }
+        if let SlewAck::Refused { code, message } = self.send_slew_command()? {
+            return Err(NativeError::SdkError(slew_refusal_message(code, &message)));
         }
 
         *self

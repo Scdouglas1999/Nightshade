@@ -188,6 +188,79 @@ impl Lx200Mount {
         }
     }
 
+    /// Issue `:MS#` and read the goto acknowledgement.
+    ///
+    /// Deliberately not `send_command`: that reader returns only on `#`, and an
+    /// accepted goto answers with a bare `0` and never sends one. Every
+    /// successful slew therefore blocked for the full 5 s deadline and surfaced
+    /// as `Timeout` while the mount was already moving — which is what the
+    /// polar-alignment run reported as "failed to rotate to point 2".
+    pub(crate) fn send_slew_command(&self) -> Result<SlewAck, NativeError> {
+        let mut port_guard = self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
+
+        port.write_all(commands::SLEW_TO_TARGET.as_bytes())
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
+
+        let mut buf = [0u8; 1];
+        let deadline = std::time::Instant::now();
+
+        let code = loop {
+            if deadline.elapsed() > Duration::from_secs(5) {
+                return Err(NativeError::Timeout(
+                    "LX200 slew acknowledgement timed out".to_string(),
+                ));
+            }
+
+            match port.read(&mut buf) {
+                Ok(1) => {
+                    if is_inter_response_framing(buf[0]) {
+                        continue;
+                    }
+                    break buf[0];
+                }
+                Ok(_) => {
+                    std::thread::sleep(Duration::from_millis(10));
+                    continue;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+                Err(e) => return Err(NativeError::Io(e)),
+            }
+        };
+
+        if code == b'0' {
+            return Ok(SlewAck::Accepted);
+        }
+
+        // Refused. The reason text arrives back-to-back with the code and ends
+        // in `#`; firmwares that send the bare code instead stop the read at
+        // the port's own timeout rather than at the goto deadline.
+        let mut tail = Vec::new();
+        let tail_deadline = std::time::Instant::now();
+        while tail_deadline.elapsed() < SLEW_REFUSAL_TAIL {
+            match port.read(&mut buf) {
+                Ok(1) => {
+                    if buf[0] == RESPONSE_TERM {
+                        break;
+                    }
+                    if is_inter_response_framing(buf[0]) {
+                        continue;
+                    }
+                    tail.push(buf[0]);
+                }
+                Ok(_) => break,
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,
+                Err(e) => return Err(NativeError::Io(e)),
+            }
+        }
+
+        Ok(parse_slew_ack(code, &tail))
+    }
+
     /// Wait up to `duration_ms` or until the pulse-guide cancel is
     /// notified, whichever comes first. Returns `true` if cancelled.
     ///

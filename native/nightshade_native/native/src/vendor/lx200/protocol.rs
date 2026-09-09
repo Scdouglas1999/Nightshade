@@ -456,3 +456,105 @@ pub(crate) fn parse_meade_gw_park(response: &str) -> Option<bool> {
         None => None,
     }
 }
+
+/// How the mount answered `:MS#`.
+///
+/// The goto acknowledgement is the one LX200 reply that does not follow the
+/// `<payload>#` shape every other read command uses: an ACCEPTED goto answers
+/// with a bare `0` and no terminator at all, while a REFUSED one answers with a
+/// status code, an optional human-readable reason, and `#`. A reader that waits
+/// for `#` therefore waits out its whole deadline on the success path — the
+/// mount slews, and the app reports a timeout.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SlewAck {
+    Accepted,
+    Refused { code: char, message: String },
+}
+
+/// Longest we wait for the reason text that follows a refusal code. A refusal
+/// sends its message back-to-back with the code, so this only bounds the case
+/// where the firmware sends the bare code and nothing else.
+pub(crate) const SLEW_REFUSAL_TAIL: Duration = Duration::from_millis(500);
+
+pub(crate) fn parse_slew_ack(code: u8, tail: &[u8]) -> SlewAck {
+    if code == b'0' {
+        return SlewAck::Accepted;
+    }
+
+    let message = String::from_utf8_lossy(tail)
+        .trim_end_matches(RESPONSE_TERM as char)
+        .trim()
+        .to_string();
+
+    SlewAck::Refused {
+        code: code as char,
+        message,
+    }
+}
+
+/// Codes 1 and 2 are the classic Meade LX200 refusals; 3-9 are OnStep's
+/// extensions (MountGoto.cpp). A Meade-only firmware never sends 3-9, so
+/// reading them with OnStep's meanings costs nothing and names the real
+/// reason on the mounts that do.
+pub(crate) fn slew_refusal_message(code: char, message: &str) -> String {
+    let reason = match code {
+        '1' => "target is below the horizon".to_string(),
+        '2' => "target is below the altitude limit".to_string(),
+        '3' => "mount is in standby".to_string(),
+        '4' => "mount is parked".to_string(),
+        '5' => "a goto is already in progress".to_string(),
+        '6' => "target is outside the mount's limits".to_string(),
+        '7' => "mount reported a hardware fault".to_string(),
+        '8' => "mount is already in motion".to_string(),
+        '9' => "mount refused the goto (unspecified error)".to_string(),
+        other => format!("mount refused the goto with status {}", other),
+    };
+
+    if message.is_empty() {
+        format!("Slew refused: {}", reason)
+    } else {
+        format!("Slew refused: {} ({})", reason, message)
+    }
+}
+
+#[cfg(test)]
+mod slew_ack_tests {
+    use super::*;
+
+    #[test]
+    fn bare_zero_is_an_accepted_goto() {
+        // The reply that used to hang the reader for the full 5 s deadline:
+        // one byte, no `#`, mount already moving.
+        assert_eq!(parse_slew_ack(b'0', &[]), SlewAck::Accepted);
+    }
+
+    #[test]
+    fn refusal_carries_its_code_and_reason() {
+        assert_eq!(
+            parse_slew_ack(b'1', b"Below horizon#"),
+            SlewAck::Refused {
+                code: '1',
+                message: "Below horizon".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn refusal_without_reason_text_keeps_its_code() {
+        assert_eq!(
+            parse_slew_ack(b'4', &[]),
+            SlewAck::Refused {
+                code: '4',
+                message: String::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn onstep_codes_read_as_their_documented_reasons() {
+        assert!(slew_refusal_message('4', "").contains("parked"));
+        assert!(slew_refusal_message('7', "").contains("hardware fault"));
+        assert!(slew_refusal_message('1', "Below horizon").contains("Below horizon"));
+        assert!(slew_refusal_message('x', "").contains("status x"));
+    }
+}
