@@ -64,9 +64,13 @@ class NightshadeDropdown extends StatefulWidget {
   static const TextStyle labelStyle = NightshadeTypography.input;
 
   /// Horizontal space this control spends on everything that is not the label:
-  /// 10px padding each side, the 14px chevron, and the 1px ring each side.
+  /// 10px padding each side, the 14px chevron, the 8px gap before it, and the
+  /// 1px ring each side.
+  ///
+  /// A caller that sizes this control adds the widest label to this figure, so
+  /// leaving the gap out of it is what ellipsizes a value that fits.
   static const double chromeWidth =
-      fieldHorizontalPadding * 2 + fieldIconSize + 2;
+      fieldHorizontalPadding * 2 + fieldIconSize + NightshadeTokens.spaceSm + 2;
 
   /// The control's height in logical pixels.
   double get height => dense ? fieldHeightDense : fieldHeight;
