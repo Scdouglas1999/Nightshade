@@ -296,8 +296,15 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
             ),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // A Wrap, not a Row: the Observatory small button carries a 13px
+          // label where the old one carried 11, and two of them plus an icon
+          // no longer fit this card's width at the phone sizes the dashboard
+          // is tested at. Wrapping onto a second run is the honest answer;
+          // shrinking the labels would hide what the buttons do.
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
             children: [
               NightshadeButton(
                 // Not "Not now". This button calls the same _dismissStep as
@@ -312,7 +319,6 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
                 size: ButtonSize.small,
                 onPressed: _busy ? null : () => _dismissStep(step.id),
               ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
               NightshadeButton(
                 label: step.actionLabel,
                 icon: LucideIcons.arrowRight,

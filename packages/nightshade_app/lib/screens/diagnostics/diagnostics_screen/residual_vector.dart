@@ -4,10 +4,7 @@ class _ResidualVectorCard extends StatelessWidget {
   final List<AstrometryResidualVectorRow> residuals;
   final NightshadeColors colors;
 
-  const _ResidualVectorCard({
-    required this.residuals,
-    required this.colors,
-  });
+  const _ResidualVectorCard({required this.residuals, required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -22,15 +19,17 @@ class _ResidualVectorCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Astrometric Residuals',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.h5.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
               const Spacer(),
               Text(
                 '${residuals.length} vectors',
                 style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textMuted),
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
               ),
             ],
           ),
@@ -42,7 +41,6 @@ class _ResidualVectorCard extends StatelessWidget {
               icon: LucideIcons.wind,
               title: 'No astrometric residual data for this session.',
               body: 'Capture plate-solved frames to generate residual vectors.',
-              padding: EdgeInsets.symmetric(vertical: 32),
             )
           else
             AspectRatio(
@@ -70,10 +68,7 @@ class _ResidualStats extends StatelessWidget {
   final List<AstrometryResidualVectorRow> residuals;
   final NightshadeColors colors;
 
-  const _ResidualStats({
-    required this.residuals,
-    required this.colors,
-  });
+  const _ResidualStats({required this.residuals, required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -86,17 +81,20 @@ class _ResidualStats extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _StatChip(
-            label: context.l10n.text('diagnosticsMean'),
-            value: '${mean.toStringAsFixed(2)}"',
-            colors: colors),
+          label: context.l10n.text('diagnosticsMean'),
+          value: '${mean.toStringAsFixed(2)}"',
+          colors: colors,
+        ),
         _StatChip(
-            label: context.l10n.text('diagnosticsMin'),
-            value: '${minMag.toStringAsFixed(2)}"',
-            colors: colors),
+          label: context.l10n.text('diagnosticsMin'),
+          value: '${minMag.toStringAsFixed(2)}"',
+          colors: colors,
+        ),
         _StatChip(
-            label: context.l10n.text('diagnosticsMax'),
-            value: '${maxMag.toStringAsFixed(2)}"',
-            colors: colors),
+          label: context.l10n.text('diagnosticsMax'),
+          value: '${maxMag.toStringAsFixed(2)}"',
+          colors: colors,
+        ),
       ],
     );
   }
@@ -120,14 +118,16 @@ class _StatChip extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: colors.textMuted),
+            fontSize: NightshadeTypography.fontSize10,
+            color: colors.textMuted,
+          ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: NightshadeTypography.labelStrong
-              .copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.labelStrong.copyWith(
+            color: colors.textPrimary,
+          ),
         ),
       ],
     );
@@ -195,8 +195,11 @@ class _ResidualVectorPainter extends CustomPainter {
 
       // Color by magnitude: green for small, red for large
       final normalizedMag = (r.magnitudeArcsec / maxMag).clamp(0.0, 1.0);
-      final color = Color.lerp(vectorColor, vectorColor.withValues(alpha: 0.3),
-          1.0 - normalizedMag)!;
+      final color = Color.lerp(
+        vectorColor,
+        vectorColor.withValues(alpha: 0.3),
+        1.0 - normalizedMag,
+      )!;
       vectorPaint.color = color;
 
       // Draw dot at position
@@ -206,11 +209,7 @@ class _ResidualVectorPainter extends CustomPainter {
       canvas.drawCircle(Offset(px, py), 2, dotPaint);
 
       // Draw vector arrow
-      canvas.drawLine(
-        Offset(px, py),
-        Offset(px + dx, py + dy),
-        vectorPaint,
-      );
+      canvas.drawLine(Offset(px, py), Offset(px + dx, py + dy), vectorPaint);
     }
   }
 

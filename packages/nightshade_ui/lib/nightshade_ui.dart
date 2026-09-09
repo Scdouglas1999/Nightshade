@@ -69,3 +69,19 @@ export 'src/widgets/phd2/guide_star_view.dart';
 export 'src/widgets/phd2/guide_graph_advanced.dart';
 export 'src/widgets/phd2/brain_settings_panel.dart';
 export 'src/widgets/phd2/calibration_panel.dart';
+
+// Observatory wave 2
+export 'src/components/nightshade_panel.dart';
+export 'src/components/readout.dart';
+export 'src/components/nightshade_icon_button.dart';
+export 'src/components/segmented_control.dart';
+export 'src/components/form_row.dart';
+export 'src/components/nightshade_toolbar.dart';
+export 'src/components/nightshade_banner.dart';
+export 'src/components/glass.dart';
+export 'src/components/section_title.dart';
+export 'src/components/list_rows.dart';
+export 'src/components/candidate_row.dart';
+export 'src/components/checklist.dart';
+export 'src/components/night_band.dart';
+export 'src/layout/side_panel.dart';

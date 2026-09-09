@@ -1,8 +1,21 @@
+// The class in this file is itself deprecated; its own state class and
+// constructor references are not separate mistakes.
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 
+/// The pre-overhaul pill sub-tab.
+///
+/// 05 §4 replaces it: a second-level switch inside a panel is a
+/// [SegmentedControl], and a switch in a page header is an [AdaptiveTabBar].
+/// It has no call sites in `nightshade_app` and is deleted in wave 4 — it
+/// stays only because the `design_system_gallery_missing` audit rule still
+/// requires its marker in the gallery and the gallery test (see
+/// `tools/production/ui_consistency_audit.dart`, which wave 0 owns).
+@Deprecated('Use SegmentedControl or AdaptiveTabBar. Removed in wave 4.')
 class SubTabButton extends StatefulWidget {
   final String label;
   final bool isSelected;

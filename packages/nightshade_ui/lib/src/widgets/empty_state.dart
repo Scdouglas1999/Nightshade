@@ -4,20 +4,20 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 
-/// Centered "no data" / "nothing selected" placeholder used across screens
-/// (diagnostics, science analytics) when a tab has nothing to render but
-/// must still occupy its slot in an [IndexedStack] or scroll view.
+/// The ONE empty-state pattern: a 28px muted glyph, a title, one sentence and
+/// one button, centred in whatever container it was given.
+///
+/// Padding is internal and fixed — 24 all round, 16 in [EmptyState.compact] —
+/// because an empty state that each screen pads differently stops being one
+/// pattern. No panel is drawn around it either: the surrounding layout already
+/// is one.
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? body;
   final Widget? action;
-  final EdgeInsetsGeometry padding;
-  final double _iconSize;
-  final TextStyle _titleStyle;
+  final EdgeInsets _padding;
   final double _iconTitleGap;
-  final double _bodyGap;
-  final double _actionGap;
 
   const EmptyState({
     super.key,
@@ -25,58 +25,66 @@ class EmptyState extends StatelessWidget {
     required this.title,
     this.body,
     this.action,
-    this.padding = const EdgeInsets.all(24),
-  }) : _iconSize = NightshadeTokens.iconXl,
-       _titleStyle = NightshadeTypography.h5,
-       _iconTitleGap = NightshadeTokens.spaceLg,
-       _bodyGap = NightshadeTokens.spaceSm,
-       _actionGap = NightshadeTokens.spaceLg;
+  }) : _padding = const EdgeInsets.all(NightshadeTokens.space2xl),
+       _iconTitleGap = iconTitleGap;
 
-  /// Tighter variant for side panels and embedded slots (32px icon).
+  /// Tighter variant for side panels and embedded slots.
   const EmptyState.compact({
     super.key,
     required this.icon,
     required this.title,
     this.body,
     this.action,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  }) : _iconSize = NightshadeTokens.iconXl,
-       _titleStyle = NightshadeTypography.h6,
-       _iconTitleGap = NightshadeTokens.spaceMd,
-       _bodyGap = NightshadeTokens.spaceXs,
-       _actionGap = NightshadeTokens.spaceMd;
+  }) : _padding = const EdgeInsets.all(NightshadeTokens.spaceLg),
+       _iconTitleGap = iconTitleGap;
+
+  /// The glyph size in logical pixels.
+  static const double iconSize = 28;
+
+  /// Gap between the icon and the title.
+  static const double iconTitleGap = 6;
+
+  /// Gap between the title and the body.
+  static const double titleBodyGap = NightshadeTokens.spaceXs;
+
+  /// Gap between the body and the button.
+  static const double actionGap = 10;
+
+  /// The widest an empty state gets, so its sentence never runs past two lines.
+  static const double maxWidth = 360;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     return Padding(
-      padding: padding,
+      padding: _padding,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
+          constraints: const BoxConstraints(maxWidth: maxWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: _iconSize, color: colors.textMuted),
+            children: <Widget>[
+              Icon(icon, size: iconSize, color: colors.textMuted),
               SizedBox(height: _iconTitleGap),
               Text(
                 title,
-                style: _titleStyle.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.sectionTitle.copyWith(
+                  color: colors.textPrimary,
+                ),
                 textAlign: TextAlign.center,
               ),
-              if (body != null) ...[
-                SizedBox(height: _bodyGap),
+              if (body != null) ...<Widget>[
+                const SizedBox(height: titleBodyGap),
                 Text(
                   body!,
                   style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
-                    height: 1.45,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ],
-              if (action != null) ...[
-                SizedBox(height: _actionGap),
+              if (action != null) ...<Widget>[
+                const SizedBox(height: actionGap),
                 // The action is a node of its own.
                 //
                 // A screen with a keyboard shortcut has a focusable ancestor

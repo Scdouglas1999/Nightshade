@@ -55,4 +55,35 @@ void main() {
     expect(file.lengthSync(), greaterThan(1024));
     expect(tester.takeException(), isNull);
   });
+
+  // The three boards above render `NightshadeDesignReferenceBoard`, which is
+  // the PRE-overhaul component library. 05 §18 asks for the Observatory kit to
+  // be in a golden too, and it lives in `NightshadeDesignSystemGallery`, so it
+  // gets three captures of its own rather than displacing the existing ones.
+  //
+  // Captured at pixelRatio 1 because the sheet is ~5,000 logical pixels tall;
+  // at 2 the PNG is 20 MB and no reviewer thanks you for it.
+  const observatorySize = Size(1280, 5400);
+
+  for (final entry in <String, ThemeData>{
+    'dark': NightshadeTheme.dark,
+    'light': NightshadeTheme.light,
+    'rednight': NightshadeTheme.redNight,
+  }.entries) {
+    testWidgets('observatory component sheet — ${entry.key} theme', (
+      tester,
+    ) async {
+      final file = await GoldenHarness.capture(
+        tester,
+        fileName: 'gallery-observatory-${entry.key}.png',
+        theme: entry.value,
+        size: observatorySize,
+        pixelRatio: 1,
+        child: const NightshadeDesignSystemGallery(),
+      );
+      expect(file.existsSync(), isTrue);
+      expect(file.lengthSync(), greaterThan(1024));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -15,11 +15,11 @@ Widget _wrap(Widget child) => MaterialApp(
   home: Scaffold(body: Center(child: child)),
 );
 
-AnimatedContainer _boxOf(WidgetTester tester) {
-  return tester.widget<AnimatedContainer>(
+Container _boxOf(WidgetTester tester) {
+  return tester.widget<Container>(
     find.descendant(
       of: find.byType(NightshadeChip),
-      matching: find.byType(AnimatedContainer),
+      matching: find.byType(Container),
     ),
   );
 }
@@ -44,16 +44,17 @@ void main() {
       _wrap(NightshadeChip(label: 'AAVSO', onTap: () {}, enabled: false)),
     );
     final disabledLabel = _labelColor(tester);
-    final disabledBorder =
-        (_boxOf(tester).decoration! as BoxDecoration).border!.top.color;
+    // A chip has no border in the Observatory language — the fill IS the
+    // boundary — so the dimming that separates a blocked option from an
+    // unpicked one has to reach the fill as well as the label.
+    final disabledFill = (_boxOf(tester).decoration! as BoxDecoration).color!;
 
     await tester.pumpWidget(
       _wrap(NightshadeChip(label: 'AAVSO', onTap: () {})),
     );
     await tester.pumpAndSettle();
     final enabledLabel = _labelColor(tester);
-    final enabledBorder =
-        (_boxOf(tester).decoration! as BoxDecoration).border!.top.color;
+    final enabledFill = (_boxOf(tester).decoration! as BoxDecoration).color!;
 
     expect(
       disabledLabel,
@@ -63,7 +64,7 @@ void main() {
           'simply not picked yet.',
     );
     expect(disabledLabel.a, lessThan(enabledLabel.a));
-    expect(disabledBorder, isNot(enabledBorder));
+    expect(disabledFill.a, lessThan(enabledFill.a));
   });
 
   testWidgets('a disabled chip is announced as an unavailable button', (
