@@ -47,8 +47,8 @@ ObjectInfoPopupLayout resolveObjectInfoPopupLayout(
 ) {
   final screenSize = MediaQuery.sizeOf(context);
   const padding = 16.0;
-  // 340 rather than 300: the action stack has to fit 'Log Observation',
-  // 'Target Queue' and 'Sequence' without ellipsizing them, and a truncated
+  // 340 rather than 300: the action stack has to fit 'Log observation',
+  // 'Target queue' and 'Sequence' without ellipsizing them, and a truncated
   // control label ('Sequ...') is not a legible control.
   final popupWidth = Responsive.previewOverlayMaxWidth(
     screenSize.width,
@@ -673,7 +673,7 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
             ],
           ),
           const SizedBox(height: 8),
-          // 'Log Observation' is the longest label in the popup, so it takes a
+          // 'Log observation' is the longest label in the popup, so it takes a
           // full row rather than half of one.
           PopupActionButton(
             icon: NightshadeIcons.book,

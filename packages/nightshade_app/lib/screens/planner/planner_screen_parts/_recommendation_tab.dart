@@ -81,19 +81,18 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // A parent Scaffold may consume viewInsets before this subtree sees
-        // them. Use the actual remaining height as the final authority so the
-        // search stays usable even when MediaQuery reports no keyboard.
-        final keyboardCompact = constraints.maxHeight < 120;
-
         return Column(
           children: [
+            // A parent Scaffold may consume viewInsets before this subtree
+            // sees them, so the height actually left over — not MediaQuery —
+            // is what the bar sizes itself against; it is the only signal that
+            // survives an outer shell resizing for the keyboard on our behalf.
             _PlannerControlsBar(
               colors: colors,
               controller: _searchController,
               filters: filtersState,
               candidatesAsync: candidatesAsync,
-              keyboardCompact: keyboardCompact,
+              availableHeight: constraints.maxHeight,
             ),
             Expanded(
               // NEVER FLASH: the optimization plan refreshes whenever its

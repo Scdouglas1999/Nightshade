@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -354,7 +355,15 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     required bool isDiscovering,
   }) {
     return SizedBox(
-      height: _discoveryHeadHeight,
+      // 06's 44 px is a POINTER height. It is a tight constraint, so on a
+      // phone it squeezed the row's three icon buttons — Rescan, Scan all and
+      // the expand chevron — to 48x44 and they failed the Android 48 dp
+      // tap-target floor; each one grows its own interactive box to 48, but a
+      // Row can only hand down the height it was given.
+      height: math.max(
+        _discoveryHeadHeight,
+        NightshadeTouchTarget.minExtent(context),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: NightshadeTokens.space2xl,
