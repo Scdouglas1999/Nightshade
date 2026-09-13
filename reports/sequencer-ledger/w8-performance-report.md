@@ -641,22 +641,36 @@ one halves the frame count without halving the cost of being idle.
 
 ## Host finding that dwarfs the renderer question
 
+> **Corrected.** An earlier revision of this section claimed the panel was on the
+> integrated GPU. That was wrong — I inverted the card numbering by reading it off
+> `lspci` bus order instead of the DRM nodes. The verified mapping is below.
+
 ```
-nvidia-smi   ->  Failed to initialize NVML: Driver/library version mismatch (NVML 615.71)
-lspci        ->  01:00.0 NVIDIA AD103 [GeForce RTX 4080]
-                 10:00.0 AMD Raphael [integrated]
-drm          ->  card1-HDMI-A-1 connected      (card1 = the AMD iGPU)
-vulkaninfo   ->  GPU0 only: PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, RADV RAPHAEL_MENDOCINO
+/sys/class/drm/card0  ->  vendor 0x1002 device 0x164e  driver amdgpu   (AMD Raphael iGPU)
+/sys/class/drm/card1  ->  vendor 0x10de device 0x2704  driver nvidia   (GeForce RTX 4080)
+connected output      ->  card1-HDMI-A-1               (i.e. the panel IS on the RTX 4080)
+
+/proc/driver/nvidia/version -> NVIDIA Open Kernel Module 610.57.04  (loaded)
+pacman -Q                   -> nvidia-utils 615.71.09-1
+                               linux-cachyos-nvidia-open 7.2.4-1
+uname -r                    -> 7.2.3-1-cachyos          uptime -p -> up 6 days
+nvidia-smi                  -> Failed to initialize NVML: Driver/library version mismatch
+vulkaninfo --summary        -> GPU0 only: INTEGRATED_GPU, RADV RAPHAEL_MENDOCINO
 ```
 
-**The 5120x1440 240 Hz panel is being driven by the integrated Raphael GPU, and
-the RTX 4080 is currently unusable** — its kernel module and userspace libraries
-are out of step, which normally means a driver update is installed but not yet
-rebooted into. Vulkan enumerates only the iGPU, which is also why Impeller picked
-its OpenGL backend rather than Vulkan.
+**The 5120x1440 240 Hz panel is on the RTX 4080. What is broken is the driver
+stack around it.** `nvidia-utils` was upgraded to 615.71 on 2026-09-12 alongside
+`linux-cachyos-nvidia-open` for kernel 7.2.4, but the machine has been up six
+days on kernel **7.2.3** with the **610.57** module still loaded. That version
+skew is what `nvidia-smi`'s NVML mismatch reports, and it is why `vulkaninfo`
+enumerates only the iGPU: the 615.71 NVIDIA Vulkan userspace cannot talk to a
+610.57 kernel module. It is also why Impeller fell back to its OpenGL backend
+instead of Vulkan.
 
-Every raster figure in this report is therefore an **iGPU** figure. A 2-CU
-integrated GPU pushing 7.37 Mpx at 240 Hz is the actual constraint.
+So every raster figure in this report is **NVIDIA GL running on a mismatched
+driver stack** — not an iGPU figure, and not a fair reading of what this hardware
+can do either. Re-measuring after a reboot into the matching driver is the first
+thing to do with any of these numbers.
 
 ## Recommendation
 
@@ -668,11 +682,12 @@ The one genuinely mis-specified thing the experiment did uncover is the LST chip
 watching a 1 Hz double to render a `HH:mm` string — worth fixing on its own
 merits (it takes the clock out of the idle path entirely: build p50 0.68 → 0.14 ms,
 total p90 10.73 → 7.33 ms) but, on its own, not something the owner will feel.
-What the owner will feel is the host: his 240 Hz ultrawide is being rendered by
-the **integrated** GPU because the RTX 4080's driver and libraries are out of
-sync — a reboot into the matching NVIDIA driver, and making sure the app runs on
-that card, is a bigger single lever than any renderer or widget change in this
-report, and it costs nothing to try first. After that, the app-side work that
+What the owner will feel is the host: his 240 Hz ultrawide is on the RTX 4080,
+but the box has been up six days on kernel 7.2.3 with the 610.57 NVIDIA module
+loaded while 615.71 userspace is installed — so every number here was taken on a
+mismatched driver stack that Vulkan cannot even enumerate. A reboot into the
+matching driver and a re-measure is a bigger single lever than any renderer or
+widget change in this report, and it costs nothing to try first. After that, the app-side work that
 actually pays is what section 5 started: `RepaintBoundary` coverage on the heavy
 screens, because with no damage region in the Linux embedder every idle tick
 repaints the whole window, and the cheapest frame is the one that repaints least.
