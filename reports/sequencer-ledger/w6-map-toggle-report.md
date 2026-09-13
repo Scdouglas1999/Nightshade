@@ -31,13 +31,15 @@ profile seeded from `/home/scdouglas/.cache/nightshade-ledger-preview/data`
 → Load, then switched to Ledger density and clicked the Map glyph in the canvas
 bar.
 
-Measured off raw 1920x1200 captures with `/tmp/ns-audit/w6map/measure.py` (finds
-the saturated gutter columns and the rightmost row ink left of them):
+Measured off raw 1920x1200 captures: the gutter as the run of saturated colour
+columns at the tree's right edge, and the ledger rows' own right edge as the
+right edge of the "ETA" column heading (the rightmost row ink, bounded left of
+the gutter).
 
-| base build (bug) | gutter x-range | gutter width | ledger rows' right edge |
+| base build (bug), Ledger | gutter x-range | gutter width | ETA column right edge |
 | --- | --- | --- | --- |
-| before the click | 1426–1459 | 34 px | 1417 |
-| after the click  | 1426–1459 | 34 px | 1417 |
+| before the click | 1426–1459 | 34 px | 1382 |
+| after the click  | 1426–1459 | 34 px | 1382 |
 
 Pixel diff of the two captures over the gutter columns: `None` — byte-identical.
 The only change anywhere on the canvas was the tooltip that had moved with the
@@ -48,19 +50,38 @@ and a gutter that never left.
 
 ## Verified in the running app (this build, after the fix)
 
-Same profile, same night, same canvas width, same measurement script:
+Same profile, same night, same canvas width, same measurements. (The shared
+cargo-target `libnightshade_bridge.so` was rebuilt from another commit mid-run
+and the app refused to start on the frb hash; the campaign-hash copy from
+`ns-worktrees/seq-ledger` was used, per the coordinator's correction. The base
+run above had the matching bridge already.)
 
-| fixed build | gutter x-range | gutter width | ledger rows' right edge |
+| fixed build, Ledger | gutter x-range | gutter width | ETA column right edge |
 | --- | --- | --- | --- |
-| gutter on (default) | 1426–1459 | 34 px | 1417 |
-| after one click     | none | 0 px | 1451 |
-| after a second click | 1426–1459 | 34 px | 1417 |
+| gutter on (default)  | 1426–1459 | 34 px | 1382 |
+| after one click      | none      | 0 px  | 1416 |
+| after a second click | 1426–1459 | 34 px | 1382 |
 
-The ledger rows' right edge moves by exactly 34 px, which is the gutter's width
-to the pixel, and the tooltip reads "Show the overview gutter" while it is off
-and "Hide the overview gutter" while it is on. In Comfortable the same control
-still shows and hides the 80 px strip and still says "Show the map" /
-"Hide the map".
+The ledger columns move right by exactly 1416 − 1382 = 34 px, the gutter's width
+to the pixel, and back again. The tooltip reads "Show the overview gutter" with
+the glyph unselected while it is off (`after-tooltip.png`) and the glyph is lit
+with the gutter back after the second press (`after-ledger-C.png`).
+
+Then, in Comfortable (`comfy-*.png`):
+
+| fixed build, Comfortable | 80 px strip |
+| --- | --- |
+| before the click (tooltip "Show the map", glyph unselected) | absent |
+| after the click | a saturated band at canvas y 939–1016, 78 of the strip's 80 px |
+
+And the per-density memory, live: with Ledger left OFF and Comfortable left ON,
+switching back to Ledger draws no gutter (0 saturated columns in 1426–1459) and
+switching back to Comfortable still draws the strip at y 939–1016. The settings
+row after the session reads exactly
+
+    sequence_overview_visible_v1 | {"ledger":false,"comfortable":true}
+
+— `compact`, never chosen in, is absent and still follows its default.
 
 ## The model, and why
 
