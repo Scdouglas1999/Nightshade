@@ -74,6 +74,27 @@ class _NodeTreeView extends ConsumerWidget {
 
     final isLedger = density == SequencerDensity.ledger;
 
+    // Ledger folds contiguous runs of sibling steps into one row (spec §6).
+    // Every other density draws one row per child, so the same loop below
+    // serves both: the fold model simply returns one entry per child there.
+    final entries = isLedger
+        ? foldChildren(
+            sequence,
+            nodeId,
+            unfoldedGroupIds: ref.watch(unfoldedGroupIdsProvider),
+          )
+        : <TreeEntry>[for (final child in children) SingleEntry(child)];
+    // Where each entry starts in the parent's child list. A folded entry
+    // consumes as many slots as it has members, so the drop zone above an
+    // entry has to count them rather than count rows — a zone that used the
+    // row index would insert into the middle of a folded run.
+    final entryIndices = <int>[];
+    var nextEntryIndex = 0;
+    for (final entry in entries) {
+      entryIndices.add(nextEntryIndex);
+      nextEntryIndex += entry is FoldedEntry ? entry.group.memberCount : 1;
+    }
+
     // Use TargetHeaderCard for TargetHeaderNode, otherwise use _NodeItem. In
     // Ledger the big card is gone: a target is a row like every other row, so
     // the columns line up through it (spec §2).
@@ -120,6 +141,15 @@ class _NodeTreeView extends ConsumerWidget {
               nodeId,
               children.length,
             );
+      } else if (data is FoldDragPayload) {
+        // A folded run appends as one block, in one undo step.
+        moveFoldGroup(
+          context,
+          ref,
+          memberIds: data.memberIds,
+          parentId: nodeId,
+          index: children.length,
+        );
       } else if (data is NodePaletteItem) {
         final newNode = data.createNode();
         final notifier = ref.read(currentSequenceProvider.notifier);
@@ -280,20 +310,7 @@ class _NodeTreeView extends ConsumerWidget {
                     : null,
               );
 
-    // Crossfade between the two row sets when the density changes (spec §9).
-    // The switcher sits INSIDE the scroll key and the tutorial anchor so the
-    // outgoing row, which stays mounted for the length of the fade, can never
-    // hold a GlobalKey the incoming row also wants — two live holders of one
-    // GlobalKey is a hard framework error.
-    final Widget crossfadedRow = AnimatedSwitcher(
-      duration: _ledgerMotion(context, NightshadeTokens.durationSmooth),
-      switchInCurve: NightshadeTokens.curveStandard,
-      switchOutCurve: NightshadeTokens.curveStandard,
-      child: KeyedSubtree(
-        key: ValueKey<SequencerDensity>(density),
-        child: densityRow,
-      ),
-    );
+    final Widget crossfadedRow = _densityCrossfade(context, densityRow);
 
     // `baseRow` is `final` on purpose. The collapsed-container wrapper below
     // builds its child from a CLOSURE, and a closure captures the VARIABLE,
@@ -326,6 +343,7 @@ class _NodeTreeView extends ConsumerWidget {
       headerRow = DragTarget<Object>(
         onWillAcceptWithDetails: (data) =>
             data.data is String ||
+            data.data is FoldDragPayload ||
             data.data is NodePaletteItem ||
             data.data is TemplateSnippet ||
             data.data is TargetQueueDragPayload,
@@ -408,6 +426,7 @@ class _NodeTreeView extends ConsumerWidget {
             child: DragTarget<Object>(
               onWillAcceptWithDetails: (data) =>
                   data.data is String ||
+                  data.data is FoldDragPayload ||
                   data.data is NodePaletteItem ||
                   data.data is TemplateSnippet ||
                   data.data is TargetQueueDragPayload,
@@ -426,6 +445,14 @@ class _NodeTreeView extends ConsumerWidget {
                         nodeId,
                         children.length,
                       );
+                } else if (data is FoldDragPayload) {
+                  moveFoldGroup(
+                    context,
+                    ref,
+                    memberIds: data.memberIds,
+                    parentId: nodeId,
+                    index: children.length,
+                  );
                 } else if (data is NodePaletteItem) {
                   final newNode = data.createNode();
                   final notifier = ref.read(currentSequenceProvider.notifier);
@@ -473,115 +500,28 @@ class _NodeTreeView extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (int i = 0; i < children.length; i++) ...[
+                      for (int e = 0; e < entries.length; e++) ...[
                         if (!isMobile)
                           _DropZone(
                             colors: colors,
                             parentId: nodeId,
-                            index: i,
+                            index: entryIndices[e],
                             isActive: candidateData.isNotEmpty,
                           ),
-                        if (isMobile)
-                          // On mobile, use simpler rendering without drag
-                          _NodeTreeView(
-                            colors: colors,
-                            sequence: sequence,
-                            nodeId: children[i].id,
-                            progress: progress,
-                            validation: validation,
-                            depth: depth + 1,
-                            density: density,
-                            isMobile: isMobile,
-                            onNodeTap: onNodeTap,
-                            keyRegistry: keyRegistry,
-                          )
-                        else
-                          LongPressDraggable<String>(
-                            data: children[i].id,
-                            delay: const Duration(milliseconds: 150),
-                            onDragStarted: () {
-                              ref.read(isDraggingNodeProvider.notifier).state =
-                                  true;
-                            },
-                            onDragEnd: (_) {
-                              ref.read(isDraggingNodeProvider.notifier).state =
-                                  false;
-                            },
-                            onDraggableCanceled: (_, __) {
-                              ref.read(isDraggingNodeProvider.notifier).state =
-                                  false;
-                            },
-                            feedback: Material(
-                              color: Colors.transparent,
-                              child: Opacity(
-                                opacity: 0.8,
-                                child: SizedBox(
-                                  // The dragged row looks like the row it came
-                                  // from: a ledger line, not the card that
-                                  // density does not draw.
-                                  width: isLedger
-                                      ? _ledgerDragFeedbackWidth
-                                      : children[i] is TargetHeaderNode
-                                          ? 400
-                                          : 300,
-                                  child: isLedger
-                                      ? _LedgerRow(
-                                          colors: colors,
-                                          sequence: sequence,
-                                          node: children[i],
-                                          depth: depth + 1,
-                                          isSelected: false,
-                                          isContainer: isSequenceContainer(
-                                            children[i],
-                                          ),
-                                          isCollapsed: false,
-                                          nodeStatus: null,
-                                          isDragging: true,
-                                        )
-                                      : children[i] is TargetHeaderNode
-                                          ? TargetHeaderCard(
-                                              node: children[i]
-                                                  as TargetHeaderNode,
-                                              colors: colors,
-                                              isSelected: false,
-                                              nodeStatus: null,
-                                            )
-                                          : _NodeItem(
-                                              colors: colors,
-                                              node: children[i],
-                                              isSelected: false,
-                                              nodeStatus: null,
-                                              hasChildren: false,
-                                              depth: depth + 1,
-                                              isDragging: true,
-                                            ),
-                                ),
-                              ),
+                        switch (entries[e]) {
+                          FoldedEntry(group: final group) => _buildFoldEntry(
+                              context,
+                              ref,
+                              group: group,
+                              siblingCount: children.length,
                             ),
-                            childWhenDragging: Opacity(
-                              opacity: 0.3,
-                              child: _NodeTreeView(
-                                colors: colors,
-                                sequence: sequence,
-                                nodeId: children[i].id,
-                                progress: progress,
-                                validation: validation,
-                                depth: depth + 1,
-                                density: density,
-                                keyRegistry: keyRegistry,
-                              ),
+                          SingleEntry(node: final child) => _buildSingleEntry(
+                              context,
+                              ref,
+                              child: child,
+                              isLedger: isLedger,
                             ),
-                            child: _NodeTreeView(
-                              colors: colors,
-                              sequence: sequence,
-                              nodeId: children[i].id,
-                              progress: progress,
-                              validation: validation,
-                              depth: depth + 1,
-                              density: density,
-                              keyRegistry: keyRegistry,
-                            ),
-                          ),
+                        },
                       ],
                       // Always show a drop zone at the end on desktop, even if empty
                       if (!isMobile)
@@ -636,6 +576,262 @@ class _NodeTreeView extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+
+  /// One ordinary child row: the recursive view, made draggable on desktop.
+  ///
+  /// Unchanged from the pre-folding loop — it is a method only so the row
+  /// builder can sit beside [_buildFoldEntry] and the two can be dispatched
+  /// from one `switch` over the parent's fold entries.
+  Widget _buildSingleEntry(
+    BuildContext context,
+    WidgetRef ref, {
+    required SequenceNode child,
+    required bool isLedger,
+  }) {
+    final subtree = _NodeTreeView(
+      colors: colors,
+      sequence: sequence,
+      nodeId: child.id,
+      progress: progress,
+      validation: validation,
+      depth: depth + 1,
+      density: density,
+      isMobile: isMobile,
+      onNodeTap: onNodeTap,
+      keyRegistry: keyRegistry,
+    );
+    // On mobile there is no drag affordance at all.
+    if (isMobile) return subtree;
+
+    return LongPressDraggable<String>(
+      data: child.id,
+      delay: const Duration(milliseconds: 150),
+      onDragStarted: () {
+        ref.read(isDraggingNodeProvider.notifier).state = true;
+      },
+      onDragEnd: (_) {
+        ref.read(isDraggingNodeProvider.notifier).state = false;
+      },
+      onDraggableCanceled: (_, __) {
+        ref.read(isDraggingNodeProvider.notifier).state = false;
+      },
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(
+          opacity: 0.8,
+          child: SizedBox(
+            // The dragged row looks like the row it came from: a ledger line,
+            // not the card that density does not draw.
+            width: isLedger
+                ? _ledgerDragFeedbackWidth
+                : child is TargetHeaderNode
+                    ? 400
+                    : 300,
+            child: isLedger
+                ? _LedgerRow(
+                    colors: colors,
+                    sequence: sequence,
+                    node: child,
+                    depth: depth + 1,
+                    isSelected: false,
+                    isContainer: isSequenceContainer(child),
+                    isCollapsed: false,
+                    nodeStatus: null,
+                    isDragging: true,
+                  )
+                : child is TargetHeaderNode
+                    ? TargetHeaderCard(
+                        node: child,
+                        colors: colors,
+                        isSelected: false,
+                        nodeStatus: null,
+                      )
+                    : _NodeItem(
+                        colors: colors,
+                        node: child,
+                        isSelected: false,
+                        nodeStatus: null,
+                        hasChildren: false,
+                        depth: depth + 1,
+                        isDragging: true,
+                      ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: subtree),
+      child: subtree,
+    );
+  }
+
+  /// Crossfade between the old and the new row set when the density changes
+  /// (spec §9).
+  ///
+  /// The switcher sits INSIDE the scroll key and the tutorial anchor so the
+  /// outgoing row, which stays mounted for the length of the fade, can never
+  /// hold a GlobalKey the incoming row also wants — two live holders of one
+  /// GlobalKey is a hard framework error.
+  Widget _densityCrossfade(BuildContext context, Widget row) {
+    return AnimatedSwitcher(
+      duration: _ledgerMotion(context, NightshadeTokens.durationSmooth),
+      switchInCurve: NightshadeTokens.curveStandard,
+      switchOutCurve: NightshadeTokens.curveStandard,
+      child: KeyedSubtree(
+        key: ValueKey<SequencerDensity>(density),
+        child: row,
+      ),
+    );
+  }
+
+  /// One folded run: the [_LedgerFoldRow] plus everything an ordinary row
+  /// carries — the context menu, the validation badge, the scroll-key anchor
+  /// and the drag that moves the whole block.
+  ///
+  /// [siblingCount] is the parent's child count, which bounds the block's
+  /// Move Down.
+  ///
+  /// Desktop-only by construction: folding is a Ledger rendering, and
+  /// `effectiveSequencerDensity` never resolves Ledger on a phone.
+  Widget _buildFoldEntry(
+    BuildContext context,
+    WidgetRef ref, {
+    required FoldGroup group,
+    required int siblingCount,
+  }) {
+    // The worst of the members' validation, with every member's issues behind
+    // the badge: a folded row is the only place those issues are reachable,
+    // so hiding the quieter ones would hide them outright.
+    ValidationSeverity? severity;
+    final issues = <ValidationIssue>[];
+    for (final memberId in group.memberIds) {
+      final memberSeverity = validation.worstSeverityForNode(memberId);
+      if (memberSeverity != null &&
+          (severity == null || memberSeverity.index < severity.index)) {
+        severity = memberSeverity;
+      }
+      issues.addAll(validation.issuesByNodeId[memberId] ?? const []);
+    }
+
+    // The folded row answers to its FIRST member's scroll key — the id the
+    // visible order keeps as the run's stand-in — so Follow execution and the
+    // minimap's jump both land on the row that is actually drawn. Only one of
+    // the fold row and that member's own row is ever mounted, so the two can
+    // never hold the key at once.
+    final scrollKey =
+        keyRegistry.putIfAbsent(group.memberIds.first, () => GlobalKey());
+
+    // The depth-1 capture anchor belongs to the FIRST top-level exposure. When
+    // a fold hides that exposure the folded row has to carry the anchor, or
+    // the tutorial points at a row that is not on screen.
+    GlobalKey? tutorialKey;
+    if (depth == 0 && group.kind == FoldKind.filterRun) {
+      final anchor =
+          sequence.getChildren(nodeId).whereType<ExposureNode>().firstOrNull;
+      if (anchor != null && group.memberIds.contains(anchor.id)) {
+        tutorialKey = SequencerTutorialKeys.captureNode;
+      }
+    }
+
+    final foldRow = _LedgerFoldRow(
+      colors: colors,
+      group: group,
+      progress: progress,
+      depth: depth + 1,
+      onSelect: () {
+        _handleFoldSelect(ref, group);
+        onNodeTap?.call(group.memberIds.first);
+      },
+      onDisableAll: () => disableFoldGroup(
+        context,
+        ref,
+        memberIds: group.memberIds,
+      ),
+      onDuplicate: () => duplicateFoldGroup(context, ref, group: group),
+      onDelete: () => confirmAndDeleteFoldGroup(
+        context: context,
+        ref: ref,
+        group: group,
+      ),
+      onMoveUp: group.firstIndex > 0
+          ? () => moveFoldGroup(
+                context,
+                ref,
+                memberIds: group.memberIds,
+                parentId: nodeId,
+                index: group.firstIndex - 1,
+              )
+          : null,
+      onMoveDown: group.firstIndex + group.memberCount < siblingCount
+          ? () => moveFoldGroup(
+                context,
+                ref,
+                memberIds: group.memberIds,
+                parentId: nodeId,
+                // The slot the step after the run occupies today: removing the
+                // run's leader shifts it left by one, so inserting there lands
+                // the block one step further down.
+                index: group.firstIndex + group.memberCount,
+              )
+          : null,
+    );
+
+    // Through the SAME crossfade an ordinary row takes, so a density switch
+    // fades the whole tree rather than fading the steps and popping the runs
+    // between them (spec §9).
+    final Widget crossfadedFoldRow = _densityCrossfade(context, foldRow);
+
+    final Widget decorated = KeyedSubtree(
+      key: scrollKey,
+      child: SequenceTreeContextMenu(
+        nodeId: group.memberIds.first,
+        colors: colors,
+        foldGroup: group,
+        child: _NodeValidationWrapper(
+          colors: colors,
+          validationSeverity: severity,
+          validationIssues: issues,
+          child: tutorialKey == null
+              ? crossfadedFoldRow
+              : KeyedSubtree(key: tutorialKey, child: crossfadedFoldRow),
+        ),
+      ),
+    );
+
+    return LongPressDraggable<FoldDragPayload>(
+      data: FoldDragPayload(
+        groupId: group.id,
+        memberIds: group.memberIds,
+        parentId: nodeId,
+      ),
+      delay: const Duration(milliseconds: 150),
+      onDragStarted: () {
+        ref.read(isDraggingNodeProvider.notifier).state = true;
+      },
+      onDragEnd: (_) {
+        ref.read(isDraggingNodeProvider.notifier).state = false;
+      },
+      onDraggableCanceled: (_, __) {
+        ref.read(isDraggingNodeProvider.notifier).state = false;
+      },
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(
+          opacity: 0.8,
+          child: SizedBox(
+            width: _ledgerDragFeedbackWidth,
+            child: _LedgerFoldRow(
+              colors: colors,
+              group: group,
+              progress: progress,
+              depth: depth + 1,
+              isDragging: true,
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: decorated),
+      child: decorated,
     );
   }
 }

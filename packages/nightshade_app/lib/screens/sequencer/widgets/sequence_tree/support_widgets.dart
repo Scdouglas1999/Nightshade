@@ -8,6 +8,13 @@ part of '../sequence_tree.dart';
 /// of where they sit in the sequence. The badge makes that non-obvious
 /// behavior legible right in the tree so an operator reviewing a sequence
 /// doesn't assume the flip "runs at this position".
+/// Room the badge needs to draw its word: the chip's own padding, the glyph,
+/// the gap and the `overline` measure of "Watchdog". Below it the badge keeps
+/// the glyph and drops the word — the tooltip carries the meaning either way,
+/// and a trigger row on a 500 px canvas (the ledger's column floor, where the
+/// name has ~63 px left) overflowed by the width of the label.
+const double _watchdogLabelMinWidth = 84.0;
+
 class _WatchdogBadge extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -19,28 +26,40 @@ class _WatchdogBadge extends StatelessWidget {
       message:
           'Runs in parallel as a safety watchdog — fires on meridian-crossing '
           'regardless of its position in the list',
-      child: Container(
-        padding: NightshadeTokens.paddingXs,
-        decoration: NightshadeDecorations.statusChip(
-          colors.warning,
-          borderRadius: NightshadeTokens.borderRadiusSm,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.shieldAlert,
-              size: NightshadeTokens.iconXs,
-              color: colors.warning,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showLabel = constraints.maxWidth >= _watchdogLabelMinWidth;
+          return Container(
+            padding: NightshadeTokens.paddingXs,
+            decoration: NightshadeDecorations.statusChip(
+              colors.warning,
+              borderRadius: NightshadeTokens.borderRadiusSm,
             ),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            Text(
-              'Watchdog',
-              style:
-                  NightshadeTypography.overline.copyWith(color: colors.warning),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.shieldAlert,
+                  size: NightshadeTokens.iconXs,
+                  color: colors.warning,
+                ),
+                if (showLabel) ...[
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Flexible(
+                    child: Text(
+                      'Watchdog',
+                      style: NightshadeTypography.overline
+                          .copyWith(color: colors.warning),
+                      softWrap: false,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -286,16 +305,9 @@ class _NodeOverflowMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final canEdit = ref.watch(canEditSequenceProvider);
-    return Theme(
-      data: Theme.of(context).copyWith(
-        popupMenuTheme: PopupMenuThemeData(
-          color: colors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            side: BorderSide(color: colors.border),
-          ),
-        ),
-      ),
+    return _treeMenuSurface(
+      context,
+      colors,
       child: PopupMenuButton<String>(
         icon: Icon(LucideIcons.moreVertical, size: 14, color: colors.textMuted),
         tooltip: 'More Actions',
@@ -401,6 +413,31 @@ class _NodeOverflowMenu extends ConsumerWidget {
   }
 }
 
+/// The popup-menu surface every tree kebab opens on.
+///
+/// One helper rather than a copy per menu: the node row's kebab and the folded
+/// row's sit a few pixels apart on the same line, so a menu that differed in
+/// fill or border would read as two different controls.
+Widget _treeMenuSurface(
+  BuildContext context,
+  NightshadeColors colors, {
+  required Widget child,
+}) {
+  return Theme(
+    data: Theme.of(context).copyWith(
+      popupMenuTheme: PopupMenuThemeData(
+        // ignore: deprecated_member_use
+        color: colors.surfaceAlt,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          side: BorderSide(color: colors.border),
+        ),
+      ),
+    ),
+    child: child,
+  );
+}
+
 class _DropZone extends ConsumerWidget {
   final NightshadeColors colors;
   final String parentId;
@@ -424,6 +461,7 @@ class _DropZone extends ConsumerWidget {
     return DragTarget<Object>(
       onWillAcceptWithDetails: (data) =>
           data.data is String ||
+          data.data is FoldDragPayload ||
           data.data is NodePaletteItem ||
           data.data is TemplateSnippet ||
           data.data is TargetQueueDragPayload,
@@ -435,6 +473,17 @@ class _DropZone extends ConsumerWidget {
                 parentId,
                 index,
               );
+        } else if (data is FoldDragPayload) {
+          // A folded run lands here as one contiguous block, in one undo step
+          // — see [moveFoldGroup] for why the members chase each other rather
+          // than take index + k.
+          moveFoldGroup(
+            context,
+            ref,
+            memberIds: data.memberIds,
+            parentId: parentId,
+            index: index,
+          );
         } else if (data is NodePaletteItem) {
           final node = data.createNode();
           final notifier = ref.read(currentSequenceProvider.notifier);

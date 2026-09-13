@@ -150,6 +150,237 @@ class _LedgerColumnHeader extends StatelessWidget {
   }
 }
 
+/// The fill under a ledger line, in the one precedence order both row kinds
+/// paint with: where the run is outranks what is selected, which outranks what
+/// the pointer happens to be over.
+Color? _ledgerRowFill({
+  required NightshadeColors colors,
+  required bool pinned,
+  required bool isRunning,
+  required bool isSelected,
+  required bool hovered,
+}) {
+  // A pin is one tile of an already-elevated stack; a running ancestor still
+  // says so through its left marker and its Running chip, which are content.
+  if (pinned) return colors.surfaceElevated;
+  if (isRunning) {
+    return colors.primary.withValues(alpha: NightshadeTokens.opacityAccentTint);
+  }
+  if (isSelected) return colors.surfaceElevated;
+  if (hovered) return colors.surfaceHover;
+  return null;
+}
+
+/// The chrome every ledger line wears, whether it stands for one step
+/// ([_LedgerRow]) or for a whole folded run ([_LedgerFoldRow]): the fixed
+/// 28 px box, the hovered/running/selected fill and the 2 px progress bar
+/// along the bottom edge.
+///
+/// Shared because the two must be indistinguishable AS ROWS — a run that
+/// tinted, ringed or barred differently from the steps above it would read as
+/// a different kind of thing — and because the two had drifted apart once
+/// already when the sticky stack added a pinned variant to only one of them.
+class _LedgerRowShell extends StatelessWidget {
+  final NightshadeColors colors;
+
+  /// Hover lives in a listenable, not in setState, so moving the pointer down
+  /// a 40-row ledger repaints two islands per row instead of rebuilding every
+  /// row's content.
+  final ValueListenable<bool> hovered;
+
+  final bool isRunning;
+  final bool isSelected;
+  final bool pinned;
+
+  final Widget content;
+
+  /// Null before anything has run: an untouched row shows no bar at all.
+  final Widget? progressBar;
+
+  const _LedgerRowShell({
+    required this.colors,
+    required this.hovered,
+    required this.isRunning,
+    required this.isSelected,
+    required this.content,
+    this.pinned = false,
+    this.progressBar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bar = progressBar;
+    return SizedBox(
+      height: _ledgerRowHeight,
+      child: Stack(
+        children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: hovered,
+            // The content is built ONCE and handed over via `child`, so a
+            // hover only recomputes the fill.
+            child: content,
+            builder: (context, isHovered, child) => AnimatedContainer(
+              duration: _ledgerMotion(context, NightshadeTokens.durationFast),
+              curve: NightshadeTokens.curveStandard,
+              decoration: BoxDecoration(
+                color: _ledgerRowFill(
+                  colors: colors,
+                  pinned: pinned,
+                  isRunning: isRunning,
+                  isSelected: isSelected,
+                  hovered: isHovered,
+                ),
+              ),
+              // A foreground border, not a real one: a border in the
+              // decoration insets the child by its width, so selecting a row
+              // would nudge its name and every column by a pixel.
+              foregroundDecoration: isSelected
+                  ? BoxDecoration(
+                      border: Border.all(
+                        color: colors.primary.withValues(
+                          alpha: NightshadeTokens.opacitySelectedRing,
+                        ),
+                      ),
+                    )
+                  : null,
+              child: child,
+            ),
+          ),
+          if (bar != null) Positioned(left: 0, right: 0, bottom: 0, child: bar),
+        ],
+      ),
+    );
+  }
+}
+
+/// The 2 px bar along a row's bottom edge.
+///
+/// [showTrack] only while a run is in flight: a finished row is a solid line,
+/// not a line inside a groove.
+class _LedgerProgressBar extends StatelessWidget {
+  final NightshadeColors colors;
+  final Color fill;
+  final double fraction;
+  final bool showTrack;
+
+  const _LedgerProgressBar({
+    required this.colors,
+    required this.fill,
+    required this.fraction,
+    required this.showTrack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _ledgerProgressHeight,
+      child: Stack(
+        children: [
+          // The groove must be POSITIONED — a bare ColoredBox in a loose Stack
+          // lays out at 0x0 and never paints.
+          if (showTrack)
+            Positioned.fill(child: ColoredBox(color: colors.surfaceHover)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: fraction,
+              heightFactor: 1,
+              child: ColoredBox(color: fill),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The permanently reserved actions block on a ledger line, and the hover
+/// reveal inside it.
+///
+/// Reserved rather than inserted on hover: appearing actions that push the
+/// columns sideways make a ledger unreadable exactly when the pointer is in
+/// it. On touch the trio folds into the kebab and the reservation becomes the
+/// platform's tap-target floor.
+class _LedgerActionsSlot extends StatelessWidget {
+  final ValueListenable<bool> hovered;
+
+  /// Keep the width and draw nothing in it. A drag's feedback layer and a
+  /// pinned row are readouts, not targets.
+  final bool reservedOnly;
+
+  /// The eye / duplicate / delete trio, shown beside the kebab on a pointer
+  /// platform and folded into it on touch.
+  final Widget chips;
+  final Widget menu;
+
+  const _LedgerActionsSlot({
+    required this.hovered,
+    required this.chips,
+    required this.menu,
+    this.reservedOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isTouch = NightshadeTouchTarget.isTouch(context);
+    final slotWidth = _ledgerActionsSlotWidth(context);
+    if (reservedOnly) return SizedBox(width: slotWidth);
+
+    final actions = isTouch
+        // OverflowBox lets the kebab's 48x48 hit area spill the row's 28 px
+        // height symmetrically instead of clipping the slot down to the
+        // visual. This is the padding `NightshadeTouchTarget` prescribes,
+        // applied where a fixed-height row cannot grow to fit it.
+        ? OverflowBox(
+            minWidth: slotWidth,
+            maxWidth: slotWidth,
+            minHeight: slotWidth,
+            maxHeight: slotWidth,
+            child: menu,
+          )
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              chips,
+              // PopupMenuButton's IconButton enforces a 48 px interactive
+              // minimum of its own; the tight slot clamps it back to the dense
+              // footprint the reservation was sized for.
+              SizedBox(
+                width: _ledgerKebabWidth,
+                height: _ledgerRowHeight,
+                child: menu,
+              ),
+            ],
+          );
+
+    return SizedBox(
+      width: slotWidth,
+      height: _ledgerRowHeight,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: hovered,
+        child: actions,
+        builder: (context, isHovered, child) {
+          final visible = isTouch || isHovered;
+          return IgnorePointer(
+            ignoring: !visible,
+            // A hidden button must not be announced or focusable, or a
+            // screen-reader user lands on a control they cannot operate.
+            child: ExcludeSemantics(
+              excluding: !visible,
+              child: AnimatedOpacity(
+                opacity: visible ? 1 : 0,
+                duration: _ledgerMotion(context, NightshadeTokens.durationFast),
+                curve: NightshadeTokens.curveStandard,
+                child: child,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _LedgerRow extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final Sequence sequence;
@@ -173,6 +404,14 @@ class _LedgerRow extends ConsumerStatefulWidget {
   /// True in a drag's feedback layer: no hover, no actions, no selection.
   final bool isDragging;
 
+  /// True in the sticky-ancestor stack (spec §5). A pinned row is a READOUT of
+  /// a row that has scrolled away, so it drops everything that makes the real
+  /// row a target: the focus node the shortcuts act through, the tap/hover
+  /// gestures, the hover actions, and its place in the accessibility traversal
+  /// order — the real row is still there and still reachable. It draws on
+  /// `surfaceElevated` because the stack it sits in floats over the tree.
+  final bool pinned;
+
   final VoidCallback? onSelect;
   final VoidCallback? onToggleEnabled;
   final VoidCallback? onDelete;
@@ -191,6 +430,7 @@ class _LedgerRow extends ConsumerStatefulWidget {
     required this.nodeStatus,
     this.progressPercent,
     this.isDragging = false,
+    this.pinned = false,
     this.onSelect,
     this.onToggleEnabled,
     this.onDelete,
@@ -214,12 +454,20 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
   // stops (`skipTraversal`). Same contract — and the same debug label — as
   // the comfortable row: focus tests and any tooling that identifies "the
   // tree row has keyboard focus" must not have to know which density drew it.
-  final FocusNode _rowFocusNode = FocusNode(debugLabel: 'sequence-tree-row');
+  //
+  // Allocated on FIRST USE, because a pinned row (spec §5) never has one: it
+  // is a readout of a row that is still mounted and still focusable where it
+  // really sits, and the stack rebuilds its three rows on every scroll frame
+  // that changes it.
+  FocusNode? _rowFocusNode;
+
+  FocusNode get _focusNode =>
+      _rowFocusNode ??= FocusNode(debugLabel: 'sequence-tree-row');
 
   @override
   void dispose() {
     _isHovered.dispose();
-    _rowFocusNode.dispose();
+    _rowFocusNode?.dispose();
     super.dispose();
   }
 
@@ -290,41 +538,20 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       isFailed: isFailed,
     );
 
-    final row = SizedBox(
-      height: _ledgerRowHeight,
-      child: Stack(
-        children: [
-          ValueListenableBuilder<bool>(
-            valueListenable: _isHovered,
-            // The content is built ONCE and handed over via `child`, so a
-            // hover only recomputes the fill.
-            child: content,
-            builder: (context, hovered, child) => AnimatedContainer(
-              duration: _ledgerMotion(context, NightshadeTokens.durationFast),
-              curve: NightshadeTokens.curveStandard,
-              decoration: BoxDecoration(
-                color: _fill(isRunning: isRunning, hovered: hovered),
-              ),
-              // A foreground border, not a real one: a border in the
-              // decoration insets the child by its width, so selecting a row
-              // would nudge its name and every column by a pixel.
-              foregroundDecoration: widget.isSelected
-                  ? BoxDecoration(
-                      border: Border.all(
-                        color: colors.primary.withValues(
-                          alpha: NightshadeTokens.opacitySelectedRing,
-                        ),
-                      ),
-                    )
-                  : null,
-              child: child,
-            ),
-          ),
-          if (progressBar != null)
-            Positioned(left: 0, right: 0, bottom: 0, child: progressBar),
-        ],
-      ),
+    final row = _LedgerRowShell(
+      colors: colors,
+      hovered: _isHovered,
+      isRunning: isRunning,
+      isSelected: widget.isSelected,
+      pinned: widget.pinned,
+      content: content,
+      progressBar: progressBar,
     );
+
+    // A pinned row keeps the row's LOOK and nothing else: no focus node, no
+    // gestures, and out of the traversal order so a screen reader hears each
+    // step once (spec §5).
+    if (widget.pinned) return ExcludeSemantics(child: row);
 
     final semanticsRow = Semantics(
       button: true,
@@ -337,13 +564,13 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
           _semanticsLabel(columns: columns, summary: summary, status: status),
       hint: 'Select node. More actions include reorder and wrap commands.',
       child: Focus(
-        focusNode: _rowFocusNode,
+        focusNode: _focusNode,
         skipTraversal: true,
         child: GestureDetector(
           onTap: () {
             // Take focus FIRST: the click that selects a node is also the
             // moment the keyboard shortcuts must start applying to it.
-            _rowFocusNode.requestFocus();
+            _focusNode.requestFocus();
             widget.onSelect?.call();
           },
           child: row,
@@ -357,21 +584,6 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       onExit: (_) => _isHovered.value = false,
       child: semanticsRow,
     );
-  }
-
-  /// The row's fill. Running wins over selection, which wins over hover: the
-  /// run's position is the most urgent fact on the canvas, and a selected row
-  /// still carries its ring on top of whichever fill it gets.
-  Color? _fill({required bool isRunning, required bool hovered}) {
-    final colors = widget.colors;
-    if (isRunning) {
-      return colors.primary.withValues(
-        alpha: NightshadeTokens.opacityAccentTint,
-      );
-    }
-    if (widget.isSelected) return colors.surfaceElevated;
-    if (hovered) return colors.surfaceHover;
-    return null;
   }
 
   Widget _buildContent({
@@ -402,21 +614,7 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
           height: _ledgerRowHeight,
           child: isRunning ? ColoredBox(color: colors.primary) : null,
         ),
-        for (var i = 0; i < guides; i++)
-          ExcludeSemantics(
-            child: SizedBox(
-              width: _ledgerGuideWidth,
-              height: _ledgerRowHeight,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
-                  width: _ledgerGuideLineWidth,
-                  height: _ledgerRowHeight,
-                  child: ColoredBox(color: colors.border),
-                ),
-              ),
-            ),
-          ),
+        ..._ledgerDepthGuides(guides, colors),
         _buildChevron(context),
         ExcludeSemantics(
           child: Icon(
@@ -451,22 +649,33 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
                 ),
                 if (isRunning) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
-                  _LedgerChip(
-                    colors: colors,
-                    label: 'Running',
-                    tone: colors.primary,
+                  Flexible(
+                    child: _LedgerChip(
+                      colors: colors,
+                      label: 'Running',
+                      tone: colors.primary,
+                    ),
                   ),
                 ],
                 // A target's pointing is what distinguishes it from every
                 // other target, and Ledger has no card to put it on.
+                //
+                // Flexible, because the chips are fixed-width and the name is
+                // not: at the canvas's narrow floor the name shrinks to nothing
+                // and the two coordinates then run past the row's edge. They
+                // give ground the same way the name does instead.
                 if (node is TargetHeaderNode)
                   for (final chip in _targetCoordinateChips(node, colors)) ...[
                     const SizedBox(width: NightshadeTokens.spaceSm),
-                    chip,
+                    Flexible(child: chip),
                   ],
+                // Flexible for the same reason the coordinate chips are: on a
+                // narrow canvas the badge is the widest fixed thing on a
+                // trigger row, and given an unbounded slot it ran straight
+                // past the row's edge.
                 if (node.category == NodeCategory.trigger) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
-                  _WatchdogBadge(colors: colors),
+                  Flexible(child: _WatchdogBadge(colors: colors)),
                 ],
                 if (summary.isNotEmpty) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
@@ -487,28 +696,12 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
           ),
         ),
         _buildActions(context),
-        ExcludeSemantics(
-          child: Row(
-            children: [
-              for (var i = 0; i < _ledgerColumnWidths.length; i++)
-                SizedBox(
-                  width: _ledgerColumnWidths[i],
-                  child: Text(
-                    columns.values[i],
-                    style: NightshadeTypography.readoutXs.copyWith(
-                      // The ETA cell mutes when it is still quoting the
-                      // prediction for a node the run already passed.
-                      color: i == _ledgerColumnLabels.length - 1 && etaMuted
-                          ? colors.textMuted
-                          : columnColor,
-                    ),
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-          ),
+        _LedgerColumnCells(
+          values: columns.values,
+          color: columnColor,
+          // The ETA cell mutes when it is still quoting the prediction for a
+          // node the run already passed.
+          etaColor: etaMuted ? colors.textMuted : null,
         ),
         const SizedBox(width: _ledgerBadgeGutter),
       ],
@@ -519,122 +712,34 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
     if (!widget.isContainer) {
       return const SizedBox(width: _ledgerChevronWidth);
     }
-    final label = widget.isCollapsed ? 'Expand' : 'Collapse';
-    return Semantics(
-      button: true,
-      enabled: true,
-      label: label,
-      child: NightshadeTooltip(
-        message: label,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => ref
-              .read(collapsedNodeIdsProvider.notifier)
-              .toggle(widget.node.id),
-          child: SizedBox(
-            width: _ledgerChevronWidth,
-            height: _ledgerRowHeight,
-            child: Center(
-              child: AnimatedRotation(
-                turns: widget.isCollapsed ? -0.25 : 0,
-                duration: _ledgerMotion(
-                  context,
-                  NightshadeTokens.durationQuick,
-                ),
-                curve: NightshadeTokens.curveStandard,
-                child: Icon(
-                  LucideIcons.chevronDown,
-                  size: _ledgerChevronGlyph,
-                  color: widget.colors.textMuted,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return _LedgerChevron(
+      colors: widget.colors,
+      isCollapsed: widget.isCollapsed,
+      onToggle: () =>
+          ref.read(collapsedNodeIdsProvider.notifier).toggle(widget.node.id),
     );
   }
 
-  /// The hover-revealed actions block, in permanently reserved width.
-  ///
-  /// On a pointer platform it is the eye / duplicate / delete trio plus the
-  /// kebab — the same three mutations the comfortable row shows on hover.
-  /// A touch pointer has no hover, so there the block is simply the always-on
-  /// kebab (the trio's entries live inside it), padded out to the platform's
-  /// minimum tap target — a 24 × 28 hit box is not a legal touch target.
+  /// The row's three mutations plus its kebab, in the shared reserved slot.
   Widget _buildActions(BuildContext context) {
-    final isTouch = NightshadeTouchTarget.isTouch(context);
-    final slotWidth = _ledgerActionsSlotWidth(context);
-    if (widget.isDragging) {
-      return SizedBox(width: slotWidth);
-    }
-    final menu = _NodeOverflowMenu(
-      colors: widget.colors,
-      node: widget.node,
-      onToggleEnabled: widget.onToggleEnabled,
-      onDuplicate: widget.onDuplicate,
-      onDelete: widget.onDelete,
-      onMoveUp: widget.onMoveUp,
-      onMoveDown: widget.onMoveDown,
-    );
-    final actions = isTouch
-        // OverflowBox lets the kebab's 48×48 hit area spill the row's 28 px
-        // height symmetrically instead of clipping the slot down to the
-        // visual. This is the padding `NightshadeTouchTarget` prescribes,
-        // applied where a fixed-height row cannot grow to fit it.
-        ? OverflowBox(
-            minWidth: slotWidth,
-            maxWidth: slotWidth,
-            minHeight: slotWidth,
-            maxHeight: slotWidth,
-            child: menu,
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _NodeActionChips(
-                colors: widget.colors,
-                node: widget.node,
-                onToggleEnabled: widget.onToggleEnabled,
-                onDuplicate: widget.onDuplicate,
-                onDelete: widget.onDelete,
-              ),
-              // PopupMenuButton's IconButton enforces a 48 px interactive
-              // minimum of its own; the tight slot clamps it back to the
-              // dense footprint the reservation was sized for.
-              SizedBox(
-                width: _ledgerKebabWidth,
-                height: _ledgerRowHeight,
-                child: menu,
-              ),
-            ],
-          );
-    return SizedBox(
-      width: slotWidth,
-      height: _ledgerRowHeight,
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _isHovered,
-        child: actions,
-        builder: (context, hovered, child) {
-          final visible = isTouch || hovered;
-          return IgnorePointer(
-            ignoring: !visible,
-            // A hidden button must not be announced or focusable, or a
-            // screen-reader user lands on a control they cannot operate.
-            child: ExcludeSemantics(
-              excluding: !visible,
-              child: AnimatedOpacity(
-                opacity: visible ? 1 : 0,
-                duration: _ledgerMotion(
-                  context,
-                  NightshadeTokens.durationFast,
-                ),
-                curve: NightshadeTokens.curveStandard,
-                child: child,
-              ),
-            ),
-          );
-        },
+    return _LedgerActionsSlot(
+      hovered: _isHovered,
+      reservedOnly: widget.isDragging || widget.pinned,
+      chips: _NodeActionChips(
+        colors: widget.colors,
+        node: widget.node,
+        onToggleEnabled: widget.onToggleEnabled,
+        onDuplicate: widget.onDuplicate,
+        onDelete: widget.onDelete,
+      ),
+      menu: _NodeOverflowMenu(
+        colors: widget.colors,
+        node: widget.node,
+        onToggleEnabled: widget.onToggleEnabled,
+        onDuplicate: widget.onDuplicate,
+        onDelete: widget.onDelete,
+        onMoveUp: widget.onMoveUp,
+        onMoveDown: widget.onMoveDown,
       ),
     );
   }
@@ -666,26 +771,11 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       return null;
     }
 
-    return SizedBox(
-      height: _ledgerProgressHeight,
-      child: Stack(
-        children: [
-          // The track only exists while a run is in flight; a finished row is
-          // a solid line, not a line inside a groove. It must be POSITIONED —
-          // a bare ColoredBox in a loose Stack lays out at 0×0 and the groove
-          // never paints.
-          if (isRunning)
-            Positioned.fill(child: ColoredBox(color: colors.surfaceHover)),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: fraction,
-              heightFactor: 1,
-              child: ColoredBox(color: fill),
-            ),
-          ),
-        ],
-      ),
+    return _LedgerProgressBar(
+      colors: colors,
+      fill: fill,
+      fraction: fraction,
+      showTrack: isRunning,
     );
   }
 
@@ -774,6 +864,142 @@ class _LedgerChip extends StatelessWidget {
         style: NightshadeTypography.overline.copyWith(
           color: tone ?? colors.textSecondary,
         ),
+        softWrap: false,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+/// The depth guides a row draws to its left: one 18 px column per ancestor
+/// level, each with a hairline down its leading edge.
+///
+/// Shared by [_LedgerRow] and [_LedgerFoldRow] so a folded run sits on exactly
+/// the same indent grid as the rows around it — a run that indented by even a
+/// pixel more would read as nested inside its own siblings.
+List<Widget> _ledgerDepthGuides(int count, NightshadeColors colors) {
+  return <Widget>[
+    for (var i = 0; i < count; i++)
+      ExcludeSemantics(
+        child: SizedBox(
+          width: _ledgerGuideWidth,
+          height: _ledgerRowHeight,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: _ledgerGuideLineWidth,
+              height: _ledgerRowHeight,
+              child: ColoredBox(color: colors.border),
+            ),
+          ),
+        ),
+      ),
+  ];
+}
+
+/// The row's chevron: a full-height hit box around a 12 px glyph that rotates
+/// a quarter turn between the two states.
+///
+/// One widget for both callers because the two states have to look identical
+/// whether they belong to a container or to a folded run — the chevron IS the
+/// tree's only "there is more under this line" affordance. [_LedgerFoldRow]
+/// only ever mounts it collapsed (an expanded run is its member rows, with no
+/// header of its own), so the rotation tween is exercised by containers.
+class _LedgerChevron extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isCollapsed;
+  final VoidCallback onToggle;
+
+  /// Announced name and tooltip for the collapsed state. Defaults to the
+  /// container wording; a folded run says what it expands into instead.
+  final String? expandLabel;
+
+  const _LedgerChevron({
+    required this.colors,
+    required this.isCollapsed,
+    required this.onToggle,
+    this.expandLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isCollapsed ? (expandLabel ?? 'Expand') : 'Collapse';
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: label,
+      child: NightshadeTooltip(
+        message: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onToggle,
+          child: SizedBox(
+            width: _ledgerChevronWidth,
+            height: _ledgerRowHeight,
+            child: Center(
+              child: AnimatedRotation(
+                turns: isCollapsed ? -0.25 : 0,
+                duration: _ledgerMotion(
+                  context,
+                  NightshadeTokens.durationQuick,
+                ),
+                curve: NightshadeTokens.curveStandard,
+                child: Icon(
+                  LucideIcons.chevronDown,
+                  size: _ledgerChevronGlyph,
+                  color: colors.textMuted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The four right-aligned readout cells, in column order.
+///
+/// Shared so the folded row's cells sit on the same 70 / 60 / 74 / 62 grid as
+/// every other row's — the ledger's whole promise is that a column means the
+/// same thing all the way down, which requires the cells to be laid out by one
+/// piece of code.
+class _LedgerColumnCells extends StatelessWidget {
+  final List<String> values;
+  final Color color;
+
+  /// Overrides [color] for the ETA cell only, for the case where the row is
+  /// still quoting a prediction the run has already overtaken.
+  final Color? etaColor;
+
+  const _LedgerColumnCells({
+    required this.values,
+    required this.color,
+    this.etaColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Row(
+        children: [
+          for (var i = 0; i < _ledgerColumnWidths.length; i++)
+            SizedBox(
+              width: _ledgerColumnWidths[i],
+              child: Text(
+                values[i],
+                style: NightshadeTypography.readoutXs.copyWith(
+                  color: i == _ledgerColumnWidths.length - 1
+                      ? (etaColor ?? color)
+                      : color,
+                ),
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
       ),
     );
   }

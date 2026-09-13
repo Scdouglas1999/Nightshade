@@ -13,6 +13,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_co
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/visual_timeline.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -189,6 +190,11 @@ void main() {
     ]);
     final handle = await _pumpTree(tester, built.sequence);
 
+    // The two exposures share a capture spec, so the loop's one child row is
+    // the folded run 'L · R' (spec §6) — that row is what collapsing the loop
+    // has to hide.
+    expect(find.text('L · R'), findsOneWidget);
+
     // Collapse 'Broadband' via its chevron (carries the 'Collapse' semantic).
     final setRow = _rowShellOf(find.text('Broadband')).first;
     final chevron = find.descendant(
@@ -199,7 +205,7 @@ void main() {
     expect(handle.container.read(collapsedNodeIdsProvider),
         contains(built.loopId));
     // Children are hidden and the rollup summary rides on the row.
-    expect(find.text('L subs'), findsNothing);
+    expect(find.text('L · R'), findsNothing);
     expect(find.text('L · R 60 s ×10 each'), findsOneWidget);
 
     // Expand again restores the children and drops the summary.
@@ -208,7 +214,7 @@ void main() {
         matching: find.bySemanticsLabel('Expand'));
     await tester.tap(expandChevron);
     await tester.pumpAndSettle();
-    expect(find.text('L subs'), findsOneWidget);
+    expect(find.text('L · R'), findsOneWidget);
     expect(find.text('L · R 60 s ×10 each'), findsNothing);
     await _drainValidationDebounce(tester);
   });
@@ -223,8 +229,11 @@ void main() {
     );
     final e1 =
         ExposureNode(name: 'L subs', filter: 'L', durationSecs: 60, count: 10);
+    // A different frame count, so the pair is not a run: a run folds into one
+    // row (spec §6) and this test needs two rows to select and reorder
+    // between.
     final e2 =
-        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 10);
+        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 6);
     final root = InstructionSetNode(name: 'Root');
     final sequence = Sequence.create(
       name: 'T',
@@ -570,8 +579,11 @@ void main() {
     );
     final e1 =
         ExposureNode(name: 'L subs', filter: 'L', durationSecs: 60, count: 10);
+    // A different frame count, so the pair is not a run: a run folds into one
+    // row (spec §6) and this test needs two rows to select and reorder
+    // between.
     final e2 =
-        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 10);
+        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 6);
     final root = InstructionSetNode(name: 'Root');
     final sequence = Sequence.create(
       name: 'T',
@@ -617,11 +629,14 @@ void main() {
         durationSecs: 60,
         count: 10,
       ),
+      // Different frame count so the two exposures are not a run: a run is one
+      // row with one zone on each side, and this test counts the zones
+      // between two rows.
       ExposureNode(
         name: 'R subs',
         filter: 'R',
         durationSecs: 60,
-        count: 10,
+        count: 6,
       ),
     ]);
     final handle = await _pumpTree(tester, built.sequence);
@@ -738,6 +753,56 @@ void main() {
       matching: find.text(formatLedgerClock(t0)),
     ));
     expect(etaText.style?.color, colors.textMuted);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('the Watchdog badge drops its label rather than overflow the row',
+      (tester) async {
+    // A meridian flip nested three deep at the narrowest canvas Ledger will
+    // still take: marker, chevron, icon, three depth guides, the reserved
+    // actions block, the four columns and the badge gutter leave the name and
+    // the badge ~60 px between them. The labelled badge alone is wider than
+    // that, so on a real trigger row it ran straight past the row's edge.
+    final flip = MeridianFlipNode(name: 'Meridian flip');
+    final built = _threeLevelSequence(const <ExposureNode>[]);
+    final loop = built.sequence.nodes[built.loopId]!;
+    final narrow = built.sequence.copyWith(nodes: {
+      ...built.sequence.nodes,
+      flip.id: flip.copyWith(parentId: loop.id, orderIndex: 0),
+      loop.id: loop.copyWith(childIds: [flip.id]),
+    });
+
+    await _pumpTree(tester, narrow, size: const Size(582, 900));
+
+    // Still Ledger — this is the floor, not below it.
+    expect(find.text('Filter / exp'), findsOneWidget);
+    expect(find.text('Meridian flip'), findsOneWidget);
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'a RenderFlex overflow on a trigger row is a red stripe across '
+          'the canvas in debug and a clipped row in release',
+    );
+    // The glyph and its tooltip carry the meaning; the word is what gives way.
+    expect(find.text('Watchdog'), findsNothing);
+    expect(find.byIcon(LucideIcons.shieldAlert), findsOneWidget);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('a wide row still spells the Watchdog badge out', (tester) async {
+    final flip = MeridianFlipNode(name: 'Meridian flip');
+    final built = _threeLevelSequence(const <ExposureNode>[]);
+    final loop = built.sequence.nodes[built.loopId]!;
+    final wide = built.sequence.copyWith(nodes: {
+      ...built.sequence.nodes,
+      flip.id: flip.copyWith(parentId: loop.id, orderIndex: 0),
+      loop.id: loop.copyWith(childIds: [flip.id]),
+    });
+
+    await _pumpTree(tester, wide);
+
+    expect(find.text('Watchdog'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await _drainValidationDebounce(tester);
   });
 }
