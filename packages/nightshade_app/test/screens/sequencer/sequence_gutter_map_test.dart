@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_minimap.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_overview_prefs.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
@@ -67,7 +68,6 @@ Future<HarnessHandle> _pumpTree(
   WidgetTester tester,
   Sequence sequence, {
   SequencerDensity density = SequencerDensity.ledger,
-  bool minimapVisible = false,
 }) async {
   final notifier = CurrentSequenceNotifier();
   // ignore: invalid_use_of_protected_member
@@ -89,7 +89,6 @@ Future<HarnessHandle> _pumpTree(
       // pump in the fake-async zone.
       ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
       sequencerDensityProvider.overrideWith((ref) => density),
-      minimapVisibleProvider.overrideWith((ref) => minimapVisible),
     ],
   );
   await _drain(tester);
@@ -175,9 +174,15 @@ void main() {
     expect(_gutter(), findsNothing);
   });
 
-  testWidgets('the 80 px strip stays out of ledger even with the toggle on',
+  testWidgets('ledger draws its overview as the gutter, never as the strip',
       (tester) async {
-    await _pumpTree(tester, _tallSequence().sequence, minimapVisible: true);
+    final handle = await _pumpTree(tester, _tallSequence().sequence);
+    // Comfortable's own choice is on: it must not follow the user into
+    // Ledger, where the same map is already beside the rows.
+    await handle.container
+        .read(sequenceOverviewPrefsProvider.notifier)
+        .setVisible(SequencerDensity.comfortable, true);
+    await _drain(tester);
 
     expect(_gutter(), findsOneWidget);
     expect(
@@ -187,13 +192,18 @@ void main() {
     );
   });
 
-  testWidgets('compact still answers to the minimap toggle', (tester) async {
-    await _pumpTree(
+  testWidgets('compact still answers to the overview toggle', (tester) async {
+    final handle = await _pumpTree(
       tester,
       _tallSequence().sequence,
       density: SequencerDensity.compact,
-      minimapVisible: true,
     );
+    expect(find.byType(SequenceMinimap), findsNothing);
+
+    await handle.container
+        .read(sequenceOverviewPrefsProvider.notifier)
+        .setVisible(SequencerDensity.compact, true);
+    await _drain(tester);
 
     expect(find.byType(SequenceMinimap), findsOneWidget);
   });

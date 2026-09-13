@@ -18,7 +18,7 @@ import 'flat_wizard_dialog.dart';
 import 'mosaic_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
 import 'sequence_issues_dialog.dart';
-import 'sequence_minimap.dart';
+import 'sequence_overview_prefs.dart';
 import 'sequencer_density.dart';
 import 'sequence_step_finder.dart';
 import 'sequence_tree_shortcuts.dart';
@@ -718,8 +718,24 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           );
           final validation = ref.watch(liveValidationProvider);
           final showTimeline = ref.watch(timelineVisibleProvider);
-          final showMinimap = ref.watch(minimapVisibleProvider);
           final density = ref.watch(sequencerDensityProvider);
+          // The overview control speaks for the density the canvas is
+          // DRAWING, not for the stored preference: on a canvas too narrow to
+          // host Ledger the tree is showing compact rows and the strip below
+          // them, and a button offering to hide a gutter that is not there is
+          // how this control came to do nothing at all.
+          final overviewDensity = ref.watch(canvasSequencerDensityProvider);
+          final showOverview = ref.watch(sequenceOverviewVisibleProvider);
+          final overviewLabel = sequenceOverviewToggleLabel(
+            density: overviewDensity,
+            visible: showOverview,
+          );
+          void toggleOverview() {
+            ref
+                .read(sequenceOverviewPrefsProvider.notifier)
+                .setVisible(overviewDensity, !showOverview);
+          }
+
           // The mobile builder forces comfortable rows
           // (`effectiveSequencerDensity`), so a density control there would
           // sell a mode the canvas refuses to draw. The gate mirrors the same
@@ -775,10 +791,8 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               ))
               ..add(_ToolbarAction(
                 icon: LucideIcons.map,
-                label: showMinimap ? 'Hide the map' : 'Show the map',
-                onPressed: () => ref
-                    .read(minimapVisibleProvider.notifier)
-                    .state = !showMinimap,
+                label: overviewLabel,
+                onPressed: toggleOverview,
               ));
           }
 
@@ -819,15 +833,16 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                       .state = !showTimeline,
                 ),
                 NightshadeButton(
-                  label: 'Map',
+                  label: sequenceOverviewButtonLabel(overviewDensity),
                   icon: LucideIcons.map,
                   size: ButtonSize.small,
-                  variant: showMinimap
+                  variant: showOverview
                       ? ButtonVariant.secondary
                       : ButtonVariant.ghost,
-                  onPressed: () => ref
-                      .read(minimapVisibleProvider.notifier)
-                      .state = !showMinimap,
+                  // The name says WHAT it is and the variant says it is on;
+                  // the hint is where a reader gets what pressing it does.
+                  semanticsHint: overviewLabel,
+                  onPressed: toggleOverview,
                 ),
                 // Density is a one-of-three choice, not a third on/off
                 // toggle, so it keeps its own control shape even while it
@@ -858,12 +873,10 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               ),
               NightshadeIconButton(
                 icon: LucideIcons.map,
-                tooltip: showMinimap ? 'Hide the map' : 'Show the map',
+                tooltip: overviewLabel,
                 size: IconButtonSize.sm,
-                selected: showMinimap,
-                onPressed: () => ref
-                    .read(minimapVisibleProvider.notifier)
-                    .state = !showMinimap,
+                selected: showOverview,
+                onPressed: toggleOverview,
               ),
               // Glyph tier: one button per mode, named by its tooltip and
               // carrying the same `selected` treatment as Timeline / Map.

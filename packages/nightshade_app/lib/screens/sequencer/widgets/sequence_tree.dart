@@ -21,6 +21,7 @@ import 'node_progress_panels.dart';
 import 'node_summary.dart';
 import 'node_summary_line.dart';
 import 'sequence_minimap.dart';
+import 'sequence_overview_prefs.dart';
 import 'sequence_tree/fold_group_actions.dart';
 import 'sequence_tree/ledger_columns.dart';
 import 'sequence_tree/rollup_summary.dart';
@@ -850,6 +851,17 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               // provider) or a frame late (the measurement).
               _syncCanvasDensity(canvasDensity);
 
+              // Straight from the preference against the density THIS frame
+              // resolved, not through `sequenceOverviewVisibleProvider`: that
+              // provider reads the resolved density the tree only publishes
+              // after the frame, so on the frame a narrow canvas clamps Ledger
+              // to compact rows it would still be answering with Ledger's
+              // choice and flash the strip on for one frame.
+              final overviewPrefs =
+                  ref.watch(sequenceOverviewPrefsProvider).valueOrNull ??
+                      SequenceOverviewPrefs.defaults;
+              final showOverview = overviewPrefs.visibleIn(canvasDensity);
+
               // The pinned stack floats over the top of the tree, so the
               // scroll viewport gives up exactly its height while it is up.
               // Padding the scroll CONTENT instead would only change which
@@ -953,17 +965,18 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                             ],
                           ),
                         ),
-                        // Ledger's overview is always on and lives beside the
-                        // rows it maps (spec §7); the other two densities keep
-                        // the toggled strip below. It fades with the rows
-                        // rather than snapping away from beside them (spec §9).
+                        // Ledger's overview lives beside the rows it maps
+                        // (spec §7); the other two densities put the same map
+                        // in the strip below. It fades with the rows rather
+                        // than snapping away from beside them (spec §9), and
+                        // the rows take back its width when it is off.
                         densityCrossfade(
                           context: context,
                           density: canvasDensity,
                           animate: !densityClamped,
                           child: canvasDensity == SequencerDensity.ledger
-                              ? _SequenceGutterMap(
-                                  key: sequenceGutterMapKey,
+                              ? _GutterMapSlot(
+                                  visible: showOverview,
                                   colors: widget.colors,
                                   scrollController: _scrollController,
                                   rowAtContentOffset: _rowAtContentOffset,
@@ -985,23 +998,17 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                     },
                   ),
 
-                  // Mini-map (toggled via minimapVisibleProvider). Ledger has
-                  // the gutter instead, so the strip would be a second copy of
-                  // the same map.
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final showMinimap = ref.watch(minimapVisibleProvider);
-                      if (!showMinimap ||
-                          widget.isMobile ||
-                          canvasDensity == SequencerDensity.ledger) {
-                        return const SizedBox.shrink();
-                      }
-                      return SequenceMinimap(
-                        colors: widget.colors,
-                        scrollController: _scrollController,
-                      );
-                    },
-                  ),
+                  // The overview's strip shape, toggled by the same canvas-bar
+                  // control the gutter answers to. Ledger has the gutter
+                  // instead, so the strip would be a second copy of the map
+                  // already beside the rows.
+                  if (showOverview &&
+                      !widget.isMobile &&
+                      canvasDensity != SequencerDensity.ledger)
+                    SequenceMinimap(
+                      colors: widget.colors,
+                      scrollController: _scrollController,
+                    ),
                 ],
               );
             },
