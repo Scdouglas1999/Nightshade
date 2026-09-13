@@ -27,6 +27,7 @@ import 'widgets/node_palette_search.dart';
 import 'widgets/snippet_palette.dart';
 import 'widgets/sequence_tree.dart';
 import 'widgets/node_properties_panel.dart';
+import 'widgets/node_progress_panels.dart';
 import 'widgets/notes_panel.dart';
 import 'widgets/sequence_progress_bar.dart';
 import 'widgets/session_report_dialog.dart';
@@ -373,6 +374,12 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     // still read for the shortcut bindings below that gate behaviour to the
     // Builder tab.
     final currentTab = ref.watch(sequencerTabProvider);
+
+    // The inspector's session memory of last-known per-node progress must
+    // fold every progress update whether or not the panel is open — the
+    // Activity tab only watches it when built, and a lazily-created
+    // notifier would open on the post-reset empty maps.
+    ref.watch(lastKnownNodeActivityProvider);
 
     return CallbackShortcuts(
       bindings: {
