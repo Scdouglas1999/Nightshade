@@ -27,6 +27,7 @@ import 'package:nightshade_core/src/services/device_exceptions.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 import 'package:nightshade_core/src/utils/device_id.dart';
 
+import '../harness/in_memory_database.dart';
 import '../mocks/mock_backend.dart';
 
 class _TestBackendNotifier extends BackendNotifier {
@@ -65,6 +66,14 @@ void main() {
         backendProvider.overrideWith(
           (ref) => _TestBackendNotifier(ref, mockBackend),
         ),
+        // The camera connect path reads `activeEquipmentProfileProvider` to
+        // apply the profile's gain, which pulls in the real `databaseProvider`
+        // and opens the on-disk SQLite file. Under a loaded machine two
+        // containers' opens overlap and one loses with
+        // `SqliteException(14): unable to open database file` — reported
+        // against whichever connect test was running. See
+        // `test/harness/in_memory_database.dart`.
+        inMemoryDatabaseOverride(),
       ],
     );
     // Initialize DeviceService so event listeners are active.
