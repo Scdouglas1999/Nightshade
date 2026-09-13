@@ -12,6 +12,7 @@ pub mod checkpoint;
 // recovery transition, frame verdict, plugin invocation, manual action,
 // and system event).
 pub mod decision;
+pub mod depth_goal;
 mod device_ops;
 // Dual-rig / multi-camera synchronized imaging: dither-coordination barrier
 // + secondary capture-loop driver.
@@ -52,6 +53,9 @@ pub use all_sky_polar::*;
 pub use checkpoint::*;
 // Replay Debug — hoist the decision types so the bridge can use
 // them without pathing through `nightshade_sequencer::decision::…`.
+pub use depth_goal::{
+    DepthGoalBinding, DepthGoalCompletion, DepthGoalOps, DepthGoalVerdict, SharedDepthGoalOps,
+};
 pub use decision::{
     emit_decision, DecisionCategory, DecisionEvent, DecisionReceiver, DecisionSender,
     DEFAULT_DECISION_CHANNEL_CAPACITY,
@@ -911,6 +915,13 @@ pub struct FilterPlan {
     /// treated as "no dither" — matches `ExposureConfig::dither_every`.
     #[serde(default)]
     pub dither_every: Option<u32>,
+    /// Optional DepthLock binding. When set, Smart Exposure asks the host's
+    /// goal store for a verdict before each batch of this plan and treats an
+    /// achieved goal as the plan being complete. `None` (the default, and
+    /// every pre-feature sequence document) leaves the plan purely
+    /// count-bounded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth_goal: Option<crate::depth_goal::DepthGoalBinding>,
 }
 
 impl Default for FilterPlan {
@@ -924,6 +935,7 @@ impl Default for FilterPlan {
             offset: None,
             binning: Binning::default(),
             dither_every: None,
+            depth_goal: None,
         }
     }
 }
@@ -950,6 +962,13 @@ pub struct SmartExposureCheckpoint {
     /// across the whole sequence, so SmartExposure tracks its own slice
     /// here for the budget comparison.
     pub completed_integration_secs: f64,
+    /// DepthLock goals this node has already retired, keyed by goal id with
+    /// the revision the verdict was for. Recorded so a resumed run neither
+    /// re-announces the completion nor re-queries a store that may have
+    /// moved on; the store's own record is still the durable verdict.
+    /// Absent in pre-feature checkpoints.
+    #[serde(default)]
+    pub depth_completed: HashMap<String, u64>,
 }
 
 /// Stable checkpoint key for SmartExposure resume state. Re-uses the

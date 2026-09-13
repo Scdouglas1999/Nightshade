@@ -26,14 +26,21 @@ typedef HorizonImportReader = Future<String> Function(
   file_selector.XFile file,
 );
 
-/// Resolves this machine's position: device GPS when the platform has it,
-/// otherwise a third-party IP lookup. Injected so the consent + write flow can
-/// be driven in tests without a network.
+/// Resolves this machine's GPS position. Injected so the consent + write flow
+/// can be driven in tests without a network. Does not fall back to IP: an ISP
+/// city is a town over from the observatory, and Search place is the accurate
+/// desktop path.
 typedef DeviceLocationFetcher
     = Future<(double latitude, double longitude, String? name)?> Function();
 
 final deviceLocationFetcherProvider = Provider<DeviceLocationFetcher>(
-  (ref) => GeolocationService.fetchLocationFromGPS,
+  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: false),
+);
+
+typedef PlaceSearcher = Future<List<PlaceSearchHit>> Function(String query);
+
+final placeSearchProvider = Provider<PlaceSearcher>(
+  (ref) => GeolocationService.searchPlaces,
 );
 
 Future<file_selector.XFile?> _pickHorizonImport() {
@@ -67,10 +74,13 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   final _latController = TextEditingController();
   final _lonController = TextEditingController();
   final _elevController = TextEditingController();
+  final _placeSearchController = TextEditingController();
   final Map<String, TextEditingController> _horizonControllers = {};
   bool _isImportingHorizon = false;
   int _horizonImportGeneration = 0;
   bool _legacyTimezoneMigrated = false;
+  bool _placeSearching = false;
+  List<PlaceSearchHit> _placeHits = const [];
 
   @override
   void initState() {
@@ -85,6 +95,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     _latController.dispose();
     _lonController.dispose();
     _elevController.dispose();
+    _placeSearchController.dispose();
     for (final c in _horizonControllers.values) {
       c.dispose();
     }
@@ -159,7 +170,65 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                           'The 0° / 0° / 0 m below are placeholders, not your '
                           'location. Nightshade will not compute twilight, '
                           'altitude or a plan from them — enter your '
-                          'coordinates, or use Detect location, to set a site.',
+                          'coordinates, search for a place, or use Detect '
+                          'location, to set a site.',
+                    ),
+                  ),
+                SettingRow(
+                  icon: LucideIcons.search,
+                  title: 'Search place',
+                  subtitle:
+                      'Town or observatory by name. Accurate on a desktop '
+                      'with no GPS',
+                  trailing: SizedBox(
+                    width: widget.isMobile ? 180 : 240,
+                    child: NightshadeTextField(
+                      controller: _placeSearchController,
+                      hint: 'Newtown Square, PA',
+                      onSubmitted: (_) => _searchPlace(),
+                      suffixWidget: GestureDetector(
+                        onTap: _placeSearching ? null : _searchPlace,
+                        child: Icon(
+                          LucideIcons.search,
+                          size: NightshadeTokens.iconXs,
+                          color: NightshadeColors.of(context).textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                  controlFlex: 2,
+                  isMobile: widget.isMobile,
+                ),
+                if (_placeHits.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceSm,
+                      NightshadeTokens.spaceLg,
+                      NightshadeTokens.spaceMd,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final hit in _placeHits)
+                          GestureDetector(
+                            onTap: () => _applyPlace(hit),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: NightshadeTokens.spaceSm,
+                              ),
+                              child: Text(
+                                hit.elevation == null
+                                    ? hit.label
+                                    : '${hit.label} · ${hit.elevation!.round()} m',
+                                style: NightshadeTypography.body.copyWith(
+                                  color:
+                                      NightshadeColors.of(context).textPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 SettingRow(
@@ -307,8 +376,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   // Not "GPS": on desktop there is no GPS receiver, and the
                   // service silently falls back to a third-party IP lookup.
                   title: 'Detect location',
-                  subtitle: 'Device GPS if this machine has it, otherwise a '
-                      'city-level estimate from your IP address',
+                  subtitle: 'Device GPS if this machine has it. Desktops '
+                      'usually do not — search for a place by name instead',
                   trailing: NightshadeIconButton(
                     icon: LucideIcons.crosshair,
                     tooltip: 'Detect this location',
@@ -543,14 +612,52 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     return earthRadiusKm * 2 * math.asin(math.min(1.0, math.sqrt(a)));
   }
 
-  /// Resolve this machine's position, with consent, and never leave the site
-  /// in a state that does not exist.
+  Future<void> _searchPlace() async {
+    final query = _placeSearchController.text.trim();
+    if (query.isEmpty || _placeSearching) return;
+    setState(() => _placeSearching = true);
+    try {
+      final hits = await ref.read(placeSearchProvider)(query);
+      if (!mounted) return;
+      setState(() {
+        _placeSearching = false;
+        _placeHits = hits;
+      });
+      if (hits.isEmpty) {
+        context.showWarningSnackBar('No places matched that name.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _placeSearching = false);
+      context.showErrorSnackBar('Could not search for a place: $e');
+    }
+  }
+
+  Future<void> _applyPlace(PlaceSearchHit hit) async {
+    await ref.read(appSettingsProvider.notifier).updateLocation(
+          latitude: hit.latitude,
+          longitude: hit.longitude,
+          elevation: hit.elevation ?? 0.0,
+        );
+    if (!mounted) return;
+    setState(() => _placeHits = const []);
+    final elev = hit.elevation;
+    context.showSuccessSnackBar(
+      elev == null
+          ? 'Coordinates set to ${hit.label}. Elevation cleared to 0 m — '
+              'enter the elevation for this site.'
+          : 'Coordinates set to ${hit.label}. Elevation ${elev.round()} m.',
+    );
+  }
+
+  /// Resolve this machine's GPS position, with consent, and never leave the
+  /// site in a state that does not exist.
   ///
-  /// Two rules. ASK before the lookup: on every desktop `GeolocationService`
-  /// falls back to a third-party IP lookup, and this app is often run on an
-  /// isolated observatory network. And never mix a new fix with a stale
+  /// Two rules. ASK before the lookup: GeoClue or a GPS receiver can still
+  /// send a request off the machine. And never mix a new fix with a stale
   /// elevation: carrying the old value through gives a site that does not
-  /// exist, feeding refraction and horizon maths.
+  /// exist, feeding refraction and horizon maths. IP is not written here —
+  /// Search place is the accurate path on a desktop with no GPS.
   Future<void> _detectLocation(AppSettingsState settings) async {
     // Shared with the first-run wizard's site step, which fires the same
     // service: one dialog means the two surfaces cannot describe the outbound
@@ -558,6 +665,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     final consented = await confirmGeolocationLookup(
       context,
       outcome: kGeolocationWritesSiteOutcome,
+      includeIpFallback: false,
     );
     if (!consented || !mounted) return;
 
@@ -575,8 +683,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       }
       if (location == null) {
         context.showWarningSnackBar(
-          'Could not determine a location. Check location permissions, or '
-          'network access if this machine has no GPS.',
+          'No GPS fix on this machine. Search for a place by name, or enter '
+          'coordinates.',
         );
         return;
       }

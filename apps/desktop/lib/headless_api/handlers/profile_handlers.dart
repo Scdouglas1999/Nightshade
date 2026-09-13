@@ -79,15 +79,17 @@ class ProfileHandlers {
 
     // Parse the wire model defensively: a malformed shape (missing required
     // field, wrong type) becomes a structured 400 instead of letting a
-    // TypeError/FormatException collapse into an opaque 500.
+    // TypeError/FormatException collapse into an opaque 500. The underlying
+    // error travels in the message — it is a local type error, not sensitive,
+    // and it is the only thing that knows WHICH field was wrong (L9).
     final EquipmentProfile profile;
     try {
       profile = EquipmentProfile.fromJson(profileJson);
-    } on Object {
+    } on Object catch (error) {
       throw BadRequestError(
         field: 'profile',
         expected: 'equipment_profile',
-        message: 'Malformed profile payload',
+        message: 'Malformed profile payload: $error',
       );
     }
 

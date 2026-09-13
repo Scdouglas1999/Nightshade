@@ -5,6 +5,7 @@
 
 import '../device.dart';
 import '../frb_generated.dart';
+import 'depthlock_events.dart';
 import 'equipment.dart';
 import 'guiding.dart';
 import 'imaging.dart';
@@ -35,6 +36,8 @@ sealed class EventPayload with _$EventPayload {
   const factory EventPayload.polarAlignmentImage(
     PolarAlignmentImageEvent field0,
   ) = EventPayload_PolarAlignmentImage;
+  const factory EventPayload.depthLock(DepthLockEvent field0) =
+      EventPayload_DepthLock;
 }
 
 /// A unified event that can be any category

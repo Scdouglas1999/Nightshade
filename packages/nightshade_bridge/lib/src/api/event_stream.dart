@@ -5,6 +5,7 @@
 
 import '../device.dart';
 import '../event/bus.dart';
+import '../event/depthlock_events.dart';
 import '../event/equipment.dart';
 import '../event/guiding.dart';
 import '../event/imaging.dart';

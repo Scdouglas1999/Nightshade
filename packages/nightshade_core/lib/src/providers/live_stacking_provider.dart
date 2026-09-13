@@ -50,6 +50,17 @@ class LiveStackingState {
   /// Error message if status == error.
   final String? errorMessage;
 
+  /// On-disk path of the frame this stack is aligned to, when the session was
+  /// started from a file.
+  ///
+  /// Every subsequent frame is registered onto this one, so the stack's pixel
+  /// geometry IS this sub's — which is what lets a consumer resolve the
+  /// stack's WCS, scale and orientation from the reference's own header
+  /// instead of guessing them. Null when the stack was started from raw pixel
+  /// data, when a remote host was armed without naming a reference, and
+  /// whenever no stack is running.
+  final String? referenceImagePath;
+
   const LiveStackingState({
     this.status = LiveStackingStatus.idle,
     this.stats = const LiveStackingStats(),
@@ -60,6 +71,7 @@ class LiveStackingState {
     this.lastFrameSigmaRejectedPixels = 0,
     this.lastFrameTotalPixels = 0,
     this.errorMessage,
+    this.referenceImagePath,
   });
 
   /// Per-frame sigma rejection rate (0.0 .. 1.0). Returns 0 when no frame
@@ -81,6 +93,8 @@ class LiveStackingState {
     int? lastFrameTotalPixels,
     String? errorMessage,
     bool clearErrorMessage = false,
+    String? referenceImagePath,
+    bool clearReferenceImagePath = false,
   }) {
     return LiveStackingState(
       status: status ?? this.status,
@@ -95,6 +109,9 @@ class LiveStackingState {
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
+      referenceImagePath: clearReferenceImagePath
+          ? null
+          : (referenceImagePath ?? this.referenceImagePath),
     );
   }
 }
@@ -397,7 +414,13 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
 
       if (!_isCurrentSession(generation, authority)) return;
 
-      state = state.copyWith(stats: stats);
+      // Recorded here rather than beside the status, so the state never names
+      // a reference for a stack that failed to start: every frame after this
+      // point is registered onto this file.
+      state = state.copyWith(
+        stats: stats,
+        referenceImagePath: referenceImagePath,
+      );
 
       // Surface the reference frame as the initial preview. `startFromFile`
       // only returns stats (not pixels), so we read the current stacked

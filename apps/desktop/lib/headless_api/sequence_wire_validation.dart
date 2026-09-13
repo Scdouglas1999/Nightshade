@@ -382,6 +382,76 @@ List<SequenceWireIssue> validateSequenceWireJson(String json) {
     );
   }
 
+  // A SmartExposure plan may bind a DepthLock goal, and the binding is what
+  // decides whether the plan can end early. Rust's `FilterPlan::depth_goal` is
+  // `#[serde(default)]`, so a malformed binding does not fail the parse — it
+  // silently deserializes to "unbound" and the plan runs its full frame count
+  // with nobody told the goal was dropped. Check it here, where the host can
+  // still refuse the run and say which plan is wrong.
+  for (final node in nodes.values) {
+    if (node.type != 'SmartExposure') continue;
+    final plans = node.config['plans'];
+    if (plans is! List) continue;
+    for (var index = 0; index < plans.length; index++) {
+      final plan = plans[index];
+      if (plan is! Map<String, Object?>) continue;
+      final binding = plan['depth_goal'];
+      if (binding == null) continue;
+      final filterName = plan['filter_name'] is String
+          ? plan['filter_name'] as String
+          : 'plan ${index + 1}';
+      if (binding is! Map<String, Object?>) {
+        issues.add(
+          SequenceWireIssue(
+            severity: WireIssueSeverity.error,
+            title: 'Invalid Depth Goal Binding',
+            description:
+                'Smart Exposure "${node.name}" binds $filterName to a '
+                '`depth_goal` that is not an object.',
+            code: 'depth_goal_binding_invalid',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'A depth goal binding is {"goal_id": "<id>", "revision": <n>}.',
+          ),
+        );
+        continue;
+      }
+      final goalId = binding['goal_id'];
+      if (goalId is! String || goalId.isEmpty) {
+        issues.add(
+          SequenceWireIssue(
+            severity: WireIssueSeverity.error,
+            title: 'Depth Goal Without an Id',
+            description:
+                'Smart Exposure "${node.name}" binds $filterName to a depth '
+                'goal with no `goal_id`, so the executor cannot find the goal '
+                'the plan is supposed to stop on.',
+            code: 'depth_goal_binding_invalid',
+            affectedNodeId: node.id,
+            resolutionHint: '`goal_id` must be a non-empty string.',
+          ),
+        );
+      }
+      final revision = binding['revision'];
+      if (revision is! int || revision < 0) {
+        issues.add(
+          SequenceWireIssue(
+            severity: WireIssueSeverity.error,
+            title: 'Invalid Depth Goal Revision',
+            description:
+                'Smart Exposure "${node.name}" binds $filterName to depth goal '
+                'revision ${revision ?? 'missing'}. The revision is how the '
+                'executor tells the goal it was bound to from one that has '
+                'since been redefined.',
+            code: 'depth_goal_binding_invalid',
+            affectedNodeId: node.id,
+            resolutionHint: '`revision` must be a non-negative integer.',
+          ),
+        );
+      }
+    }
+  }
+
   for (final node in nodes.values) {
     if (!_pointingWireTypes.contains(node.type)) continue;
     if (node.config['use_target_coords'] == true) continue;

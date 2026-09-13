@@ -41,29 +41,15 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
         status?.version != null &&
         _isNewerCatalogVersion(status!.version!, latestVersion);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(
-          color: isInstalled
-              ? colors.success.withValues(alpha: 0.3)
-              : colors.border,
-        ),
-      ),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration:
-                    NightshadeDecorations.chip(colors, tone: colors.primary),
-                child: Icon(icon, color: colors.primary, size: 24),
-              ),
-              const SizedBox(width: 16),
+              Icon(icon,
+                  color: colors.textMuted, size: NightshadeTokens.iconMd),
+              const SizedBox(width: NightshadeTokens.spaceMd),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,17 +194,11 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
     required String label,
     required Color color,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-      ),
-      child: Text(
-        label,
-        style: NightshadeTypography.labelQuiet.copyWith(color: color),
-      ),
-    );
+    return NightshadeChip(
+        label: label,
+        tone: color == context.nightshadeColors.success
+            ? ChipTone.success
+            : ChipTone.warning);
   }
 
   /// Human-readable magnitude depth for the installed catalog, or null when
@@ -307,28 +287,6 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
     required String label,
     required String value,
   }) {
-    final colors = context.nightshadeColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: NightshadeTypography.captionSm.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration:
-              NightshadeDecorations.chip(colors, tone: colors.textPrimary),
-          child: Text(
-            value,
-            style:
-                NightshadeTypography.label.copyWith(color: colors.textPrimary),
-          ),
-        ),
-      ],
-    );
+    return Readout(value: value, label: label, size: ReadoutSize.sm);
   }
 }

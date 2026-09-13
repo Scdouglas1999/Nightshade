@@ -530,9 +530,9 @@ void main() {
     });
 
     // Arriving on this step used to post a frame callback that sent the
-    // machine's public IP to ipapi.co (falling back to plain-HTTP
-    // ip-api.com): the app's first outbound request, on its first run, with
-    // no click and nothing on screen saying so.
+    // machine's public IP to a third-party geolocator (falling back to
+    // plain-HTTP ip-api.com): the app's first outbound request, on its first
+    // run, with no click and nothing on screen saying so.
     testWidgets('no lookup leaves the machine until the user asks',
         (tester) async {
       final db = _newDb();
@@ -555,7 +555,7 @@ void main() {
       await tester.tap(find.text('Estimate from IP'));
       await tester.pumpAndSettle();
       expect(calls, 0, reason: 'the lookup ran before the user consented');
-      expect(find.textContaining('ipapi.co'), findsOneWidget);
+      expect(find.textContaining('ipinfo.io'), findsOneWidget);
 
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();

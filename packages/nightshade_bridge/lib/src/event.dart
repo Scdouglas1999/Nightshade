@@ -6,6 +6,7 @@
 library;
 
 export 'event/bus.dart';
+export 'event/depthlock_events.dart';
 export 'event/equipment.dart';
 export 'event/guiding.dart';
 export 'event/imaging.dart';

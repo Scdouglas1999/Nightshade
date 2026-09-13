@@ -246,6 +246,8 @@ export 'src/providers/host_local_sync_provider.dart';
 // Hot-plug device-detection event bridge.
 export 'src/providers/hotplug_event_bridge_provider.dart';
 export 'src/models/backend/host_mutation_event.dart';
+export 'src/models/depthlock/depthlock_models.dart';
+export 'src/providers/depthlock_provider.dart';
 export 'src/services/host_mutation_event_hub.dart';
 export 'src/providers/simbad_provider.dart';
 export 'src/providers/exoplanet_provider.dart';

@@ -271,5 +271,33 @@ void main() {
       expect(response.statusCode, HttpStatus.badRequest);
       expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
     });
+
+    // L9: the 400 must carry the underlying parse error — it is the only
+    // thing that knows WHICH field was wrong. A bare 'Malformed profile
+    // payload' leaves a headless-only operator unable to create a profile,
+    // since there is no other path to one.
+    test('a malformed payload names what went wrong', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleSaveProfile(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/profiles'),
+            body: jsonEncode({
+              'profile': {'id': '1'}, // no name
+            }),
+          ),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final message = body['message'] as String;
+      expect(message, startsWith('Malformed profile payload'));
+      expect(
+        message.length,
+        greaterThan('Malformed profile payload'.length),
+        reason: 'the underlying parse error must travel in the message',
+      );
+      expect(await db.equipmentProfilesDao.getAllProfiles(), isEmpty);
+    });
   });
 }

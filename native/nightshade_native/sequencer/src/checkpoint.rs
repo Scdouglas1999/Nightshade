@@ -763,11 +763,24 @@ impl CheckpointManager {
 
     /// Mark checkpoint as inactive (sequence completed or was stopped gracefully)
     pub fn mark_completed(&self) -> Result<(), String> {
-        if let Ok(Some(mut checkpoint)) = self.load() {
-            checkpoint.is_active = false;
-            checkpoint.executor_state = ExecutorState::Completed;
-            self.save(&checkpoint)?;
-        }
+        // A `None` load means there is no checkpoint to mark, and a corrupt
+        // file is a load error: returning Ok(()) for either made a no-op
+        // indistinguishable from a real mark (L52), so both are reported to
+        // the caller instead.
+        let mut checkpoint = match self.load() {
+            Ok(Some(checkpoint)) => checkpoint,
+            Ok(None) => {
+                self.invalidate_info_cache();
+                return Err("mark_completed: no checkpoint on disk to mark".to_string());
+            }
+            Err(e) => {
+                self.invalidate_info_cache();
+                return Err(e);
+            }
+        };
+        checkpoint.is_active = false;
+        checkpoint.executor_state = ExecutorState::Completed;
+        self.save(&checkpoint)?;
         self.invalidate_info_cache();
         Ok(())
     }
@@ -1044,6 +1057,37 @@ mod tests {
         assert!(!loaded.is_active);
         assert_eq!(loaded.executor_state, ExecutorState::Completed);
         assert!(!loaded.can_resume());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_mark_completed_without_checkpoint_is_an_error() {
+        // A no-op used to return Ok(()), indistinguishable from a real mark.
+        // The caller's "failed to mark completed" log must fire instead.
+        let dir = test_dir("mark_completed_no_checkpoint");
+        let manager = CheckpointManager::new(&dir);
+
+        assert!(
+            manager.mark_completed().is_err(),
+            "mark_completed with no checkpoint on disk must not report success"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_mark_completed_propagates_a_corrupt_checkpoint() {
+        // A corrupt checkpoint used to be swallowed the same way: the load
+        // error was discarded inside the `if let Ok` and Ok(()) was returned.
+        let dir = test_dir("mark_completed_corrupt");
+        let manager = CheckpointManager::new(&dir);
+        fs::write(manager.checkpoint_path(), "{not valid json").unwrap();
+
+        assert!(
+            manager.mark_completed().is_err(),
+            "mark_completed must surface a load error, not report success"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

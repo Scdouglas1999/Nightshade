@@ -6,6 +6,7 @@
 // smallest role that satisfies them; existing consumers can continue to
 // depend on NightshadeBackend without change because the marker
 // interface composes every role here.
+export 'depthlock_backend.dart';
 export 'device_backend.dart';
 export 'diagnostics_backend.dart';
 export 'guiding_backend.dart';

@@ -74,14 +74,13 @@ class _OscStackingSection extends StatelessWidget {
     final bayerValue = config.bayerPattern?.toUpperCase() ?? oscBayerAutoValue;
     final demosaicValue = config.demosaicQuality.toLowerCase();
 
-    return PanelSection(
-      title: 'Color (OSC)',
-      colors: colors,
+    return NightshadePanel(
+      head: const PanelHead(label: 'Color (OSC)'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           NightshadeSwitchRow(
-            label: 'OSC / Color',
+            label: 'OSC / color',
             subtitle: 'Demosaic Bayer frames to RGB',
             value: _enabled,
             onChanged: _setEnabled,

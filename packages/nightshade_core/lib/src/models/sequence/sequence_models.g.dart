@@ -154,6 +154,9 @@ _FilterPlan _$FilterPlanFromJson(Map<String, dynamic> json) => _FilterPlan(
       ? BinningMode.one
       : const BinningModeJsonConverter().fromJson(json['binning'] as String?),
   ditherEvery: (json['dither_every'] as num?)?.toInt(),
+  depthGoal: json['depth_goal'] == null
+      ? null
+      : DepthGoalBinding.fromJson(json['depth_goal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$FilterPlanToJson(_FilterPlan instance) =>
@@ -166,6 +169,19 @@ Map<String, dynamic> _$FilterPlanToJson(_FilterPlan instance) =>
       'offset': instance.offset,
       'binning': const BinningModeJsonConverter().toJson(instance.binning),
       'dither_every': instance.ditherEvery,
+      'depth_goal': instance.depthGoal,
+    };
+
+_DepthGoalBinding _$DepthGoalBindingFromJson(Map<String, dynamic> json) =>
+    _DepthGoalBinding(
+      goalId: json['goal_id'] as String,
+      revision: (json['revision'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$DepthGoalBindingToJson(_DepthGoalBinding instance) =>
+    <String, dynamic>{
+      'goal_id': instance.goalId,
+      'revision': instance.revision,
     };
 
 _AdaptiveExposureConfig _$AdaptiveExposureConfigFromJson(

@@ -37,6 +37,14 @@ export 'package:nightshade_bridge/nightshade_bridge.dart'
         EventPayload_PolarAlignment,
         EventPayload_PolarAlignmentStatus,
         EventPayload_PolarAlignmentImage,
+        EventPayload_DepthLock,
+        // DepthLock event family. Published under the `imaging` category, so
+        // a switch over the payload union needs these to stay exhaustive.
+        DepthLockEvent,
+        DepthLockEvent_GoalUpdated,
+        DepthLockEvent_EvidenceRejected,
+        DepthLockEvent_AnalysisDropped,
+        DepthLockEvent_GoalChanged,
         // Equipment event family (the payload union exposes these via the
         // `EventPayload_Equipment` arm, so the UI's exhaustive switches need
         // the variants to compile).
@@ -155,6 +163,9 @@ export 'package:nightshade_bridge/nightshade_bridge.dart'
         SequencerEvent_PluginNodeRequested,
         SequencerEvent_PluginNodeProgress,
         SequencerEvent_DecisionLogged,
+        // A Smart Exposure plan that ended on its DepthLock goal rather than
+        // on its frame count.
+        SequencerEvent_DepthGoalCompleted,
         // System event family.
         SystemEvent,
         SystemEvent_Initialized,
@@ -178,4 +189,5 @@ export 'package:nightshade_bridge/nightshade_bridge.dart'
         // Dashboard event feed / banner.
         nightshadeEventDisplayTitle,
         nightshadeEventDisplayDetail,
+        depthGoalCompletedDetail,
         isCriticalEvent;

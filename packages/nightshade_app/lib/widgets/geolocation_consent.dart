@@ -18,6 +18,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 Future<bool> confirmGeolocationLookup(
   BuildContext context, {
   required String outcome,
+  bool includeIpFallback = true,
 }) async {
   final consented = await showDialog<bool>(
     context: context,
@@ -47,12 +48,17 @@ Future<bool> confirmGeolocationLookup(
             designMaxWidth: 480,
           ),
           child: Text(
-            'Nightshade asks this device for a GPS fix. Desktop computers have '
-            'no GPS receiver, so on those it instead sends an HTTPS request to a '
-            'third-party geolocation service (ipapi.co, falling back to '
-            'ipwho.is) which estimates your position from your public IP '
-            'address to roughly city level — about 10 km.\n\n'
-            '$outcome',
+            includeIpFallback
+                ? 'Nightshade asks this device for a GPS fix. Desktop computers have '
+                    'no GPS receiver, so on those it instead sends an HTTPS request to a '
+                    'third-party geolocation service (ipinfo.io, falling back to '
+                    'ipwho.is) which estimates your position from your public IP '
+                    'address to roughly ZIP or city level — about 10 km.\n\n'
+                    '$outcome'
+                : 'Nightshade asks this device for a GPS fix. Desktop computers '
+                    'usually have no GPS receiver, so Detect may not return a '
+                    'position — search for a place by name instead.\n\n'
+                    '$outcome',
           ),
         ),
       ),

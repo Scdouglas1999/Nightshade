@@ -47,7 +47,7 @@ Future<void> _settleCatalogLoad(WidgetTester tester) async {
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );
     await tester.pump();
-    if (find.text('Version').evaluate().isNotEmpty) return;
+    if (find.text('VERSION').evaluate().isNotEmpty) return;
   }
 }
 
@@ -83,10 +83,10 @@ void main() {
     await _pumpCatalogs(tester);
 
     // The card is up (it is printing the chips that ARE facts about the file).
-    expect(find.text('Version'), findsWidgets);
-    expect(find.text('Objects'), findsWidgets);
+    expect(find.text('VERSION'), findsWidgets);
+    expect(find.text('OBJECTS'), findsWidgets);
 
-    expect(find.text('Package'), findsNothing,
+    expect(find.text('PACKAGE'), findsNothing,
         reason: 'the download tier was retired; a grade that can no longer be '
             'chosen is not a fact about the install');
     // The chips that remain are the ones the sidecar and the file can back:
@@ -94,7 +94,7 @@ void main() {
     // date. (A bare `find.text('Standard')` is not the assertion to make here:
     // the same screen renders an unrelated download-status word, so the chip
     // LABEL is what identifies the claim.)
-    expect(find.text('Size'), findsWidgets);
+    expect(find.text('SIZE'), findsWidgets);
     expect(find.text('Installed'), findsWidgets);
   });
 

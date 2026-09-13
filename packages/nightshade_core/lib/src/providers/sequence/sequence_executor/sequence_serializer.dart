@@ -688,6 +688,14 @@ class SequenceSerializer {
                 'offset': p.offset,
                 'binning': _binningToString(p.binning),
                 'dither_every': p.ditherEvery,
+                // Rust `FilterPlan::depth_goal` is `#[serde(default)]`: an
+                // unbound plan sends nothing rather than an explicit null,
+                // so pre-feature documents and executors stay identical.
+                if (p.depthGoal case final binding?)
+                  'depth_goal': {
+                    'goal_id': binding.goalId,
+                    'revision': binding.revision,
+                  },
               },
             )
             .toList(growable: false);

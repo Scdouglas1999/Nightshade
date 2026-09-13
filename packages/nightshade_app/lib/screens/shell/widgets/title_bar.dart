@@ -270,6 +270,7 @@ class _Actions extends StatelessWidget {
           NightshadeIconButton(
             icon: LucideIcons.search,
             tooltip: l10n.text('commandPalettePlaceholder'),
+            tooltipPosition: NightshadeTooltipPosition.bottom,
             onPressed: () => showCommandPalette(context),
           ),
 
@@ -305,10 +306,11 @@ class _Actions extends StatelessWidget {
         // Settings — keyed for the onboarding overlay so the first-launch
         // tour can spotlight where Plate Solving lives.
         Builder(
-          builder: (context) => NightshadeIconButton(
+          builder: (context) =>           NightshadeIconButton(
             key: TutorialKeys.navSettings,
             icon: LucideIcons.settings,
             tooltip: l10n.text('settingsTitle'),
+            tooltipPosition: NightshadeTooltipPosition.bottom,
             onPressed: () {
               try {
                 context.go('/settings');

@@ -54,6 +54,7 @@ export 'handlers/stacking_handlers.dart';
 
 // post-session integration / finishing ("finish last night") control surface
 export 'handlers/darkroom_delivery_handlers.dart';
+export 'handlers/depthlock_handlers.dart';
 export 'handlers/post_session_handlers.dart';
 
 // phone/tablet run-watch monitoring surface

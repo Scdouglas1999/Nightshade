@@ -243,6 +243,7 @@ impl SequenceExecutor {
         // discarding them into a NullCheckpointSink.
         let context_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
             self.checkpoint_manager.clone();
+        let depth_goal_ops = self.depth_goal_ops.clone();
         let streaming_sequence = self.sequence.clone();
         let streaming_camera_id = self.camera_id.clone();
         let streaming_mount_id = self.mount_id.clone();
@@ -388,6 +389,7 @@ impl SequenceExecutor {
                 // this manager; `None` when no checkpoint dir was set, in
                 // which case the wizard falls back to a null sink.
                 context.checkpoint_manager = context_checkpoint_manager;
+                context.depth_goal_ops = depth_goal_ops;
                 context.recovery_generation = recovery_generation_clone;
                 // Dual-rig — pick up the process-wide dither barrier if a
                 // secondary capture loop is armed, so the primary's dither

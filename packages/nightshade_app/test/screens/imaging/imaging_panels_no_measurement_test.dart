@@ -8,7 +8,7 @@
 //     "RA Peak 0.00\"" and "Dec Peak 0.00\"" sat right beneath them. A 0.00"
 //     peak excursion is a claim of flawless guiding. The suffix was wrong too:
 //     the underlying Phd2GuideStats fields are guide-camera PIXELS.
-//   * Stack tab — "Avg Matched Pairs 0.0" and "Avg Alignment Residual 0.00 px"
+//   * Stack tab — "Average matched pairs 0.0" and "Average alignment residual 0.00 px"
 //     while "Rejection Rate" (correctly) showed "--". Both averages are
 //     per-aligned-frame metrics that stay at their 0.0 initialiser until a
 //     second frame is registered against the reference.
@@ -133,8 +133,8 @@ void main() {
         (tester) async {
       await _pumpStackingPanel(tester, const LiveStackingStats());
 
-      expect(find.text('Avg Matched Pairs'), findsOneWidget);
-      expect(find.text('Avg Alignment Residual'), findsOneWidget);
+      expect(find.text('Average matched pairs'), findsOneWidget);
+      expect(find.text('Average alignment residual'), findsOneWidget);
       expect(
         find.text('0.0'),
         findsNothing,

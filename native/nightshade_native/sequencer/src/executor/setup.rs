@@ -114,6 +114,13 @@ impl SequenceExecutor {
         self.device_ops = Some(ops);
     }
 
+    /// Install the DepthLock verdict source consulted by bound Smart
+    /// Exposure plans. Optional: without it a bound plan warns once per run
+    /// and runs to its authored count.
+    pub fn set_depth_goal_ops(&mut self, ops: Option<crate::depth_goal::SharedDepthGoalOps>) {
+        self.depth_goal_ops = ops;
+    }
+
     /// Diagnostic accessor — `true` iff [`Self::set_device_ops`] has
     /// been called. The bridge surfaces this on the connect-readiness
     /// indicator so the operator can see why `start()` would refuse.

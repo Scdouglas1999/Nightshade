@@ -395,24 +395,26 @@ class _TooltipOverlay extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Calculate tooltip position
+    // Anchor on the target's facing edge, then let the layout delegate offset
+    // by the tooltip's measured size. The arrow is PART of that measured
+    // child, so subtracting an extra arrow-length here used to park the label
+    // one arrow away from the control it names.
     double left = 0;
     double top = 0;
-    const arrowSize = 8.0;
     const padding = 8.0;
 
     switch (position) {
       case NightshadeTooltipPosition.top:
         left = targetPosition.dx + (targetSize.width / 2);
-        top = targetPosition.dy - padding - arrowSize;
+        top = targetPosition.dy - padding;
       case NightshadeTooltipPosition.bottom:
         left = targetPosition.dx + (targetSize.width / 2);
-        top = targetPosition.dy + targetSize.height + padding + arrowSize;
+        top = targetPosition.dy + targetSize.height + padding;
       case NightshadeTooltipPosition.left:
-        left = targetPosition.dx - padding - arrowSize;
+        left = targetPosition.dx - padding;
         top = targetPosition.dy + (targetSize.height / 2);
       case NightshadeTooltipPosition.right:
-        left = targetPosition.dx + targetSize.width + padding + arrowSize;
+        left = targetPosition.dx + targetSize.width + padding;
         top = targetPosition.dy + (targetSize.height / 2);
     }
 
@@ -495,33 +497,52 @@ class _TooltipOverlay extends StatelessWidget {
           ),
     );
 
-    // Wrap with arrow if enabled
-    if (showArrow) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (pos == NightshadeTooltipPosition.bottom)
-            _buildArrow(colors, isPointingUp: true),
-          content,
-          if (pos == NightshadeTooltipPosition.top)
-            _buildArrow(colors, isPointingUp: false),
-        ],
-      );
-    }
+    if (!showArrow) return content;
 
-    return content;
+    final arrow = _buildArrow(colors, pos);
+    return switch (pos) {
+      NightshadeTooltipPosition.top => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [content, arrow],
+      ),
+      NightshadeTooltipPosition.bottom => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [arrow, content],
+      ),
+      NightshadeTooltipPosition.left => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [content, arrow],
+      ),
+      NightshadeTooltipPosition.right => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [arrow, content],
+      ),
+    };
   }
 
-  Widget _buildArrow(NightshadeColors colors, {required bool isPointingUp}) {
-    return CustomPaint(
+  Widget _buildArrow(NightshadeColors colors, NightshadeTooltipPosition pos) {
+    // Vertical painter; left/right rotate it so the tip still faces the
+    // control. Size stays 16×8 so the rotation produces an 8×16 pointer.
+    final painted = CustomPaint(
       size: const Size(16, 8),
       painter: _ArrowPainter(
-        // Matches the popover decoration the bubble above it now uses.
         color: colors.surfaceElevated,
         borderColor: colors.border,
-        isPointingUp: isPointingUp,
+        isPointingUp: pos == NightshadeTooltipPosition.bottom,
       ),
     );
+    return switch (pos) {
+      NightshadeTooltipPosition.top || NightshadeTooltipPosition.bottom =>
+        painted,
+      NightshadeTooltipPosition.left => RotatedBox(
+        quarterTurns: 3,
+        child: painted,
+      ),
+      NightshadeTooltipPosition.right => RotatedBox(
+        quarterTurns: 1,
+        child: painted,
+      ),
+    };
   }
 }
 

@@ -121,3 +121,9 @@ List<String> runErrorMessagesFor(String status, List<String> messages) {
   if (!runWasStoppedByOperator(status)) return messages;
   return messages.where((m) => !isRunCancellationNotice(m)).toList();
 }
+
+/// Removes the generated bridge wrapper while retaining the actual failure.
+String runFailureMessage(String raw) => raw.replaceAllMapped(
+      RegExp(r'NightshadeError\.\w+\(field0: (.*)\)', dotAll: true),
+      (match) => match.group(1)!,
+    );

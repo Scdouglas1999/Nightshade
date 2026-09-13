@@ -9,6 +9,7 @@ export 'api/connection.dart';
 export 'api/connection/alpaca_connections.dart';
 export 'api/connection/ascom_connections.dart';
 export 'api/darkroom/entrypoints.dart';
+export 'api/depthlock.dart';
 export 'api/devices/camera.dart';
 export 'api/devices/cover_calibrator.dart';
 export 'api/devices/dome.dart';

@@ -457,4 +457,94 @@ abstract final class NativeBridge {
       _nativeBridge.apiGetLocation();
   static Future<void> apiSetLocation({ObserverLocation? location}) =>
       _nativeBridge.apiSetLocation(location: location);
+
+  // DepthLock goal store
+
+  static Future<gen_api.ApiDepthLockStatus> apiDepthlockStatus() =>
+      _nativeBridge.apiDepthlockStatus();
+  static Future<List<gen_api.ApiDepthGoal>> apiDepthlockListGoals() =>
+      _nativeBridge.apiDepthlockListGoals();
+  static Future<gen_api.ApiDepthGoal> apiDepthlockGetGoal({
+    required String goalId,
+  }) => _nativeBridge.apiDepthlockGetGoal(goalId: goalId);
+  static Future<gen_api.ApiDepthGoal> apiDepthlockCreateGoal({
+    required String goalId,
+    required gen_api.ApiDepthGoalDefinition definition,
+  }) => _nativeBridge.apiDepthlockCreateGoal(
+    goalId: goalId,
+    definition: definition,
+  );
+  static Future<gen_api.ApiDepthGoal> apiDepthlockReviseGoal({
+    required String goalId,
+    required BigInt expectedRevision,
+    required gen_api.ApiDepthGoalDefinition definition,
+  }) => _nativeBridge.apiDepthlockReviseGoal(
+    goalId: goalId,
+    expectedRevision: expectedRevision,
+    definition: definition,
+  );
+  static Future<gen_api.ApiDepthGoal> apiDepthlockSetGoalPreferences({
+    required String goalId,
+    required BigInt expectedRevision,
+    required bool enabled,
+    required bool automaticCompletion,
+  }) => _nativeBridge.apiDepthlockSetGoalPreferences(
+    goalId: goalId,
+    expectedRevision: expectedRevision,
+    enabled: enabled,
+    automaticCompletion: automaticCompletion,
+  );
+  static Future<void> apiDepthlockRemoveGoal({
+    required String goalId,
+    required BigInt expectedRevision,
+  }) => _nativeBridge.apiDepthlockRemoveGoal(
+    goalId: goalId,
+    expectedRevision: expectedRevision,
+  );
+  static Future<gen_api.ApiDepthReferenceInfo> apiDepthlockInspectReference({
+    required String path,
+  }) => _nativeBridge.apiDepthlockInspectReference(path: path);
+  static Future<gen_api.ApiDepthFloorSuggestion> apiDepthlockSuggestFloor({
+    required String referencePath,
+    required String darkPath,
+    required String flatPath,
+    required double scaleArcsec,
+    double? pixelScaleArcsec,
+  }) => _nativeBridge.apiDepthlockSuggestFloor(
+    referencePath: referencePath,
+    darkPath: darkPath,
+    flatPath: flatPath,
+    scaleArcsec: scaleArcsec,
+    pixelScaleArcsec: pixelScaleArcsec,
+  );
+  static Future<gen_api.ApiSkyRectangle> apiDepthlockSkyRectangle({
+    required gen_api.ApiReferenceGeometry reference,
+    required double x0,
+    required double y0,
+    required double x1,
+    required double y1,
+  }) => _nativeBridge.apiDepthlockSkyRectangle(
+    reference: reference,
+    x0: x0,
+    y0: y0,
+    x1: x1,
+    y1: y1,
+  );
+  static Future<int> apiDepthlockCheckMeasurement({
+    required gen_api.ApiDepthMeasurement measurement,
+  }) => _nativeBridge.apiDepthlockCheckMeasurement(measurement: measurement);
+  static Future<gen_api.ApiDepthIngestOutcome> apiDepthlockIngestFrame({
+    required String goalId,
+    required String path,
+  }) => _nativeBridge.apiDepthlockIngestFrame(goalId: goalId, path: path);
+  static Future<List<gen_api.ApiDepthCurvePoint>> apiDepthlockGoalCurve({
+    required String goalId,
+    required int maxPoints,
+  }) => _nativeBridge.apiDepthlockGoalCurve(
+    goalId: goalId,
+    maxPoints: maxPoints,
+  );
+  static Future<gen_api.ApiDepthGoal> apiDepthlockReplayGoal({
+    required String goalId,
+  }) => _nativeBridge.apiDepthlockReplayGoal(goalId: goalId);
 }

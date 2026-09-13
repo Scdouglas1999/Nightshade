@@ -857,12 +857,30 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
     severity: isCritical ? RunDashboardEventSeverity.critical : severity,
     category: _categoryLabel(event.category),
     title: ns_events.nightshadeEventDisplayTitle(event),
-    message: _humanizeDeviceIds(
-      ns_events.nightshadeEventDisplayDetail(event),
+    message: _nameDepthGoal(
+      _humanizeDeviceIds(ns_events.nightshadeEventDisplayDetail(event), event),
       event,
     ),
     isCritical: isCritical,
   );
+}
+
+/// Name the goal behind a "depth goal reached" row.
+///
+/// The shared sentence in `event_display.dart` is about the FILTER, because
+/// that is what the operator watched stop early, and every surface renders it
+/// identically. The run history is also where they come back days later to
+/// find the goal itself — and a goal is addressed by its id and the revision
+/// the verdict was reached on — so the identity is appended here rather than
+/// pushed into the sentence the other surfaces share.
+String _nameDepthGoal(String message, ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return message;
+  final sequencer = payload.field0;
+  if (sequencer is! ns_events.SequencerEvent_DepthGoalCompleted) {
+    return message;
+  }
+  return '$message · goal ${sequencer.goalId} revision ${sequencer.revision}';
 }
 
 /// Swap an internal device id out of a feed row for the name the rest of the

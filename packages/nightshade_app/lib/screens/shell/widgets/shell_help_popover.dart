@@ -33,6 +33,7 @@ class ShellHelpButton extends ConsumerWidget {
       builder: (buttonContext) => NightshadeIconButton(
         icon: LucideIcons.helpCircle,
         tooltip: 'Help for this screen',
+        tooltipPosition: NightshadeTooltipPosition.bottom,
         onPressed: () => _open(buttonContext, ref),
       ),
     );

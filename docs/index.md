@@ -89,6 +89,12 @@ Master Nightshade's powerful features:
 - Focus tab: V-curve autofocus, filter offsets, temperature compensation
 - Guiding tab: PHD2 integration with real-time graphs
 
+**[DepthLock](depthlock.md)**
+- Mark a faint structure and a nearby patch of blank sky on a solved sub
+- A persistent per-filter depth goal that fills up across nights
+- What the score, the conservative score, the uncertainty and the coverage mean
+- Optional early completion of a bound Smart Exposure plan, and its limits
+
 **[Sequencing and Automation](features/sequencing.md)**
 - Building sequences with behavior trees
 - 20+ instruction nodes (expose, slew, focus, etc.)

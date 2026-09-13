@@ -48,6 +48,8 @@ use tokio::sync::broadcast;
 
 pub mod bus;
 pub use bus::*;
+pub mod depthlock_events;
+pub use depthlock_events::*;
 mod correlation;
 pub use correlation::*;
 pub mod equipment;

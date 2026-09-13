@@ -436,6 +436,11 @@ List<SummaryFragment> nodeSummary(
                   ),
                   const StaticFragment('1 each'),
                   const StaticFragment('looping'),
+                  // A depth binding is the one thing that can end a filter
+                  // before its authored bound, so the tree says which filters
+                  // carry one rather than leaving it to the properties pane.
+                  if (_depthLockedFilters(plans) != null)
+                    StaticFragment('depth goal: ${_depthLockedFilters(plans)}'),
                 ]
               : <SummaryFragment>[
                   for (final plan in plans)
@@ -444,6 +449,8 @@ List<SummaryFragment> nodeSummary(
                       ' ${plan.count}×${_fmtSecs(plan.durationSecs)}s',
                       emphasized: true,
                     ),
+                  if (_depthLockedFilters(plans) != null)
+                    StaticFragment('depth goal: ${_depthLockedFilters(plans)}'),
                   StaticFragment(rotate ? 'rotate' : 'drain'),
                 ],
 
@@ -743,3 +750,20 @@ String _basename(String path) {
 
 /// Zero-pad an integer to two digits.
 String _pad2(int value) => value.toString().padLeft(2, '0');
+
+/// The filters in [plans] whose rows are bound to a DepthLock goal, joined for
+/// the node summary, or null when none are.
+///
+/// Only the FILTERS are named: a goal id means nothing in a tree row, and the
+/// goal's label can change under the binding without the plan changing at all.
+String? _depthLockedFilters(List<FilterPlan> plans) {
+  final bound = plans
+      .where((plan) => plan.depthGoal != null)
+      .map(
+        (plan) => plan.filterName.isEmpty
+            ? '#${(plan.filterIndex ?? 0) + 1}'
+            : plan.filterName,
+      )
+      .toList(growable: false);
+  return bound.isEmpty ? null : bound.join('·');
+}

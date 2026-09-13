@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1858542796;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1467366630;
 
 // Section: executor
 
@@ -2146,6 +2146,356 @@ fn wire__crate__api__storage__api_delete_profile_impl(
                 let output_ok = crate::api::storage::api_delete_profile(api_profile_id)?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_check_measurement_impl(
+    measurement: impl CstDecode<crate::api::depthlock::ApiDepthMeasurement>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_check_measurement",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_measurement = measurement.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok =
+                    crate::api::depthlock::api_depthlock_check_measurement(api_measurement)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_create_goal_impl(
+    goal_id: impl CstDecode<String>,
+    definition: impl CstDecode<crate::api::depthlock::ApiDepthGoalDefinition>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_create_goal",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            let api_definition = definition.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok =
+                    crate::api::depthlock::api_depthlock_create_goal(api_goal_id, api_definition)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_get_goal_impl(
+    goal_id: impl CstDecode<String>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_get_goal",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::depthlock::api_depthlock_get_goal(api_goal_id)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_goal_curve_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    goal_id: impl CstDecode<String>,
+    max_points: impl CstDecode<u32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_goal_curve",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            let api_max_points = max_points.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::depthlock::api_depthlock_goal_curve(
+                            api_goal_id,
+                            api_max_points,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_ingest_frame_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    goal_id: impl CstDecode<String>,
+    path: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_ingest_frame",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            let api_path = path.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::depthlock::api_depthlock_ingest_frame(
+                            api_goal_id,
+                            api_path,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_inspect_reference_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    path: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_inspect_reference",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_path = path.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::depthlock::api_depthlock_inspect_reference(api_path)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_list_goals_impl(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_list_goals",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::depthlock::api_depthlock_list_goals()?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_remove_goal_impl(
+    goal_id: impl CstDecode<String>,
+    expected_revision: impl CstDecode<u64>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_remove_goal",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            let api_expected_revision = expected_revision.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::depthlock::api_depthlock_remove_goal(
+                    api_goal_id,
+                    api_expected_revision,
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_replay_goal_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    goal_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_replay_goal",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::depthlock::api_depthlock_replay_goal(api_goal_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_revise_goal_impl(
+    goal_id: impl CstDecode<String>,
+    expected_revision: impl CstDecode<u64>,
+    definition: impl CstDecode<crate::api::depthlock::ApiDepthGoalDefinition>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_revise_goal",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            let api_expected_revision = expected_revision.cst_decode();
+            let api_definition = definition.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::depthlock::api_depthlock_revise_goal(
+                    api_goal_id,
+                    api_expected_revision,
+                    api_definition,
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_set_goal_preferences_impl(
+    goal_id: impl CstDecode<String>,
+    expected_revision: impl CstDecode<u64>,
+    enabled: impl CstDecode<bool>,
+    automatic_completion: impl CstDecode<bool>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_set_goal_preferences",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_goal_id = goal_id.cst_decode();
+            let api_expected_revision = expected_revision.cst_decode();
+            let api_enabled = enabled.cst_decode();
+            let api_automatic_completion = automatic_completion.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::depthlock::api_depthlock_set_goal_preferences(
+                    api_goal_id,
+                    api_expected_revision,
+                    api_enabled,
+                    api_automatic_completion,
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_sky_rectangle_impl(
+    reference: impl CstDecode<crate::api::depthlock::ApiReferenceGeometry>,
+    x0: impl CstDecode<f64>,
+    y0: impl CstDecode<f64>,
+    x1: impl CstDecode<f64>,
+    y1: impl CstDecode<f64>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_sky_rectangle",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_reference = reference.cst_decode();
+            let api_x0 = x0.cst_decode();
+            let api_y0 = y0.cst_decode();
+            let api_x1 = x1.cst_decode();
+            let api_y1 = y1.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::depthlock::api_depthlock_sky_rectangle(
+                    api_reference,
+                    api_x0,
+                    api_y0,
+                    api_x1,
+                    api_y1,
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_status_impl(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_status",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            transform_result_dco::<_, _, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(crate::api::depthlock::api_depthlock_status())?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__depthlock__api_depthlock_suggest_floor_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    reference_path: impl CstDecode<String>,
+    dark_path: impl CstDecode<String>,
+    flat_path: impl CstDecode<String>,
+    scale_arcsec: impl CstDecode<f64>,
+    pixel_scale_arcsec: impl CstDecode<Option<f64>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_depthlock_suggest_floor",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_reference_path = reference_path.cst_decode();
+            let api_dark_path = dark_path.cst_decode();
+            let api_flat_path = flat_path.cst_decode();
+            let api_scale_arcsec = scale_arcsec.cst_decode();
+            let api_pixel_scale_arcsec = pixel_scale_arcsec.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::depthlock::api_depthlock_suggest_floor(
+                            api_reference_path,
+                            api_dark_path,
+                            api_flat_path,
+                            api_scale_arcsec,
+                            api_pixel_scale_arcsec,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
@@ -10759,6 +11109,30 @@ impl SseDecode for String {
     }
 }
 
+impl SseDecode for crate::api::depthlock::ApiAcquisitionSettings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_instrument = <String>::sse_decode(deserializer);
+        let mut var_filter = <String>::sse_decode(deserializer);
+        let mut var_exposureSecs = <f64>::sse_decode(deserializer);
+        let mut var_gain = <Option<i32>>::sse_decode(deserializer);
+        let mut var_offset = <Option<i32>>::sse_decode(deserializer);
+        let mut var_binX = <i32>::sse_decode(deserializer);
+        let mut var_binY = <i32>::sse_decode(deserializer);
+        let mut var_ccdTempC = <Option<f64>>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiAcquisitionSettings {
+            instrument: var_instrument,
+            filter: var_filter,
+            exposure_secs: var_exposureSecs,
+            gain: var_gain,
+            offset: var_offset,
+            bin_x: var_binX,
+            bin_y: var_binY,
+            ccd_temp_c: var_ccdTempC,
+        };
+    }
+}
+
 impl SseDecode for crate::api::imaging::ApiCombineMethod {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10793,6 +11167,258 @@ impl SseDecode for crate::api::imaging::ApiDefectMapStatus {
             last_rebuilt_unix_seconds: var_lastRebuiltUnixSeconds,
             apply_during_capture: var_applyDuringCapture,
             stored_on_disk: var_storedOnDisk,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthCurvePoint {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_frames = <u32>::sse_decode(deserializer);
+        let mut var_score = <f64>::sse_decode(deserializer);
+        let mut var_conservativeScore = <f64>::sse_decode(deserializer);
+        let mut var_projected = <bool>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthCurvePoint {
+            frames: var_frames,
+            score: var_score,
+            conservative_score: var_conservativeScore,
+            projected: var_projected,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthFloorSuggestion {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_floorAdu = <f64>::sse_decode(deserializer);
+        let mut var_darkNoiseAdu = <f64>::sse_decode(deserializer);
+        let mut var_flatRelativeNoise = <f64>::sse_decode(deserializer);
+        let mut var_skyAdu = <f64>::sse_decode(deserializer);
+        let mut var_aperturePixels = <f64>::sse_decode(deserializer);
+        let mut var_source = <String>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthFloorSuggestion {
+            floor_adu: var_floorAdu,
+            dark_noise_adu: var_darkNoiseAdu,
+            flat_relative_noise: var_flatRelativeNoise,
+            sky_adu: var_skyAdu,
+            aperture_pixels: var_aperturePixels,
+            source: var_source,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthForecast {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_framesToThreshold = <u32>::sse_decode(deserializer);
+        let mut var_framesToConfirm = <u32>::sse_decode(deserializer);
+        let mut var_reachable = <bool>::sse_decode(deserializer);
+        let mut var_ceilingScore = <f64>::sse_decode(deserializer);
+        let mut var_perFrameNoiseAdu = <f64>::sse_decode(deserializer);
+        let mut var_recentFrameNoiseAdu = <f64>::sse_decode(deserializer);
+        let mut var_bestFrameNoiseAdu = <f64>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthForecast {
+            frames_to_threshold: var_framesToThreshold,
+            frames_to_confirm: var_framesToConfirm,
+            reachable: var_reachable,
+            ceiling_score: var_ceilingScore,
+            per_frame_noise_adu: var_perFrameNoiseAdu,
+            recent_frame_noise_adu: var_recentFrameNoiseAdu,
+            best_frame_noise_adu: var_bestFrameNoiseAdu,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthGoal {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_revision = <u64>::sse_decode(deserializer);
+        let mut var_definition =
+            <crate::api::depthlock::ApiDepthGoalDefinition>::sse_decode(deserializer);
+        let mut var_selectedAtMs = <i64>::sse_decode(deserializer);
+        let mut var_evidenceFrames = <u32>::sse_decode(deserializer);
+        let mut var_evidenceRevision = <u64>::sse_decode(deserializer);
+        let mut var_analysisCurrent = <bool>::sse_decode(deserializer);
+        let mut var_report =
+            <Option<crate::api::depthlock::ApiDepthReport>>::sse_decode(deserializer);
+        let mut var_candidateFrames = <u32>::sse_decode(deserializer);
+        let mut var_lastIssue = <Option<String>>::sse_decode(deserializer);
+        let mut var_archivedRevisions = <u32>::sse_decode(deserializer);
+        let mut var_estimatorVersion = <u32>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthGoal {
+            id: var_id,
+            revision: var_revision,
+            definition: var_definition,
+            selected_at_ms: var_selectedAtMs,
+            evidence_frames: var_evidenceFrames,
+            evidence_revision: var_evidenceRevision,
+            analysis_current: var_analysisCurrent,
+            report: var_report,
+            candidate_frames: var_candidateFrames,
+            last_issue: var_lastIssue,
+            archived_revisions: var_archivedRevisions,
+            estimator_version: var_estimatorVersion,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthGoalDefinition {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_projectId = <String>::sse_decode(deserializer);
+        let mut var_targetId = <String>::sse_decode(deserializer);
+        let mut var_profileId = <String>::sse_decode(deserializer);
+        let mut var_filterName = <String>::sse_decode(deserializer);
+        let mut var_filterIndex = <Option<i32>>::sse_decode(deserializer);
+        let mut var_referencePath = <String>::sse_decode(deserializer);
+        let mut var_reference =
+            <crate::api::depthlock::ApiReferenceGeometry>::sse_decode(deserializer);
+        let mut var_acquisition =
+            <crate::api::depthlock::ApiAcquisitionSettings>::sse_decode(deserializer);
+        let mut var_temperatureToleranceC = <f64>::sse_decode(deserializer);
+        let mut var_darkPath = <String>::sse_decode(deserializer);
+        let mut var_flatPath = <String>::sse_decode(deserializer);
+        let mut var_measurement =
+            <crate::api::depthlock::ApiDepthMeasurement>::sse_decode(deserializer);
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_automaticCompletion = <bool>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthGoalDefinition {
+            label: var_label,
+            project_id: var_projectId,
+            target_id: var_targetId,
+            profile_id: var_profileId,
+            filter_name: var_filterName,
+            filter_index: var_filterIndex,
+            reference_path: var_referencePath,
+            reference: var_reference,
+            acquisition: var_acquisition,
+            temperature_tolerance_c: var_temperatureToleranceC,
+            dark_path: var_darkPath,
+            flat_path: var_flatPath,
+            measurement: var_measurement,
+            enabled: var_enabled,
+            automatic_completion: var_automaticCompletion,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthIngestOutcome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_outcome = <String>::sse_decode(deserializer);
+        let mut var_state = <Option<String>>::sse_decode(deserializer);
+        let mut var_reason = <Option<String>>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthIngestOutcome {
+            outcome: var_outcome,
+            state: var_state,
+            reason: var_reason,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthLockStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_available = <bool>::sse_decode(deserializer);
+        let mut var_goals = <u32>::sse_decode(deserializer);
+        let mut var_queueCapacity = <u32>::sse_decode(deserializer);
+        let mut var_queued = <u64>::sse_decode(deserializer);
+        let mut var_processed = <u64>::sse_decode(deserializer);
+        let mut var_dropped = <u64>::sse_decode(deserializer);
+        let mut var_evidenceAdded = <u64>::sse_decode(deserializer);
+        let mut var_evidenceRejected = <u64>::sse_decode(deserializer);
+        let mut var_lastFrameMs = <u64>::sse_decode(deserializer);
+        let mut var_maxFrameMs = <u64>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthLockStatus {
+            available: var_available,
+            goals: var_goals,
+            queue_capacity: var_queueCapacity,
+            queued: var_queued,
+            processed: var_processed,
+            dropped: var_dropped,
+            evidence_added: var_evidenceAdded,
+            evidence_rejected: var_evidenceRejected,
+            last_frame_ms: var_lastFrameMs,
+            max_frame_ms: var_maxFrameMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthMeasurement {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_region = <crate::api::depthlock::ApiSkyRectangle>::sse_decode(deserializer);
+        let mut var_background = <crate::api::depthlock::ApiSkyRectangle>::sse_decode(deserializer);
+        let mut var_scaleArcsec = <f64>::sse_decode(deserializer);
+        let mut var_threshold = <f64>::sse_decode(deserializer);
+        let mut var_minCoverage = <f64>::sse_decode(deserializer);
+        let mut var_systematicFloorAdu = <f64>::sse_decode(deserializer);
+        let mut var_systematicFloorSource = <String>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthMeasurement {
+            region: var_region,
+            background: var_background,
+            scale_arcsec: var_scaleArcsec,
+            threshold: var_threshold,
+            min_coverage: var_minCoverage,
+            systematic_floor_adu: var_systematicFloorAdu,
+            systematic_floor_source: var_systematicFloorSource,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthReferenceInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_width = <u32>::sse_decode(deserializer);
+        let mut var_height = <u32>::sse_decode(deserializer);
+        let mut var_pixelType = <String>::sse_decode(deserializer);
+        let mut var_monochrome = <bool>::sse_decode(deserializer);
+        let mut var_geometry =
+            <Option<crate::api::depthlock::ApiReferenceGeometry>>::sse_decode(deserializer);
+        let mut var_geometryIssue = <Option<String>>::sse_decode(deserializer);
+        let mut var_pixelScaleArcsec = <Option<f64>>::sse_decode(deserializer);
+        let mut var_acquisition =
+            <Option<crate::api::depthlock::ApiAcquisitionSettings>>::sse_decode(deserializer);
+        let mut var_acquisitionIssue = <Option<String>>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthReferenceInfo {
+            width: var_width,
+            height: var_height,
+            pixel_type: var_pixelType,
+            monochrome: var_monochrome,
+            geometry: var_geometry,
+            geometry_issue: var_geometryIssue,
+            pixel_scale_arcsec: var_pixelScaleArcsec,
+            acquisition: var_acquisition,
+            acquisition_issue: var_acquisitionIssue,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiDepthReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_state = <String>::sse_decode(deserializer);
+        let mut var_score = <Option<f64>>::sse_decode(deserializer);
+        let mut var_conservativeScore = <Option<f64>>::sse_decode(deserializer);
+        let mut var_uncertaintyAdu = <Option<f64>>::sse_decode(deserializer);
+        let mut var_coverage = <f64>::sse_decode(deserializer);
+        let mut var_evidenceFrames = <u32>::sse_decode(deserializer);
+        let mut var_confirmationFrames = <u32>::sse_decode(deserializer);
+        let mut var_reason = <String>::sse_decode(deserializer);
+        let mut var_forecast =
+            <Option<crate::api::depthlock::ApiDepthForecast>>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiDepthReport {
+            state: var_state,
+            score: var_score,
+            conservative_score: var_conservativeScore,
+            uncertainty_adu: var_uncertaintyAdu,
+            coverage: var_coverage,
+            evidence_frames: var_evidenceFrames,
+            confirmation_frames: var_confirmationFrames,
+            reason: var_reason,
+            forecast: var_forecast,
         };
     }
 }
@@ -10901,6 +11527,52 @@ impl SseDecode for crate::api::imaging::ApiMasterFrameResult {
             channels: var_channels,
             input_mean: var_inputMean,
             output_mean: var_outputMean,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiReferenceGeometry {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_width = <u32>::sse_decode(deserializer);
+        let mut var_height = <u32>::sse_decode(deserializer);
+        let mut var_crval1 = <f64>::sse_decode(deserializer);
+        let mut var_crval2 = <f64>::sse_decode(deserializer);
+        let mut var_crpix1 = <f64>::sse_decode(deserializer);
+        let mut var_crpix2 = <f64>::sse_decode(deserializer);
+        let mut var_cd11 = <f64>::sse_decode(deserializer);
+        let mut var_cd12 = <f64>::sse_decode(deserializer);
+        let mut var_cd21 = <f64>::sse_decode(deserializer);
+        let mut var_cd22 = <f64>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiReferenceGeometry {
+            width: var_width,
+            height: var_height,
+            crval1: var_crval1,
+            crval2: var_crval2,
+            crpix1: var_crpix1,
+            crpix2: var_crpix2,
+            cd1_1: var_cd11,
+            cd1_2: var_cd12,
+            cd2_1: var_cd21,
+            cd2_2: var_cd22,
+        };
+    }
+}
+
+impl SseDecode for crate::api::depthlock::ApiSkyRectangle {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_raDeg = <f64>::sse_decode(deserializer);
+        let mut var_decDeg = <f64>::sse_decode(deserializer);
+        let mut var_widthArcsec = <f64>::sse_decode(deserializer);
+        let mut var_heightArcsec = <f64>::sse_decode(deserializer);
+        let mut var_rotationDeg = <f64>::sse_decode(deserializer);
+        return crate::api::depthlock::ApiSkyRectangle {
+            ra_deg: var_raDeg,
+            dec_deg: var_decDeg,
+            width_arcsec: var_widthArcsec,
+            height_arcsec: var_heightArcsec,
+            rotation_deg: var_rotationDeg,
         };
     }
 }
@@ -11332,6 +12004,82 @@ impl SseDecode for crate::api::imaging::DebayerAlgorithmApi {
             2 => crate::api::imaging::DebayerAlgorithmApi::SuperPixel,
             _ => unreachable!("Invalid variant for DebayerAlgorithmApi: {}", inner),
         };
+    }
+}
+
+impl SseDecode for crate::event::depthlock_events::DepthLockEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_goalId = <String>::sse_decode(deserializer);
+                let mut var_revision = <u64>::sse_decode(deserializer);
+                let mut var_filterName = <String>::sse_decode(deserializer);
+                let mut var_state = <String>::sse_decode(deserializer);
+                let mut var_score = <Option<f64>>::sse_decode(deserializer);
+                let mut var_conservativeScore = <Option<f64>>::sse_decode(deserializer);
+                let mut var_threshold = <f64>::sse_decode(deserializer);
+                let mut var_uncertaintyAdu = <Option<f64>>::sse_decode(deserializer);
+                let mut var_coverage = <f64>::sse_decode(deserializer);
+                let mut var_evidenceFrames = <u32>::sse_decode(deserializer);
+                let mut var_confirmationFrames = <u32>::sse_decode(deserializer);
+                let mut var_reason = <String>::sse_decode(deserializer);
+                let mut var_automaticCompletion = <bool>::sse_decode(deserializer);
+                let mut var_framesRemaining = <Option<u32>>::sse_decode(deserializer);
+                let mut var_reachable = <bool>::sse_decode(deserializer);
+                return crate::event::depthlock_events::DepthLockEvent::GoalUpdated {
+                    goal_id: var_goalId,
+                    revision: var_revision,
+                    filter_name: var_filterName,
+                    state: var_state,
+                    score: var_score,
+                    conservative_score: var_conservativeScore,
+                    threshold: var_threshold,
+                    uncertainty_adu: var_uncertaintyAdu,
+                    coverage: var_coverage,
+                    evidence_frames: var_evidenceFrames,
+                    confirmation_frames: var_confirmationFrames,
+                    reason: var_reason,
+                    automatic_completion: var_automaticCompletion,
+                    frames_remaining: var_framesRemaining,
+                    reachable: var_reachable,
+                };
+            }
+            1 => {
+                let mut var_goalId = <String>::sse_decode(deserializer);
+                let mut var_revision = <u64>::sse_decode(deserializer);
+                let mut var_sourcePath = <String>::sse_decode(deserializer);
+                let mut var_reason = <String>::sse_decode(deserializer);
+                return crate::event::depthlock_events::DepthLockEvent::EvidenceRejected {
+                    goal_id: var_goalId,
+                    revision: var_revision,
+                    source_path: var_sourcePath,
+                    reason: var_reason,
+                };
+            }
+            2 => {
+                let mut var_sourcePath = <String>::sse_decode(deserializer);
+                let mut var_reason = <String>::sse_decode(deserializer);
+                return crate::event::depthlock_events::DepthLockEvent::AnalysisDropped {
+                    source_path: var_sourcePath,
+                    reason: var_reason,
+                };
+            }
+            3 => {
+                let mut var_goalId = <String>::sse_decode(deserializer);
+                let mut var_revision = <u64>::sse_decode(deserializer);
+                let mut var_change = <String>::sse_decode(deserializer);
+                return crate::event::depthlock_events::DepthLockEvent::GoalChanged {
+                    goal_id: var_goalId,
+                    revision: var_revision,
+                    change: var_change,
+                };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -11964,6 +12712,11 @@ impl SseDecode for crate::event::bus::EventPayload {
                 let mut var_field0 =
                     <crate::event::imaging::PolarAlignmentImageEvent>::sse_decode(deserializer);
                 return crate::event::bus::EventPayload::PolarAlignmentImage(var_field0);
+            }
+            9 => {
+                let mut var_field0 =
+                    <crate::event::depthlock_events::DepthLockEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::DepthLock(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -12802,6 +13555,34 @@ impl SseDecode for Vec<String> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<String>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::depthlock::ApiDepthCurvePoint> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::depthlock::ApiDepthCurvePoint>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::depthlock::ApiDepthGoal> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::depthlock::ApiDepthGoal>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -13696,11 +14477,63 @@ impl SseDecode for Option<DefectMapCorrectionRecord> {
     }
 }
 
+impl SseDecode for Option<crate::api::depthlock::ApiAcquisitionSettings> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::depthlock::ApiAcquisitionSettings>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::imaging::ApiDefectMapStatus> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::imaging::ApiDefectMapStatus>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::depthlock::ApiDepthForecast> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::depthlock::ApiDepthForecast>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::depthlock::ApiDepthReport> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::depthlock::ApiDepthReport>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::depthlock::ApiReferenceGeometry> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::depthlock::ApiReferenceGeometry>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -14802,6 +15635,26 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
             }
             18 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
+                let mut var_filterName = <String>::sse_decode(deserializer);
+                let mut var_goalId = <String>::sse_decode(deserializer);
+                let mut var_revision = <u64>::sse_decode(deserializer);
+                let mut var_evidenceFrames = <u32>::sse_decode(deserializer);
+                let mut var_confirmationFrames = <u32>::sse_decode(deserializer);
+                let mut var_score = <f64>::sse_decode(deserializer);
+                let mut var_threshold = <f64>::sse_decode(deserializer);
+                return crate::event::sequencer::SequencerEvent::DepthGoalCompleted {
+                    node_id: var_nodeId,
+                    filter_name: var_filterName,
+                    goal_id: var_goalId,
+                    revision: var_revision,
+                    evidence_frames: var_evidenceFrames,
+                    confirmation_frames: var_confirmationFrames,
+                    score: var_score,
+                    threshold: var_threshold,
+                };
+            }
+            19 => {
+                let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
                 let mut var_hfr = <Option<f64>>::sse_decode(deserializer);
@@ -14825,7 +15678,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     capture: var_capture,
                 };
             }
-            19 => {
+            20 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
@@ -14868,7 +15721,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     capture: var_capture,
                 };
             }
-            20 => {
+            21 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_decisionCounter = <u32>::sse_decode(deserializer);
                 let mut var_pickedTargetId = <Option<String>>::sse_decode(deserializer);
@@ -14885,7 +15738,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     scores: var_scores,
                 };
             }
-            21 => {
+            22 => {
                 let mut var_targetId = <String>::sse_decode(deserializer);
                 let mut var_filter = <String>::sse_decode(deserializer);
                 let mut var_completedSecs = <f64>::sse_decode(deserializer);
@@ -14901,7 +15754,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     budget_met: var_budgetMet,
                 };
             }
-            22 => {
+            23 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_adaptedSecs = <f64>::sse_decode(deserializer);
                 let mut var_nominalSecs = <f64>::sse_decode(deserializer);
@@ -14917,7 +15770,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     reason: var_reason,
                 };
             }
-            23 => {
+            24 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_targetDesignation = <String>::sse_decode(deserializer);
                 let mut var_referenceStars = <Vec<String>>::sse_decode(deserializer);
@@ -14953,7 +15806,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     apply_differential: var_applyDifferential,
                 };
             }
-            24 => {
+            25 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
@@ -14969,7 +15822,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     cadence_breaks: var_cadenceBreaks,
                 };
             }
-            25 => {
+            26 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_targetDesignation = <String>::sse_decode(deserializer);
                 let mut var_filter = <String>::sse_decode(deserializer);
@@ -14985,7 +15838,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     last_reject_reason: var_lastRejectReason,
                 };
             }
-            26 => {
+            27 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -15009,7 +15862,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            27 => {
+            28 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -15033,7 +15886,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            28 => {
+            29 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -15057,7 +15910,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            29 => {
+            30 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -15083,7 +15936,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     aborted_by_user: var_abortedByUser,
                 };
             }
-            30 => {
+            31 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
@@ -15099,7 +15952,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     timeout_secs: var_timeoutSecs,
                 };
             }
-            31 => {
+            32 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
@@ -15111,7 +15964,7 @@ impl SseDecode for crate::event::sequencer::SequencerEvent {
                     detail_json: var_detailJson,
                 };
             }
-            32 => {
+            33 => {
                 let mut var_timestampIso = <String>::sse_decode(deserializer);
                 let mut var_category = <String>::sse_decode(deserializer);
                 let mut var_summary = <String>::sse_decode(deserializer);
@@ -15688,6 +16541,33 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<DefectMapCorrectionRecord>>
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiAcquisitionSettings {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.instrument.into_into_dart().into_dart(),
+            self.filter.into_into_dart().into_dart(),
+            self.exposure_secs.into_into_dart().into_dart(),
+            self.gain.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
+            self.bin_x.into_into_dart().into_dart(),
+            self.bin_y.into_into_dart().into_dart(),
+            self.ccd_temp_c.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiAcquisitionSettings
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiAcquisitionSettings>
+    for crate::api::depthlock::ApiAcquisitionSettings
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiAcquisitionSettings {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::imaging::ApiCombineMethod {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15735,6 +16615,278 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::ApiDefectMapStatus>
     for crate::api::imaging::ApiDefectMapStatus
 {
     fn into_into_dart(self) -> crate::api::imaging::ApiDefectMapStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthCurvePoint {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.frames.into_into_dart().into_dart(),
+            self.score.into_into_dart().into_dart(),
+            self.conservative_score.into_into_dart().into_dart(),
+            self.projected.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthCurvePoint
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthCurvePoint>
+    for crate::api::depthlock::ApiDepthCurvePoint
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthCurvePoint {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthFloorSuggestion {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.floor_adu.into_into_dart().into_dart(),
+            self.dark_noise_adu.into_into_dart().into_dart(),
+            self.flat_relative_noise.into_into_dart().into_dart(),
+            self.sky_adu.into_into_dart().into_dart(),
+            self.aperture_pixels.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthFloorSuggestion
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthFloorSuggestion>
+    for crate::api::depthlock::ApiDepthFloorSuggestion
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthFloorSuggestion {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthForecast {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.frames_to_threshold.into_into_dart().into_dart(),
+            self.frames_to_confirm.into_into_dart().into_dart(),
+            self.reachable.into_into_dart().into_dart(),
+            self.ceiling_score.into_into_dart().into_dart(),
+            self.per_frame_noise_adu.into_into_dart().into_dart(),
+            self.recent_frame_noise_adu.into_into_dart().into_dart(),
+            self.best_frame_noise_adu.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthForecast
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthForecast>
+    for crate::api::depthlock::ApiDepthForecast
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthForecast {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthGoal {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.revision.into_into_dart().into_dart(),
+            self.definition.into_into_dart().into_dart(),
+            self.selected_at_ms.into_into_dart().into_dart(),
+            self.evidence_frames.into_into_dart().into_dart(),
+            self.evidence_revision.into_into_dart().into_dart(),
+            self.analysis_current.into_into_dart().into_dart(),
+            self.report.into_into_dart().into_dart(),
+            self.candidate_frames.into_into_dart().into_dart(),
+            self.last_issue.into_into_dart().into_dart(),
+            self.archived_revisions.into_into_dart().into_dart(),
+            self.estimator_version.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthGoal
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthGoal>
+    for crate::api::depthlock::ApiDepthGoal
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthGoal {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthGoalDefinition {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.label.into_into_dart().into_dart(),
+            self.project_id.into_into_dart().into_dart(),
+            self.target_id.into_into_dart().into_dart(),
+            self.profile_id.into_into_dart().into_dart(),
+            self.filter_name.into_into_dart().into_dart(),
+            self.filter_index.into_into_dart().into_dart(),
+            self.reference_path.into_into_dart().into_dart(),
+            self.reference.into_into_dart().into_dart(),
+            self.acquisition.into_into_dart().into_dart(),
+            self.temperature_tolerance_c.into_into_dart().into_dart(),
+            self.dark_path.into_into_dart().into_dart(),
+            self.flat_path.into_into_dart().into_dart(),
+            self.measurement.into_into_dart().into_dart(),
+            self.enabled.into_into_dart().into_dart(),
+            self.automatic_completion.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthGoalDefinition
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthGoalDefinition>
+    for crate::api::depthlock::ApiDepthGoalDefinition
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthGoalDefinition {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthIngestOutcome {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.outcome.into_into_dart().into_dart(),
+            self.state.into_into_dart().into_dart(),
+            self.reason.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthIngestOutcome
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthIngestOutcome>
+    for crate::api::depthlock::ApiDepthIngestOutcome
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthIngestOutcome {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthLockStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.available.into_into_dart().into_dart(),
+            self.goals.into_into_dart().into_dart(),
+            self.queue_capacity.into_into_dart().into_dart(),
+            self.queued.into_into_dart().into_dart(),
+            self.processed.into_into_dart().into_dart(),
+            self.dropped.into_into_dart().into_dart(),
+            self.evidence_added.into_into_dart().into_dart(),
+            self.evidence_rejected.into_into_dart().into_dart(),
+            self.last_frame_ms.into_into_dart().into_dart(),
+            self.max_frame_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthLockStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthLockStatus>
+    for crate::api::depthlock::ApiDepthLockStatus
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthLockStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthMeasurement {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.region.into_into_dart().into_dart(),
+            self.background.into_into_dart().into_dart(),
+            self.scale_arcsec.into_into_dart().into_dart(),
+            self.threshold.into_into_dart().into_dart(),
+            self.min_coverage.into_into_dart().into_dart(),
+            self.systematic_floor_adu.into_into_dart().into_dart(),
+            self.systematic_floor_source.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthMeasurement
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthMeasurement>
+    for crate::api::depthlock::ApiDepthMeasurement
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthMeasurement {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthReferenceInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.pixel_type.into_into_dart().into_dart(),
+            self.monochrome.into_into_dart().into_dart(),
+            self.geometry.into_into_dart().into_dart(),
+            self.geometry_issue.into_into_dart().into_dart(),
+            self.pixel_scale_arcsec.into_into_dart().into_dart(),
+            self.acquisition.into_into_dart().into_dart(),
+            self.acquisition_issue.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthReferenceInfo
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthReferenceInfo>
+    for crate::api::depthlock::ApiDepthReferenceInfo
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthReferenceInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiDepthReport {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.state.into_into_dart().into_dart(),
+            self.score.into_into_dart().into_dart(),
+            self.conservative_score.into_into_dart().into_dart(),
+            self.uncertainty_adu.into_into_dart().into_dart(),
+            self.coverage.into_into_dart().into_dart(),
+            self.evidence_frames.into_into_dart().into_dart(),
+            self.confirmation_frames.into_into_dart().into_dart(),
+            self.reason.into_into_dart().into_dart(),
+            self.forecast.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiDepthReport
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiDepthReport>
+    for crate::api::depthlock::ApiDepthReport
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiDepthReport {
         self
     }
 }
@@ -15868,6 +17020,59 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::ApiMasterFrameResult
     for crate::api::imaging::ApiMasterFrameResult
 {
     fn into_into_dart(self) -> crate::api::imaging::ApiMasterFrameResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiReferenceGeometry {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.crval1.into_into_dart().into_dart(),
+            self.crval2.into_into_dart().into_dart(),
+            self.crpix1.into_into_dart().into_dart(),
+            self.crpix2.into_into_dart().into_dart(),
+            self.cd1_1.into_into_dart().into_dart(),
+            self.cd1_2.into_into_dart().into_dart(),
+            self.cd2_1.into_into_dart().into_dart(),
+            self.cd2_2.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiReferenceGeometry
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiReferenceGeometry>
+    for crate::api::depthlock::ApiReferenceGeometry
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiReferenceGeometry {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::depthlock::ApiSkyRectangle {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ra_deg.into_into_dart().into_dart(),
+            self.dec_deg.into_into_dart().into_dart(),
+            self.width_arcsec.into_into_dart().into_dart(),
+            self.height_arcsec.into_into_dart().into_dart(),
+            self.rotation_deg.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::depthlock::ApiSkyRectangle
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::depthlock::ApiSkyRectangle>
+    for crate::api::depthlock::ApiSkyRectangle
+{
+    fn into_into_dart(self) -> crate::api::depthlock::ApiSkyRectangle {
         self
     }
 }
@@ -16333,6 +17538,95 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::DebayerAlgorithmApi>
     for crate::api::imaging::DebayerAlgorithmApi
 {
     fn into_into_dart(self) -> crate::api::imaging::DebayerAlgorithmApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::event::depthlock_events::DepthLockEvent {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::event::depthlock_events::DepthLockEvent::GoalUpdated {
+                goal_id,
+                revision,
+                filter_name,
+                state,
+                score,
+                conservative_score,
+                threshold,
+                uncertainty_adu,
+                coverage,
+                evidence_frames,
+                confirmation_frames,
+                reason,
+                automatic_completion,
+                frames_remaining,
+                reachable,
+            } => [
+                0.into_dart(),
+                goal_id.into_into_dart().into_dart(),
+                revision.into_into_dart().into_dart(),
+                filter_name.into_into_dart().into_dart(),
+                state.into_into_dart().into_dart(),
+                score.into_into_dart().into_dart(),
+                conservative_score.into_into_dart().into_dart(),
+                threshold.into_into_dart().into_dart(),
+                uncertainty_adu.into_into_dart().into_dart(),
+                coverage.into_into_dart().into_dart(),
+                evidence_frames.into_into_dart().into_dart(),
+                confirmation_frames.into_into_dart().into_dart(),
+                reason.into_into_dart().into_dart(),
+                automatic_completion.into_into_dart().into_dart(),
+                frames_remaining.into_into_dart().into_dart(),
+                reachable.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::depthlock_events::DepthLockEvent::EvidenceRejected {
+                goal_id,
+                revision,
+                source_path,
+                reason,
+            } => [
+                1.into_dart(),
+                goal_id.into_into_dart().into_dart(),
+                revision.into_into_dart().into_dart(),
+                source_path.into_into_dart().into_dart(),
+                reason.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::depthlock_events::DepthLockEvent::AnalysisDropped {
+                source_path,
+                reason,
+            } => [
+                2.into_dart(),
+                source_path.into_into_dart().into_dart(),
+                reason.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::depthlock_events::DepthLockEvent::GoalChanged {
+                goal_id,
+                revision,
+                change,
+            } => [
+                3.into_dart(),
+                goal_id.into_into_dart().into_dart(),
+                revision.into_into_dart().into_dart(),
+                change.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::depthlock_events::DepthLockEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::depthlock_events::DepthLockEvent>
+    for crate::event::depthlock_events::DepthLockEvent
+{
+    fn into_into_dart(self) -> crate::event::depthlock_events::DepthLockEvent {
         self
     }
 }
@@ -16916,6 +18210,9 @@ impl flutter_rust_bridge::IntoDart for crate::event::bus::EventPayload {
             }
             crate::event::bus::EventPayload::PolarAlignmentImage(field0) => {
                 [8.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::event::bus::EventPayload::DepthLock(field0) => {
+                [9.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -19033,6 +20330,27 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 detail_json.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::event::sequencer::SequencerEvent::DepthGoalCompleted {
+                node_id,
+                filter_name,
+                goal_id,
+                revision,
+                evidence_frames,
+                confirmation_frames,
+                score,
+                threshold,
+            } => [
+                18.into_dart(),
+                node_id.into_into_dart().into_dart(),
+                filter_name.into_into_dart().into_dart(),
+                goal_id.into_into_dart().into_dart(),
+                revision.into_into_dart().into_dart(),
+                evidence_frames.into_into_dart().into_dart(),
+                confirmation_frames.into_into_dart().into_dart(),
+                score.into_into_dart().into_dart(),
+                threshold.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::event::sequencer::SequencerEvent::FrameAccepted {
                 node_id,
                 frame,
@@ -19045,7 +20363,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 save_path,
                 capture,
             } => [
-                18.into_dart(),
+                19.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
@@ -19079,7 +20397,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 sensor_temp_at_capture,
                 capture,
             } => [
-                19.into_dart(),
+                20.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
@@ -19109,7 +20427,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 picked_score,
                 scores,
             } => [
-                20.into_dart(),
+                21.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 decision_counter.into_into_dart().into_dart(),
                 picked_target_id.into_into_dart().into_dart(),
@@ -19126,7 +20444,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 fraction,
                 budget_met,
             } => [
-                21.into_dart(),
+                22.into_dart(),
                 target_id.into_into_dart().into_dart(),
                 filter.into_into_dart().into_dart(),
                 completed_secs.into_into_dart().into_dart(),
@@ -19143,7 +20461,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 filter,
                 reason,
             } => [
-                22.into_dart(),
+                23.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 adapted_secs.into_into_dart().into_dart(),
                 nominal_secs.into_into_dart().into_dart(),
@@ -19170,7 +20488,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 reduce_live,
                 apply_differential,
             } => [
-                23.into_dart(),
+                24.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 target_designation.into_into_dart().into_dart(),
                 reference_stars.into_into_dart().into_dart(),
@@ -19197,7 +20515,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 max_gap_secs,
                 cadence_breaks,
             } => [
-                24.into_dart(),
+                25.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
@@ -19214,7 +20532,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 cadence_breaks,
                 last_reject_reason,
             } => [
-                25.into_dart(),
+                26.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 target_designation.into_into_dart().into_dart(),
                 filter.into_into_dart().into_dart(),
@@ -19224,31 +20542,6 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
             ]
             .into_dart(),
             crate::event::sequencer::SequencerEvent::RecoveryStarted {
-                started_at_iso,
-                cause_kind,
-                cause_custom_label,
-                last_attempt_at_iso,
-                attempt_count,
-                max_attempts,
-                retry_interval_secs,
-                max_duration_secs,
-                phase,
-                last_error,
-            } => [
-                26.into_dart(),
-                started_at_iso.into_into_dart().into_dart(),
-                cause_kind.into_into_dart().into_dart(),
-                cause_custom_label.into_into_dart().into_dart(),
-                last_attempt_at_iso.into_into_dart().into_dart(),
-                attempt_count.into_into_dart().into_dart(),
-                max_attempts.into_into_dart().into_dart(),
-                retry_interval_secs.into_into_dart().into_dart(),
-                max_duration_secs.into_into_dart().into_dart(),
-                phase.into_into_dart().into_dart(),
-                last_error.into_into_dart().into_dart(),
-            ]
-            .into_dart(),
-            crate::event::sequencer::SequencerEvent::RecoveryProgress {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -19273,7 +20566,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 last_error.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::sequencer::SequencerEvent::RecoveryCompleted {
+            crate::event::sequencer::SequencerEvent::RecoveryProgress {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -19286,6 +20579,31 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 last_error,
             } => [
                 28.into_dart(),
+                started_at_iso.into_into_dart().into_dart(),
+                cause_kind.into_into_dart().into_dart(),
+                cause_custom_label.into_into_dart().into_dart(),
+                last_attempt_at_iso.into_into_dart().into_dart(),
+                attempt_count.into_into_dart().into_dart(),
+                max_attempts.into_into_dart().into_dart(),
+                retry_interval_secs.into_into_dart().into_dart(),
+                max_duration_secs.into_into_dart().into_dart(),
+                phase.into_into_dart().into_dart(),
+                last_error.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::sequencer::SequencerEvent::RecoveryCompleted {
+                started_at_iso,
+                cause_kind,
+                cause_custom_label,
+                last_attempt_at_iso,
+                attempt_count,
+                max_attempts,
+                retry_interval_secs,
+                max_duration_secs,
+                phase,
+                last_error,
+            } => [
+                29.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -19311,7 +20629,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 last_error,
                 aborted_by_user,
             } => [
-                29.into_dart(),
+                30.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -19333,7 +20651,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 display_name,
                 timeout_secs,
             } => [
-                30.into_dart(),
+                31.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 plugin_id.into_into_dart().into_dart(),
                 node_type_id.into_into_dart().into_dart(),
@@ -19348,7 +20666,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 node_type_id,
                 detail_json,
             } => [
-                31.into_dart(),
+                32.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 plugin_id.into_into_dart().into_dart(),
                 node_type_id.into_into_dart().into_dart(),
@@ -19363,7 +20681,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
                 node_id,
                 sequence_run_id,
             } => [
-                32.into_dart(),
+                33.into_dart(),
                 timestamp_iso.into_into_dart().into_dart(),
                 category.into_into_dart().into_dart(),
                 summary.into_into_dart().into_dart(),
@@ -20078,6 +21396,20 @@ impl SseEncode for String {
     }
 }
 
+impl SseEncode for crate::api::depthlock::ApiAcquisitionSettings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.instrument, serializer);
+        <String>::sse_encode(self.filter, serializer);
+        <f64>::sse_encode(self.exposure_secs, serializer);
+        <Option<i32>>::sse_encode(self.gain, serializer);
+        <Option<i32>>::sse_encode(self.offset, serializer);
+        <i32>::sse_encode(self.bin_x, serializer);
+        <i32>::sse_encode(self.bin_y, serializer);
+        <Option<f64>>::sse_encode(self.ccd_temp_c, serializer);
+    }
+}
+
 impl SseEncode for crate::api::imaging::ApiCombineMethod {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20098,6 +21430,154 @@ impl SseEncode for crate::api::imaging::ApiDefectMapStatus {
         <i64>::sse_encode(self.last_rebuilt_unix_seconds, serializer);
         <bool>::sse_encode(self.apply_during_capture, serializer);
         <bool>::sse_encode(self.stored_on_disk, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthCurvePoint {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.frames, serializer);
+        <f64>::sse_encode(self.score, serializer);
+        <f64>::sse_encode(self.conservative_score, serializer);
+        <bool>::sse_encode(self.projected, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthFloorSuggestion {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.floor_adu, serializer);
+        <f64>::sse_encode(self.dark_noise_adu, serializer);
+        <f64>::sse_encode(self.flat_relative_noise, serializer);
+        <f64>::sse_encode(self.sky_adu, serializer);
+        <f64>::sse_encode(self.aperture_pixels, serializer);
+        <String>::sse_encode(self.source, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthForecast {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.frames_to_threshold, serializer);
+        <u32>::sse_encode(self.frames_to_confirm, serializer);
+        <bool>::sse_encode(self.reachable, serializer);
+        <f64>::sse_encode(self.ceiling_score, serializer);
+        <f64>::sse_encode(self.per_frame_noise_adu, serializer);
+        <f64>::sse_encode(self.recent_frame_noise_adu, serializer);
+        <f64>::sse_encode(self.best_frame_noise_adu, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthGoal {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <u64>::sse_encode(self.revision, serializer);
+        <crate::api::depthlock::ApiDepthGoalDefinition>::sse_encode(self.definition, serializer);
+        <i64>::sse_encode(self.selected_at_ms, serializer);
+        <u32>::sse_encode(self.evidence_frames, serializer);
+        <u64>::sse_encode(self.evidence_revision, serializer);
+        <bool>::sse_encode(self.analysis_current, serializer);
+        <Option<crate::api::depthlock::ApiDepthReport>>::sse_encode(self.report, serializer);
+        <u32>::sse_encode(self.candidate_frames, serializer);
+        <Option<String>>::sse_encode(self.last_issue, serializer);
+        <u32>::sse_encode(self.archived_revisions, serializer);
+        <u32>::sse_encode(self.estimator_version, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthGoalDefinition {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.label, serializer);
+        <String>::sse_encode(self.project_id, serializer);
+        <String>::sse_encode(self.target_id, serializer);
+        <String>::sse_encode(self.profile_id, serializer);
+        <String>::sse_encode(self.filter_name, serializer);
+        <Option<i32>>::sse_encode(self.filter_index, serializer);
+        <String>::sse_encode(self.reference_path, serializer);
+        <crate::api::depthlock::ApiReferenceGeometry>::sse_encode(self.reference, serializer);
+        <crate::api::depthlock::ApiAcquisitionSettings>::sse_encode(self.acquisition, serializer);
+        <f64>::sse_encode(self.temperature_tolerance_c, serializer);
+        <String>::sse_encode(self.dark_path, serializer);
+        <String>::sse_encode(self.flat_path, serializer);
+        <crate::api::depthlock::ApiDepthMeasurement>::sse_encode(self.measurement, serializer);
+        <bool>::sse_encode(self.enabled, serializer);
+        <bool>::sse_encode(self.automatic_completion, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthIngestOutcome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.outcome, serializer);
+        <Option<String>>::sse_encode(self.state, serializer);
+        <Option<String>>::sse_encode(self.reason, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthLockStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.available, serializer);
+        <u32>::sse_encode(self.goals, serializer);
+        <u32>::sse_encode(self.queue_capacity, serializer);
+        <u64>::sse_encode(self.queued, serializer);
+        <u64>::sse_encode(self.processed, serializer);
+        <u64>::sse_encode(self.dropped, serializer);
+        <u64>::sse_encode(self.evidence_added, serializer);
+        <u64>::sse_encode(self.evidence_rejected, serializer);
+        <u64>::sse_encode(self.last_frame_ms, serializer);
+        <u64>::sse_encode(self.max_frame_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthMeasurement {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::depthlock::ApiSkyRectangle>::sse_encode(self.region, serializer);
+        <crate::api::depthlock::ApiSkyRectangle>::sse_encode(self.background, serializer);
+        <f64>::sse_encode(self.scale_arcsec, serializer);
+        <f64>::sse_encode(self.threshold, serializer);
+        <f64>::sse_encode(self.min_coverage, serializer);
+        <f64>::sse_encode(self.systematic_floor_adu, serializer);
+        <String>::sse_encode(self.systematic_floor_source, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthReferenceInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.width, serializer);
+        <u32>::sse_encode(self.height, serializer);
+        <String>::sse_encode(self.pixel_type, serializer);
+        <bool>::sse_encode(self.monochrome, serializer);
+        <Option<crate::api::depthlock::ApiReferenceGeometry>>::sse_encode(
+            self.geometry,
+            serializer,
+        );
+        <Option<String>>::sse_encode(self.geometry_issue, serializer);
+        <Option<f64>>::sse_encode(self.pixel_scale_arcsec, serializer);
+        <Option<crate::api::depthlock::ApiAcquisitionSettings>>::sse_encode(
+            self.acquisition,
+            serializer,
+        );
+        <Option<String>>::sse_encode(self.acquisition_issue, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiDepthReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.state, serializer);
+        <Option<f64>>::sse_encode(self.score, serializer);
+        <Option<f64>>::sse_encode(self.conservative_score, serializer);
+        <Option<f64>>::sse_encode(self.uncertainty_adu, serializer);
+        <f64>::sse_encode(self.coverage, serializer);
+        <u32>::sse_encode(self.evidence_frames, serializer);
+        <u32>::sse_encode(self.confirmation_frames, serializer);
+        <String>::sse_encode(self.reason, serializer);
+        <Option<crate::api::depthlock::ApiDepthForecast>>::sse_encode(self.forecast, serializer);
     }
 }
 
@@ -20162,6 +21642,33 @@ impl SseEncode for crate::api::imaging::ApiMasterFrameResult {
         <u32>::sse_encode(self.channels, serializer);
         <f64>::sse_encode(self.input_mean, serializer);
         <f64>::sse_encode(self.output_mean, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiReferenceGeometry {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.width, serializer);
+        <u32>::sse_encode(self.height, serializer);
+        <f64>::sse_encode(self.crval1, serializer);
+        <f64>::sse_encode(self.crval2, serializer);
+        <f64>::sse_encode(self.crpix1, serializer);
+        <f64>::sse_encode(self.crpix2, serializer);
+        <f64>::sse_encode(self.cd1_1, serializer);
+        <f64>::sse_encode(self.cd1_2, serializer);
+        <f64>::sse_encode(self.cd2_1, serializer);
+        <f64>::sse_encode(self.cd2_2, serializer);
+    }
+}
+
+impl SseEncode for crate::api::depthlock::ApiSkyRectangle {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.ra_deg, serializer);
+        <f64>::sse_encode(self.dec_deg, serializer);
+        <f64>::sse_encode(self.width_arcsec, serializer);
+        <f64>::sse_encode(self.height_arcsec, serializer);
+        <f64>::sse_encode(self.rotation_deg, serializer);
     }
 }
 
@@ -20461,6 +21968,81 @@ impl SseEncode for crate::api::imaging::DebayerAlgorithmApi {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::event::depthlock_events::DepthLockEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::event::depthlock_events::DepthLockEvent::GoalUpdated {
+                goal_id,
+                revision,
+                filter_name,
+                state,
+                score,
+                conservative_score,
+                threshold,
+                uncertainty_adu,
+                coverage,
+                evidence_frames,
+                confirmation_frames,
+                reason,
+                automatic_completion,
+                frames_remaining,
+                reachable,
+            } => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(goal_id, serializer);
+                <u64>::sse_encode(revision, serializer);
+                <String>::sse_encode(filter_name, serializer);
+                <String>::sse_encode(state, serializer);
+                <Option<f64>>::sse_encode(score, serializer);
+                <Option<f64>>::sse_encode(conservative_score, serializer);
+                <f64>::sse_encode(threshold, serializer);
+                <Option<f64>>::sse_encode(uncertainty_adu, serializer);
+                <f64>::sse_encode(coverage, serializer);
+                <u32>::sse_encode(evidence_frames, serializer);
+                <u32>::sse_encode(confirmation_frames, serializer);
+                <String>::sse_encode(reason, serializer);
+                <bool>::sse_encode(automatic_completion, serializer);
+                <Option<u32>>::sse_encode(frames_remaining, serializer);
+                <bool>::sse_encode(reachable, serializer);
+            }
+            crate::event::depthlock_events::DepthLockEvent::EvidenceRejected {
+                goal_id,
+                revision,
+                source_path,
+                reason,
+            } => {
+                <i32>::sse_encode(1, serializer);
+                <String>::sse_encode(goal_id, serializer);
+                <u64>::sse_encode(revision, serializer);
+                <String>::sse_encode(source_path, serializer);
+                <String>::sse_encode(reason, serializer);
+            }
+            crate::event::depthlock_events::DepthLockEvent::AnalysisDropped {
+                source_path,
+                reason,
+            } => {
+                <i32>::sse_encode(2, serializer);
+                <String>::sse_encode(source_path, serializer);
+                <String>::sse_encode(reason, serializer);
+            }
+            crate::event::depthlock_events::DepthLockEvent::GoalChanged {
+                goal_id,
+                revision,
+                change,
+            } => {
+                <i32>::sse_encode(3, serializer);
+                <String>::sse_encode(goal_id, serializer);
+                <u64>::sse_encode(revision, serializer);
+                <String>::sse_encode(change, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -20973,6 +22555,10 @@ impl SseEncode for crate::event::bus::EventPayload {
             crate::event::bus::EventPayload::PolarAlignmentImage(field0) => {
                 <i32>::sse_encode(8, serializer);
                 <crate::event::imaging::PolarAlignmentImageEvent>::sse_encode(field0, serializer);
+            }
+            crate::event::bus::EventPayload::DepthLock(field0) => {
+                <i32>::sse_encode(9, serializer);
+                <crate::event::depthlock_events::DepthLockEvent>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -21590,6 +23176,26 @@ impl SseEncode for Vec<String> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <String>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::depthlock::ApiDepthCurvePoint> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::depthlock::ApiDepthCurvePoint>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::depthlock::ApiDepthGoal> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::depthlock::ApiDepthGoal>::sse_encode(item, serializer);
         }
     }
 }
@@ -22272,12 +23878,52 @@ impl SseEncode for Option<DefectMapCorrectionRecord> {
     }
 }
 
+impl SseEncode for Option<crate::api::depthlock::ApiAcquisitionSettings> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::depthlock::ApiAcquisitionSettings>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::imaging::ApiDefectMapStatus> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::imaging::ApiDefectMapStatus>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::depthlock::ApiDepthForecast> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::depthlock::ApiDepthForecast>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::depthlock::ApiDepthReport> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::depthlock::ApiDepthReport>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::depthlock::ApiReferenceGeometry> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::depthlock::ApiReferenceGeometry>::sse_encode(value, serializer);
         }
     }
 }
@@ -23091,6 +24737,26 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 <String>::sse_encode(detail_kind, serializer);
                 <String>::sse_encode(detail_json, serializer);
             }
+            crate::event::sequencer::SequencerEvent::DepthGoalCompleted {
+                node_id,
+                filter_name,
+                goal_id,
+                revision,
+                evidence_frames,
+                confirmation_frames,
+                score,
+                threshold,
+            } => {
+                <i32>::sse_encode(18, serializer);
+                <String>::sse_encode(node_id, serializer);
+                <String>::sse_encode(filter_name, serializer);
+                <String>::sse_encode(goal_id, serializer);
+                <u64>::sse_encode(revision, serializer);
+                <u32>::sse_encode(evidence_frames, serializer);
+                <u32>::sse_encode(confirmation_frames, serializer);
+                <f64>::sse_encode(score, serializer);
+                <f64>::sse_encode(threshold, serializer);
+            }
             crate::event::sequencer::SequencerEvent::FrameAccepted {
                 node_id,
                 frame,
@@ -23103,7 +24769,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 save_path,
                 capture,
             } => {
-                <i32>::sse_encode(18, serializer);
+                <i32>::sse_encode(19, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
@@ -23136,7 +24802,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 sensor_temp_at_capture,
                 capture,
             } => {
-                <i32>::sse_encode(19, serializer);
+                <i32>::sse_encode(20, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
@@ -23165,7 +24831,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 picked_score,
                 scores,
             } => {
-                <i32>::sse_encode(20, serializer);
+                <i32>::sse_encode(21, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(decision_counter, serializer);
                 <Option<String>>::sse_encode(picked_target_id, serializer);
@@ -23181,7 +24847,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 fraction,
                 budget_met,
             } => {
-                <i32>::sse_encode(21, serializer);
+                <i32>::sse_encode(22, serializer);
                 <String>::sse_encode(target_id, serializer);
                 <String>::sse_encode(filter, serializer);
                 <f64>::sse_encode(completed_secs, serializer);
@@ -23197,7 +24863,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 filter,
                 reason,
             } => {
-                <i32>::sse_encode(22, serializer);
+                <i32>::sse_encode(23, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <f64>::sse_encode(adapted_secs, serializer);
                 <f64>::sse_encode(nominal_secs, serializer);
@@ -23223,7 +24889,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 reduce_live,
                 apply_differential,
             } => {
-                <i32>::sse_encode(23, serializer);
+                <i32>::sse_encode(24, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(target_designation, serializer);
                 <Vec<String>>::sse_encode(reference_stars, serializer);
@@ -23249,7 +24915,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 max_gap_secs,
                 cadence_breaks,
             } => {
-                <i32>::sse_encode(24, serializer);
+                <i32>::sse_encode(25, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
@@ -23265,7 +24931,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 cadence_breaks,
                 last_reject_reason,
             } => {
-                <i32>::sse_encode(25, serializer);
+                <i32>::sse_encode(26, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(target_designation, serializer);
                 <String>::sse_encode(filter, serializer);
@@ -23274,30 +24940,6 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 <Option<String>>::sse_encode(last_reject_reason, serializer);
             }
             crate::event::sequencer::SequencerEvent::RecoveryStarted {
-                started_at_iso,
-                cause_kind,
-                cause_custom_label,
-                last_attempt_at_iso,
-                attempt_count,
-                max_attempts,
-                retry_interval_secs,
-                max_duration_secs,
-                phase,
-                last_error,
-            } => {
-                <i32>::sse_encode(26, serializer);
-                <String>::sse_encode(started_at_iso, serializer);
-                <String>::sse_encode(cause_kind, serializer);
-                <Option<String>>::sse_encode(cause_custom_label, serializer);
-                <Option<String>>::sse_encode(last_attempt_at_iso, serializer);
-                <u32>::sse_encode(attempt_count, serializer);
-                <u32>::sse_encode(max_attempts, serializer);
-                <f64>::sse_encode(retry_interval_secs, serializer);
-                <f64>::sse_encode(max_duration_secs, serializer);
-                <String>::sse_encode(phase, serializer);
-                <Option<String>>::sse_encode(last_error, serializer);
-            }
-            crate::event::sequencer::SequencerEvent::RecoveryProgress {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -23321,7 +24963,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 <String>::sse_encode(phase, serializer);
                 <Option<String>>::sse_encode(last_error, serializer);
             }
-            crate::event::sequencer::SequencerEvent::RecoveryCompleted {
+            crate::event::sequencer::SequencerEvent::RecoveryProgress {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -23334,6 +24976,30 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 last_error,
             } => {
                 <i32>::sse_encode(28, serializer);
+                <String>::sse_encode(started_at_iso, serializer);
+                <String>::sse_encode(cause_kind, serializer);
+                <Option<String>>::sse_encode(cause_custom_label, serializer);
+                <Option<String>>::sse_encode(last_attempt_at_iso, serializer);
+                <u32>::sse_encode(attempt_count, serializer);
+                <u32>::sse_encode(max_attempts, serializer);
+                <f64>::sse_encode(retry_interval_secs, serializer);
+                <f64>::sse_encode(max_duration_secs, serializer);
+                <String>::sse_encode(phase, serializer);
+                <Option<String>>::sse_encode(last_error, serializer);
+            }
+            crate::event::sequencer::SequencerEvent::RecoveryCompleted {
+                started_at_iso,
+                cause_kind,
+                cause_custom_label,
+                last_attempt_at_iso,
+                attempt_count,
+                max_attempts,
+                retry_interval_secs,
+                max_duration_secs,
+                phase,
+                last_error,
+            } => {
+                <i32>::sse_encode(29, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -23358,7 +25024,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 last_error,
                 aborted_by_user,
             } => {
-                <i32>::sse_encode(29, serializer);
+                <i32>::sse_encode(30, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -23379,7 +25045,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 display_name,
                 timeout_secs,
             } => {
-                <i32>::sse_encode(30, serializer);
+                <i32>::sse_encode(31, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(plugin_id, serializer);
                 <String>::sse_encode(node_type_id, serializer);
@@ -23393,7 +25059,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 node_type_id,
                 detail_json,
             } => {
-                <i32>::sse_encode(31, serializer);
+                <i32>::sse_encode(32, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(plugin_id, serializer);
                 <String>::sse_encode(node_type_id, serializer);
@@ -23407,7 +25073,7 @@ impl SseEncode for crate::event::sequencer::SequencerEvent {
                 node_id,
                 sequence_run_id,
             } => {
-                <i32>::sse_encode(32, serializer);
+                <i32>::sse_encode(33, serializer);
                 <String>::sse_encode(timestamp_iso, serializer);
                 <String>::sse_encode(category, serializer);
                 <String>::sse_encode(summary, serializer);
@@ -23937,6 +25603,23 @@ mod io {
             String::from_utf8(vec).unwrap()
         }
     }
+    impl CstDecode<crate::api::depthlock::ApiAcquisitionSettings>
+        for wire_cst_api_acquisition_settings
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiAcquisitionSettings {
+            crate::api::depthlock::ApiAcquisitionSettings {
+                instrument: self.instrument.cst_decode(),
+                filter: self.filter.cst_decode(),
+                exposure_secs: self.exposure_secs.cst_decode(),
+                gain: self.gain.cst_decode(),
+                offset: self.offset.cst_decode(),
+                bin_x: self.bin_x.cst_decode(),
+                bin_y: self.bin_y.cst_decode(),
+                ccd_temp_c: self.ccd_temp_c.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::imaging::ApiCombineMethod> for wire_cst_api_combine_method {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::imaging::ApiCombineMethod {
@@ -23959,6 +25642,162 @@ mod io {
                 last_rebuilt_unix_seconds: self.last_rebuilt_unix_seconds.cst_decode(),
                 apply_during_capture: self.apply_during_capture.cst_decode(),
                 stored_on_disk: self.stored_on_disk.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthCurvePoint> for wire_cst_api_depth_curve_point {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthCurvePoint {
+            crate::api::depthlock::ApiDepthCurvePoint {
+                frames: self.frames.cst_decode(),
+                score: self.score.cst_decode(),
+                conservative_score: self.conservative_score.cst_decode(),
+                projected: self.projected.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthFloorSuggestion>
+        for wire_cst_api_depth_floor_suggestion
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthFloorSuggestion {
+            crate::api::depthlock::ApiDepthFloorSuggestion {
+                floor_adu: self.floor_adu.cst_decode(),
+                dark_noise_adu: self.dark_noise_adu.cst_decode(),
+                flat_relative_noise: self.flat_relative_noise.cst_decode(),
+                sky_adu: self.sky_adu.cst_decode(),
+                aperture_pixels: self.aperture_pixels.cst_decode(),
+                source: self.source.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthForecast> for wire_cst_api_depth_forecast {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthForecast {
+            crate::api::depthlock::ApiDepthForecast {
+                frames_to_threshold: self.frames_to_threshold.cst_decode(),
+                frames_to_confirm: self.frames_to_confirm.cst_decode(),
+                reachable: self.reachable.cst_decode(),
+                ceiling_score: self.ceiling_score.cst_decode(),
+                per_frame_noise_adu: self.per_frame_noise_adu.cst_decode(),
+                recent_frame_noise_adu: self.recent_frame_noise_adu.cst_decode(),
+                best_frame_noise_adu: self.best_frame_noise_adu.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthGoal> for wire_cst_api_depth_goal {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthGoal {
+            crate::api::depthlock::ApiDepthGoal {
+                id: self.id.cst_decode(),
+                revision: self.revision.cst_decode(),
+                definition: self.definition.cst_decode(),
+                selected_at_ms: self.selected_at_ms.cst_decode(),
+                evidence_frames: self.evidence_frames.cst_decode(),
+                evidence_revision: self.evidence_revision.cst_decode(),
+                analysis_current: self.analysis_current.cst_decode(),
+                report: self.report.cst_decode(),
+                candidate_frames: self.candidate_frames.cst_decode(),
+                last_issue: self.last_issue.cst_decode(),
+                archived_revisions: self.archived_revisions.cst_decode(),
+                estimator_version: self.estimator_version.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthGoalDefinition>
+        for wire_cst_api_depth_goal_definition
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthGoalDefinition {
+            crate::api::depthlock::ApiDepthGoalDefinition {
+                label: self.label.cst_decode(),
+                project_id: self.project_id.cst_decode(),
+                target_id: self.target_id.cst_decode(),
+                profile_id: self.profile_id.cst_decode(),
+                filter_name: self.filter_name.cst_decode(),
+                filter_index: self.filter_index.cst_decode(),
+                reference_path: self.reference_path.cst_decode(),
+                reference: self.reference.cst_decode(),
+                acquisition: self.acquisition.cst_decode(),
+                temperature_tolerance_c: self.temperature_tolerance_c.cst_decode(),
+                dark_path: self.dark_path.cst_decode(),
+                flat_path: self.flat_path.cst_decode(),
+                measurement: self.measurement.cst_decode(),
+                enabled: self.enabled.cst_decode(),
+                automatic_completion: self.automatic_completion.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthIngestOutcome> for wire_cst_api_depth_ingest_outcome {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthIngestOutcome {
+            crate::api::depthlock::ApiDepthIngestOutcome {
+                outcome: self.outcome.cst_decode(),
+                state: self.state.cst_decode(),
+                reason: self.reason.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthLockStatus> for wire_cst_api_depth_lock_status {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthLockStatus {
+            crate::api::depthlock::ApiDepthLockStatus {
+                available: self.available.cst_decode(),
+                goals: self.goals.cst_decode(),
+                queue_capacity: self.queue_capacity.cst_decode(),
+                queued: self.queued.cst_decode(),
+                processed: self.processed.cst_decode(),
+                dropped: self.dropped.cst_decode(),
+                evidence_added: self.evidence_added.cst_decode(),
+                evidence_rejected: self.evidence_rejected.cst_decode(),
+                last_frame_ms: self.last_frame_ms.cst_decode(),
+                max_frame_ms: self.max_frame_ms.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthMeasurement> for wire_cst_api_depth_measurement {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthMeasurement {
+            crate::api::depthlock::ApiDepthMeasurement {
+                region: self.region.cst_decode(),
+                background: self.background.cst_decode(),
+                scale_arcsec: self.scale_arcsec.cst_decode(),
+                threshold: self.threshold.cst_decode(),
+                min_coverage: self.min_coverage.cst_decode(),
+                systematic_floor_adu: self.systematic_floor_adu.cst_decode(),
+                systematic_floor_source: self.systematic_floor_source.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthReferenceInfo> for wire_cst_api_depth_reference_info {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthReferenceInfo {
+            crate::api::depthlock::ApiDepthReferenceInfo {
+                width: self.width.cst_decode(),
+                height: self.height.cst_decode(),
+                pixel_type: self.pixel_type.cst_decode(),
+                monochrome: self.monochrome.cst_decode(),
+                geometry: self.geometry.cst_decode(),
+                geometry_issue: self.geometry_issue.cst_decode(),
+                pixel_scale_arcsec: self.pixel_scale_arcsec.cst_decode(),
+                acquisition: self.acquisition.cst_decode(),
+                acquisition_issue: self.acquisition_issue.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthReport> for wire_cst_api_depth_report {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthReport {
+            crate::api::depthlock::ApiDepthReport {
+                state: self.state.cst_decode(),
+                score: self.score.cst_decode(),
+                conservative_score: self.conservative_score.cst_decode(),
+                uncertainty_adu: self.uncertainty_adu.cst_decode(),
+                coverage: self.coverage.cst_decode(),
+                evidence_frames: self.evidence_frames.cst_decode(),
+                confirmation_frames: self.confirmation_frames.cst_decode(),
+                reason: self.reason.cst_decode(),
+                forecast: self.forecast.cst_decode(),
             }
         }
     }
@@ -24031,6 +25870,35 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::depthlock::ApiReferenceGeometry> for wire_cst_api_reference_geometry {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiReferenceGeometry {
+            crate::api::depthlock::ApiReferenceGeometry {
+                width: self.width.cst_decode(),
+                height: self.height.cst_decode(),
+                crval1: self.crval1.cst_decode(),
+                crval2: self.crval2.cst_decode(),
+                crpix1: self.crpix1.cst_decode(),
+                crpix2: self.crpix2.cst_decode(),
+                cd1_1: self.cd1_1.cst_decode(),
+                cd1_2: self.cd1_2.cst_decode(),
+                cd2_1: self.cd2_1.cst_decode(),
+                cd2_2: self.cd2_2.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiSkyRectangle> for wire_cst_api_sky_rectangle {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiSkyRectangle {
+            crate::api::depthlock::ApiSkyRectangle {
+                ra_deg: self.ra_deg.cst_decode(),
+                dec_deg: self.dec_deg.cst_decode(),
+                width_arcsec: self.width_arcsec.cst_decode(),
+                height_arcsec: self.height_arcsec.cst_decode(),
+                rotation_deg: self.rotation_deg.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::storage::AppSettings> for wire_cst_app_settings {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::storage::AppSettings {
@@ -24095,6 +25963,15 @@ mod io {
             CstDecode::<DefectMapCorrectionRecord>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<crate::api::depthlock::ApiAcquisitionSettings>
+        for *mut wire_cst_api_acquisition_settings
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiAcquisitionSettings {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::depthlock::ApiAcquisitionSettings>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::api::imaging::ApiCombineMethod> for *mut wire_cst_api_combine_method {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::imaging::ApiCombineMethod {
@@ -24109,6 +25986,36 @@ mod io {
             CstDecode::<crate::api::imaging::ApiDefectMapStatus>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<crate::api::depthlock::ApiDepthForecast> for *mut wire_cst_api_depth_forecast {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthForecast {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::depthlock::ApiDepthForecast>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthGoalDefinition>
+        for *mut wire_cst_api_depth_goal_definition
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthGoalDefinition {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::depthlock::ApiDepthGoalDefinition>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthMeasurement> for *mut wire_cst_api_depth_measurement {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthMeasurement {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::depthlock::ApiDepthMeasurement>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiDepthReport> for *mut wire_cst_api_depth_report {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiDepthReport {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::depthlock::ApiDepthReport>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::api::imaging::ApiLiveStackingConfig>
         for *mut wire_cst_api_live_stacking_config
     {
@@ -24116,6 +26023,15 @@ mod io {
         fn cst_decode(self) -> crate::api::imaging::ApiLiveStackingConfig {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::api::imaging::ApiLiveStackingConfig>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::depthlock::ApiReferenceGeometry>
+        for *mut wire_cst_api_reference_geometry
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::depthlock::ApiReferenceGeometry {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::depthlock::ApiReferenceGeometry>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::storage::AppSettings> for *mut wire_cst_app_settings {
@@ -24182,6 +26098,13 @@ mod io {
         fn cst_decode(self) -> crate::device::CoverState {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::device::CoverState>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::event::depthlock_events::DepthLockEvent> for *mut wire_cst_depth_lock_event {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::event::depthlock_events::DepthLockEvent {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::event::depthlock_events::DepthLockEvent>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::device_capabilities::types::DomeCapabilities>
@@ -24685,6 +26608,58 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::event::depthlock_events::DepthLockEvent> for wire_cst_depth_lock_event {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::event::depthlock_events::DepthLockEvent {
+            match self.tag {
+                0 => {
+                    let ans = unsafe { self.kind.GoalUpdated };
+                    crate::event::depthlock_events::DepthLockEvent::GoalUpdated {
+                        goal_id: ans.goal_id.cst_decode(),
+                        revision: ans.revision.cst_decode(),
+                        filter_name: ans.filter_name.cst_decode(),
+                        state: ans.state.cst_decode(),
+                        score: ans.score.cst_decode(),
+                        conservative_score: ans.conservative_score.cst_decode(),
+                        threshold: ans.threshold.cst_decode(),
+                        uncertainty_adu: ans.uncertainty_adu.cst_decode(),
+                        coverage: ans.coverage.cst_decode(),
+                        evidence_frames: ans.evidence_frames.cst_decode(),
+                        confirmation_frames: ans.confirmation_frames.cst_decode(),
+                        reason: ans.reason.cst_decode(),
+                        automatic_completion: ans.automatic_completion.cst_decode(),
+                        frames_remaining: ans.frames_remaining.cst_decode(),
+                        reachable: ans.reachable.cst_decode(),
+                    }
+                }
+                1 => {
+                    let ans = unsafe { self.kind.EvidenceRejected };
+                    crate::event::depthlock_events::DepthLockEvent::EvidenceRejected {
+                        goal_id: ans.goal_id.cst_decode(),
+                        revision: ans.revision.cst_decode(),
+                        source_path: ans.source_path.cst_decode(),
+                        reason: ans.reason.cst_decode(),
+                    }
+                }
+                2 => {
+                    let ans = unsafe { self.kind.AnalysisDropped };
+                    crate::event::depthlock_events::DepthLockEvent::AnalysisDropped {
+                        source_path: ans.source_path.cst_decode(),
+                        reason: ans.reason.cst_decode(),
+                    }
+                }
+                3 => {
+                    let ans = unsafe { self.kind.GoalChanged };
+                    crate::event::depthlock_events::DepthLockEvent::GoalChanged {
+                        goal_id: ans.goal_id.cst_decode(),
+                        revision: ans.revision.cst_decode(),
+                        change: ans.change.cst_decode(),
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
     impl CstDecode<crate::api::imaging::DetectedStarInfo> for wire_cst_detected_star_info {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::imaging::DetectedStarInfo {
@@ -25103,6 +27078,10 @@ mod io {
                 8 => {
                     let ans = unsafe { self.kind.PolarAlignmentImage };
                     crate::event::bus::EventPayload::PolarAlignmentImage(ans.field0.cst_decode())
+                }
+                9 => {
+                    let ans = unsafe { self.kind.DepthLock };
+                    crate::event::bus::EventPayload::DepthLock(ans.field0.cst_decode())
                 }
                 _ => unreachable!(),
             }
@@ -25582,6 +27561,28 @@ mod io {
     impl CstDecode<Vec<String>> for *mut wire_cst_list_String {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<String> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
+    impl CstDecode<Vec<crate::api::depthlock::ApiDepthCurvePoint>>
+        for *mut wire_cst_list_api_depth_curve_point
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<crate::api::depthlock::ApiDepthCurvePoint> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
+    impl CstDecode<Vec<crate::api::depthlock::ApiDepthGoal>> for *mut wire_cst_list_api_depth_goal {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<crate::api::depthlock::ApiDepthGoal> {
             let vec = unsafe {
                 let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
                 flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
@@ -26857,6 +28858,19 @@ mod io {
                     }
                 }
                 18 => {
+                    let ans = unsafe { self.kind.DepthGoalCompleted };
+                    crate::event::sequencer::SequencerEvent::DepthGoalCompleted {
+                        node_id: ans.node_id.cst_decode(),
+                        filter_name: ans.filter_name.cst_decode(),
+                        goal_id: ans.goal_id.cst_decode(),
+                        revision: ans.revision.cst_decode(),
+                        evidence_frames: ans.evidence_frames.cst_decode(),
+                        confirmation_frames: ans.confirmation_frames.cst_decode(),
+                        score: ans.score.cst_decode(),
+                        threshold: ans.threshold.cst_decode(),
+                    }
+                }
+                19 => {
                     let ans = unsafe { self.kind.FrameAccepted };
                     crate::event::sequencer::SequencerEvent::FrameAccepted {
                         node_id: ans.node_id.cst_decode(),
@@ -26871,7 +28885,7 @@ mod io {
                         capture: ans.capture.cst_decode(),
                     }
                 }
-                19 => {
+                20 => {
                     let ans = unsafe { self.kind.FrameRejected };
                     crate::event::sequencer::SequencerEvent::FrameRejected {
                         node_id: ans.node_id.cst_decode(),
@@ -26895,7 +28909,7 @@ mod io {
                         capture: ans.capture.cst_decode(),
                     }
                 }
-                20 => {
+                21 => {
                     let ans = unsafe { self.kind.SchedulerDecision };
                     crate::event::sequencer::SequencerEvent::SchedulerDecision {
                         node_id: ans.node_id.cst_decode(),
@@ -26906,7 +28920,7 @@ mod io {
                         scores: ans.scores.cst_decode(),
                     }
                 }
-                21 => {
+                22 => {
                     let ans = unsafe { self.kind.IntegrationBudget };
                     crate::event::sequencer::SequencerEvent::IntegrationBudget {
                         target_id: ans.target_id.cst_decode(),
@@ -26917,7 +28931,7 @@ mod io {
                         budget_met: ans.budget_met.cst_decode(),
                     }
                 }
-                22 => {
+                23 => {
                     let ans = unsafe { self.kind.ExposureAdjusted };
                     crate::event::sequencer::SequencerEvent::ExposureAdjusted {
                         node_id: ans.node_id.cst_decode(),
@@ -26928,7 +28942,7 @@ mod io {
                         reason: ans.reason.cst_decode(),
                     }
                 }
-                23 => {
+                24 => {
                     let ans = unsafe { self.kind.PhotometryFrame };
                     crate::event::sequencer::SequencerEvent::PhotometryFrame {
                         node_id: ans.node_id.cst_decode(),
@@ -26949,7 +28963,7 @@ mod io {
                         apply_differential: ans.apply_differential.cst_decode(),
                     }
                 }
-                24 => {
+                25 => {
                     let ans = unsafe { self.kind.PhotometryCadenceBroken };
                     crate::event::sequencer::SequencerEvent::PhotometryCadenceBroken {
                         node_id: ans.node_id.cst_decode(),
@@ -26960,7 +28974,7 @@ mod io {
                         cadence_breaks: ans.cadence_breaks.cst_decode(),
                     }
                 }
-                25 => {
+                26 => {
                     let ans = unsafe { self.kind.PhotometrySummary };
                     crate::event::sequencer::SequencerEvent::PhotometrySummary {
                         node_id: ans.node_id.cst_decode(),
@@ -26971,7 +28985,7 @@ mod io {
                         last_reject_reason: ans.last_reject_reason.cst_decode(),
                     }
                 }
-                26 => {
+                27 => {
                     let ans = unsafe { self.kind.RecoveryStarted };
                     crate::event::sequencer::SequencerEvent::RecoveryStarted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -26986,7 +29000,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                27 => {
+                28 => {
                     let ans = unsafe { self.kind.RecoveryProgress };
                     crate::event::sequencer::SequencerEvent::RecoveryProgress {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -27001,7 +29015,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                28 => {
+                29 => {
                     let ans = unsafe { self.kind.RecoveryCompleted };
                     crate::event::sequencer::SequencerEvent::RecoveryCompleted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -27016,7 +29030,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                29 => {
+                30 => {
                     let ans = unsafe { self.kind.RecoveryGaveUp };
                     crate::event::sequencer::SequencerEvent::RecoveryGaveUp {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -27032,7 +29046,7 @@ mod io {
                         aborted_by_user: ans.aborted_by_user.cst_decode(),
                     }
                 }
-                30 => {
+                31 => {
                     let ans = unsafe { self.kind.PluginNodeRequested };
                     crate::event::sequencer::SequencerEvent::PluginNodeRequested {
                         node_id: ans.node_id.cst_decode(),
@@ -27043,7 +29057,7 @@ mod io {
                         timeout_secs: ans.timeout_secs.cst_decode(),
                     }
                 }
-                31 => {
+                32 => {
                     let ans = unsafe { self.kind.PluginNodeProgress };
                     crate::event::sequencer::SequencerEvent::PluginNodeProgress {
                         node_id: ans.node_id.cst_decode(),
@@ -27052,7 +29066,7 @@ mod io {
                         detail_json: ans.detail_json.cst_decode(),
                     }
                 }
-                32 => {
+                33 => {
                     let ans = unsafe { self.kind.DecisionLogged };
                     crate::event::sequencer::SequencerEvent::DecisionLogged {
                         timestamp_iso: ans.timestamp_iso.cst_decode(),
@@ -27369,6 +29383,25 @@ mod io {
             }
         }
     }
+    impl NewWithNullPtr for wire_cst_api_acquisition_settings {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                instrument: core::ptr::null_mut(),
+                filter: core::ptr::null_mut(),
+                exposure_secs: Default::default(),
+                gain: core::ptr::null_mut(),
+                offset: core::ptr::null_mut(),
+                bin_x: Default::default(),
+                bin_y: Default::default(),
+                ccd_temp_c: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_acquisition_settings {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_api_combine_method {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -27398,6 +29431,198 @@ mod io {
         }
     }
     impl Default for wire_cst_api_defect_map_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_curve_point {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                frames: Default::default(),
+                score: Default::default(),
+                conservative_score: Default::default(),
+                projected: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_curve_point {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_floor_suggestion {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                floor_adu: Default::default(),
+                dark_noise_adu: Default::default(),
+                flat_relative_noise: Default::default(),
+                sky_adu: Default::default(),
+                aperture_pixels: Default::default(),
+                source: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_floor_suggestion {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_forecast {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                frames_to_threshold: Default::default(),
+                frames_to_confirm: Default::default(),
+                reachable: Default::default(),
+                ceiling_score: Default::default(),
+                per_frame_noise_adu: Default::default(),
+                recent_frame_noise_adu: Default::default(),
+                best_frame_noise_adu: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_forecast {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_goal {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                id: core::ptr::null_mut(),
+                revision: Default::default(),
+                definition: Default::default(),
+                selected_at_ms: Default::default(),
+                evidence_frames: Default::default(),
+                evidence_revision: Default::default(),
+                analysis_current: Default::default(),
+                report: core::ptr::null_mut(),
+                candidate_frames: Default::default(),
+                last_issue: core::ptr::null_mut(),
+                archived_revisions: Default::default(),
+                estimator_version: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_goal {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_goal_definition {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                label: core::ptr::null_mut(),
+                project_id: core::ptr::null_mut(),
+                target_id: core::ptr::null_mut(),
+                profile_id: core::ptr::null_mut(),
+                filter_name: core::ptr::null_mut(),
+                filter_index: core::ptr::null_mut(),
+                reference_path: core::ptr::null_mut(),
+                reference: Default::default(),
+                acquisition: Default::default(),
+                temperature_tolerance_c: Default::default(),
+                dark_path: core::ptr::null_mut(),
+                flat_path: core::ptr::null_mut(),
+                measurement: Default::default(),
+                enabled: Default::default(),
+                automatic_completion: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_goal_definition {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_ingest_outcome {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                outcome: core::ptr::null_mut(),
+                state: core::ptr::null_mut(),
+                reason: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_ingest_outcome {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_lock_status {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                available: Default::default(),
+                goals: Default::default(),
+                queue_capacity: Default::default(),
+                queued: Default::default(),
+                processed: Default::default(),
+                dropped: Default::default(),
+                evidence_added: Default::default(),
+                evidence_rejected: Default::default(),
+                last_frame_ms: Default::default(),
+                max_frame_ms: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_lock_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_measurement {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                region: Default::default(),
+                background: Default::default(),
+                scale_arcsec: Default::default(),
+                threshold: Default::default(),
+                min_coverage: Default::default(),
+                systematic_floor_adu: Default::default(),
+                systematic_floor_source: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_measurement {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_reference_info {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                width: Default::default(),
+                height: Default::default(),
+                pixel_type: core::ptr::null_mut(),
+                monochrome: Default::default(),
+                geometry: core::ptr::null_mut(),
+                geometry_issue: core::ptr::null_mut(),
+                pixel_scale_arcsec: core::ptr::null_mut(),
+                acquisition: core::ptr::null_mut(),
+                acquisition_issue: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_reference_info {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_depth_report {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                state: core::ptr::null_mut(),
+                score: core::ptr::null_mut(),
+                conservative_score: core::ptr::null_mut(),
+                uncertainty_adu: core::ptr::null_mut(),
+                coverage: Default::default(),
+                evidence_frames: Default::default(),
+                confirmation_frames: Default::default(),
+                reason: core::ptr::null_mut(),
+                forecast: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_depth_report {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -27487,6 +29712,43 @@ mod io {
         }
     }
     impl Default for wire_cst_api_master_frame_result {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_reference_geometry {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                width: Default::default(),
+                height: Default::default(),
+                crval1: Default::default(),
+                crval2: Default::default(),
+                crpix1: Default::default(),
+                crpix2: Default::default(),
+                cd1_1: Default::default(),
+                cd1_2: Default::default(),
+                cd2_1: Default::default(),
+                cd2_2: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_reference_geometry {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_sky_rectangle {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                ra_deg: Default::default(),
+                dec_deg: Default::default(),
+                width_arcsec: Default::default(),
+                height_arcsec: Default::default(),
+                rotation_deg: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_sky_rectangle {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -27744,6 +30006,19 @@ mod io {
         }
     }
     impl Default for wire_cst_darkroom_preview {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_depth_lock_event {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                tag: -1,
+                kind: DepthLockEventKind { nil__: () },
+            }
+        }
+    }
+    impl Default for wire_cst_depth_lock_event {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -30473,6 +32748,140 @@ mod io {
         profile_id: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__storage__api_delete_profile_impl(profile_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_check_measurement(
+        measurement: *mut wire_cst_api_depth_measurement,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_check_measurement_impl(measurement)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_create_goal(
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        definition: *mut wire_cst_api_depth_goal_definition,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_create_goal_impl(goal_id, definition)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_get_goal(
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_get_goal_impl(goal_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_goal_curve(
+        port_: i64,
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        max_points: u32,
+    ) {
+        wire__crate__api__depthlock__api_depthlock_goal_curve_impl(port_, goal_id, max_points)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_ingest_frame(
+        port_: i64,
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        path: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__depthlock__api_depthlock_ingest_frame_impl(port_, goal_id, path)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_inspect_reference(
+        port_: i64,
+        path: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__depthlock__api_depthlock_inspect_reference_impl(port_, path)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_list_goals(
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_list_goals_impl()
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_remove_goal(
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        expected_revision: u64,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_remove_goal_impl(goal_id, expected_revision)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_replay_goal(
+        port_: i64,
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__depthlock__api_depthlock_replay_goal_impl(port_, goal_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_revise_goal(
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        expected_revision: u64,
+        definition: *mut wire_cst_api_depth_goal_definition,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_revise_goal_impl(
+            goal_id,
+            expected_revision,
+            definition,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_set_goal_preferences(
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        expected_revision: u64,
+        enabled: bool,
+        automatic_completion: bool,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_set_goal_preferences_impl(
+            goal_id,
+            expected_revision,
+            enabled,
+            automatic_completion,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_sky_rectangle(
+        reference: *mut wire_cst_api_reference_geometry,
+        x0: f64,
+        y0: f64,
+        x1: f64,
+        y1: f64,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_sky_rectangle_impl(reference, x0, y0, x1, y1)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_status(
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__depthlock__api_depthlock_status_impl()
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_suggest_floor(
+        port_: i64,
+        reference_path: *mut wire_cst_list_prim_u_8_strict,
+        dark_path: *mut wire_cst_list_prim_u_8_strict,
+        flat_path: *mut wire_cst_list_prim_u_8_strict,
+        scale_arcsec: f64,
+        pixel_scale_arcsec: *mut f64,
+    ) {
+        wire__crate__api__depthlock__api_depthlock_suggest_floor_impl(
+            port_,
+            reference_path,
+            dark_path,
+            flat_path,
+            scale_arcsec,
+            pixel_scale_arcsec,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -33681,6 +36090,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_acquisition_settings(
+    ) -> *mut wire_cst_api_acquisition_settings {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_acquisition_settings::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_combine_method(
     ) -> *mut wire_cst_api_combine_method {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -33697,10 +36114,50 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_forecast(
+    ) -> *mut wire_cst_api_depth_forecast {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_depth_forecast::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_goal_definition(
+    ) -> *mut wire_cst_api_depth_goal_definition {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_depth_goal_definition::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_measurement(
+    ) -> *mut wire_cst_api_depth_measurement {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_depth_measurement::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_report(
+    ) -> *mut wire_cst_api_depth_report {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_depth_report::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_live_stacking_config(
     ) -> *mut wire_cst_api_live_stacking_config {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
             wire_cst_api_live_stacking_config::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_reference_geometry(
+    ) -> *mut wire_cst_api_reference_geometry {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_reference_geometry::new_with_null_ptr(),
         )
     }
 
@@ -33761,6 +36218,14 @@ mod io {
         value: i32,
     ) -> *mut i32 {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_depth_lock_event(
+    ) -> *mut wire_cst_depth_lock_event {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_depth_lock_event::new_with_null_ptr(),
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -34074,6 +36539,34 @@ mod io {
         let wrap = wire_cst_list_String {
             ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
                 <*mut wire_cst_list_prim_u_8_strict>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_api_depth_curve_point(
+        len: i32,
+    ) -> *mut wire_cst_list_api_depth_curve_point {
+        let wrap = wire_cst_list_api_depth_curve_point {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_api_depth_curve_point>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_api_depth_goal(
+        len: i32,
+    ) -> *mut wire_cst_list_api_depth_goal {
+        let wrap = wire_cst_list_api_depth_goal {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_api_depth_goal>::new_with_null_ptr(),
                 len,
             ),
             len,
@@ -34470,6 +36963,18 @@ mod io {
 
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_api_acquisition_settings {
+        instrument: *mut wire_cst_list_prim_u_8_strict,
+        filter: *mut wire_cst_list_prim_u_8_strict,
+        exposure_secs: f64,
+        gain: *mut i32,
+        offset: *mut i32,
+        bin_x: i32,
+        bin_y: i32,
+        ccd_temp_c: *mut f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_api_combine_method {
         method: *mut wire_cst_list_prim_u_8_strict,
         sigma_kappa: *mut f64,
@@ -34486,6 +36991,128 @@ mod io {
         last_rebuilt_unix_seconds: i64,
         apply_during_capture: bool,
         stored_on_disk: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_curve_point {
+        frames: u32,
+        score: f64,
+        conservative_score: f64,
+        projected: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_floor_suggestion {
+        floor_adu: f64,
+        dark_noise_adu: f64,
+        flat_relative_noise: f64,
+        sky_adu: f64,
+        aperture_pixels: f64,
+        source: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_forecast {
+        frames_to_threshold: u32,
+        frames_to_confirm: u32,
+        reachable: bool,
+        ceiling_score: f64,
+        per_frame_noise_adu: f64,
+        recent_frame_noise_adu: f64,
+        best_frame_noise_adu: f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_goal {
+        id: *mut wire_cst_list_prim_u_8_strict,
+        revision: u64,
+        definition: wire_cst_api_depth_goal_definition,
+        selected_at_ms: i64,
+        evidence_frames: u32,
+        evidence_revision: u64,
+        analysis_current: bool,
+        report: *mut wire_cst_api_depth_report,
+        candidate_frames: u32,
+        last_issue: *mut wire_cst_list_prim_u_8_strict,
+        archived_revisions: u32,
+        estimator_version: u32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_goal_definition {
+        label: *mut wire_cst_list_prim_u_8_strict,
+        project_id: *mut wire_cst_list_prim_u_8_strict,
+        target_id: *mut wire_cst_list_prim_u_8_strict,
+        profile_id: *mut wire_cst_list_prim_u_8_strict,
+        filter_name: *mut wire_cst_list_prim_u_8_strict,
+        filter_index: *mut i32,
+        reference_path: *mut wire_cst_list_prim_u_8_strict,
+        reference: wire_cst_api_reference_geometry,
+        acquisition: wire_cst_api_acquisition_settings,
+        temperature_tolerance_c: f64,
+        dark_path: *mut wire_cst_list_prim_u_8_strict,
+        flat_path: *mut wire_cst_list_prim_u_8_strict,
+        measurement: wire_cst_api_depth_measurement,
+        enabled: bool,
+        automatic_completion: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_ingest_outcome {
+        outcome: *mut wire_cst_list_prim_u_8_strict,
+        state: *mut wire_cst_list_prim_u_8_strict,
+        reason: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_lock_status {
+        available: bool,
+        goals: u32,
+        queue_capacity: u32,
+        queued: u64,
+        processed: u64,
+        dropped: u64,
+        evidence_added: u64,
+        evidence_rejected: u64,
+        last_frame_ms: u64,
+        max_frame_ms: u64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_measurement {
+        region: wire_cst_api_sky_rectangle,
+        background: wire_cst_api_sky_rectangle,
+        scale_arcsec: f64,
+        threshold: f64,
+        min_coverage: f64,
+        systematic_floor_adu: f64,
+        systematic_floor_source: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_reference_info {
+        width: u32,
+        height: u32,
+        pixel_type: *mut wire_cst_list_prim_u_8_strict,
+        monochrome: bool,
+        geometry: *mut wire_cst_api_reference_geometry,
+        geometry_issue: *mut wire_cst_list_prim_u_8_strict,
+        pixel_scale_arcsec: *mut f64,
+        acquisition: *mut wire_cst_api_acquisition_settings,
+        acquisition_issue: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_depth_report {
+        state: *mut wire_cst_list_prim_u_8_strict,
+        score: *mut f64,
+        conservative_score: *mut f64,
+        uncertainty_adu: *mut f64,
+        coverage: f64,
+        evidence_frames: u32,
+        confirmation_frames: u32,
+        reason: *mut wire_cst_list_prim_u_8_strict,
+        forecast: *mut wire_cst_api_depth_forecast,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -34540,6 +37167,29 @@ mod io {
         channels: u32,
         input_mean: f64,
         output_mean: f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_reference_geometry {
+        width: u32,
+        height: u32,
+        crval1: f64,
+        crval2: f64,
+        crpix1: f64,
+        crpix2: f64,
+        cd1_1: f64,
+        cd1_2: f64,
+        cd2_1: f64,
+        cd2_2: f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_sky_rectangle {
+        ra_deg: f64,
+        dec_deg: f64,
+        width_arcsec: f64,
+        height_arcsec: f64,
+        rotation_deg: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -34713,6 +37363,61 @@ mod io {
         is_color: bool,
         rgba: *mut wire_cst_list_prim_u_8_strict,
         report_json: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_depth_lock_event {
+        tag: i32,
+        kind: DepthLockEventKind,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub union DepthLockEventKind {
+        GoalUpdated: wire_cst_DepthLockEvent_GoalUpdated,
+        EvidenceRejected: wire_cst_DepthLockEvent_EvidenceRejected,
+        AnalysisDropped: wire_cst_DepthLockEvent_AnalysisDropped,
+        GoalChanged: wire_cst_DepthLockEvent_GoalChanged,
+        nil__: (),
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_DepthLockEvent_GoalUpdated {
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        revision: u64,
+        filter_name: *mut wire_cst_list_prim_u_8_strict,
+        state: *mut wire_cst_list_prim_u_8_strict,
+        score: *mut f64,
+        conservative_score: *mut f64,
+        threshold: f64,
+        uncertainty_adu: *mut f64,
+        coverage: f64,
+        evidence_frames: u32,
+        confirmation_frames: u32,
+        reason: *mut wire_cst_list_prim_u_8_strict,
+        automatic_completion: bool,
+        frames_remaining: *mut u32,
+        reachable: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_DepthLockEvent_EvidenceRejected {
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        revision: u64,
+        source_path: *mut wire_cst_list_prim_u_8_strict,
+        reason: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_DepthLockEvent_AnalysisDropped {
+        source_path: *mut wire_cst_list_prim_u_8_strict,
+        reason: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_DepthLockEvent_GoalChanged {
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        revision: u64,
+        change: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -35087,6 +37792,7 @@ mod io {
         PolarAlignment: wire_cst_EventPayload_PolarAlignment,
         PolarAlignmentStatus: wire_cst_EventPayload_PolarAlignmentStatus,
         PolarAlignmentImage: wire_cst_EventPayload_PolarAlignmentImage,
+        DepthLock: wire_cst_EventPayload_DepthLock,
         nil__: (),
     }
     #[repr(C)]
@@ -35133,6 +37839,11 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_EventPayload_PolarAlignmentImage {
         field0: *mut wire_cst_polar_alignment_image_event,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_EventPayload_DepthLock {
+        field0: *mut wire_cst_depth_lock_event,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -35554,6 +38265,18 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_list_String {
         ptr: *mut *mut wire_cst_list_prim_u_8_strict,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_list_api_depth_curve_point {
+        ptr: *mut wire_cst_api_depth_curve_point,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_list_api_depth_goal {
+        ptr: *mut wire_cst_api_depth_goal,
         len: i32,
     }
     #[repr(C)]
@@ -36494,6 +39217,7 @@ mod io {
         TriggerFired: wire_cst_SequencerEvent_TriggerFired,
         InstructionProgress: wire_cst_SequencerEvent_InstructionProgress,
         InstructionProgressStructured: wire_cst_SequencerEvent_InstructionProgressStructured,
+        DepthGoalCompleted: wire_cst_SequencerEvent_DepthGoalCompleted,
         FrameAccepted: wire_cst_SequencerEvent_FrameAccepted,
         FrameRejected: wire_cst_SequencerEvent_FrameRejected,
         SchedulerDecision: wire_cst_SequencerEvent_SchedulerDecision,
@@ -36611,6 +39335,18 @@ mod io {
         progress_percent: f64,
         detail_kind: *mut wire_cst_list_prim_u_8_strict,
         detail_json: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_DepthGoalCompleted {
+        node_id: *mut wire_cst_list_prim_u_8_strict,
+        filter_name: *mut wire_cst_list_prim_u_8_strict,
+        goal_id: *mut wire_cst_list_prim_u_8_strict,
+        revision: u64,
+        evidence_frames: u32,
+        confirmation_frames: u32,
+        score: f64,
+        threshold: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

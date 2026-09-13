@@ -171,6 +171,7 @@ class PageHeader extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (icon != null) ...[
             Icon(icon, size: _iconSize, color: colors.textSecondary),

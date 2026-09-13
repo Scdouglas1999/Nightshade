@@ -35,6 +35,7 @@ part 'bridge_stub/equipment_operations.dart';
 part 'bridge_stub/guiding_operations.dart';
 part 'bridge_stub/sequencer_operations.dart';
 part 'bridge_stub/storage_and_image_operations.dart';
+part 'bridge_stub/depthlock_operations.dart';
 
 // Error messages for the native-bridge-absent path
 

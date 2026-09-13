@@ -15,6 +15,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../accessible_dropdown.dart';
+import '../../imaging/widgets/depthlock/depthlock_presentation.dart';
 import 'node_property_widgets.dart';
 
 class SmartExposureProperties extends ConsumerWidget {
@@ -103,6 +104,19 @@ class SmartExposureProperties extends ConsumerWidget {
                 color: colors.primary,
               ),
             ),
+          ),
+
+          // Author the counts from what the bound goals still need, rather
+          // than from a guess.
+          const SizedBox(height: 8),
+          PlanCountsFromGoalsButton(
+            colors: colors,
+            node: node,
+            onPlansChanged: (newPlans) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(plans: newPlans),
+                  );
+            },
           ),
 
           // Global toggles
@@ -604,6 +618,12 @@ class _PlanRow extends StatelessWidget {
                 ),
               ],
             ),
+            DepthGoalSelector(
+              colors: colors,
+              plan: plan,
+              loopMode: loopMode,
+              onChanged: onChanged,
+            ),
           ],
         ),
       ),
@@ -903,6 +923,20 @@ class _EstimateSummary extends ConsumerWidget {
               ),
             ),
           ],
+          // The estimate is the authored plan run in full. A depth goal can
+          // only shorten it, so the number above is an upper bound rather than
+          // a prediction once one is bound.
+          if (node.plans.any((plan) => plan.depthGoal != null)) ...[
+            const SizedBox(height: 4),
+            Text(
+              'A bound depth goal can finish a filter before its count; this '
+              'estimate assumes it does not.',
+              style: TextStyle(
+                fontSize: Responsive.fontSize(context, 11),
+                color: colors.textMuted,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -921,5 +955,363 @@ class _EstimateSummary extends ConsumerWidget {
         .map((p) =>
             '${p.filterName}: ${p.count}×${p.durationSecs.toStringAsFixed(0)}s')
         .join(' • ');
+  }
+}
+
+/// Binds one filter plan to a DepthLock goal.
+///
+/// The binding carries the goal's REVISION, not just its id: editing a goal
+/// archives its evidence and starts the measurement over, and a plan authored
+/// against the old revision must not complete on the new one's verdict. So the
+/// row shows the binding's staleness rather than silently following the goal.
+///
+/// The row hides itself when this filter has no goals and the plan is not
+/// bound to one — a sequence editor for someone who has never marked a region
+/// should not carry an empty control explaining a feature they are not using.
+class DepthGoalSelector extends ConsumerWidget {
+  const DepthGoalSelector({
+    super.key,
+    required this.colors,
+    required this.plan,
+    required this.onChanged,
+    this.loopMode = false,
+  });
+
+  final NightshadeColors colors;
+  final FilterPlan plan;
+  final ValueChanged<FilterPlan> onChanged;
+
+  /// The node is looping until stopped, so this row's count is ignored and a
+  /// bound goal is the only thing that can end the filter short of the
+  /// target's window closing.
+  final bool loopMode;
+
+  /// The dropdown's "not bound" entry. An empty id is not a legal goal id, so
+  /// it cannot collide with one.
+  static const String noneId = '';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goals = ref.watch(depthLockGoalsForFilterProvider(plan.filterName));
+    final binding = plan.depthGoal;
+    if (goals.isEmpty && binding == null) return const SizedBox.shrink();
+
+    final DepthLockGoal? bound = binding == null
+        ? null
+        : goals.where((goal) => goal.id == binding.goalId).firstOrNull;
+    final bool staleRevision =
+        binding != null && bound != null && bound.revision != binding.revision;
+
+    final List<String> ids = <String>[
+      noneId,
+      for (final goal in goals) goal.id,
+      // A binding whose goal is no longer in the list still has to be
+      // representable, or the dropdown would silently re-point the plan at
+      // "None" the first time it is rebuilt.
+      if (binding != null && bound == null) binding.goalId,
+    ];
+
+    String labelFor(String id) {
+      if (id == noneId) return 'None';
+      final goal = goals.where((g) => g.id == id).firstOrNull;
+      if (goal == null) return 'Missing goal ($id)';
+      // The list is already this plan's filter, so what tells two goals apart
+      // is where each one stands — not a revision number nobody chose.
+      return '${goal.definition.label} · ${depthLockStateLabel(goal.state)}';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // The one field in this form whose control goes UNDER its label, not
+        // beside it: a goal is named by the operator ("NGC 7331 tidal tail")
+        // and the pane is narrow, so the label-left layout the other rows use
+        // folds the name onto three lines.
+        Padding(
+          padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+          child: Row(
+            children: <Widget>[
+              Text(
+                'Depth goal',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceXs),
+              Tooltip(
+                message:
+                    'Finish this filter early once the goal is reliably '
+                    'achieved. Count, time, visibility and safety limits '
+                    'still apply.',
+                triggerMode: TooltipTriggerMode.tap,
+                child: Icon(
+                  LucideIcons.helpCircle,
+                  size: 14,
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: FormRow.rowGap),
+          child: NodeDropdown<String>(
+            colors: colors,
+            value: ids.contains(binding?.goalId ?? noneId)
+                ? (binding?.goalId ?? noneId)
+                : noneId,
+            items: ids,
+            labelBuilder: labelFor,
+            onChanged: (id) {
+              if (id == noneId) {
+                onChanged(plan.copyWith(depthGoal: null));
+                return;
+              }
+              final goal = goals.where((g) => g.id == id).firstOrNull;
+              if (goal == null) return;
+              onChanged(
+                plan.copyWith(
+                  depthGoal: DepthGoalBinding(
+                    goalId: goal.id,
+                    revision: goal.revision,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (binding != null && bound == null)
+          _DepthGoalNote(
+            colors: colors,
+            text:
+                'This plan is bound to a goal that is no longer on the host. '
+                'It runs to its count.',
+            tone: ChipTone.warning,
+          ),
+        if (staleRevision)
+          _DepthGoalNote(
+            colors: colors,
+            text:
+                'Goal was edited; rebind. The plan is bound to revision '
+                '${binding.revision} and the goal is now on '
+                '${bound.revision}, so it runs to its count.',
+            tone: ChipTone.warning,
+            action: (
+              'Rebind',
+              () => onChanged(
+                plan.copyWith(
+                  depthGoal: DepthGoalBinding(
+                    goalId: bound.id,
+                    revision: bound.revision,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (bound != null &&
+            !staleRevision &&
+            !bound.definition.automaticCompletion)
+          _DepthGoalNote(
+            colors: colors,
+            text:
+                'Advisory only — enable automatic completion on the goal to '
+                'let this plan finish early.',
+            tone: ChipTone.neutral,
+          ),
+        if (bound != null && !staleRevision && loopMode)
+          _DepthGoalNote(
+            colors: colors,
+            text:
+                'Looping until stopped: this filter keeps going until the '
+                'goal is reached or the target\'s window closes.',
+            tone: ChipTone.neutral,
+          ),
+      ],
+    );
+  }
+}
+
+/// One explanatory line under the depth-goal dropdown, with an optional
+/// one-tap fix.
+class _DepthGoalNote extends StatelessWidget {
+  const _DepthGoalNote({
+    required this.colors,
+    required this.text,
+    required this.tone,
+    this.action,
+  });
+
+  final NightshadeColors colors;
+  final String text;
+  final ChipTone tone;
+  final (String label, VoidCallback onPressed)? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: FormRow.rowGap),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          NightshadeChip(
+            label: tone == ChipTone.warning ? 'Check' : 'Note',
+            tone: tone,
+            dot: true,
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Expanded(
+            child: Text(
+              text,
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+          if (action != null) ...<Widget>[
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            NightshadeButton(
+              label: action!.$1,
+              size: ButtonSize.small,
+              variant: ButtonVariant.ghost,
+              onPressed: action!.$2,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Sets each bound filter's count from what its DepthLock goal still needs.
+///
+/// This is the point of binding a goal to a plan: the goal knows how many more
+/// exposures its own noise model expects, so the plan can be authored from
+/// that rather than from a guess. It is a one-shot write, not a live binding —
+/// the operator sees exactly what it set and can change any of it — because a
+/// count that moved by itself between one look at the sequence and the next
+/// would be a plan nobody authored.
+class PlanCountsFromGoalsButton extends ConsumerStatefulWidget {
+  const PlanCountsFromGoalsButton({
+    super.key,
+    required this.colors,
+    required this.node,
+    required this.onPlansChanged,
+  });
+
+  final NightshadeColors colors;
+  final SmartExposureNode node;
+  final ValueChanged<List<FilterPlan>> onPlansChanged;
+
+  @override
+  ConsumerState<PlanCountsFromGoalsButton> createState() =>
+      _PlanCountsFromGoalsButtonState();
+}
+
+class _PlanCountsFromGoalsButtonState
+    extends ConsumerState<PlanCountsFromGoalsButton> {
+  /// What the last press did, in one line.
+  String? _summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final goals =
+        ref.watch(depthLockGoalsProvider).valueOrNull ??
+        const <DepthLockGoal>[];
+
+    DepthLockGoal? boundGoal(FilterPlan plan) {
+      final binding = plan.depthGoal;
+      if (binding == null) return null;
+      final goal = goals.where((g) => g.id == binding.goalId).firstOrNull;
+      // A plan bound to a revision the goal has moved past is not bound to
+      // THIS goal's evidence, so its forecast is not this plan's to use.
+      if (goal == null || goal.revision != binding.revision) return null;
+      return goal;
+    }
+
+    final bool enabled = widget.node.plans.any((plan) {
+      final forecast = boundGoal(plan)?.report?.forecast;
+      return forecast != null && forecast.reachable;
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        NightshadeButton(
+          label: 'Plan counts from goals',
+          icon: NightshadeIcons.target,
+          size: ButtonSize.small,
+          variant: ButtonVariant.secondary,
+          semanticsHint: enabled
+              ? 'Set each bound filter\'s count to the exposures its goal '
+                    'still expects'
+              : 'Needs a filter bound to a goal that has a reachable forecast',
+          onPressed: enabled ? () => _apply(boundGoal) : null,
+        ),
+        if (_summary != null) ...<Widget>[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            _summary!,
+            style: NightshadeTypography.caption.copyWith(
+              color: widget.colors.textSecondary,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _apply(DepthLockGoal? Function(FilterPlan) boundGoal) {
+    final updated = <FilterPlan>[];
+    final set = <String>[];
+    final untouched = <String>[];
+
+    for (final plan in widget.node.plans) {
+      final String name = plan.filterName.isEmpty
+          ? '#${(plan.filterIndex ?? 0) + 1}'
+          : plan.filterName;
+      final binding = plan.depthGoal;
+      final goal = boundGoal(plan);
+      final forecast = goal?.report?.forecast;
+
+      if (binding == null) {
+        // Unbound rows are the operator's own plan and are left alone.
+        updated.add(plan);
+        continue;
+      }
+      if (goal == null) {
+        updated.add(plan);
+        untouched.add('$name (rebind)');
+        continue;
+      }
+      if (forecast == null) {
+        updated.add(plan);
+        untouched.add('$name (no forecast yet)');
+        continue;
+      }
+      if (!forecast.reachable) {
+        updated.add(plan);
+        untouched.add('$name (floor limit)');
+        continue;
+      }
+      if (goal.state == DepthLockState.achieved) {
+        updated.add(plan.copyWith(count: 0));
+        set.add('$name → 0 (reached)');
+        continue;
+      }
+      final int count = forecast.framesRemaining;
+      updated.add(plan.copyWith(count: count));
+      set.add('$name → $count');
+    }
+
+    widget.onPlansChanged(updated);
+    setState(() {
+      final parts = <String>[
+        if (set.isNotEmpty) 'Counts: ${set.join(', ')}.',
+        if (untouched.isNotEmpty) 'Left alone: ${untouched.join(', ')}.',
+      ];
+      _summary = parts.isEmpty
+          ? 'Nothing to set — no row is bound to a goal with a forecast.'
+          : parts.join(' ');
+    });
   }
 }

@@ -75,11 +75,80 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
       );
     }
 
+    if (payload is bridge.EventPayload_DepthLock) {
+      return _extractDepthLockEventInfo(payload.field0);
+    }
+
     // For other event types, use string parsing as fallback
     final payloadStr = payload.toString();
     final match = RegExp(r'^EventPayload\.(\w+)\(').firstMatch(payloadStr);
     final eventType = match?.group(1) ?? 'unknown';
     return (eventType, {'payload': payloadStr});
+  }
+
+  /// Extract event type and data from a DepthLockEvent.
+  ///
+  /// The goal store publishes under the `imaging` category, where
+  /// `GoalUpdated` alone would be ambiguous against the exposure events, so
+  /// every type string keeps the `DepthLock` prefix. Revisions are `u64` on
+  /// the wire and become plain ints here like everywhere else.
+  (String, Map<String, dynamic>) _extractDepthLockEventInfo(
+    dynamic depthLockEvent,
+  ) {
+    if (depthLockEvent is bridge.DepthLockEvent_GoalUpdated) {
+      return (
+        'DepthLockGoalUpdated',
+        {
+          'goal_id': depthLockEvent.goalId,
+          'revision': depthLockEvent.revision.toInt(),
+          'filter_name': depthLockEvent.filterName,
+          'state': depthLockEvent.state,
+          'score': depthLockEvent.score,
+          'conservative_score': depthLockEvent.conservativeScore,
+          'threshold': depthLockEvent.threshold,
+          'uncertainty_adu': depthLockEvent.uncertaintyAdu,
+          'coverage': depthLockEvent.coverage,
+          'evidence_frames': depthLockEvent.evidenceFrames,
+          'confirmation_frames': depthLockEvent.confirmationFrames,
+          'reason': depthLockEvent.reason,
+          'automatic_completion': depthLockEvent.automaticCompletion,
+          // camelCase on purpose: the forecast fields were added to the wire
+          // after the rest of this payload and the UI reads them by these
+          // names. Renaming either side now would silently blank the
+          // "N frames to go" line on every already-shipped client.
+          'framesRemaining': depthLockEvent.framesRemaining,
+          'reachable': depthLockEvent.reachable,
+        },
+      );
+    } else if (depthLockEvent is bridge.DepthLockEvent_EvidenceRejected) {
+      return (
+        'DepthLockEvidenceRejected',
+        {
+          'goal_id': depthLockEvent.goalId,
+          'revision': depthLockEvent.revision.toInt(),
+          'source_path': depthLockEvent.sourcePath,
+          'reason': depthLockEvent.reason,
+        },
+      );
+    } else if (depthLockEvent is bridge.DepthLockEvent_AnalysisDropped) {
+      return (
+        'DepthLockAnalysisDropped',
+        {
+          'source_path': depthLockEvent.sourcePath,
+          'reason': depthLockEvent.reason,
+        },
+      );
+    } else if (depthLockEvent is bridge.DepthLockEvent_GoalChanged) {
+      return (
+        'DepthLockGoalChanged',
+        {
+          'goal_id': depthLockEvent.goalId,
+          'revision': depthLockEvent.revision.toInt(),
+          'change': depthLockEvent.change,
+        },
+      );
+    }
+    return _unreadEvent(depthLockEvent, 'DepthLockEvent', 'DepthLock');
   }
 
   /// Extract event type and data from a SafetyEvent
@@ -620,6 +689,23 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'budget_secs': sequencerEvent.budgetSecs,
           'fraction': sequencerEvent.fraction,
           'budget_met': sequencerEvent.budgetMet,
+        },
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_DepthGoalCompleted) {
+      // A Smart Exposure plan that stopped early. The numbers are the
+      // evidence the verdict rested on, so the run history can explain the
+      // transition without going back to the goal store.
+      return (
+        'DepthGoalCompleted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'filter_name': sequencerEvent.filterName,
+          'goal_id': sequencerEvent.goalId,
+          'revision': sequencerEvent.revision.toInt(),
+          'evidence_frames': sequencerEvent.evidenceFrames,
+          'confirmation_frames': sequencerEvent.confirmationFrames,
+          'score': sequencerEvent.score,
+          'threshold': sequencerEvent.threshold,
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeRequested) {

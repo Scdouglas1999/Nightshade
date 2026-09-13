@@ -36,7 +36,7 @@ final onboardingApproximateLocationProvider =
 /// where the platform has one, third-party IP lookup everywhere else. Injected
 /// so the consent + elevation rules can be driven in tests without a network.
 final onboardingDeviceLocationProvider = Provider<ApproximateLocationLookup>(
-  (ref) => GeolocationService.fetchLocationFromGPS,
+  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: false),
 );
 
 /// Observing-site step.
@@ -312,6 +312,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     final consented = await confirmGeolocationLookup(
       context,
       outcome: kGeolocationWritesSiteOutcome,
+      includeIpFallback: false,
     );
     if (!consented || !mounted) return;
     final authority = ref.read(backendProvider);
@@ -323,8 +324,8 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
       }
       if (location == null) {
         context.showWarningSnackBar(
-          'Could not determine a location. Check location permissions, or '
-          'network access if this machine has no GPS.',
+          'No GPS fix on this machine. Search for a place by name, or enter '
+          'coordinates.',
         );
         return;
       }

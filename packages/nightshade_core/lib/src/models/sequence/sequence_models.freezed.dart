@@ -1430,13 +1430,10 @@ as double,
 mixin _$ConditionsScore {
 
  double get score; double? get transparencyScore; double? get seeingScore; double? get cloudScore; double? get windScore; ConditionsScoreWeights get weights;// `generated_unix_secs` (int seconds) on the wire. The Rust side uses
-// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
-// fromJson fell back to `0` (epoch) on missing field; the freezed
-// form makes the field required, which is strictly stricter (errors
-// are a feature). The Rust producer always emits this field, so
-// production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching the "silent fallback hides
-// bugs" policy. Phase 1's contract tests always provide the key.
+// `serde_with::TimestampSeconds<i64>`. The field is required rather than
+// defaulting to `0` (epoch), so a missing key throws instead of decoding
+// into a fabricated timestamp. The Rust producer always emits it, so only
+// synthetic JSON can hit that path.
 @JsonKey(name: 'generated_unix_secs')@UnixSecsDateTimeConverter() DateTime get generatedAt;
 /// Create a copy of ConditionsScore
 /// with the given fields replaced by the non-null parameter values.
@@ -1656,13 +1653,10 @@ class _ConditionsScore extends ConditionsScore {
 @override final  double? windScore;
 @override@JsonKey() final  ConditionsScoreWeights weights;
 // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
-// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
-// fromJson fell back to `0` (epoch) on missing field; the freezed
-// form makes the field required, which is strictly stricter (errors
-// are a feature). The Rust producer always emits this field, so
-// production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching the "silent fallback hides
-// bugs" policy. Phase 1's contract tests always provide the key.
+// `serde_with::TimestampSeconds<i64>`. The field is required rather than
+// defaulting to `0` (epoch), so a missing key throws instead of decoding
+// into a fabricated timestamp. The Rust producer always emits it, so only
+// synthetic JSON can hit that path.
 @override@JsonKey(name: 'generated_unix_secs')@UnixSecsDateTimeConverter() final  DateTime generatedAt;
 
 /// Create a copy of ConditionsScore
@@ -2367,7 +2361,12 @@ mixin _$FilterPlan {
 @BinningModeJsonConverter() BinningMode get binning;/// Per-plan dither cadence (every N frames). null disables dithering for
 /// this filter regardless of any global default. 0 is treated as "no
 /// dither" — matches `ExposureNode.ditherEvery`.
- int? get ditherEvery;
+ int? get ditherEvery;/// Optional DepthLock binding. When set, the executor asks the goal
+/// store for a verdict before each batch of this plan and treats an
+/// achieved goal (with automatic completion enabled) as the plan being
+/// complete. null keeps the plan purely count-bounded — matches Rust
+/// `FilterPlan::depth_goal`.
+ DepthGoalBinding? get depthGoal;
 /// Create a copy of FilterPlan
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2380,16 +2379,16 @@ $FilterPlanCopyWith<FilterPlan> get copyWith => _$FilterPlanCopyWithImpl<FilterP
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FilterPlan&&(identical(other.filterName, filterName) || other.filterName == filterName)&&(identical(other.filterIndex, filterIndex) || other.filterIndex == filterIndex)&&(identical(other.count, count) || other.count == count)&&(identical(other.durationSecs, durationSecs) || other.durationSecs == durationSecs)&&(identical(other.gain, gain) || other.gain == gain)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.binning, binning) || other.binning == binning)&&(identical(other.ditherEvery, ditherEvery) || other.ditherEvery == ditherEvery));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FilterPlan&&(identical(other.filterName, filterName) || other.filterName == filterName)&&(identical(other.filterIndex, filterIndex) || other.filterIndex == filterIndex)&&(identical(other.count, count) || other.count == count)&&(identical(other.durationSecs, durationSecs) || other.durationSecs == durationSecs)&&(identical(other.gain, gain) || other.gain == gain)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.binning, binning) || other.binning == binning)&&(identical(other.ditherEvery, ditherEvery) || other.ditherEvery == ditherEvery)&&(identical(other.depthGoal, depthGoal) || other.depthGoal == depthGoal));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,filterName,filterIndex,count,durationSecs,gain,offset,binning,ditherEvery);
+int get hashCode => Object.hash(runtimeType,filterName,filterIndex,count,durationSecs,gain,offset,binning,ditherEvery,depthGoal);
 
 @override
 String toString() {
-  return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery)';
+  return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery, depthGoal: $depthGoal)';
 }
 
 
@@ -2400,11 +2399,11 @@ abstract mixin class $FilterPlanCopyWith<$Res>  {
   factory $FilterPlanCopyWith(FilterPlan value, $Res Function(FilterPlan) _then) = _$FilterPlanCopyWithImpl;
 @useResult
 $Res call({
- String filterName, int? filterIndex, int count, double durationSecs, int? gain, int? offset,@BinningModeJsonConverter() BinningMode binning, int? ditherEvery
+ String filterName, int? filterIndex, int count, double durationSecs, int? gain, int? offset,@BinningModeJsonConverter() BinningMode binning, int? ditherEvery, DepthGoalBinding? depthGoal
 });
 
 
-
+$DepthGoalBindingCopyWith<$Res>? get depthGoal;
 
 }
 /// @nodoc
@@ -2417,7 +2416,7 @@ class _$FilterPlanCopyWithImpl<$Res>
 
 /// Create a copy of FilterPlan
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? filterName = null,Object? filterIndex = freezed,Object? count = null,Object? durationSecs = null,Object? gain = freezed,Object? offset = freezed,Object? binning = null,Object? ditherEvery = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? filterName = null,Object? filterIndex = freezed,Object? count = null,Object? durationSecs = null,Object? gain = freezed,Object? offset = freezed,Object? binning = null,Object? ditherEvery = freezed,Object? depthGoal = freezed,}) {
   return _then(_self.copyWith(
 filterName: null == filterName ? _self.filterName : filterName // ignore: cast_nullable_to_non_nullable
 as String,filterIndex: freezed == filterIndex ? _self.filterIndex : filterIndex // ignore: cast_nullable_to_non_nullable
@@ -2427,10 +2426,23 @@ as double,gain: freezed == gain ? _self.gain : gain // ignore: cast_nullable_to_
 as int?,offset: freezed == offset ? _self.offset : offset // ignore: cast_nullable_to_non_nullable
 as int?,binning: null == binning ? _self.binning : binning // ignore: cast_nullable_to_non_nullable
 as BinningMode,ditherEvery: freezed == ditherEvery ? _self.ditherEvery : ditherEvery // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,depthGoal: freezed == depthGoal ? _self.depthGoal : depthGoal // ignore: cast_nullable_to_non_nullable
+as DepthGoalBinding?,
   ));
 }
+/// Create a copy of FilterPlan
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DepthGoalBindingCopyWith<$Res>? get depthGoal {
+    if (_self.depthGoal == null) {
+    return null;
+  }
 
+  return $DepthGoalBindingCopyWith<$Res>(_self.depthGoal!, (value) {
+    return _then(_self.copyWith(depthGoal: value));
+  });
+}
 }
 
 
@@ -2512,10 +2524,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String filterName,  int? filterIndex,  int count,  double durationSecs,  int? gain,  int? offset, @BinningModeJsonConverter()  BinningMode binning,  int? ditherEvery)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String filterName,  int? filterIndex,  int count,  double durationSecs,  int? gain,  int? offset, @BinningModeJsonConverter()  BinningMode binning,  int? ditherEvery,  DepthGoalBinding? depthGoal)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _FilterPlan() when $default != null:
-return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSecs,_that.gain,_that.offset,_that.binning,_that.ditherEvery);case _:
+return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSecs,_that.gain,_that.offset,_that.binning,_that.ditherEvery,_that.depthGoal);case _:
   return orElse();
 
 }
@@ -2533,10 +2545,10 @@ return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSec
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String filterName,  int? filterIndex,  int count,  double durationSecs,  int? gain,  int? offset, @BinningModeJsonConverter()  BinningMode binning,  int? ditherEvery)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String filterName,  int? filterIndex,  int count,  double durationSecs,  int? gain,  int? offset, @BinningModeJsonConverter()  BinningMode binning,  int? ditherEvery,  DepthGoalBinding? depthGoal)  $default,) {final _that = this;
 switch (_that) {
 case _FilterPlan():
-return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSecs,_that.gain,_that.offset,_that.binning,_that.ditherEvery);case _:
+return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSecs,_that.gain,_that.offset,_that.binning,_that.ditherEvery,_that.depthGoal);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2553,10 +2565,10 @@ return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSec
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String filterName,  int? filterIndex,  int count,  double durationSecs,  int? gain,  int? offset, @BinningModeJsonConverter()  BinningMode binning,  int? ditherEvery)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String filterName,  int? filterIndex,  int count,  double durationSecs,  int? gain,  int? offset, @BinningModeJsonConverter()  BinningMode binning,  int? ditherEvery,  DepthGoalBinding? depthGoal)?  $default,) {final _that = this;
 switch (_that) {
 case _FilterPlan() when $default != null:
-return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSecs,_that.gain,_that.offset,_that.binning,_that.ditherEvery);case _:
+return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSecs,_that.gain,_that.offset,_that.binning,_that.ditherEvery,_that.depthGoal);case _:
   return null;
 
 }
@@ -2568,7 +2580,7 @@ return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSec
 
 @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
 class _FilterPlan extends FilterPlan {
-  const _FilterPlan({this.filterName = '', this.filterIndex, this.count = 10, this.durationSecs = 60.0, this.gain, this.offset, @BinningModeJsonConverter() this.binning = BinningMode.one, this.ditherEvery}): super._();
+  const _FilterPlan({this.filterName = '', this.filterIndex, this.count = 10, this.durationSecs = 60.0, this.gain, this.offset, @BinningModeJsonConverter() this.binning = BinningMode.one, this.ditherEvery, this.depthGoal}): super._();
   factory _FilterPlan.fromJson(Map<String, dynamic> json) => _$FilterPlanFromJson(json);
 
 /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
@@ -2592,6 +2604,12 @@ class _FilterPlan extends FilterPlan {
 /// this filter regardless of any global default. 0 is treated as "no
 /// dither" — matches `ExposureNode.ditherEvery`.
 @override final  int? ditherEvery;
+/// Optional DepthLock binding. When set, the executor asks the goal
+/// store for a verdict before each batch of this plan and treats an
+/// achieved goal (with automatic completion enabled) as the plan being
+/// complete. null keeps the plan purely count-bounded — matches Rust
+/// `FilterPlan::depth_goal`.
+@override final  DepthGoalBinding? depthGoal;
 
 /// Create a copy of FilterPlan
 /// with the given fields replaced by the non-null parameter values.
@@ -2606,16 +2624,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FilterPlan&&(identical(other.filterName, filterName) || other.filterName == filterName)&&(identical(other.filterIndex, filterIndex) || other.filterIndex == filterIndex)&&(identical(other.count, count) || other.count == count)&&(identical(other.durationSecs, durationSecs) || other.durationSecs == durationSecs)&&(identical(other.gain, gain) || other.gain == gain)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.binning, binning) || other.binning == binning)&&(identical(other.ditherEvery, ditherEvery) || other.ditherEvery == ditherEvery));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FilterPlan&&(identical(other.filterName, filterName) || other.filterName == filterName)&&(identical(other.filterIndex, filterIndex) || other.filterIndex == filterIndex)&&(identical(other.count, count) || other.count == count)&&(identical(other.durationSecs, durationSecs) || other.durationSecs == durationSecs)&&(identical(other.gain, gain) || other.gain == gain)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.binning, binning) || other.binning == binning)&&(identical(other.ditherEvery, ditherEvery) || other.ditherEvery == ditherEvery)&&(identical(other.depthGoal, depthGoal) || other.depthGoal == depthGoal));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,filterName,filterIndex,count,durationSecs,gain,offset,binning,ditherEvery);
+int get hashCode => Object.hash(runtimeType,filterName,filterIndex,count,durationSecs,gain,offset,binning,ditherEvery,depthGoal);
 
 @override
 String toString() {
-  return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery)';
+  return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery, depthGoal: $depthGoal)';
 }
 
 
@@ -2626,11 +2644,11 @@ abstract mixin class _$FilterPlanCopyWith<$Res> implements $FilterPlanCopyWith<$
   factory _$FilterPlanCopyWith(_FilterPlan value, $Res Function(_FilterPlan) _then) = __$FilterPlanCopyWithImpl;
 @override @useResult
 $Res call({
- String filterName, int? filterIndex, int count, double durationSecs, int? gain, int? offset,@BinningModeJsonConverter() BinningMode binning, int? ditherEvery
+ String filterName, int? filterIndex, int count, double durationSecs, int? gain, int? offset,@BinningModeJsonConverter() BinningMode binning, int? ditherEvery, DepthGoalBinding? depthGoal
 });
 
 
-
+@override $DepthGoalBindingCopyWith<$Res>? get depthGoal;
 
 }
 /// @nodoc
@@ -2643,7 +2661,7 @@ class __$FilterPlanCopyWithImpl<$Res>
 
 /// Create a copy of FilterPlan
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? filterName = null,Object? filterIndex = freezed,Object? count = null,Object? durationSecs = null,Object? gain = freezed,Object? offset = freezed,Object? binning = null,Object? ditherEvery = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? filterName = null,Object? filterIndex = freezed,Object? count = null,Object? durationSecs = null,Object? gain = freezed,Object? offset = freezed,Object? binning = null,Object? ditherEvery = freezed,Object? depthGoal = freezed,}) {
   return _then(_FilterPlan(
 filterName: null == filterName ? _self.filterName : filterName // ignore: cast_nullable_to_non_nullable
 as String,filterIndex: freezed == filterIndex ? _self.filterIndex : filterIndex // ignore: cast_nullable_to_non_nullable
@@ -2653,7 +2671,286 @@ as double,gain: freezed == gain ? _self.gain : gain // ignore: cast_nullable_to_
 as int?,offset: freezed == offset ? _self.offset : offset // ignore: cast_nullable_to_non_nullable
 as int?,binning: null == binning ? _self.binning : binning // ignore: cast_nullable_to_non_nullable
 as BinningMode,ditherEvery: freezed == ditherEvery ? _self.ditherEvery : ditherEvery // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,depthGoal: freezed == depthGoal ? _self.depthGoal : depthGoal // ignore: cast_nullable_to_non_nullable
+as DepthGoalBinding?,
+  ));
+}
+
+/// Create a copy of FilterPlan
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DepthGoalBindingCopyWith<$Res>? get depthGoal {
+    if (_self.depthGoal == null) {
+    return null;
+  }
+
+  return $DepthGoalBindingCopyWith<$Res>(_self.depthGoal!, (value) {
+    return _then(_self.copyWith(depthGoal: value));
+  });
+}
+}
+
+
+/// @nodoc
+mixin _$DepthGoalBinding {
+
+ String get goalId; int get revision;
+/// Create a copy of DepthGoalBinding
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$DepthGoalBindingCopyWith<DepthGoalBinding> get copyWith => _$DepthGoalBindingCopyWithImpl<DepthGoalBinding>(this as DepthGoalBinding, _$identity);
+
+  /// Serializes this DepthGoalBinding to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DepthGoalBinding&&(identical(other.goalId, goalId) || other.goalId == goalId)&&(identical(other.revision, revision) || other.revision == revision));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,goalId,revision);
+
+@override
+String toString() {
+  return 'DepthGoalBinding(goalId: $goalId, revision: $revision)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $DepthGoalBindingCopyWith<$Res>  {
+  factory $DepthGoalBindingCopyWith(DepthGoalBinding value, $Res Function(DepthGoalBinding) _then) = _$DepthGoalBindingCopyWithImpl;
+@useResult
+$Res call({
+ String goalId, int revision
+});
+
+
+
+
+}
+/// @nodoc
+class _$DepthGoalBindingCopyWithImpl<$Res>
+    implements $DepthGoalBindingCopyWith<$Res> {
+  _$DepthGoalBindingCopyWithImpl(this._self, this._then);
+
+  final DepthGoalBinding _self;
+  final $Res Function(DepthGoalBinding) _then;
+
+/// Create a copy of DepthGoalBinding
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? goalId = null,Object? revision = null,}) {
+  return _then(_self.copyWith(
+goalId: null == goalId ? _self.goalId : goalId // ignore: cast_nullable_to_non_nullable
+as String,revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [DepthGoalBinding].
+extension DepthGoalBindingPatterns on DepthGoalBinding {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _DepthGoalBinding value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _DepthGoalBinding() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _DepthGoalBinding value)  $default,){
+final _that = this;
+switch (_that) {
+case _DepthGoalBinding():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _DepthGoalBinding value)?  $default,){
+final _that = this;
+switch (_that) {
+case _DepthGoalBinding() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String goalId,  int revision)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _DepthGoalBinding() when $default != null:
+return $default(_that.goalId,_that.revision);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String goalId,  int revision)  $default,) {final _that = this;
+switch (_that) {
+case _DepthGoalBinding():
+return $default(_that.goalId,_that.revision);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String goalId,  int revision)?  $default,) {final _that = this;
+switch (_that) {
+case _DepthGoalBinding() when $default != null:
+return $default(_that.goalId,_that.revision);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _DepthGoalBinding extends DepthGoalBinding {
+  const _DepthGoalBinding({required this.goalId, required this.revision}): super._();
+  factory _DepthGoalBinding.fromJson(Map<String, dynamic> json) => _$DepthGoalBindingFromJson(json);
+
+@override final  String goalId;
+@override final  int revision;
+
+/// Create a copy of DepthGoalBinding
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$DepthGoalBindingCopyWith<_DepthGoalBinding> get copyWith => __$DepthGoalBindingCopyWithImpl<_DepthGoalBinding>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$DepthGoalBindingToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DepthGoalBinding&&(identical(other.goalId, goalId) || other.goalId == goalId)&&(identical(other.revision, revision) || other.revision == revision));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,goalId,revision);
+
+@override
+String toString() {
+  return 'DepthGoalBinding(goalId: $goalId, revision: $revision)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$DepthGoalBindingCopyWith<$Res> implements $DepthGoalBindingCopyWith<$Res> {
+  factory _$DepthGoalBindingCopyWith(_DepthGoalBinding value, $Res Function(_DepthGoalBinding) _then) = __$DepthGoalBindingCopyWithImpl;
+@override @useResult
+$Res call({
+ String goalId, int revision
+});
+
+
+
+
+}
+/// @nodoc
+class __$DepthGoalBindingCopyWithImpl<$Res>
+    implements _$DepthGoalBindingCopyWith<$Res> {
+  __$DepthGoalBindingCopyWithImpl(this._self, this._then);
+
+  final _DepthGoalBinding _self;
+  final $Res Function(_DepthGoalBinding) _then;
+
+/// Create a copy of DepthGoalBinding
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? goalId = null,Object? revision = null,}) {
+  return _then(_DepthGoalBinding(
+goalId: null == goalId ? _self.goalId : goalId // ignore: cast_nullable_to_non_nullable
+as String,revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

@@ -21,6 +21,14 @@ typedef struct _Dart_Handle* Dart_Handle;
 #define SENSOR_TYPE_RGGB 2
 
 /**
+ * Jobs waiting behind the one in flight. Frames arrive one per exposure
+ * (tens of seconds apart) and a job takes about a second per goal, so a
+ * backlog this deep means analysis is not keeping up and shedding is the
+ * right answer.
+ */
+#define QUEUE_CAPACITY 8
+
+/**
  * Default event buffer size: 4096 broadcast slots, enough for the burstiest
  * producers (autofocus loops, 10 Hz guiding corrections). A receiver that falls
  * further behind than this gets `Lagged` and skips to the latest events.
@@ -100,6 +108,66 @@ typedef struct wire_cst_api_combine_method {
   double *sigma_kappa;
   uint32_t *sigma_iterations;
 } wire_cst_api_combine_method;
+
+typedef struct wire_cst_api_sky_rectangle {
+  double ra_deg;
+  double dec_deg;
+  double width_arcsec;
+  double height_arcsec;
+  double rotation_deg;
+} wire_cst_api_sky_rectangle;
+
+typedef struct wire_cst_api_depth_measurement {
+  struct wire_cst_api_sky_rectangle region;
+  struct wire_cst_api_sky_rectangle background;
+  double scale_arcsec;
+  double threshold;
+  double min_coverage;
+  double systematic_floor_adu;
+  struct wire_cst_list_prim_u_8_strict *systematic_floor_source;
+} wire_cst_api_depth_measurement;
+
+typedef struct wire_cst_api_reference_geometry {
+  uint32_t width;
+  uint32_t height;
+  double crval1;
+  double crval2;
+  double crpix1;
+  double crpix2;
+  double cd1_1;
+  double cd1_2;
+  double cd2_1;
+  double cd2_2;
+} wire_cst_api_reference_geometry;
+
+typedef struct wire_cst_api_acquisition_settings {
+  struct wire_cst_list_prim_u_8_strict *instrument;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  double exposure_secs;
+  int32_t *gain;
+  int32_t *offset;
+  int32_t bin_x;
+  int32_t bin_y;
+  double *ccd_temp_c;
+} wire_cst_api_acquisition_settings;
+
+typedef struct wire_cst_api_depth_goal_definition {
+  struct wire_cst_list_prim_u_8_strict *label;
+  struct wire_cst_list_prim_u_8_strict *project_id;
+  struct wire_cst_list_prim_u_8_strict *target_id;
+  struct wire_cst_list_prim_u_8_strict *profile_id;
+  struct wire_cst_list_prim_u_8_strict *filter_name;
+  int32_t *filter_index;
+  struct wire_cst_list_prim_u_8_strict *reference_path;
+  struct wire_cst_api_reference_geometry reference;
+  struct wire_cst_api_acquisition_settings acquisition;
+  double temperature_tolerance_c;
+  struct wire_cst_list_prim_u_8_strict *dark_path;
+  struct wire_cst_list_prim_u_8_strict *flat_path;
+  struct wire_cst_api_depth_measurement measurement;
+  bool enabled;
+  bool automatic_completion;
+} wire_cst_api_depth_goal_definition;
 
 typedef struct wire_cst_star_detection_config_api {
   double detection_sigma;
@@ -413,6 +481,28 @@ typedef struct wire_cst_api_defect_map_status {
   bool stored_on_disk;
 } wire_cst_api_defect_map_status;
 
+typedef struct wire_cst_api_depth_forecast {
+  uint32_t frames_to_threshold;
+  uint32_t frames_to_confirm;
+  bool reachable;
+  double ceiling_score;
+  double per_frame_noise_adu;
+  double recent_frame_noise_adu;
+  double best_frame_noise_adu;
+} wire_cst_api_depth_forecast;
+
+typedef struct wire_cst_api_depth_report {
+  struct wire_cst_list_prim_u_8_strict *state;
+  double *score;
+  double *conservative_score;
+  double *uncertainty_adu;
+  double coverage;
+  uint32_t evidence_frames;
+  uint32_t confirmation_frames;
+  struct wire_cst_list_prim_u_8_strict *reason;
+  struct wire_cst_api_depth_forecast *forecast;
+} wire_cst_api_depth_report;
+
 typedef struct wire_cst_camera_capabilities {
   uint32_t max_width;
   uint32_t max_height;
@@ -468,6 +558,54 @@ typedef struct wire_cst_cover_calibrator_capabilities {
   int32_t *calibrator_state;
   int32_t *brightness;
 } wire_cst_cover_calibrator_capabilities;
+
+typedef struct wire_cst_DepthLockEvent_GoalUpdated {
+  struct wire_cst_list_prim_u_8_strict *goal_id;
+  uint64_t revision;
+  struct wire_cst_list_prim_u_8_strict *filter_name;
+  struct wire_cst_list_prim_u_8_strict *state;
+  double *score;
+  double *conservative_score;
+  double threshold;
+  double *uncertainty_adu;
+  double coverage;
+  uint32_t evidence_frames;
+  uint32_t confirmation_frames;
+  struct wire_cst_list_prim_u_8_strict *reason;
+  bool automatic_completion;
+  uint32_t *frames_remaining;
+  bool reachable;
+} wire_cst_DepthLockEvent_GoalUpdated;
+
+typedef struct wire_cst_DepthLockEvent_EvidenceRejected {
+  struct wire_cst_list_prim_u_8_strict *goal_id;
+  uint64_t revision;
+  struct wire_cst_list_prim_u_8_strict *source_path;
+  struct wire_cst_list_prim_u_8_strict *reason;
+} wire_cst_DepthLockEvent_EvidenceRejected;
+
+typedef struct wire_cst_DepthLockEvent_AnalysisDropped {
+  struct wire_cst_list_prim_u_8_strict *source_path;
+  struct wire_cst_list_prim_u_8_strict *reason;
+} wire_cst_DepthLockEvent_AnalysisDropped;
+
+typedef struct wire_cst_DepthLockEvent_GoalChanged {
+  struct wire_cst_list_prim_u_8_strict *goal_id;
+  uint64_t revision;
+  struct wire_cst_list_prim_u_8_strict *change;
+} wire_cst_DepthLockEvent_GoalChanged;
+
+typedef union DepthLockEventKind {
+  struct wire_cst_DepthLockEvent_GoalUpdated GoalUpdated;
+  struct wire_cst_DepthLockEvent_EvidenceRejected EvidenceRejected;
+  struct wire_cst_DepthLockEvent_AnalysisDropped AnalysisDropped;
+  struct wire_cst_DepthLockEvent_GoalChanged GoalChanged;
+} DepthLockEventKind;
+
+typedef struct wire_cst_depth_lock_event {
+  int32_t tag;
+  union DepthLockEventKind kind;
+} wire_cst_depth_lock_event;
 
 typedef struct wire_cst_dome_capabilities {
   bool can_set_azimuth;
@@ -1022,6 +1160,17 @@ typedef struct wire_cst_SequencerEvent_InstructionProgressStructured {
   struct wire_cst_list_prim_u_8_strict *detail_json;
 } wire_cst_SequencerEvent_InstructionProgressStructured;
 
+typedef struct wire_cst_SequencerEvent_DepthGoalCompleted {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *filter_name;
+  struct wire_cst_list_prim_u_8_strict *goal_id;
+  uint64_t revision;
+  uint32_t evidence_frames;
+  uint32_t confirmation_frames;
+  double score;
+  double threshold;
+} wire_cst_SequencerEvent_DepthGoalCompleted;
+
 typedef struct wire_cst_SequencerEvent_FrameAccepted {
   struct wire_cst_list_prim_u_8_strict *node_id;
   uint32_t frame;
@@ -1228,6 +1377,7 @@ typedef union SequencerEventKind {
   struct wire_cst_SequencerEvent_TriggerFired TriggerFired;
   struct wire_cst_SequencerEvent_InstructionProgress InstructionProgress;
   struct wire_cst_SequencerEvent_InstructionProgressStructured InstructionProgressStructured;
+  struct wire_cst_SequencerEvent_DepthGoalCompleted DepthGoalCompleted;
   struct wire_cst_SequencerEvent_FrameAccepted FrameAccepted;
   struct wire_cst_SequencerEvent_FrameRejected FrameRejected;
   struct wire_cst_SequencerEvent_SchedulerDecision SchedulerDecision;
@@ -1320,6 +1470,38 @@ typedef struct wire_cst_weather_capabilities {
   bool has_wind_speed;
   double *average_period;
 } wire_cst_weather_capabilities;
+
+typedef struct wire_cst_api_depth_curve_point {
+  uint32_t frames;
+  double score;
+  double conservative_score;
+  bool projected;
+} wire_cst_api_depth_curve_point;
+
+typedef struct wire_cst_list_api_depth_curve_point {
+  struct wire_cst_api_depth_curve_point *ptr;
+  int32_t len;
+} wire_cst_list_api_depth_curve_point;
+
+typedef struct wire_cst_api_depth_goal {
+  struct wire_cst_list_prim_u_8_strict *id;
+  uint64_t revision;
+  struct wire_cst_api_depth_goal_definition definition;
+  int64_t selected_at_ms;
+  uint32_t evidence_frames;
+  uint64_t evidence_revision;
+  bool analysis_current;
+  struct wire_cst_api_depth_report *report;
+  uint32_t candidate_frames;
+  struct wire_cst_list_prim_u_8_strict *last_issue;
+  uint32_t archived_revisions;
+  uint32_t estimator_version;
+} wire_cst_api_depth_goal;
+
+typedef struct wire_cst_list_api_depth_goal {
+  struct wire_cst_api_depth_goal *ptr;
+  int32_t len;
+} wire_cst_list_api_depth_goal;
 
 typedef struct wire_cst_detected_star_info {
   double x;
@@ -1485,6 +1667,46 @@ typedef struct wire_cst_list_star_crop_api {
   struct wire_cst_star_crop_api *ptr;
   int32_t len;
 } wire_cst_list_star_crop_api;
+
+typedef struct wire_cst_api_depth_floor_suggestion {
+  double floor_adu;
+  double dark_noise_adu;
+  double flat_relative_noise;
+  double sky_adu;
+  double aperture_pixels;
+  struct wire_cst_list_prim_u_8_strict *source;
+} wire_cst_api_depth_floor_suggestion;
+
+typedef struct wire_cst_api_depth_ingest_outcome {
+  struct wire_cst_list_prim_u_8_strict *outcome;
+  struct wire_cst_list_prim_u_8_strict *state;
+  struct wire_cst_list_prim_u_8_strict *reason;
+} wire_cst_api_depth_ingest_outcome;
+
+typedef struct wire_cst_api_depth_lock_status {
+  bool available;
+  uint32_t goals;
+  uint32_t queue_capacity;
+  uint64_t queued;
+  uint64_t processed;
+  uint64_t dropped;
+  uint64_t evidence_added;
+  uint64_t evidence_rejected;
+  uint64_t last_frame_ms;
+  uint64_t max_frame_ms;
+} wire_cst_api_depth_lock_status;
+
+typedef struct wire_cst_api_depth_reference_info {
+  uint32_t width;
+  uint32_t height;
+  struct wire_cst_list_prim_u_8_strict *pixel_type;
+  bool monochrome;
+  struct wire_cst_api_reference_geometry *geometry;
+  struct wire_cst_list_prim_u_8_strict *geometry_issue;
+  double *pixel_scale_arcsec;
+  struct wire_cst_api_acquisition_settings *acquisition;
+  struct wire_cst_list_prim_u_8_strict *acquisition_issue;
+} wire_cst_api_depth_reference_info;
 
 typedef struct wire_cst_api_live_stacking_master {
   struct wire_cst_list_prim_u_8_strict *file_path;
@@ -1745,6 +1967,10 @@ typedef struct wire_cst_EventPayload_PolarAlignmentImage {
   struct wire_cst_polar_alignment_image_event *field0;
 } wire_cst_EventPayload_PolarAlignmentImage;
 
+typedef struct wire_cst_EventPayload_DepthLock {
+  struct wire_cst_depth_lock_event *field0;
+} wire_cst_EventPayload_DepthLock;
+
 typedef union EventPayloadKind {
   struct wire_cst_EventPayload_Equipment Equipment;
   struct wire_cst_EventPayload_Imaging Imaging;
@@ -1755,6 +1981,7 @@ typedef union EventPayloadKind {
   struct wire_cst_EventPayload_PolarAlignment PolarAlignment;
   struct wire_cst_EventPayload_PolarAlignmentStatus PolarAlignmentStatus;
   struct wire_cst_EventPayload_PolarAlignmentImage PolarAlignmentImage;
+  struct wire_cst_EventPayload_DepthLock DepthLock;
 } EventPayloadKind;
 
 typedef struct wire_cst_event_payload {
@@ -2686,6 +2913,56 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_defect_map_get_stat
                                                                                    double sensor_temperature_celsius);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__storage__api_delete_profile(struct wire_cst_list_prim_u_8_strict *profile_id);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_check_measurement(struct wire_cst_api_depth_measurement *measurement);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_create_goal(struct wire_cst_list_prim_u_8_strict *goal_id,
+                                                                                                     struct wire_cst_api_depth_goal_definition *definition);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_get_goal(struct wire_cst_list_prim_u_8_strict *goal_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_goal_curve(int64_t port_,
+                                                                                    struct wire_cst_list_prim_u_8_strict *goal_id,
+                                                                                    uint32_t max_points);
+
+void frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_ingest_frame(int64_t port_,
+                                                                                      struct wire_cst_list_prim_u_8_strict *goal_id,
+                                                                                      struct wire_cst_list_prim_u_8_strict *path);
+
+void frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_inspect_reference(int64_t port_,
+                                                                                           struct wire_cst_list_prim_u_8_strict *path);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_list_goals(void);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_remove_goal(struct wire_cst_list_prim_u_8_strict *goal_id,
+                                                                                                     uint64_t expected_revision);
+
+void frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_replay_goal(int64_t port_,
+                                                                                     struct wire_cst_list_prim_u_8_strict *goal_id);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_revise_goal(struct wire_cst_list_prim_u_8_strict *goal_id,
+                                                                                                     uint64_t expected_revision,
+                                                                                                     struct wire_cst_api_depth_goal_definition *definition);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_set_goal_preferences(struct wire_cst_list_prim_u_8_strict *goal_id,
+                                                                                                              uint64_t expected_revision,
+                                                                                                              bool enabled,
+                                                                                                              bool automatic_completion);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_sky_rectangle(struct wire_cst_api_reference_geometry *reference,
+                                                                                                       double x0,
+                                                                                                       double y0,
+                                                                                                       double x1,
+                                                                                                       double y1);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_status(void);
+
+void frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_suggest_floor(int64_t port_,
+                                                                                       struct wire_cst_list_prim_u_8_strict *reference_path,
+                                                                                       struct wire_cst_list_prim_u_8_strict *dark_path,
+                                                                                       struct wire_cst_list_prim_u_8_strict *flat_path,
+                                                                                       double scale_arcsec,
+                                                                                       double *pixel_scale_arcsec);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_detect_stars_in_file(int64_t port_,
                                                                                   struct wire_cst_list_prim_u_8_strict *file_path,
@@ -3859,11 +4136,23 @@ uintptr_t *frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_fl
 
 uintptr_t *frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(uintptr_t value);
 
+struct wire_cst_api_acquisition_settings *frbgen_nightshade_bridge_cst_new_box_autoadd_api_acquisition_settings(void);
+
 struct wire_cst_api_combine_method *frbgen_nightshade_bridge_cst_new_box_autoadd_api_combine_method(void);
 
 struct wire_cst_api_defect_map_status *frbgen_nightshade_bridge_cst_new_box_autoadd_api_defect_map_status(void);
 
+struct wire_cst_api_depth_forecast *frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_forecast(void);
+
+struct wire_cst_api_depth_goal_definition *frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_goal_definition(void);
+
+struct wire_cst_api_depth_measurement *frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_measurement(void);
+
+struct wire_cst_api_depth_report *frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_report(void);
+
 struct wire_cst_api_live_stacking_config *frbgen_nightshade_bridge_cst_new_box_autoadd_api_live_stacking_config(void);
+
+struct wire_cst_api_reference_geometry *frbgen_nightshade_bridge_cst_new_box_autoadd_api_reference_geometry(void);
 
 struct wire_cst_app_settings *frbgen_nightshade_bridge_cst_new_box_autoadd_app_settings(void);
 
@@ -3880,6 +4169,8 @@ struct wire_cst_checkpoint_info_api *frbgen_nightshade_bridge_cst_new_box_autoad
 struct wire_cst_cover_calibrator_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_cover_calibrator_capabilities(void);
 
 int32_t *frbgen_nightshade_bridge_cst_new_box_autoadd_cover_state(int32_t value);
+
+struct wire_cst_depth_lock_event *frbgen_nightshade_bridge_cst_new_box_autoadd_depth_lock_event(void);
 
 struct wire_cst_dome_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_dome_capabilities(void);
 
@@ -3965,6 +4256,10 @@ struct wire_cst_weather_capabilities *frbgen_nightshade_bridge_cst_new_box_autoa
 
 struct wire_cst_list_String *frbgen_nightshade_bridge_cst_new_list_String(int32_t len);
 
+struct wire_cst_list_api_depth_curve_point *frbgen_nightshade_bridge_cst_new_list_api_depth_curve_point(int32_t len);
+
+struct wire_cst_list_api_depth_goal *frbgen_nightshade_bridge_cst_new_list_api_depth_goal(int32_t len);
+
 struct wire_cst_list_bool *frbgen_nightshade_bridge_cst_new_list_bool(int32_t len);
 
 struct wire_cst_list_detected_star_info *frbgen_nightshade_bridge_cst_new_list_detected_star_info(int32_t len);
@@ -4028,9 +4323,15 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     int64_t dummy_var = 0;
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_acquisition_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_combine_method);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_defect_map_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_forecast);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_goal_definition);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_measurement);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_report);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_live_stacking_config);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_reference_geometry);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_app_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_autofocus_config_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_bool);
@@ -4039,6 +4340,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_checkpoint_info_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_cover_calibrator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_cover_state);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_depth_lock_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_dome_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_equipment_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_equipment_profile);
@@ -4081,6 +4383,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_u_64);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_weather_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_String);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_api_depth_curve_point);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_api_depth_goal);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_bool);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_detected_star_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_device_info);
@@ -4141,6 +4445,20 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_export);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_render_preview);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__darkroom__entrypoints__api_darkroom_validate);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_check_measurement);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_create_goal);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_get_goal);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_goal_curve);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_ingest_frame);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_inspect_reference);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_list_goals);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_remove_goal);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_replay_goal);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_revise_goal);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_set_goal_preferences);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_sky_rectangle);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_suggest_floor);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_capture_preview);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_get_recommended_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_set_readout_mode);

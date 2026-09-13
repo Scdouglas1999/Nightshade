@@ -61,6 +61,7 @@ class NightshadeToolbar extends StatelessWidget {
 
     Widget group(List<Widget> children) => Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
         for (var i = 0; i < children.length; i++) ...<Widget>[
           if (i > 0) const SizedBox(width: itemGap),

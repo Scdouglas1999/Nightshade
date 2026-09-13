@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import '../../backend/bridge_events.dart' show depthGoalCompletedDetail;
 import '../../backend/frame_capture_metadata.dart';
 import '../../backend/nightshade_backend.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../models/imaging/imaging_models.dart';
 import '../../models/sequence/active_plan_owner.dart';
 import '../../models/sequence/instruction_progress_detail.dart';
+import '../../models/replay_decision.dart' show DecisionCategory;
 import '../../models/sequence/sequence_models.dart';
 import '../../models/settings/app_settings.dart'
     show ObserverLocation, SafetyFailMode;
@@ -1179,6 +1181,7 @@ class SequenceExecutor {
     SequenceExecutionState uiState,
     String runStatus, {
     String? error,
+    String? warning,
   }) {
     final state = _ref.read(sequenceExecutionStateProvider);
 
@@ -1242,6 +1245,15 @@ class SequenceExecutor {
         source: 'SequenceExecutor',
       );
       return;
+    }
+
+    if (warning != null) {
+      // The durable cause line ("Parked by the Dawn Approaching trigger") —
+      // carried in warningMessages so the Session Report and History detail
+      // say WHY the run ended, not just that it did. Recorded here, past
+      // every duplicate/echo guard, so a swallowed terminal can never stamp
+      // a foreign cause onto a run it did not end.
+      _incrementRunStat((stats) => stats.recordWarning(warning));
     }
 
     if (error != null) {
@@ -1472,7 +1484,9 @@ class SequenceExecutor {
     // had asked it to stand down.
     if (f.nativeStopRequired) {
       _lastRunEndOrigin = f.stopOrigin ?? 'operator';
-    } else if (f.runStatus == 'stopped' || f.runStatus == 'paused-stopped') {
+    } else if (f.runStatus == 'stopped' ||
+        f.runStatus == 'paused-stopped' ||
+        f.runStatus == 'aborted') {
       _lastRunEndOrigin = 'safety';
     } else {
       _lastRunEndOrigin = null;

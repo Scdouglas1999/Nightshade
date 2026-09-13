@@ -278,6 +278,27 @@ pub fn register_frame(
     frame: &ImageData,
     config: &RegistrationConfig,
 ) -> Result<RegisteredFrame, RegistrationError> {
+    let (transform, stats) = solve_registration(reference, frame, config)?;
+    let aligned = warp_frame(frame, reference, &transform, config.interpolator);
+    Ok(RegisteredFrame {
+        transform,
+        aligned,
+        stats,
+    })
+}
+
+/// The star-based geometry fit on its own: the source→reference transform and
+/// its residual statistics, without resampling the frame.
+///
+/// [`register_frame`] is this plus the warp. Callers that only need the
+/// geometry — DepthLock composes it with the reference frame's WCS and then
+/// samples the *unwarped* signed pixels — skip the full-frame Lanczos pass
+/// and the quantized aligned preview it would produce.
+pub fn solve_registration(
+    reference: &ImageData,
+    frame: &ImageData,
+    config: &RegistrationConfig,
+) -> Result<(TransformModel, RegistrationStats), RegistrationError> {
     validate_pair(reference, frame)?;
 
     let ref_plane = detection_plane(reference);
@@ -330,8 +351,6 @@ pub fn register_frame(
     let rms_residual_px = rms(&inlier_residuals);
     let correspondence_count = correspondences.len();
 
-    let aligned = warp_frame(frame, reference, &transform.model, config.interpolator);
-
     let stats = RegistrationStats {
         reference_star_count: ref_stars.len(),
         frame_star_count: frame_stars.len(),
@@ -346,11 +365,7 @@ pub fn register_frame(
         rms_residual_arcsec: config.arcsec_per_pixel.map(|s| rms_residual_px * s),
     };
 
-    Ok(RegisteredFrame {
-        transform: transform.model,
-        aligned,
-        stats,
-    })
+    Ok((transform.model, stats))
 }
 
 // Validation + detection-plane helpers

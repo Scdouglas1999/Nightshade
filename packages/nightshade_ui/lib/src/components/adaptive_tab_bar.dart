@@ -435,6 +435,7 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (tab.icon != null)
             Icon(tab.icon, size: _tabIconSize, color: foreground),

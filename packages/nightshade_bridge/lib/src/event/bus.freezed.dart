@@ -55,7 +55,7 @@ extension EventPayloadPatterns on EventPayload {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( EventPayload_Equipment value)?  equipment,TResult Function( EventPayload_Imaging value)?  imaging,TResult Function( EventPayload_Guiding value)?  guiding,TResult Function( EventPayload_Sequencer value)?  sequencer,TResult Function( EventPayload_Safety value)?  safety,TResult Function( EventPayload_System value)?  system,TResult Function( EventPayload_PolarAlignment value)?  polarAlignment,TResult Function( EventPayload_PolarAlignmentStatus value)?  polarAlignmentStatus,TResult Function( EventPayload_PolarAlignmentImage value)?  polarAlignmentImage,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( EventPayload_Equipment value)?  equipment,TResult Function( EventPayload_Imaging value)?  imaging,TResult Function( EventPayload_Guiding value)?  guiding,TResult Function( EventPayload_Sequencer value)?  sequencer,TResult Function( EventPayload_Safety value)?  safety,TResult Function( EventPayload_System value)?  system,TResult Function( EventPayload_PolarAlignment value)?  polarAlignment,TResult Function( EventPayload_PolarAlignmentStatus value)?  polarAlignmentStatus,TResult Function( EventPayload_PolarAlignmentImage value)?  polarAlignmentImage,TResult Function( EventPayload_DepthLock value)?  depthLock,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case EventPayload_Equipment() when equipment != null:
@@ -67,7 +67,8 @@ return safety(_that);case EventPayload_System() when system != null:
 return system(_that);case EventPayload_PolarAlignment() when polarAlignment != null:
 return polarAlignment(_that);case EventPayload_PolarAlignmentStatus() when polarAlignmentStatus != null:
 return polarAlignmentStatus(_that);case EventPayload_PolarAlignmentImage() when polarAlignmentImage != null:
-return polarAlignmentImage(_that);case _:
+return polarAlignmentImage(_that);case EventPayload_DepthLock() when depthLock != null:
+return depthLock(_that);case _:
   return orElse();
 
 }
@@ -85,7 +86,7 @@ return polarAlignmentImage(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( EventPayload_Equipment value)  equipment,required TResult Function( EventPayload_Imaging value)  imaging,required TResult Function( EventPayload_Guiding value)  guiding,required TResult Function( EventPayload_Sequencer value)  sequencer,required TResult Function( EventPayload_Safety value)  safety,required TResult Function( EventPayload_System value)  system,required TResult Function( EventPayload_PolarAlignment value)  polarAlignment,required TResult Function( EventPayload_PolarAlignmentStatus value)  polarAlignmentStatus,required TResult Function( EventPayload_PolarAlignmentImage value)  polarAlignmentImage,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( EventPayload_Equipment value)  equipment,required TResult Function( EventPayload_Imaging value)  imaging,required TResult Function( EventPayload_Guiding value)  guiding,required TResult Function( EventPayload_Sequencer value)  sequencer,required TResult Function( EventPayload_Safety value)  safety,required TResult Function( EventPayload_System value)  system,required TResult Function( EventPayload_PolarAlignment value)  polarAlignment,required TResult Function( EventPayload_PolarAlignmentStatus value)  polarAlignmentStatus,required TResult Function( EventPayload_PolarAlignmentImage value)  polarAlignmentImage,required TResult Function( EventPayload_DepthLock value)  depthLock,}){
 final _that = this;
 switch (_that) {
 case EventPayload_Equipment():
@@ -97,7 +98,8 @@ return safety(_that);case EventPayload_System():
 return system(_that);case EventPayload_PolarAlignment():
 return polarAlignment(_that);case EventPayload_PolarAlignmentStatus():
 return polarAlignmentStatus(_that);case EventPayload_PolarAlignmentImage():
-return polarAlignmentImage(_that);}
+return polarAlignmentImage(_that);case EventPayload_DepthLock():
+return depthLock(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -111,7 +113,7 @@ return polarAlignmentImage(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( EventPayload_Equipment value)?  equipment,TResult? Function( EventPayload_Imaging value)?  imaging,TResult? Function( EventPayload_Guiding value)?  guiding,TResult? Function( EventPayload_Sequencer value)?  sequencer,TResult? Function( EventPayload_Safety value)?  safety,TResult? Function( EventPayload_System value)?  system,TResult? Function( EventPayload_PolarAlignment value)?  polarAlignment,TResult? Function( EventPayload_PolarAlignmentStatus value)?  polarAlignmentStatus,TResult? Function( EventPayload_PolarAlignmentImage value)?  polarAlignmentImage,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( EventPayload_Equipment value)?  equipment,TResult? Function( EventPayload_Imaging value)?  imaging,TResult? Function( EventPayload_Guiding value)?  guiding,TResult? Function( EventPayload_Sequencer value)?  sequencer,TResult? Function( EventPayload_Safety value)?  safety,TResult? Function( EventPayload_System value)?  system,TResult? Function( EventPayload_PolarAlignment value)?  polarAlignment,TResult? Function( EventPayload_PolarAlignmentStatus value)?  polarAlignmentStatus,TResult? Function( EventPayload_PolarAlignmentImage value)?  polarAlignmentImage,TResult? Function( EventPayload_DepthLock value)?  depthLock,}){
 final _that = this;
 switch (_that) {
 case EventPayload_Equipment() when equipment != null:
@@ -123,7 +125,8 @@ return safety(_that);case EventPayload_System() when system != null:
 return system(_that);case EventPayload_PolarAlignment() when polarAlignment != null:
 return polarAlignment(_that);case EventPayload_PolarAlignmentStatus() when polarAlignmentStatus != null:
 return polarAlignmentStatus(_that);case EventPayload_PolarAlignmentImage() when polarAlignmentImage != null:
-return polarAlignmentImage(_that);case _:
+return polarAlignmentImage(_that);case EventPayload_DepthLock() when depthLock != null:
+return depthLock(_that);case _:
   return null;
 
 }
@@ -140,7 +143,7 @@ return polarAlignmentImage(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( EquipmentEvent field0)?  equipment,TResult Function( ImagingEvent field0)?  imaging,TResult Function( GuidingEvent field0)?  guiding,TResult Function( SequencerEvent field0)?  sequencer,TResult Function( SafetyEvent field0)?  safety,TResult Function( SystemEvent field0)?  system,TResult Function( PolarAlignmentEvent field0)?  polarAlignment,TResult Function( PolarAlignmentStatus field0)?  polarAlignmentStatus,TResult Function( PolarAlignmentImageEvent field0)?  polarAlignmentImage,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( EquipmentEvent field0)?  equipment,TResult Function( ImagingEvent field0)?  imaging,TResult Function( GuidingEvent field0)?  guiding,TResult Function( SequencerEvent field0)?  sequencer,TResult Function( SafetyEvent field0)?  safety,TResult Function( SystemEvent field0)?  system,TResult Function( PolarAlignmentEvent field0)?  polarAlignment,TResult Function( PolarAlignmentStatus field0)?  polarAlignmentStatus,TResult Function( PolarAlignmentImageEvent field0)?  polarAlignmentImage,TResult Function( DepthLockEvent field0)?  depthLock,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case EventPayload_Equipment() when equipment != null:
 return equipment(_that.field0);case EventPayload_Imaging() when imaging != null:
@@ -151,7 +154,8 @@ return safety(_that.field0);case EventPayload_System() when system != null:
 return system(_that.field0);case EventPayload_PolarAlignment() when polarAlignment != null:
 return polarAlignment(_that.field0);case EventPayload_PolarAlignmentStatus() when polarAlignmentStatus != null:
 return polarAlignmentStatus(_that.field0);case EventPayload_PolarAlignmentImage() when polarAlignmentImage != null:
-return polarAlignmentImage(_that.field0);case _:
+return polarAlignmentImage(_that.field0);case EventPayload_DepthLock() when depthLock != null:
+return depthLock(_that.field0);case _:
   return orElse();
 
 }
@@ -169,7 +173,7 @@ return polarAlignmentImage(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( EquipmentEvent field0)  equipment,required TResult Function( ImagingEvent field0)  imaging,required TResult Function( GuidingEvent field0)  guiding,required TResult Function( SequencerEvent field0)  sequencer,required TResult Function( SafetyEvent field0)  safety,required TResult Function( SystemEvent field0)  system,required TResult Function( PolarAlignmentEvent field0)  polarAlignment,required TResult Function( PolarAlignmentStatus field0)  polarAlignmentStatus,required TResult Function( PolarAlignmentImageEvent field0)  polarAlignmentImage,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( EquipmentEvent field0)  equipment,required TResult Function( ImagingEvent field0)  imaging,required TResult Function( GuidingEvent field0)  guiding,required TResult Function( SequencerEvent field0)  sequencer,required TResult Function( SafetyEvent field0)  safety,required TResult Function( SystemEvent field0)  system,required TResult Function( PolarAlignmentEvent field0)  polarAlignment,required TResult Function( PolarAlignmentStatus field0)  polarAlignmentStatus,required TResult Function( PolarAlignmentImageEvent field0)  polarAlignmentImage,required TResult Function( DepthLockEvent field0)  depthLock,}) {final _that = this;
 switch (_that) {
 case EventPayload_Equipment():
 return equipment(_that.field0);case EventPayload_Imaging():
@@ -180,7 +184,8 @@ return safety(_that.field0);case EventPayload_System():
 return system(_that.field0);case EventPayload_PolarAlignment():
 return polarAlignment(_that.field0);case EventPayload_PolarAlignmentStatus():
 return polarAlignmentStatus(_that.field0);case EventPayload_PolarAlignmentImage():
-return polarAlignmentImage(_that.field0);}
+return polarAlignmentImage(_that.field0);case EventPayload_DepthLock():
+return depthLock(_that.field0);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -194,7 +199,7 @@ return polarAlignmentImage(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( EquipmentEvent field0)?  equipment,TResult? Function( ImagingEvent field0)?  imaging,TResult? Function( GuidingEvent field0)?  guiding,TResult? Function( SequencerEvent field0)?  sequencer,TResult? Function( SafetyEvent field0)?  safety,TResult? Function( SystemEvent field0)?  system,TResult? Function( PolarAlignmentEvent field0)?  polarAlignment,TResult? Function( PolarAlignmentStatus field0)?  polarAlignmentStatus,TResult? Function( PolarAlignmentImageEvent field0)?  polarAlignmentImage,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( EquipmentEvent field0)?  equipment,TResult? Function( ImagingEvent field0)?  imaging,TResult? Function( GuidingEvent field0)?  guiding,TResult? Function( SequencerEvent field0)?  sequencer,TResult? Function( SafetyEvent field0)?  safety,TResult? Function( SystemEvent field0)?  system,TResult? Function( PolarAlignmentEvent field0)?  polarAlignment,TResult? Function( PolarAlignmentStatus field0)?  polarAlignmentStatus,TResult? Function( PolarAlignmentImageEvent field0)?  polarAlignmentImage,TResult? Function( DepthLockEvent field0)?  depthLock,}) {final _that = this;
 switch (_that) {
 case EventPayload_Equipment() when equipment != null:
 return equipment(_that.field0);case EventPayload_Imaging() when imaging != null:
@@ -205,7 +210,8 @@ return safety(_that.field0);case EventPayload_System() when system != null:
 return system(_that.field0);case EventPayload_PolarAlignment() when polarAlignment != null:
 return polarAlignment(_that.field0);case EventPayload_PolarAlignmentStatus() when polarAlignmentStatus != null:
 return polarAlignmentStatus(_that.field0);case EventPayload_PolarAlignmentImage() when polarAlignmentImage != null:
-return polarAlignmentImage(_that.field0);case _:
+return polarAlignmentImage(_that.field0);case EventPayload_DepthLock() when depthLock != null:
+return depthLock(_that.field0);case _:
   return null;
 
 }
@@ -859,6 +865,81 @@ as PolarAlignmentImageEvent,
 }
 
 
+}
+
+/// @nodoc
+
+
+class EventPayload_DepthLock extends EventPayload {
+  const EventPayload_DepthLock(this.field0): super._();
+  
+
+@override final  DepthLockEvent field0;
+
+/// Create a copy of EventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$EventPayload_DepthLockCopyWith<EventPayload_DepthLock> get copyWith => _$EventPayload_DepthLockCopyWithImpl<EventPayload_DepthLock>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EventPayload_DepthLock&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'EventPayload.depthLock(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $EventPayload_DepthLockCopyWith<$Res> implements $EventPayloadCopyWith<$Res> {
+  factory $EventPayload_DepthLockCopyWith(EventPayload_DepthLock value, $Res Function(EventPayload_DepthLock) _then) = _$EventPayload_DepthLockCopyWithImpl;
+@useResult
+$Res call({
+ DepthLockEvent field0
+});
+
+
+$DepthLockEventCopyWith<$Res> get field0;
+
+}
+/// @nodoc
+class _$EventPayload_DepthLockCopyWithImpl<$Res>
+    implements $EventPayload_DepthLockCopyWith<$Res> {
+  _$EventPayload_DepthLockCopyWithImpl(this._self, this._then);
+
+  final EventPayload_DepthLock _self;
+  final $Res Function(EventPayload_DepthLock) _then;
+
+/// Create a copy of EventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(EventPayload_DepthLock(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as DepthLockEvent,
+  ));
+}
+
+/// Create a copy of EventPayload
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DepthLockEventCopyWith<$Res> get field0 {
+  
+  return $DepthLockEventCopyWith<$Res>(_self.field0, (value) {
+    return _then(_self.copyWith(field0: value));
+  });
+}
 }
 
 // dart format on

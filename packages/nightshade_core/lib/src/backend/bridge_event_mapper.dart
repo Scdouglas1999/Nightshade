@@ -85,6 +85,13 @@ bridge.EventPayload _payloadFromCoreEvent(core.NightshadeEvent event) {
         _systemEventFromCore(event.eventType, event.data),
       );
     case core.EventCategory.imaging:
+      // The goal store publishes under `imaging`, so the DepthLock types are
+      // separated by their event type before the imaging fallback collapses
+      // everything else into an exposure event.
+      final depthLock = _depthLockEventFromCore(event.eventType, event.data);
+      if (depthLock != null) {
+        return bridge.EventPayload.depthLock(depthLock);
+      }
       return bridge.EventPayload.imaging(
         _imagingEventFromCore(event.eventType, event.data),
       );
@@ -250,10 +257,75 @@ bridge.SequencerEvent _sequencerEventFromCore(
         current: _intField(data, 'current'),
         total: _intField(data, 'total'),
       );
+    case 'DepthGoalCompleted':
+      return bridge.SequencerEvent.depthGoalCompleted(
+        nodeId: data['node_id'] as String? ?? '',
+        filterName: data['filter_name'] as String? ?? '',
+        goalId: data['goal_id'] as String? ?? '',
+        revision: BigInt.from(_intField(data, 'revision')),
+        evidenceFrames: _intField(data, 'evidence_frames'),
+        confirmationFrames: _intField(data, 'confirmation_frames'),
+        score: _doubleField(data, 'score'),
+        threshold: _doubleField(data, 'threshold'),
+      );
     default:
       return bridge.SequencerEvent.error(
         message: data['message'] as String? ?? eventType,
       );
+  }
+}
+
+/// Rebuild a typed [bridge.DepthLockEvent] from the collapsed envelope, or
+/// null when [eventType] is not one of the goal store's own events.
+///
+/// Returning null rather than throwing keeps this a filter: an imaging event
+/// that is not a DepthLock one falls through to the imaging mapper untouched.
+bridge.DepthLockEvent? _depthLockEventFromCore(
+  String eventType,
+  Map<String, dynamic> data,
+) {
+  switch (eventType) {
+    case 'DepthLockGoalUpdated':
+      return bridge.DepthLockEvent.goalUpdated(
+        goalId: data['goal_id'] as String? ?? '',
+        revision: BigInt.from(_intField(data, 'revision')),
+        filterName: data['filter_name'] as String? ?? '',
+        state: data['state'] as String? ?? '',
+        score: _optionalDouble(data, 'score'),
+        conservativeScore: _optionalDouble(data, 'conservative_score'),
+        threshold: _doubleField(data, 'threshold'),
+        uncertaintyAdu: _optionalDouble(data, 'uncertainty_adu'),
+        coverage: _doubleField(data, 'coverage'),
+        evidenceFrames: _intField(data, 'evidence_frames'),
+        confirmationFrames: _intField(data, 'confirmation_frames'),
+        reason: data['reason'] as String? ?? '',
+        automaticCompletion: data['automatic_completion'] as bool? ?? false,
+        framesRemaining: (data['framesRemaining'] as num?)?.toInt(),
+        // A goal with no forecast yet is not a goal known to be unreachable,
+        // so an absent flag reads as "still reachable" rather than the
+        // discouraging default.
+        reachable: data['reachable'] as bool? ?? true,
+      );
+    case 'DepthLockEvidenceRejected':
+      return bridge.DepthLockEvent.evidenceRejected(
+        goalId: data['goal_id'] as String? ?? '',
+        revision: BigInt.from(_intField(data, 'revision')),
+        sourcePath: data['source_path'] as String? ?? '',
+        reason: data['reason'] as String? ?? '',
+      );
+    case 'DepthLockAnalysisDropped':
+      return bridge.DepthLockEvent.analysisDropped(
+        sourcePath: data['source_path'] as String? ?? '',
+        reason: data['reason'] as String? ?? '',
+      );
+    case 'DepthLockGoalChanged':
+      return bridge.DepthLockEvent.goalChanged(
+        goalId: data['goal_id'] as String? ?? '',
+        revision: BigInt.from(_intField(data, 'revision')),
+        change: data['change'] as String? ?? '',
+      );
+    default:
+      return null;
   }
 }
 

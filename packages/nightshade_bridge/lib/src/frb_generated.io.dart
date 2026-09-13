@@ -9,6 +9,7 @@ import 'api/connection.dart';
 import 'api/connection/alpaca_connections.dart';
 import 'api/connection/ascom_connections.dart';
 import 'api/darkroom/entrypoints.dart';
+import 'api/depthlock.dart';
 import 'api/devices/camera.dart';
 import 'api/devices/cover_calibrator.dart';
 import 'api/devices/dome.dart';
@@ -59,6 +60,7 @@ import 'device.dart';
 import 'device_capabilities/types.dart';
 import 'error.dart';
 import 'event/bus.dart';
+import 'event/depthlock_events.dart';
 import 'event/equipment.dart';
 import 'event/guiding.dart';
 import 'event/imaging.dart';
@@ -137,10 +139,43 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  ApiAcquisitionSettings dco_decode_api_acquisition_settings(dynamic raw);
+
+  @protected
   ApiCombineMethod dco_decode_api_combine_method(dynamic raw);
 
   @protected
   ApiDefectMapStatus dco_decode_api_defect_map_status(dynamic raw);
+
+  @protected
+  ApiDepthCurvePoint dco_decode_api_depth_curve_point(dynamic raw);
+
+  @protected
+  ApiDepthFloorSuggestion dco_decode_api_depth_floor_suggestion(dynamic raw);
+
+  @protected
+  ApiDepthForecast dco_decode_api_depth_forecast(dynamic raw);
+
+  @protected
+  ApiDepthGoal dco_decode_api_depth_goal(dynamic raw);
+
+  @protected
+  ApiDepthGoalDefinition dco_decode_api_depth_goal_definition(dynamic raw);
+
+  @protected
+  ApiDepthIngestOutcome dco_decode_api_depth_ingest_outcome(dynamic raw);
+
+  @protected
+  ApiDepthLockStatus dco_decode_api_depth_lock_status(dynamic raw);
+
+  @protected
+  ApiDepthMeasurement dco_decode_api_depth_measurement(dynamic raw);
+
+  @protected
+  ApiDepthReferenceInfo dco_decode_api_depth_reference_info(dynamic raw);
+
+  @protected
+  ApiDepthReport dco_decode_api_depth_report(dynamic raw);
 
   @protected
   ApiLiveStackingConfig dco_decode_api_live_stacking_config(dynamic raw);
@@ -156,6 +191,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ApiMasterFrameResult dco_decode_api_master_frame_result(dynamic raw);
+
+  @protected
+  ApiReferenceGeometry dco_decode_api_reference_geometry(dynamic raw);
+
+  @protected
+  ApiSkyRectangle dco_decode_api_sky_rectangle(dynamic raw);
 
   @protected
   AppSettings dco_decode_app_settings(dynamic raw);
@@ -185,13 +226,37 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ApiAcquisitionSettings dco_decode_box_autoadd_api_acquisition_settings(
+    dynamic raw,
+  );
+
+  @protected
   ApiCombineMethod dco_decode_box_autoadd_api_combine_method(dynamic raw);
 
   @protected
   ApiDefectMapStatus dco_decode_box_autoadd_api_defect_map_status(dynamic raw);
 
   @protected
+  ApiDepthForecast dco_decode_box_autoadd_api_depth_forecast(dynamic raw);
+
+  @protected
+  ApiDepthGoalDefinition dco_decode_box_autoadd_api_depth_goal_definition(
+    dynamic raw,
+  );
+
+  @protected
+  ApiDepthMeasurement dco_decode_box_autoadd_api_depth_measurement(dynamic raw);
+
+  @protected
+  ApiDepthReport dco_decode_box_autoadd_api_depth_report(dynamic raw);
+
+  @protected
   ApiLiveStackingConfig dco_decode_box_autoadd_api_live_stacking_config(
+    dynamic raw,
+  );
+
+  @protected
+  ApiReferenceGeometry dco_decode_box_autoadd_api_reference_geometry(
     dynamic raw,
   );
 
@@ -219,6 +284,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoverState dco_decode_box_autoadd_cover_state(dynamic raw);
+
+  @protected
+  DepthLockEvent dco_decode_box_autoadd_depth_lock_event(dynamic raw);
 
   @protected
   DomeCapabilities dco_decode_box_autoadd_dome_capabilities(dynamic raw);
@@ -410,6 +478,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DebayerAlgorithmApi dco_decode_debayer_algorithm_api(dynamic raw);
 
   @protected
+  DepthLockEvent dco_decode_depth_lock_event(dynamic raw);
+
+  @protected
   DetectedStarInfo dco_decode_detected_star_info(dynamic raw);
 
   @protected
@@ -531,6 +602,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<ApiDepthCurvePoint> dco_decode_list_api_depth_curve_point(dynamic raw);
+
+  @protected
+  List<ApiDepthGoal> dco_decode_list_api_depth_goal(dynamic raw);
 
   @protected
   List<bool> dco_decode_list_bool(dynamic raw);
@@ -680,7 +757,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ApiAcquisitionSettings? dco_decode_opt_box_autoadd_api_acquisition_settings(
+    dynamic raw,
+  );
+
+  @protected
   ApiDefectMapStatus? dco_decode_opt_box_autoadd_api_defect_map_status(
+    dynamic raw,
+  );
+
+  @protected
+  ApiDepthForecast? dco_decode_opt_box_autoadd_api_depth_forecast(dynamic raw);
+
+  @protected
+  ApiDepthReport? dco_decode_opt_box_autoadd_api_depth_report(dynamic raw);
+
+  @protected
+  ApiReferenceGeometry? dco_decode_opt_box_autoadd_api_reference_geometry(
     dynamic raw,
   );
 
@@ -1020,12 +1113,61 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  ApiAcquisitionSettings sse_decode_api_acquisition_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ApiCombineMethod sse_decode_api_combine_method(SseDeserializer deserializer);
 
   @protected
   ApiDefectMapStatus sse_decode_api_defect_map_status(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ApiDepthCurvePoint sse_decode_api_depth_curve_point(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthFloorSuggestion sse_decode_api_depth_floor_suggestion(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthForecast sse_decode_api_depth_forecast(SseDeserializer deserializer);
+
+  @protected
+  ApiDepthGoal sse_decode_api_depth_goal(SseDeserializer deserializer);
+
+  @protected
+  ApiDepthGoalDefinition sse_decode_api_depth_goal_definition(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthIngestOutcome sse_decode_api_depth_ingest_outcome(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthLockStatus sse_decode_api_depth_lock_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthMeasurement sse_decode_api_depth_measurement(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthReferenceInfo sse_decode_api_depth_reference_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthReport sse_decode_api_depth_report(SseDeserializer deserializer);
 
   @protected
   ApiLiveStackingConfig sse_decode_api_live_stacking_config(
@@ -1051,6 +1193,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ApiMasterFrameResult sse_decode_api_master_frame_result(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ApiReferenceGeometry sse_decode_api_reference_geometry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiSkyRectangle sse_decode_api_sky_rectangle(SseDeserializer deserializer);
 
   @protected
   AppSettings sse_decode_app_settings(SseDeserializer deserializer);
@@ -1084,6 +1234,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ApiAcquisitionSettings sse_decode_box_autoadd_api_acquisition_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ApiCombineMethod sse_decode_box_autoadd_api_combine_method(
     SseDeserializer deserializer,
   );
@@ -1094,7 +1249,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ApiDepthForecast sse_decode_box_autoadd_api_depth_forecast(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthGoalDefinition sse_decode_box_autoadd_api_depth_goal_definition(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthMeasurement sse_decode_box_autoadd_api_depth_measurement(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthReport sse_decode_box_autoadd_api_depth_report(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ApiLiveStackingConfig sse_decode_box_autoadd_api_live_stacking_config(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiReferenceGeometry sse_decode_box_autoadd_api_reference_geometry(
     SseDeserializer deserializer,
   );
 
@@ -1132,6 +1312,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoverState sse_decode_box_autoadd_cover_state(SseDeserializer deserializer);
+
+  @protected
+  DepthLockEvent sse_decode_box_autoadd_depth_lock_event(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DomeCapabilities sse_decode_box_autoadd_dome_capabilities(
@@ -1375,6 +1560,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DepthLockEvent sse_decode_depth_lock_event(SseDeserializer deserializer);
+
+  @protected
   DetectedStarInfo sse_decode_detected_star_info(SseDeserializer deserializer);
 
   @protected
@@ -1520,6 +1708,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ApiDepthCurvePoint> sse_decode_list_api_depth_curve_point(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ApiDepthGoal> sse_decode_list_api_depth_goal(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<bool> sse_decode_list_bool(SseDeserializer deserializer);
@@ -1707,7 +1905,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ApiAcquisitionSettings? sse_decode_opt_box_autoadd_api_acquisition_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ApiDefectMapStatus? sse_decode_opt_box_autoadd_api_defect_map_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthForecast? sse_decode_opt_box_autoadd_api_depth_forecast(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiDepthReport? sse_decode_opt_box_autoadd_api_depth_report(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiReferenceGeometry? sse_decode_opt_box_autoadd_api_reference_geometry(
     SseDeserializer deserializer,
   );
 
@@ -2163,6 +2381,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_api_acquisition_settings>
+  cst_encode_box_autoadd_api_acquisition_settings(ApiAcquisitionSettings raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_acquisition_settings();
+    cst_api_fill_to_wire_api_acquisition_settings(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_api_combine_method>
   cst_encode_box_autoadd_api_combine_method(ApiCombineMethod raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -2181,11 +2408,56 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_api_depth_forecast>
+  cst_encode_box_autoadd_api_depth_forecast(ApiDepthForecast raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_depth_forecast();
+    cst_api_fill_to_wire_api_depth_forecast(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_depth_goal_definition>
+  cst_encode_box_autoadd_api_depth_goal_definition(ApiDepthGoalDefinition raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_depth_goal_definition();
+    cst_api_fill_to_wire_api_depth_goal_definition(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_depth_measurement>
+  cst_encode_box_autoadd_api_depth_measurement(ApiDepthMeasurement raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_depth_measurement();
+    cst_api_fill_to_wire_api_depth_measurement(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_depth_report>
+  cst_encode_box_autoadd_api_depth_report(ApiDepthReport raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_depth_report();
+    cst_api_fill_to_wire_api_depth_report(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_api_live_stacking_config>
   cst_encode_box_autoadd_api_live_stacking_config(ApiLiveStackingConfig raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_api_live_stacking_config();
     cst_api_fill_to_wire_api_live_stacking_config(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_reference_geometry>
+  cst_encode_box_autoadd_api_reference_geometry(ApiReferenceGeometry raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_reference_geometry();
+    cst_api_fill_to_wire_api_reference_geometry(raw, ptr.ref);
     return ptr;
   }
 
@@ -2257,6 +2529,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ffi.Pointer<ffi.Int32> cst_encode_box_autoadd_cover_state(CoverState raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return wire.cst_new_box_autoadd_cover_state(cst_encode_cover_state(raw));
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_depth_lock_event>
+  cst_encode_box_autoadd_depth_lock_event(DepthLockEvent raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_depth_lock_event();
+    cst_api_fill_to_wire_depth_lock_event(raw, ptr.ref);
+    return ptr;
   }
 
   @protected
@@ -2634,6 +2915,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     final ans = wire.cst_new_list_String(raw.length);
     for (var i = 0; i < raw.length; ++i) {
       ans.ref.ptr[i] = cst_encode_String(raw[i]);
+    }
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_api_depth_curve_point>
+  cst_encode_list_api_depth_curve_point(List<ApiDepthCurvePoint> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_api_depth_curve_point(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_api_depth_curve_point(raw[i], ans.ref.ptr[i]);
+    }
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_api_depth_goal> cst_encode_list_api_depth_goal(
+    List<ApiDepthGoal> raw,
+  ) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_api_depth_goal(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_api_depth_goal(raw[i], ans.ref.ptr[i]);
     }
     return ans;
   }
@@ -3019,12 +3323,50 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_api_acquisition_settings>
+  cst_encode_opt_box_autoadd_api_acquisition_settings(
+    ApiAcquisitionSettings? raw,
+  ) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_api_acquisition_settings(raw);
+  }
+
+  @protected
   ffi.Pointer<wire_cst_api_defect_map_status>
   cst_encode_opt_box_autoadd_api_defect_map_status(ApiDefectMapStatus? raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null
         ? ffi.nullptr
         : cst_encode_box_autoadd_api_defect_map_status(raw);
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_depth_forecast>
+  cst_encode_opt_box_autoadd_api_depth_forecast(ApiDepthForecast? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_api_depth_forecast(raw);
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_depth_report>
+  cst_encode_opt_box_autoadd_api_depth_report(ApiDepthReport? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_api_depth_report(raw);
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_reference_geometry>
+  cst_encode_opt_box_autoadd_api_reference_geometry(ApiReferenceGeometry? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_api_reference_geometry(raw);
   }
 
   @protected
@@ -3205,6 +3547,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_api_acquisition_settings(
+    ApiAcquisitionSettings apiObj,
+    wire_cst_api_acquisition_settings wireObj,
+  ) {
+    wireObj.instrument = cst_encode_String(apiObj.instrument);
+    wireObj.filter = cst_encode_String(apiObj.filter);
+    wireObj.exposure_secs = cst_encode_f_64(apiObj.exposureSecs);
+    wireObj.gain = cst_encode_opt_box_autoadd_i_32(apiObj.gain);
+    wireObj.offset = cst_encode_opt_box_autoadd_i_32(apiObj.offset);
+    wireObj.bin_x = cst_encode_i_32(apiObj.binX);
+    wireObj.bin_y = cst_encode_i_32(apiObj.binY);
+    wireObj.ccd_temp_c = cst_encode_opt_box_autoadd_f_64(apiObj.ccdTempC);
+  }
+
+  @protected
   void cst_api_fill_to_wire_api_combine_method(
     ApiCombineMethod apiObj,
     wire_cst_api_combine_method wireObj,
@@ -3233,6 +3590,191 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     );
     wireObj.apply_during_capture = cst_encode_bool(apiObj.applyDuringCapture);
     wireObj.stored_on_disk = cst_encode_bool(apiObj.storedOnDisk);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_curve_point(
+    ApiDepthCurvePoint apiObj,
+    wire_cst_api_depth_curve_point wireObj,
+  ) {
+    wireObj.frames = cst_encode_u_32(apiObj.frames);
+    wireObj.score = cst_encode_f_64(apiObj.score);
+    wireObj.conservative_score = cst_encode_f_64(apiObj.conservativeScore);
+    wireObj.projected = cst_encode_bool(apiObj.projected);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_floor_suggestion(
+    ApiDepthFloorSuggestion apiObj,
+    wire_cst_api_depth_floor_suggestion wireObj,
+  ) {
+    wireObj.floor_adu = cst_encode_f_64(apiObj.floorAdu);
+    wireObj.dark_noise_adu = cst_encode_f_64(apiObj.darkNoiseAdu);
+    wireObj.flat_relative_noise = cst_encode_f_64(apiObj.flatRelativeNoise);
+    wireObj.sky_adu = cst_encode_f_64(apiObj.skyAdu);
+    wireObj.aperture_pixels = cst_encode_f_64(apiObj.aperturePixels);
+    wireObj.source = cst_encode_String(apiObj.source);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_forecast(
+    ApiDepthForecast apiObj,
+    wire_cst_api_depth_forecast wireObj,
+  ) {
+    wireObj.frames_to_threshold = cst_encode_u_32(apiObj.framesToThreshold);
+    wireObj.frames_to_confirm = cst_encode_u_32(apiObj.framesToConfirm);
+    wireObj.reachable = cst_encode_bool(apiObj.reachable);
+    wireObj.ceiling_score = cst_encode_f_64(apiObj.ceilingScore);
+    wireObj.per_frame_noise_adu = cst_encode_f_64(apiObj.perFrameNoiseAdu);
+    wireObj.recent_frame_noise_adu = cst_encode_f_64(
+      apiObj.recentFrameNoiseAdu,
+    );
+    wireObj.best_frame_noise_adu = cst_encode_f_64(apiObj.bestFrameNoiseAdu);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_goal(
+    ApiDepthGoal apiObj,
+    wire_cst_api_depth_goal wireObj,
+  ) {
+    wireObj.id = cst_encode_String(apiObj.id);
+    wireObj.revision = cst_encode_u_64(apiObj.revision);
+    cst_api_fill_to_wire_api_depth_goal_definition(
+      apiObj.definition,
+      wireObj.definition,
+    );
+    wireObj.selected_at_ms = cst_encode_i_64(apiObj.selectedAtMs);
+    wireObj.evidence_frames = cst_encode_u_32(apiObj.evidenceFrames);
+    wireObj.evidence_revision = cst_encode_u_64(apiObj.evidenceRevision);
+    wireObj.analysis_current = cst_encode_bool(apiObj.analysisCurrent);
+    wireObj.report = cst_encode_opt_box_autoadd_api_depth_report(apiObj.report);
+    wireObj.candidate_frames = cst_encode_u_32(apiObj.candidateFrames);
+    wireObj.last_issue = cst_encode_opt_String(apiObj.lastIssue);
+    wireObj.archived_revisions = cst_encode_u_32(apiObj.archivedRevisions);
+    wireObj.estimator_version = cst_encode_u_32(apiObj.estimatorVersion);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_goal_definition(
+    ApiDepthGoalDefinition apiObj,
+    wire_cst_api_depth_goal_definition wireObj,
+  ) {
+    wireObj.label = cst_encode_String(apiObj.label);
+    wireObj.project_id = cst_encode_String(apiObj.projectId);
+    wireObj.target_id = cst_encode_String(apiObj.targetId);
+    wireObj.profile_id = cst_encode_String(apiObj.profileId);
+    wireObj.filter_name = cst_encode_String(apiObj.filterName);
+    wireObj.filter_index = cst_encode_opt_box_autoadd_i_32(apiObj.filterIndex);
+    wireObj.reference_path = cst_encode_String(apiObj.referencePath);
+    cst_api_fill_to_wire_api_reference_geometry(
+      apiObj.reference,
+      wireObj.reference,
+    );
+    cst_api_fill_to_wire_api_acquisition_settings(
+      apiObj.acquisition,
+      wireObj.acquisition,
+    );
+    wireObj.temperature_tolerance_c = cst_encode_f_64(
+      apiObj.temperatureToleranceC,
+    );
+    wireObj.dark_path = cst_encode_String(apiObj.darkPath);
+    wireObj.flat_path = cst_encode_String(apiObj.flatPath);
+    cst_api_fill_to_wire_api_depth_measurement(
+      apiObj.measurement,
+      wireObj.measurement,
+    );
+    wireObj.enabled = cst_encode_bool(apiObj.enabled);
+    wireObj.automatic_completion = cst_encode_bool(apiObj.automaticCompletion);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_ingest_outcome(
+    ApiDepthIngestOutcome apiObj,
+    wire_cst_api_depth_ingest_outcome wireObj,
+  ) {
+    wireObj.outcome = cst_encode_String(apiObj.outcome);
+    wireObj.state = cst_encode_opt_String(apiObj.state);
+    wireObj.reason = cst_encode_opt_String(apiObj.reason);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_lock_status(
+    ApiDepthLockStatus apiObj,
+    wire_cst_api_depth_lock_status wireObj,
+  ) {
+    wireObj.available = cst_encode_bool(apiObj.available);
+    wireObj.goals = cst_encode_u_32(apiObj.goals);
+    wireObj.queue_capacity = cst_encode_u_32(apiObj.queueCapacity);
+    wireObj.queued = cst_encode_u_64(apiObj.queued);
+    wireObj.processed = cst_encode_u_64(apiObj.processed);
+    wireObj.dropped = cst_encode_u_64(apiObj.dropped);
+    wireObj.evidence_added = cst_encode_u_64(apiObj.evidenceAdded);
+    wireObj.evidence_rejected = cst_encode_u_64(apiObj.evidenceRejected);
+    wireObj.last_frame_ms = cst_encode_u_64(apiObj.lastFrameMs);
+    wireObj.max_frame_ms = cst_encode_u_64(apiObj.maxFrameMs);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_measurement(
+    ApiDepthMeasurement apiObj,
+    wire_cst_api_depth_measurement wireObj,
+  ) {
+    cst_api_fill_to_wire_api_sky_rectangle(apiObj.region, wireObj.region);
+    cst_api_fill_to_wire_api_sky_rectangle(
+      apiObj.background,
+      wireObj.background,
+    );
+    wireObj.scale_arcsec = cst_encode_f_64(apiObj.scaleArcsec);
+    wireObj.threshold = cst_encode_f_64(apiObj.threshold);
+    wireObj.min_coverage = cst_encode_f_64(apiObj.minCoverage);
+    wireObj.systematic_floor_adu = cst_encode_f_64(apiObj.systematicFloorAdu);
+    wireObj.systematic_floor_source = cst_encode_String(
+      apiObj.systematicFloorSource,
+    );
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_reference_info(
+    ApiDepthReferenceInfo apiObj,
+    wire_cst_api_depth_reference_info wireObj,
+  ) {
+    wireObj.width = cst_encode_u_32(apiObj.width);
+    wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.pixel_type = cst_encode_String(apiObj.pixelType);
+    wireObj.monochrome = cst_encode_bool(apiObj.monochrome);
+    wireObj.geometry = cst_encode_opt_box_autoadd_api_reference_geometry(
+      apiObj.geometry,
+    );
+    wireObj.geometry_issue = cst_encode_opt_String(apiObj.geometryIssue);
+    wireObj.pixel_scale_arcsec = cst_encode_opt_box_autoadd_f_64(
+      apiObj.pixelScaleArcsec,
+    );
+    wireObj.acquisition = cst_encode_opt_box_autoadd_api_acquisition_settings(
+      apiObj.acquisition,
+    );
+    wireObj.acquisition_issue = cst_encode_opt_String(apiObj.acquisitionIssue);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_depth_report(
+    ApiDepthReport apiObj,
+    wire_cst_api_depth_report wireObj,
+  ) {
+    wireObj.state = cst_encode_String(apiObj.state);
+    wireObj.score = cst_encode_opt_box_autoadd_f_64(apiObj.score);
+    wireObj.conservative_score = cst_encode_opt_box_autoadd_f_64(
+      apiObj.conservativeScore,
+    );
+    wireObj.uncertainty_adu = cst_encode_opt_box_autoadd_f_64(
+      apiObj.uncertaintyAdu,
+    );
+    wireObj.coverage = cst_encode_f_64(apiObj.coverage);
+    wireObj.evidence_frames = cst_encode_u_32(apiObj.evidenceFrames);
+    wireObj.confirmation_frames = cst_encode_u_32(apiObj.confirmationFrames);
+    wireObj.reason = cst_encode_String(apiObj.reason);
+    wireObj.forecast = cst_encode_opt_box_autoadd_api_depth_forecast(
+      apiObj.forecast,
+    );
   }
 
   @protected
@@ -3315,6 +3857,35 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_api_reference_geometry(
+    ApiReferenceGeometry apiObj,
+    wire_cst_api_reference_geometry wireObj,
+  ) {
+    wireObj.width = cst_encode_u_32(apiObj.width);
+    wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.crval1 = cst_encode_f_64(apiObj.crval1);
+    wireObj.crval2 = cst_encode_f_64(apiObj.crval2);
+    wireObj.crpix1 = cst_encode_f_64(apiObj.crpix1);
+    wireObj.crpix2 = cst_encode_f_64(apiObj.crpix2);
+    wireObj.cd1_1 = cst_encode_f_64(apiObj.cd11);
+    wireObj.cd1_2 = cst_encode_f_64(apiObj.cd12);
+    wireObj.cd2_1 = cst_encode_f_64(apiObj.cd21);
+    wireObj.cd2_2 = cst_encode_f_64(apiObj.cd22);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_sky_rectangle(
+    ApiSkyRectangle apiObj,
+    wire_cst_api_sky_rectangle wireObj,
+  ) {
+    wireObj.ra_deg = cst_encode_f_64(apiObj.raDeg);
+    wireObj.dec_deg = cst_encode_f_64(apiObj.decDeg);
+    wireObj.width_arcsec = cst_encode_f_64(apiObj.widthArcsec);
+    wireObj.height_arcsec = cst_encode_f_64(apiObj.heightArcsec);
+    wireObj.rotation_deg = cst_encode_f_64(apiObj.rotationDeg);
+  }
+
+  @protected
   void cst_api_fill_to_wire_app_settings(
     AppSettings apiObj,
     wire_cst_app_settings wireObj,
@@ -3369,6 +3940,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_box_autoadd_api_acquisition_settings(
+    ApiAcquisitionSettings apiObj,
+    ffi.Pointer<wire_cst_api_acquisition_settings> wireObj,
+  ) {
+    cst_api_fill_to_wire_api_acquisition_settings(apiObj, wireObj.ref);
+  }
+
+  @protected
   void cst_api_fill_to_wire_box_autoadd_api_combine_method(
     ApiCombineMethod apiObj,
     ffi.Pointer<wire_cst_api_combine_method> wireObj,
@@ -3385,11 +3964,51 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_box_autoadd_api_depth_forecast(
+    ApiDepthForecast apiObj,
+    ffi.Pointer<wire_cst_api_depth_forecast> wireObj,
+  ) {
+    cst_api_fill_to_wire_api_depth_forecast(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_api_depth_goal_definition(
+    ApiDepthGoalDefinition apiObj,
+    ffi.Pointer<wire_cst_api_depth_goal_definition> wireObj,
+  ) {
+    cst_api_fill_to_wire_api_depth_goal_definition(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_api_depth_measurement(
+    ApiDepthMeasurement apiObj,
+    ffi.Pointer<wire_cst_api_depth_measurement> wireObj,
+  ) {
+    cst_api_fill_to_wire_api_depth_measurement(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_api_depth_report(
+    ApiDepthReport apiObj,
+    ffi.Pointer<wire_cst_api_depth_report> wireObj,
+  ) {
+    cst_api_fill_to_wire_api_depth_report(apiObj, wireObj.ref);
+  }
+
+  @protected
   void cst_api_fill_to_wire_box_autoadd_api_live_stacking_config(
     ApiLiveStackingConfig apiObj,
     ffi.Pointer<wire_cst_api_live_stacking_config> wireObj,
   ) {
     cst_api_fill_to_wire_api_live_stacking_config(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_api_reference_geometry(
+    ApiReferenceGeometry apiObj,
+    ffi.Pointer<wire_cst_api_reference_geometry> wireObj,
+  ) {
+    cst_api_fill_to_wire_api_reference_geometry(apiObj, wireObj.ref);
   }
 
   @protected
@@ -3430,6 +4049,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ffi.Pointer<wire_cst_cover_calibrator_capabilities> wireObj,
   ) {
     cst_api_fill_to_wire_cover_calibrator_capabilities(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_depth_lock_event(
+    DepthLockEvent apiObj,
+    ffi.Pointer<wire_cst_depth_lock_event> wireObj,
+  ) {
+    cst_api_fill_to_wire_depth_lock_event(apiObj, wireObj.ref);
   }
 
   @protected
@@ -3859,6 +4486,85 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.is_color = cst_encode_bool(apiObj.isColor);
     wireObj.rgba = cst_encode_list_prim_u_8_strict(apiObj.rgba);
     wireObj.report_json = cst_encode_String(apiObj.reportJson);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_depth_lock_event(
+    DepthLockEvent apiObj,
+    wire_cst_depth_lock_event wireObj,
+  ) {
+    if (apiObj is DepthLockEvent_GoalUpdated) {
+      var pre_goal_id = cst_encode_String(apiObj.goalId);
+      var pre_revision = cst_encode_u_64(apiObj.revision);
+      var pre_filter_name = cst_encode_String(apiObj.filterName);
+      var pre_state = cst_encode_String(apiObj.state);
+      var pre_score = cst_encode_opt_box_autoadd_f_64(apiObj.score);
+      var pre_conservative_score = cst_encode_opt_box_autoadd_f_64(
+        apiObj.conservativeScore,
+      );
+      var pre_threshold = cst_encode_f_64(apiObj.threshold);
+      var pre_uncertainty_adu = cst_encode_opt_box_autoadd_f_64(
+        apiObj.uncertaintyAdu,
+      );
+      var pre_coverage = cst_encode_f_64(apiObj.coverage);
+      var pre_evidence_frames = cst_encode_u_32(apiObj.evidenceFrames);
+      var pre_confirmation_frames = cst_encode_u_32(apiObj.confirmationFrames);
+      var pre_reason = cst_encode_String(apiObj.reason);
+      var pre_automatic_completion = cst_encode_bool(
+        apiObj.automaticCompletion,
+      );
+      var pre_frames_remaining = cst_encode_opt_box_autoadd_u_32(
+        apiObj.framesRemaining,
+      );
+      var pre_reachable = cst_encode_bool(apiObj.reachable);
+      wireObj.tag = 0;
+      wireObj.kind.GoalUpdated.goal_id = pre_goal_id;
+      wireObj.kind.GoalUpdated.revision = pre_revision;
+      wireObj.kind.GoalUpdated.filter_name = pre_filter_name;
+      wireObj.kind.GoalUpdated.state = pre_state;
+      wireObj.kind.GoalUpdated.score = pre_score;
+      wireObj.kind.GoalUpdated.conservative_score = pre_conservative_score;
+      wireObj.kind.GoalUpdated.threshold = pre_threshold;
+      wireObj.kind.GoalUpdated.uncertainty_adu = pre_uncertainty_adu;
+      wireObj.kind.GoalUpdated.coverage = pre_coverage;
+      wireObj.kind.GoalUpdated.evidence_frames = pre_evidence_frames;
+      wireObj.kind.GoalUpdated.confirmation_frames = pre_confirmation_frames;
+      wireObj.kind.GoalUpdated.reason = pre_reason;
+      wireObj.kind.GoalUpdated.automatic_completion = pre_automatic_completion;
+      wireObj.kind.GoalUpdated.frames_remaining = pre_frames_remaining;
+      wireObj.kind.GoalUpdated.reachable = pre_reachable;
+      return;
+    }
+    if (apiObj is DepthLockEvent_EvidenceRejected) {
+      var pre_goal_id = cst_encode_String(apiObj.goalId);
+      var pre_revision = cst_encode_u_64(apiObj.revision);
+      var pre_source_path = cst_encode_String(apiObj.sourcePath);
+      var pre_reason = cst_encode_String(apiObj.reason);
+      wireObj.tag = 1;
+      wireObj.kind.EvidenceRejected.goal_id = pre_goal_id;
+      wireObj.kind.EvidenceRejected.revision = pre_revision;
+      wireObj.kind.EvidenceRejected.source_path = pre_source_path;
+      wireObj.kind.EvidenceRejected.reason = pre_reason;
+      return;
+    }
+    if (apiObj is DepthLockEvent_AnalysisDropped) {
+      var pre_source_path = cst_encode_String(apiObj.sourcePath);
+      var pre_reason = cst_encode_String(apiObj.reason);
+      wireObj.tag = 2;
+      wireObj.kind.AnalysisDropped.source_path = pre_source_path;
+      wireObj.kind.AnalysisDropped.reason = pre_reason;
+      return;
+    }
+    if (apiObj is DepthLockEvent_GoalChanged) {
+      var pre_goal_id = cst_encode_String(apiObj.goalId);
+      var pre_revision = cst_encode_u_64(apiObj.revision);
+      var pre_change = cst_encode_String(apiObj.change);
+      wireObj.tag = 3;
+      wireObj.kind.GoalChanged.goal_id = pre_goal_id;
+      wireObj.kind.GoalChanged.revision = pre_revision;
+      wireObj.kind.GoalChanged.change = pre_change;
+      return;
+    }
   }
 
   @protected
@@ -4383,6 +5089,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       );
       wireObj.tag = 8;
       wireObj.kind.PolarAlignmentImage.field0 = pre_field0;
+      return;
+    }
+    if (apiObj is EventPayload_DepthLock) {
+      var pre_field0 = cst_encode_box_autoadd_depth_lock_event(apiObj.field0);
+      wireObj.tag = 9;
+      wireObj.kind.DepthLock.field0 = pre_field0;
       return;
     }
   }
@@ -6148,6 +6860,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wireObj.kind.InstructionProgressStructured.detail_json = pre_detail_json;
       return;
     }
+    if (apiObj is SequencerEvent_DepthGoalCompleted) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_filter_name = cst_encode_String(apiObj.filterName);
+      var pre_goal_id = cst_encode_String(apiObj.goalId);
+      var pre_revision = cst_encode_u_64(apiObj.revision);
+      var pre_evidence_frames = cst_encode_u_32(apiObj.evidenceFrames);
+      var pre_confirmation_frames = cst_encode_u_32(apiObj.confirmationFrames);
+      var pre_score = cst_encode_f_64(apiObj.score);
+      var pre_threshold = cst_encode_f_64(apiObj.threshold);
+      wireObj.tag = 18;
+      wireObj.kind.DepthGoalCompleted.node_id = pre_node_id;
+      wireObj.kind.DepthGoalCompleted.filter_name = pre_filter_name;
+      wireObj.kind.DepthGoalCompleted.goal_id = pre_goal_id;
+      wireObj.kind.DepthGoalCompleted.revision = pre_revision;
+      wireObj.kind.DepthGoalCompleted.evidence_frames = pre_evidence_frames;
+      wireObj.kind.DepthGoalCompleted.confirmation_frames =
+          pre_confirmation_frames;
+      wireObj.kind.DepthGoalCompleted.score = pre_score;
+      wireObj.kind.DepthGoalCompleted.threshold = pre_threshold;
+      return;
+    }
     if (apiObj is SequencerEvent_FrameAccepted) {
       var pre_node_id = cst_encode_String(apiObj.nodeId);
       var pre_frame = cst_encode_u_32(apiObj.frame);
@@ -6163,7 +6896,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_capture = cst_encode_box_autoadd_frame_capture_metadata(
         apiObj.capture,
       );
-      wireObj.tag = 18;
+      wireObj.tag = 19;
       wireObj.kind.FrameAccepted.node_id = pre_node_id;
       wireObj.kind.FrameAccepted.frame = pre_frame;
       wireObj.kind.FrameAccepted.total = pre_total;
@@ -6212,7 +6945,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_capture = cst_encode_box_autoadd_frame_capture_metadata(
         apiObj.capture,
       );
-      wireObj.tag = 19;
+      wireObj.tag = 20;
       wireObj.kind.FrameRejected.node_id = pre_node_id;
       wireObj.kind.FrameRejected.frame = pre_frame;
       wireObj.kind.FrameRejected.total = pre_total;
@@ -6249,7 +6982,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
         apiObj.pickedScore,
       );
       var pre_scores = cst_encode_list_scheduler_score_entry(apiObj.scores);
-      wireObj.tag = 20;
+      wireObj.tag = 21;
       wireObj.kind.SchedulerDecision.node_id = pre_node_id;
       wireObj.kind.SchedulerDecision.decision_counter = pre_decision_counter;
       wireObj.kind.SchedulerDecision.picked_target_id = pre_picked_target_id;
@@ -6266,7 +6999,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_budget_secs = cst_encode_f_64(apiObj.budgetSecs);
       var pre_fraction = cst_encode_f_64(apiObj.fraction);
       var pre_budget_met = cst_encode_bool(apiObj.budgetMet);
-      wireObj.tag = 21;
+      wireObj.tag = 22;
       wireObj.kind.IntegrationBudget.target_id = pre_target_id;
       wireObj.kind.IntegrationBudget.filter = pre_filter;
       wireObj.kind.IntegrationBudget.completed_secs = pre_completed_secs;
@@ -6284,7 +7017,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       );
       var pre_filter = cst_encode_opt_String(apiObj.filter);
       var pre_reason = cst_encode_String(apiObj.reason);
-      wireObj.tag = 22;
+      wireObj.tag = 23;
       wireObj.kind.ExposureAdjusted.node_id = pre_node_id;
       wireObj.kind.ExposureAdjusted.adapted_secs = pre_adapted_secs;
       wireObj.kind.ExposureAdjusted.nominal_secs = pre_nominal_secs;
@@ -6310,7 +7043,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_reject_reason = cst_encode_opt_String(apiObj.rejectReason);
       var pre_reduce_live = cst_encode_bool(apiObj.reduceLive);
       var pre_apply_differential = cst_encode_bool(apiObj.applyDifferential);
-      wireObj.tag = 23;
+      wireObj.tag = 24;
       wireObj.kind.PhotometryFrame.node_id = pre_node_id;
       wireObj.kind.PhotometryFrame.target_designation = pre_target_designation;
       wireObj.kind.PhotometryFrame.reference_stars = pre_reference_stars;
@@ -6336,7 +7069,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_gap_secs = cst_encode_f_64(apiObj.gapSecs);
       var pre_max_gap_secs = cst_encode_f_64(apiObj.maxGapSecs);
       var pre_cadence_breaks = cst_encode_u_32(apiObj.cadenceBreaks);
-      wireObj.tag = 24;
+      wireObj.tag = 25;
       wireObj.kind.PhotometryCadenceBroken.node_id = pre_node_id;
       wireObj.kind.PhotometryCadenceBroken.frame = pre_frame;
       wireObj.kind.PhotometryCadenceBroken.total = pre_total;
@@ -6354,7 +7087,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_last_reject_reason = cst_encode_opt_String(
         apiObj.lastRejectReason,
       );
-      wireObj.tag = 25;
+      wireObj.tag = 26;
       wireObj.kind.PhotometrySummary.node_id = pre_node_id;
       wireObj.kind.PhotometrySummary.target_designation =
           pre_target_designation;
@@ -6380,7 +7113,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
-      wireObj.tag = 26;
+      wireObj.tag = 27;
       wireObj.kind.RecoveryStarted.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryStarted.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryStarted.cause_custom_label = pre_cause_custom_label;
@@ -6410,7 +7143,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
-      wireObj.tag = 27;
+      wireObj.tag = 28;
       wireObj.kind.RecoveryProgress.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryProgress.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryProgress.cause_custom_label = pre_cause_custom_label;
@@ -6440,7 +7173,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
-      wireObj.tag = 28;
+      wireObj.tag = 29;
       wireObj.kind.RecoveryCompleted.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryCompleted.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryCompleted.cause_custom_label =
@@ -6472,7 +7205,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
       var pre_aborted_by_user = cst_encode_bool(apiObj.abortedByUser);
-      wireObj.tag = 29;
+      wireObj.tag = 30;
       wireObj.kind.RecoveryGaveUp.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryGaveUp.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryGaveUp.cause_custom_label = pre_cause_custom_label;
@@ -6493,7 +7226,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_config_json = cst_encode_String(apiObj.configJson);
       var pre_display_name = cst_encode_opt_String(apiObj.displayName);
       var pre_timeout_secs = cst_encode_u_32(apiObj.timeoutSecs);
-      wireObj.tag = 30;
+      wireObj.tag = 31;
       wireObj.kind.PluginNodeRequested.node_id = pre_node_id;
       wireObj.kind.PluginNodeRequested.plugin_id = pre_plugin_id;
       wireObj.kind.PluginNodeRequested.node_type_id = pre_node_type_id;
@@ -6507,7 +7240,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_plugin_id = cst_encode_String(apiObj.pluginId);
       var pre_node_type_id = cst_encode_String(apiObj.nodeTypeId);
       var pre_detail_json = cst_encode_String(apiObj.detailJson);
-      wireObj.tag = 31;
+      wireObj.tag = 32;
       wireObj.kind.PluginNodeProgress.node_id = pre_node_id;
       wireObj.kind.PluginNodeProgress.plugin_id = pre_plugin_id;
       wireObj.kind.PluginNodeProgress.node_type_id = pre_node_type_id;
@@ -6523,7 +7256,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_sequence_run_id = cst_encode_opt_box_autoadd_i_64(
         apiObj.sequenceRunId,
       );
-      wireObj.tag = 32;
+      wireObj.tag = 33;
       wireObj.kind.DecisionLogged.timestamp_iso = pre_timestamp_iso;
       wireObj.kind.DecisionLogged.category = pre_category;
       wireObj.kind.DecisionLogged.summary = pre_summary;
@@ -7017,6 +7750,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_api_acquisition_settings(
+    ApiAcquisitionSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_api_combine_method(
     ApiCombineMethod self,
     SseSerializer serializer,
@@ -7025,6 +7764,63 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_api_defect_map_status(
     ApiDefectMapStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_curve_point(
+    ApiDepthCurvePoint self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_floor_suggestion(
+    ApiDepthFloorSuggestion self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_forecast(
+    ApiDepthForecast self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_goal(ApiDepthGoal self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_depth_goal_definition(
+    ApiDepthGoalDefinition self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_ingest_outcome(
+    ApiDepthIngestOutcome self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_lock_status(
+    ApiDepthLockStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_measurement(
+    ApiDepthMeasurement self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_reference_info(
+    ApiDepthReferenceInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_depth_report(
+    ApiDepthReport self,
     SseSerializer serializer,
   );
 
@@ -7055,6 +7851,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_api_master_frame_result(
     ApiMasterFrameResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_reference_geometry(
+    ApiReferenceGeometry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_sky_rectangle(
+    ApiSkyRectangle self,
     SseSerializer serializer,
   );
 
@@ -7097,6 +7905,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_api_acquisition_settings(
+    ApiAcquisitionSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_api_combine_method(
     ApiCombineMethod self,
     SseSerializer serializer,
@@ -7109,8 +7923,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_api_depth_forecast(
+    ApiDepthForecast self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_api_depth_goal_definition(
+    ApiDepthGoalDefinition self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_api_depth_measurement(
+    ApiDepthMeasurement self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_api_depth_report(
+    ApiDepthReport self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_api_live_stacking_config(
     ApiLiveStackingConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_api_reference_geometry(
+    ApiReferenceGeometry self,
     SseSerializer serializer,
   );
 
@@ -7156,6 +8000,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_cover_state(
     CoverState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_depth_lock_event(
+    DepthLockEvent self,
     SseSerializer serializer,
   );
 
@@ -7457,6 +8307,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_depth_lock_event(
+    DepthLockEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_detected_star_info(
     DetectedStarInfo self,
     SseSerializer serializer,
@@ -7647,6 +8503,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_api_depth_curve_point(
+    List<ApiDepthCurvePoint> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_api_depth_goal(
+    List<ApiDepthGoal> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_bool(List<bool> self, SseSerializer serializer);
@@ -7903,8 +8771,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_api_acquisition_settings(
+    ApiAcquisitionSettings? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_api_defect_map_status(
     ApiDefectMapStatus? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_api_depth_forecast(
+    ApiDepthForecast? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_api_depth_report(
+    ApiDepthReport? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_api_reference_geometry(
+    ApiReferenceGeometry? self,
     SseSerializer serializer,
   );
 
@@ -11022,6 +11914,420 @@ class RustLibWire implements BaseWire {
           .asFunction<
             WireSyncRust2DartDco Function(
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            )
+          >();
+
+  WireSyncRust2DartDco
+  wire__crate__api__depthlock__api_depthlock_check_measurement(
+    ffi.Pointer<wire_cst_api_depth_measurement> measurement,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_check_measurement(
+      measurement,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_check_measurementPtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_api_depth_measurement>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_check_measurement',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_check_measurement =
+      _wire__crate__api__depthlock__api_depthlock_check_measurementPtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_api_depth_measurement>,
+            )
+          >();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_create_goal(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+    ffi.Pointer<wire_cst_api_depth_goal_definition> definition,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_create_goal(
+      goal_id,
+      definition,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_create_goalPtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_api_depth_goal_definition>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_create_goal',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_create_goal =
+      _wire__crate__api__depthlock__api_depthlock_create_goalPtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_api_depth_goal_definition>,
+            )
+          >();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_get_goal(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_get_goal(goal_id);
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_get_goalPtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_get_goal',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_get_goal =
+      _wire__crate__api__depthlock__api_depthlock_get_goalPtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            )
+          >();
+
+  void wire__crate__api__depthlock__api_depthlock_goal_curve(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+    int max_points,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_goal_curve(
+      port_,
+      goal_id,
+      max_points,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_goal_curvePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint32,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_goal_curve',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_goal_curve =
+      _wire__crate__api__depthlock__api_depthlock_goal_curvePtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)
+          >();
+
+  void wire__crate__api__depthlock__api_depthlock_ingest_frame(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_ingest_frame(
+      port_,
+      goal_id,
+      path,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_ingest_framePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_ingest_frame',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_ingest_frame =
+      _wire__crate__api__depthlock__api_depthlock_ingest_framePtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            )
+          >();
+
+  void wire__crate__api__depthlock__api_depthlock_inspect_reference(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_inspect_reference(
+      port_,
+      path,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_inspect_referencePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_inspect_reference',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_inspect_reference =
+      _wire__crate__api__depthlock__api_depthlock_inspect_referencePtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_list_goals() {
+    return _wire__crate__api__depthlock__api_depthlock_list_goals();
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_list_goalsPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function()>>(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_list_goals',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_list_goals =
+      _wire__crate__api__depthlock__api_depthlock_list_goalsPtr
+          .asFunction<WireSyncRust2DartDco Function()>();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_remove_goal(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+    int expected_revision,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_remove_goal(
+      goal_id,
+      expected_revision,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_remove_goalPtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint64,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_remove_goal',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_remove_goal =
+      _wire__crate__api__depthlock__api_depthlock_remove_goalPtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              int,
+            )
+          >();
+
+  void wire__crate__api__depthlock__api_depthlock_replay_goal(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_replay_goal(
+      port_,
+      goal_id,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_replay_goalPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_replay_goal',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_replay_goal =
+      _wire__crate__api__depthlock__api_depthlock_replay_goalPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_revise_goal(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+    int expected_revision,
+    ffi.Pointer<wire_cst_api_depth_goal_definition> definition,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_revise_goal(
+      goal_id,
+      expected_revision,
+      definition,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_revise_goalPtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint64,
+            ffi.Pointer<wire_cst_api_depth_goal_definition>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_revise_goal',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_revise_goal =
+      _wire__crate__api__depthlock__api_depthlock_revise_goalPtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              int,
+              ffi.Pointer<wire_cst_api_depth_goal_definition>,
+            )
+          >();
+
+  WireSyncRust2DartDco
+  wire__crate__api__depthlock__api_depthlock_set_goal_preferences(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id,
+    int expected_revision,
+    bool enabled,
+    bool automatic_completion,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_set_goal_preferences(
+      goal_id,
+      expected_revision,
+      enabled,
+      automatic_completion,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_set_goal_preferencesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint64,
+            ffi.Bool,
+            ffi.Bool,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_set_goal_preferences',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_set_goal_preferences =
+      _wire__crate__api__depthlock__api_depthlock_set_goal_preferencesPtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              int,
+              bool,
+              bool,
+            )
+          >();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_sky_rectangle(
+    ffi.Pointer<wire_cst_api_reference_geometry> reference,
+    double x0,
+    double y0,
+    double x1,
+    double y1,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_sky_rectangle(
+      reference,
+      x0,
+      y0,
+      x1,
+      y1,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_sky_rectanglePtr =
+      _lookup<
+        ffi.NativeFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_api_reference_geometry>,
+            ffi.Double,
+            ffi.Double,
+            ffi.Double,
+            ffi.Double,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_sky_rectangle',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_sky_rectangle =
+      _wire__crate__api__depthlock__api_depthlock_sky_rectanglePtr
+          .asFunction<
+            WireSyncRust2DartDco Function(
+              ffi.Pointer<wire_cst_api_reference_geometry>,
+              double,
+              double,
+              double,
+              double,
+            )
+          >();
+
+  WireSyncRust2DartDco wire__crate__api__depthlock__api_depthlock_status() {
+    return _wire__crate__api__depthlock__api_depthlock_status();
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_statusPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function()>>(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_status',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_status =
+      _wire__crate__api__depthlock__api_depthlock_statusPtr
+          .asFunction<WireSyncRust2DartDco Function()>();
+
+  void wire__crate__api__depthlock__api_depthlock_suggest_floor(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> reference_path,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> dark_path,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> flat_path,
+    double scale_arcsec,
+    ffi.Pointer<ffi.Double> pixel_scale_arcsec,
+  ) {
+    return _wire__crate__api__depthlock__api_depthlock_suggest_floor(
+      port_,
+      reference_path,
+      dark_path,
+      flat_path,
+      scale_arcsec,
+      pixel_scale_arcsec,
+    );
+  }
+
+  late final _wire__crate__api__depthlock__api_depthlock_suggest_floorPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Double,
+            ffi.Pointer<ffi.Double>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__depthlock__api_depthlock_suggest_floor',
+      );
+  late final _wire__crate__api__depthlock__api_depthlock_suggest_floor =
+      _wire__crate__api__depthlock__api_depthlock_suggest_floorPtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              double,
+              ffi.Pointer<ffi.Double>,
             )
           >();
 
@@ -19879,6 +21185,25 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr
           .asFunction<ffi.Pointer<ffi.UintPtr> Function(int)>();
 
+  ffi.Pointer<wire_cst_api_acquisition_settings>
+  cst_new_box_autoadd_api_acquisition_settings() {
+    return _cst_new_box_autoadd_api_acquisition_settings();
+  }
+
+  late final _cst_new_box_autoadd_api_acquisition_settingsPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_api_acquisition_settings> Function()
+        >
+      >(
+        'frbgen_nightshade_bridge_cst_new_box_autoadd_api_acquisition_settings',
+      );
+  late final _cst_new_box_autoadd_api_acquisition_settings =
+      _cst_new_box_autoadd_api_acquisition_settingsPtr
+          .asFunction<
+            ffi.Pointer<wire_cst_api_acquisition_settings> Function()
+          >();
+
   ffi.Pointer<wire_cst_api_combine_method>
   cst_new_box_autoadd_api_combine_method() {
     return _cst_new_box_autoadd_api_combine_method();
@@ -19907,6 +21232,66 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_api_defect_map_statusPtr
           .asFunction<ffi.Pointer<wire_cst_api_defect_map_status> Function()>();
 
+  ffi.Pointer<wire_cst_api_depth_forecast>
+  cst_new_box_autoadd_api_depth_forecast() {
+    return _cst_new_box_autoadd_api_depth_forecast();
+  }
+
+  late final _cst_new_box_autoadd_api_depth_forecastPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Pointer<wire_cst_api_depth_forecast> Function()>
+      >('frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_forecast');
+  late final _cst_new_box_autoadd_api_depth_forecast =
+      _cst_new_box_autoadd_api_depth_forecastPtr
+          .asFunction<ffi.Pointer<wire_cst_api_depth_forecast> Function()>();
+
+  ffi.Pointer<wire_cst_api_depth_goal_definition>
+  cst_new_box_autoadd_api_depth_goal_definition() {
+    return _cst_new_box_autoadd_api_depth_goal_definition();
+  }
+
+  late final _cst_new_box_autoadd_api_depth_goal_definitionPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_api_depth_goal_definition> Function()
+        >
+      >(
+        'frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_goal_definition',
+      );
+  late final _cst_new_box_autoadd_api_depth_goal_definition =
+      _cst_new_box_autoadd_api_depth_goal_definitionPtr
+          .asFunction<
+            ffi.Pointer<wire_cst_api_depth_goal_definition> Function()
+          >();
+
+  ffi.Pointer<wire_cst_api_depth_measurement>
+  cst_new_box_autoadd_api_depth_measurement() {
+    return _cst_new_box_autoadd_api_depth_measurement();
+  }
+
+  late final _cst_new_box_autoadd_api_depth_measurementPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_api_depth_measurement> Function()
+        >
+      >('frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_measurement');
+  late final _cst_new_box_autoadd_api_depth_measurement =
+      _cst_new_box_autoadd_api_depth_measurementPtr
+          .asFunction<ffi.Pointer<wire_cst_api_depth_measurement> Function()>();
+
+  ffi.Pointer<wire_cst_api_depth_report>
+  cst_new_box_autoadd_api_depth_report() {
+    return _cst_new_box_autoadd_api_depth_report();
+  }
+
+  late final _cst_new_box_autoadd_api_depth_reportPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Pointer<wire_cst_api_depth_report> Function()>
+      >('frbgen_nightshade_bridge_cst_new_box_autoadd_api_depth_report');
+  late final _cst_new_box_autoadd_api_depth_report =
+      _cst_new_box_autoadd_api_depth_reportPtr
+          .asFunction<ffi.Pointer<wire_cst_api_depth_report> Function()>();
+
   ffi.Pointer<wire_cst_api_live_stacking_config>
   cst_new_box_autoadd_api_live_stacking_config() {
     return _cst_new_box_autoadd_api_live_stacking_config();
@@ -19924,6 +21309,23 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_api_live_stacking_configPtr
           .asFunction<
             ffi.Pointer<wire_cst_api_live_stacking_config> Function()
+          >();
+
+  ffi.Pointer<wire_cst_api_reference_geometry>
+  cst_new_box_autoadd_api_reference_geometry() {
+    return _cst_new_box_autoadd_api_reference_geometry();
+  }
+
+  late final _cst_new_box_autoadd_api_reference_geometryPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_api_reference_geometry> Function()
+        >
+      >('frbgen_nightshade_bridge_cst_new_box_autoadd_api_reference_geometry');
+  late final _cst_new_box_autoadd_api_reference_geometry =
+      _cst_new_box_autoadd_api_reference_geometryPtr
+          .asFunction<
+            ffi.Pointer<wire_cst_api_reference_geometry> Function()
           >();
 
   ffi.Pointer<wire_cst_app_settings> cst_new_box_autoadd_app_settings() {
@@ -20032,6 +21434,19 @@ class RustLibWire implements BaseWire {
   late final _cst_new_box_autoadd_cover_state =
       _cst_new_box_autoadd_cover_statePtr
           .asFunction<ffi.Pointer<ffi.Int32> Function(int)>();
+
+  ffi.Pointer<wire_cst_depth_lock_event>
+  cst_new_box_autoadd_depth_lock_event() {
+    return _cst_new_box_autoadd_depth_lock_event();
+  }
+
+  late final _cst_new_box_autoadd_depth_lock_eventPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Pointer<wire_cst_depth_lock_event> Function()>
+      >('frbgen_nightshade_bridge_cst_new_box_autoadd_depth_lock_event');
+  late final _cst_new_box_autoadd_depth_lock_event =
+      _cst_new_box_autoadd_depth_lock_eventPtr
+          .asFunction<ffi.Pointer<wire_cst_depth_lock_event> Function()>();
 
   ffi.Pointer<wire_cst_dome_capabilities>
   cst_new_box_autoadd_dome_capabilities() {
@@ -20631,6 +22046,38 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_String = _cst_new_list_StringPtr
       .asFunction<ffi.Pointer<wire_cst_list_String> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_api_depth_curve_point>
+  cst_new_list_api_depth_curve_point(int len) {
+    return _cst_new_list_api_depth_curve_point(len);
+  }
+
+  late final _cst_new_list_api_depth_curve_pointPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_list_api_depth_curve_point> Function(ffi.Int32)
+        >
+      >('frbgen_nightshade_bridge_cst_new_list_api_depth_curve_point');
+  late final _cst_new_list_api_depth_curve_point =
+      _cst_new_list_api_depth_curve_pointPtr
+          .asFunction<
+            ffi.Pointer<wire_cst_list_api_depth_curve_point> Function(int)
+          >();
+
+  ffi.Pointer<wire_cst_list_api_depth_goal> cst_new_list_api_depth_goal(
+    int len,
+  ) {
+    return _cst_new_list_api_depth_goal(len);
+  }
+
+  late final _cst_new_list_api_depth_goalPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_list_api_depth_goal> Function(ffi.Int32)
+        >
+      >('frbgen_nightshade_bridge_cst_new_list_api_depth_goal');
+  late final _cst_new_list_api_depth_goal = _cst_new_list_api_depth_goalPtr
+      .asFunction<ffi.Pointer<wire_cst_list_api_depth_goal> Function(int)>();
+
   ffi.Pointer<wire_cst_list_bool> cst_new_list_bool(int len) {
     return _cst_new_list_bool(len);
   }
@@ -21172,6 +22619,131 @@ final class wire_cst_api_combine_method extends ffi.Struct {
   external ffi.Pointer<ffi.Double> sigma_kappa;
 
   external ffi.Pointer<ffi.Uint32> sigma_iterations;
+}
+
+final class wire_cst_api_sky_rectangle extends ffi.Struct {
+  @ffi.Double()
+  external double ra_deg;
+
+  @ffi.Double()
+  external double dec_deg;
+
+  @ffi.Double()
+  external double width_arcsec;
+
+  @ffi.Double()
+  external double height_arcsec;
+
+  @ffi.Double()
+  external double rotation_deg;
+}
+
+final class wire_cst_api_depth_measurement extends ffi.Struct {
+  external wire_cst_api_sky_rectangle region;
+
+  external wire_cst_api_sky_rectangle background;
+
+  @ffi.Double()
+  external double scale_arcsec;
+
+  @ffi.Double()
+  external double threshold;
+
+  @ffi.Double()
+  external double min_coverage;
+
+  @ffi.Double()
+  external double systematic_floor_adu;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> systematic_floor_source;
+}
+
+final class wire_cst_api_reference_geometry extends ffi.Struct {
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  @ffi.Double()
+  external double crval1;
+
+  @ffi.Double()
+  external double crval2;
+
+  @ffi.Double()
+  external double crpix1;
+
+  @ffi.Double()
+  external double crpix2;
+
+  @ffi.Double()
+  external double cd1_1;
+
+  @ffi.Double()
+  external double cd1_2;
+
+  @ffi.Double()
+  external double cd2_1;
+
+  @ffi.Double()
+  external double cd2_2;
+}
+
+final class wire_cst_api_acquisition_settings extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> instrument;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  @ffi.Double()
+  external double exposure_secs;
+
+  external ffi.Pointer<ffi.Int32> gain;
+
+  external ffi.Pointer<ffi.Int32> offset;
+
+  @ffi.Int32()
+  external int bin_x;
+
+  @ffi.Int32()
+  external int bin_y;
+
+  external ffi.Pointer<ffi.Double> ccd_temp_c;
+}
+
+final class wire_cst_api_depth_goal_definition extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> label;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> project_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> profile_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter_name;
+
+  external ffi.Pointer<ffi.Int32> filter_index;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reference_path;
+
+  external wire_cst_api_reference_geometry reference;
+
+  external wire_cst_api_acquisition_settings acquisition;
+
+  @ffi.Double()
+  external double temperature_tolerance_c;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> dark_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> flat_path;
+
+  external wire_cst_api_depth_measurement measurement;
+
+  @ffi.Bool()
+  external bool enabled;
+
+  @ffi.Bool()
+  external bool automatic_completion;
 }
 
 final class wire_cst_star_detection_config_api extends ffi.Struct {
@@ -21758,6 +23330,52 @@ final class wire_cst_api_defect_map_status extends ffi.Struct {
   external bool stored_on_disk;
 }
 
+final class wire_cst_api_depth_forecast extends ffi.Struct {
+  @ffi.Uint32()
+  external int frames_to_threshold;
+
+  @ffi.Uint32()
+  external int frames_to_confirm;
+
+  @ffi.Bool()
+  external bool reachable;
+
+  @ffi.Double()
+  external double ceiling_score;
+
+  @ffi.Double()
+  external double per_frame_noise_adu;
+
+  @ffi.Double()
+  external double recent_frame_noise_adu;
+
+  @ffi.Double()
+  external double best_frame_noise_adu;
+}
+
+final class wire_cst_api_depth_report extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> state;
+
+  external ffi.Pointer<ffi.Double> score;
+
+  external ffi.Pointer<ffi.Double> conservative_score;
+
+  external ffi.Pointer<ffi.Double> uncertainty_adu;
+
+  @ffi.Double()
+  external double coverage;
+
+  @ffi.Uint32()
+  external int evidence_frames;
+
+  @ffi.Uint32()
+  external int confirmation_frames;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+
+  external ffi.Pointer<wire_cst_api_depth_forecast> forecast;
+}
+
 final class wire_cst_camera_capabilities extends ffi.Struct {
   @ffi.Uint32()
   external int max_width;
@@ -21881,6 +23499,88 @@ final class wire_cst_cover_calibrator_capabilities extends ffi.Struct {
   external ffi.Pointer<ffi.Int32> calibrator_state;
 
   external ffi.Pointer<ffi.Int32> brightness;
+}
+
+final class wire_cst_DepthLockEvent_GoalUpdated extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id;
+
+  @ffi.Uint64()
+  external int revision;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter_name;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> state;
+
+  external ffi.Pointer<ffi.Double> score;
+
+  external ffi.Pointer<ffi.Double> conservative_score;
+
+  @ffi.Double()
+  external double threshold;
+
+  external ffi.Pointer<ffi.Double> uncertainty_adu;
+
+  @ffi.Double()
+  external double coverage;
+
+  @ffi.Uint32()
+  external int evidence_frames;
+
+  @ffi.Uint32()
+  external int confirmation_frames;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+
+  @ffi.Bool()
+  external bool automatic_completion;
+
+  external ffi.Pointer<ffi.Uint32> frames_remaining;
+
+  @ffi.Bool()
+  external bool reachable;
+}
+
+final class wire_cst_DepthLockEvent_EvidenceRejected extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id;
+
+  @ffi.Uint64()
+  external int revision;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> source_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+}
+
+final class wire_cst_DepthLockEvent_AnalysisDropped extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> source_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+}
+
+final class wire_cst_DepthLockEvent_GoalChanged extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id;
+
+  @ffi.Uint64()
+  external int revision;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> change;
+}
+
+final class DepthLockEventKind extends ffi.Union {
+  external wire_cst_DepthLockEvent_GoalUpdated GoalUpdated;
+
+  external wire_cst_DepthLockEvent_EvidenceRejected EvidenceRejected;
+
+  external wire_cst_DepthLockEvent_AnalysisDropped AnalysisDropped;
+
+  external wire_cst_DepthLockEvent_GoalChanged GoalChanged;
+}
+
+final class wire_cst_depth_lock_event extends ffi.Struct {
+  @ffi.Int32()
+  external int tag;
+
+  external DepthLockEventKind kind;
 }
 
 final class wire_cst_dome_capabilities extends ffi.Struct {
@@ -22808,6 +24508,29 @@ final class wire_cst_SequencerEvent_InstructionProgressStructured
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> detail_json;
 }
 
+final class wire_cst_SequencerEvent_DepthGoalCompleted extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter_name;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> goal_id;
+
+  @ffi.Uint64()
+  external int revision;
+
+  @ffi.Uint32()
+  external int evidence_frames;
+
+  @ffi.Uint32()
+  external int confirmation_frames;
+
+  @ffi.Double()
+  external double score;
+
+  @ffi.Double()
+  external double threshold;
+}
+
 final class wire_cst_SequencerEvent_FrameAccepted extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
 
@@ -23204,6 +24927,8 @@ final class SequencerEventKind extends ffi.Union {
   external wire_cst_SequencerEvent_InstructionProgressStructured
   InstructionProgressStructured;
 
+  external wire_cst_SequencerEvent_DepthGoalCompleted DepthGoalCompleted;
+
   external wire_cst_SequencerEvent_FrameAccepted FrameAccepted;
 
   external wire_cst_SequencerEvent_FrameRejected FrameRejected;
@@ -23369,6 +25094,68 @@ final class wire_cst_weather_capabilities extends ffi.Struct {
   external bool has_wind_speed;
 
   external ffi.Pointer<ffi.Double> average_period;
+}
+
+final class wire_cst_api_depth_curve_point extends ffi.Struct {
+  @ffi.Uint32()
+  external int frames;
+
+  @ffi.Double()
+  external double score;
+
+  @ffi.Double()
+  external double conservative_score;
+
+  @ffi.Bool()
+  external bool projected;
+}
+
+final class wire_cst_list_api_depth_curve_point extends ffi.Struct {
+  external ffi.Pointer<wire_cst_api_depth_curve_point> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_api_depth_goal extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> id;
+
+  @ffi.Uint64()
+  external int revision;
+
+  external wire_cst_api_depth_goal_definition definition;
+
+  @ffi.Int64()
+  external int selected_at_ms;
+
+  @ffi.Uint32()
+  external int evidence_frames;
+
+  @ffi.Uint64()
+  external int evidence_revision;
+
+  @ffi.Bool()
+  external bool analysis_current;
+
+  external ffi.Pointer<wire_cst_api_depth_report> report;
+
+  @ffi.Uint32()
+  external int candidate_frames;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_issue;
+
+  @ffi.Uint32()
+  external int archived_revisions;
+
+  @ffi.Uint32()
+  external int estimator_version;
+}
+
+final class wire_cst_list_api_depth_goal extends ffi.Struct {
+  external ffi.Pointer<wire_cst_api_depth_goal> ptr;
+
+  @ffi.Int32()
+  external int len;
 }
 
 final class wire_cst_detected_star_info extends ffi.Struct {
@@ -23642,6 +25429,88 @@ final class wire_cst_list_star_crop_api extends ffi.Struct {
 
   @ffi.Int32()
   external int len;
+}
+
+final class wire_cst_api_depth_floor_suggestion extends ffi.Struct {
+  @ffi.Double()
+  external double floor_adu;
+
+  @ffi.Double()
+  external double dark_noise_adu;
+
+  @ffi.Double()
+  external double flat_relative_noise;
+
+  @ffi.Double()
+  external double sky_adu;
+
+  @ffi.Double()
+  external double aperture_pixels;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> source;
+}
+
+final class wire_cst_api_depth_ingest_outcome extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> outcome;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> state;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+}
+
+final class wire_cst_api_depth_lock_status extends ffi.Struct {
+  @ffi.Bool()
+  external bool available;
+
+  @ffi.Uint32()
+  external int goals;
+
+  @ffi.Uint32()
+  external int queue_capacity;
+
+  @ffi.Uint64()
+  external int queued;
+
+  @ffi.Uint64()
+  external int processed;
+
+  @ffi.Uint64()
+  external int dropped;
+
+  @ffi.Uint64()
+  external int evidence_added;
+
+  @ffi.Uint64()
+  external int evidence_rejected;
+
+  @ffi.Uint64()
+  external int last_frame_ms;
+
+  @ffi.Uint64()
+  external int max_frame_ms;
+}
+
+final class wire_cst_api_depth_reference_info extends ffi.Struct {
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> pixel_type;
+
+  @ffi.Bool()
+  external bool monochrome;
+
+  external ffi.Pointer<wire_cst_api_reference_geometry> geometry;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> geometry_issue;
+
+  external ffi.Pointer<ffi.Double> pixel_scale_arcsec;
+
+  external ffi.Pointer<wire_cst_api_acquisition_settings> acquisition;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> acquisition_issue;
 }
 
 final class wire_cst_api_live_stacking_master extends ffi.Struct {
@@ -24101,6 +25970,10 @@ final class wire_cst_EventPayload_PolarAlignmentImage extends ffi.Struct {
   external ffi.Pointer<wire_cst_polar_alignment_image_event> field0;
 }
 
+final class wire_cst_EventPayload_DepthLock extends ffi.Struct {
+  external ffi.Pointer<wire_cst_depth_lock_event> field0;
+}
+
 final class EventPayloadKind extends ffi.Union {
   external wire_cst_EventPayload_Equipment Equipment;
 
@@ -24119,6 +25992,8 @@ final class EventPayloadKind extends ffi.Union {
   external wire_cst_EventPayload_PolarAlignmentStatus PolarAlignmentStatus;
 
   external wire_cst_EventPayload_PolarAlignmentImage PolarAlignmentImage;
+
+  external wire_cst_EventPayload_DepthLock DepthLock;
 }
 
 final class wire_cst_event_payload extends ffi.Struct {
@@ -25104,6 +26979,8 @@ final class wire_cst_xisf_read_result extends ffi.Struct {
 }
 
 const int SENSOR_TYPE_RGGB = 2;
+
+const int QUEUE_CAPACITY = 8;
 
 const int DEFAULT_EVENT_BUFFER_SIZE = 4096;
 

@@ -475,7 +475,28 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         // the terminal-cleanup guard (stop() claims teardown before issuing
         // sequencerStop). A native-initiated stop with no operator stop drives
         // the same exactly-once teardown here.
-        _onTerminalEvent(SequenceExecutionState.idle, 'stopped');
+        //
+        // A terminal this arm actually claims was therefore NOT commanded by
+        // this executor's stop(): it came from the native side — a trigger's
+        // ParkAndAbort, a watchdog, a safety abort. Filing it 'stopped'
+        // recorded it byte-identically with the operator's own press, which
+        // is what left three dawn-terminated runs claiming "you stopped it"
+        // in `sequence_runs.status` (L52). The durable 'aborted' status —
+        // "a safety rule or a trigger ended it", already rendered by every
+        // history surface — separates them. The one exception: the wire may
+        // still name the operator, which is how a remote/headless Stop lands
+        // here without a local stop() drive. Its decision row keeps it
+        // 'stopped'.
+        final stopEvidence = _ref.read(sequenceStopEvidenceProvider);
+        final operatorStopped =
+            stopEvidence?.author == SequenceStopAuthor.operatorPress;
+        _onTerminalEvent(
+          SequenceExecutionState.idle,
+          operatorStopped ? 'stopped' : 'aborted',
+          warning: operatorStopped || stopEvidence == null
+              ? null
+              : sequenceStoppedMessage(stopEvidence),
+        );
         break;
 
       case 'FrameAccepted':
@@ -533,6 +554,15 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         );
         break;
 
+      case 'DepthGoalCompleted':
+        // A Smart Exposure plan that stopped on its depth goal rather than on
+        // its frame count. Recorded as a durable decision row so the Session
+        // Report can explain why the plan is short of its nominal count
+        // without holding the goal store open — the score, the threshold it
+        // cleared and the exposures behind it are the whole justification.
+        _persistDepthGoalDecision(event);
+        break;
+
       case 'DecisionLogged':
         // Replay Debug — persist the structured decision into
         // the `sequence_decisions` Drift table so the Replay screen
@@ -540,6 +570,68 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         _persistReplayDecision(event);
         break;
     }
+  }
+
+  /// Persist a `DepthGoalCompleted` payload as a `budget_met` decision row.
+  ///
+  /// `budget_met` rather than a category of its own: a depth goal IS the
+  /// budget for a plan bound to one, and the replay feed already renders that
+  /// bucket as "the plan stopped because it had enough". Fire-and-forget for
+  /// the same reason as [_persistReplayDecision] — the executor's event loop
+  /// must keep pumping.
+  void _persistDepthGoalDecision(NightshadeEvent event) {
+    final runId = _ref.read(currentRunIdProvider);
+    if (runId == null) {
+      _logger.debug(
+        'DepthGoalCompleted dropped: no active sequence_run_id '
+        '(goal ${event.data['goal_id']})',
+        source: 'SequenceExecutor',
+      );
+      return;
+    }
+    final filterName = event.data['filter_name'] as String? ?? '';
+    final score = (event.data['score'] as num?)?.toDouble() ?? 0;
+    final threshold = (event.data['threshold'] as num?)?.toDouble() ?? 0;
+    final evidenceFrames = (event.data['evidence_frames'] as num?)?.toInt() ?? 0;
+    final confirmationFrames =
+        (event.data['confirmation_frames'] as num?)?.toInt() ?? 0;
+    final summary = depthGoalCompletedDetail(
+      filterName: filterName,
+      score: score,
+      threshold: threshold,
+      evidenceFrames: evidenceFrames,
+      confirmationFrames: confirmationFrames,
+    );
+    _logger.info(summary, source: 'SequenceExecutor');
+    final service = _ref.read(replayDebugServiceProvider);
+    unawaited(
+      service
+          .persistFromBridgeEvent(
+            timestampIso: DateTime.fromMillisecondsSinceEpoch(
+              event.timestamp,
+            ).toUtc().toIso8601String(),
+            categoryWireKey: DecisionCategory.budgetMet.wireKey,
+            summary: summary,
+            detailsJson: jsonEncode({
+              'goal_id': event.data['goal_id'],
+              'revision': event.data['revision'],
+              'filter_name': filterName,
+              'score': score,
+              'threshold': threshold,
+              'evidence_frames': evidenceFrames,
+              'confirmation_frames': confirmationFrames,
+            }),
+            nodeId: event.data['node_id'] as String?,
+            sequenceRunId: runId,
+          )
+          .catchError((Object e, StackTrace st) {
+            _logger.warning(
+              'Failed to persist depth-goal decision ($summary): $e',
+              source: 'SequenceExecutor',
+            );
+            return -1;
+          }),
+    );
   }
 
   /// Replay Debug — persist a `DecisionLogged` payload into

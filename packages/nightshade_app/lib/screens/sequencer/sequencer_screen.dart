@@ -15,6 +15,7 @@ import '../../utils/sequence_mutator_helper.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/tutorial_keys/sequencer_keys.dart';
+import 'run_status_presentation.dart';
 import 'widgets/batch_operations_toolbar.dart';
 import 'widgets/delete_node_confirmation.dart';
 import 'widgets/palette_copy.dart';
@@ -373,6 +374,14 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     // still read for the shortcut bindings below that gate behaviour to the
     // Builder tab.
     final currentTab = ref.watch(sequencerTabProvider);
+    final failed = executionState == SequenceExecutionState.failed;
+    final errors =
+        failed ? ref.watch(liveSequenceStatsProvider)?.errorMessages : null;
+    final failure = errors != null && errors.isNotEmpty
+        ? errors.last
+        : failed
+            ? ref.watch(sequenceProgressProvider).message
+            : null;
 
     return CallbackShortcuts(
       bindings: {
@@ -517,6 +526,25 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                   executionState: executionState,
                   isPhone: isPhone,
                 ),
+
+                if (failed)
+                  Padding(
+                    padding: NightshadeTokens.paddingMd,
+                    child: NightshadeBanner(
+                      title: 'Sequence failed',
+                      message: failure == null
+                          ? 'Open History for the recorded outcome.'
+                          : runFailureMessage(failure),
+                      tone: BannerTone.error,
+                      action: NightshadeButton(
+                        label: 'See details',
+                        variant: ButtonVariant.secondary,
+                        size: ButtonSize.small,
+                        onPressed: () => _tabController
+                            .animateTo(SequencerTab.history.index),
+                      ),
+                    ),
+                  ),
 
                 // Progress bar (when running)
                 if (isRunning)

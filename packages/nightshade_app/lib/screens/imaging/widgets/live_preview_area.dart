@@ -11,6 +11,9 @@ import '../../../utils/preview_transform.dart';
 import '../../../widgets/catalog_overlay_widget.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
+import 'depthlock/depthlock_region_layer.dart';
+import 'depthlock/depthlock_selection.dart';
+
 import 'frame_science_chip.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
@@ -312,7 +315,13 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
             }
           },
           child: GestureDetector(
-            onPanUpdate: (details) => onPanUpdate(details.delta),
+            // While the DepthLock region tool owns the canvas a drag DRAWS.
+            // Left enabled, this pan recogniser competes with the layer's in
+            // the same gesture arena and the rectangle starts wherever the
+            // arena resolved rather than where the operator pressed.
+            onPanUpdate: ref.watch(depthLockRegionToolActiveProvider)
+                ? null
+                : (details) => onPanUpdate(details.delta),
             // Tap the frame on a phone to inspect it fullscreen (pinch-zoom +
             // pan), since the in-place preview shares the short cover-screen
             // height with the controls. No-op when empty or on desktop, where
@@ -519,6 +528,22 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                         imageOffset: imageOffset,
                         imageSize: Size(currentImage.width.toDouble(),
                             currentImage.height.toDouble()),
+                      ),
+                    ),
+
+                  // DepthLock regions: the two rectangles being drawn right
+                  // now, and every saved goal that lands on this frame. Above
+                  // the annotation layer because while its tool is active it
+                  // owns the drag, and below the HUD because it is part of the
+                  // picture rather than chrome over it.
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: DepthLockRegionLayer(
+                        zoomLevel: displayScale,
+                        imageOffset: imageOffset,
+                        imageSize: Size(currentImage.width.toDouble(),
+                            currentImage.height.toDouble()),
+                        geometry: ref.watch(depthLockSelectionProvider).geometry,
                       ),
                     ),
 

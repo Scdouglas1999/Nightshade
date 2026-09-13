@@ -66,6 +66,7 @@ class NightshadeSwitchRow extends StatelessWidget {
     if (!expanded) {
       return Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           labelWidget,
           SizedBox(
@@ -101,6 +102,7 @@ class NightshadeSwitchRow extends StatelessWidget {
 
     final titleRow = Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Flexible(child: Text(label, style: effectiveLabelStyle)),
         if (tooltip != null) ...[

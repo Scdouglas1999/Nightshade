@@ -158,50 +158,73 @@ class DashboardTileFrame extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: NightshadeTokens.borderRadiusMd,
-            child: IgnorePointer(
-              ignoring: isEditing,
-              child: child,
-            ),
+            child: isEditing
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _EditTileStrip(
+                        colors: colors,
+                        sizeLabel: size.label,
+                        onResize: onResize,
+                        onHide: onHide,
+                      ),
+                      IgnorePointer(child: child),
+                    ],
+                  )
+                : child,
           ),
         ),
-
-        // Edit mode drag handle (top-left)
-        if (isEditing)
-          Positioned(
-            top: 8,
-            left: 8,
-            child: _DragHandleIndicator(colors: colors),
-          ),
-
-        // Edit mode controls (top-right) - adjusted for larger touch targets
-        if (isEditing)
-          Positioned(
-            top: 4,
-            right: 4,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                NightshadeIconButton(
-                  icon: LucideIcons.maximize2,
-                  tooltip: 'Resize (${size.label})',
-                  size: IconButtonSize.sm,
-                  onPressed: onResize,
-                ),
-                NightshadeIconButton(
-                  icon: LucideIcons.eyeOff,
-                  tooltip: 'Hide tile',
-                  size: IconButtonSize.sm,
-                  onPressed: onHide,
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }
 }
 
-/// Edit mode icon button with expanded touch target (40x40px) for field use.
+/// Reserves space for editing controls above the panel content.
+class _EditTileStrip extends StatelessWidget {
+  const _EditTileStrip({
+    required this.colors,
+    required this.sizeLabel,
+    required this.onResize,
+    required this.onHide,
+  });
+
+  final NightshadeColors colors;
+  final String sizeLabel;
+  final VoidCallback onResize;
+  final VoidCallback onHide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceSm,
+        NightshadeTokens.spaceXs,
+        NightshadeTokens.spaceXs,
+        0,
+      ),
+      child: Row(
+        children: [
+          _DragHandleIndicator(colors: colors),
+          const Spacer(),
+          NightshadeIconButton(
+            icon: LucideIcons.maximize2,
+            tooltip: 'Resize ($sizeLabel)',
+            size: IconButtonSize.sm,
+            onPressed: onResize,
+          ),
+          NightshadeIconButton(
+            icon: LucideIcons.eyeOff,
+            tooltip: 'Hide tile',
+            size: IconButtonSize.sm,
+            onPressed: onHide,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The grip the operator drags a tile by in Edit layout.
 class _DragHandleIndicator extends StatelessWidget {
   final NightshadeColors colors;

@@ -7,6 +7,7 @@ import '../models/plate_solver.dart'
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
 import '../services/phd2_probe.dart';
+import '../models/depthlock/depthlock_models.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../models/sequence/sequence_models.dart'
     show AdaptiveSwapSnapshot, ConditionsScore;

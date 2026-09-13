@@ -430,6 +430,23 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/darkroom/delivery/manifest/<jobId>',
     'GET /api/darkroom/delivery/artifact/<jobId>/<artifactId>',
     'POST /api/darkroom/delivery/ack/<jobId>',
+    // DepthLock: per-filter depth goals around a marked sky region. The
+    // sub-resources are advertised before the bare goal path for the same
+    // reason they register in that order.
+    'GET /api/depthlock/status',
+    'GET /api/depthlock/goals',
+    'POST /api/depthlock/goals',
+    'POST /api/depthlock/reference/inspect',
+    'POST /api/depthlock/reference/sky-rectangle',
+    'POST /api/depthlock/measurement/check',
+    'POST /api/depthlock/measurement/suggest-floor',
+    'POST /api/depthlock/goals/<goalId>/preferences',
+    'POST /api/depthlock/goals/<goalId>/ingest',
+    'POST /api/depthlock/goals/<goalId>/replay',
+    'GET /api/depthlock/goals/<goalId>/curve',
+    'GET /api/depthlock/goals/<goalId>',
+    'PUT /api/depthlock/goals/<goalId>',
+    'DELETE /api/depthlock/goals/<goalId>',
     // Imaging / calibration host-compute helpers
     'GET /api/imaging/fits-dimensions',
     'GET /api/calibration/settings',

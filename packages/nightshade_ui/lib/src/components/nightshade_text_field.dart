@@ -15,6 +15,15 @@ const double fieldHorizontalPadding = NightshadeTokens.inputPaddingHorizontal;
 /// Leading icon size inside a field, in logical pixels (05 §8: 14 muted).
 const double fieldIconSize = NightshadeTokens.iconXs;
 
+/// Lift applied to a field's value (and the matching dropdown label) so the
+/// painted ink sits on the well centre.
+///
+/// Hanken Grotesk's em box is ascent 1000 / cap-height 697 per 1000 UPM, so
+/// a geometrically centred line leaves the caps a little low in the 32px well.
+/// 1.5px is one hairline on a 2x display and is the smallest shift that reads
+/// as centred rather than "sitting on the floor of the box".
+const Offset fieldInkOffset = Offset(0, -1.5);
+
 /// A single-line text or number field on the Observatory scale.
 ///
 /// 32px tall, 28 with [dense]. The [NightshadeDecorations.field] face is a
@@ -122,31 +131,50 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
     setState(() => _isFocused = _focusNode.hasFocus);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-    final hasError = widget.errorText != null && widget.errorText!.isNotEmpty;
-    final decoration = NightshadeDecorations.field(
-      colors,
-      focused: _isFocused && widget.enabled,
-      hasError: hasError,
+  TextStyle _valueStyle(NightshadeColors colors) {
+    return (widget.mono
+            ? NightshadeTypography.inputMono
+            : NightshadeTypography.input)
+        .copyWith(
+          color: widget.enabled ? colors.textPrimary : colors.textMuted,
+        );
+  }
+
+  InputDecoration _collapsedDecoration(TextStyle hintStyle) {
+    // Collapsed: the chrome lives on the wrapping well, not on Material's
+    // InputDecorator. An outline decorator with `isDense` sizes its *fill* to
+    // the text line (~20px) and top-aligns that fill inside a 32px slot, which
+    // is why capture-bar fields sat high against Snapshot/Loop and why a
+    // FormRow's well did not share a centre line with its label.
+    //
+    // Borders and padding are set explicitly so Theme.inputDecorationTheme
+    // (outline + 8px vertical inset) cannot leak back in through applyDefaults.
+    return InputDecoration(
+      isCollapsed: true,
+      isDense: true,
+      filled: false,
+      hintText: widget.hint,
+      hintStyle: hintStyle,
+      counterText: '',
+      contentPadding: EdgeInsets.zero,
+      floatingLabelBehavior: FloatingLabelBehavior.never,
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      disabledBorder: InputBorder.none,
+      errorBorder: InputBorder.none,
+      focusedErrorBorder: InputBorder.none,
     );
-    final ring = decoration.border!.top.color;
+  }
 
-    final textStyle =
-        (widget.mono
-                ? NightshadeTypography.inputMono
-                : NightshadeTypography.input)
-            .copyWith(
-              color: widget.enabled ? colors.textPrimary : colors.textMuted,
-            );
-
-    OutlineInputBorder outline(Color color) => OutlineInputBorder(
-      borderRadius: NightshadeTokens.borderRadiusSm,
-      borderSide: BorderSide(color: color),
-    );
-
-    final field = TextFormField(
+  Widget _input({
+    required TextStyle textStyle,
+    required InputDecoration decoration,
+    required int maxLines,
+    StrutStyle? strutStyle,
+    double? cursorHeight,
+  }) {
+    return TextFormField(
       controller: _controller,
       focusNode: _focusNode,
       autofocus: widget.autofocus,
@@ -159,56 +187,160 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
       keyboardType: widget.keyboardType,
       inputFormatters: widget.inputFormatters,
       textAlign: widget.textAlign,
-      maxLines: widget.maxLines,
+      maxLines: maxLines,
       enabled: widget.enabled,
-      // The value sits on the field's centre line, not on Material's dense
-      // baseline, which rides high in a fixed 32px box.
       textAlignVertical: TextAlignVertical.center,
+      scrollPadding: EdgeInsets.zero,
       style: textStyle,
+      strutStyle: strutStyle,
+      cursorHeight: cursorHeight,
+      decoration: decoration,
+    );
+  }
+
+  Widget _singleLineWell(NightshadeColors colors, BoxDecoration well) {
+    final textStyle = _valueStyle(colors);
+    final fontSize = textStyle.fontSize ?? 14;
+    // Tight em-box: the named `input` style carries height 1.43 (~20px) for
+    // multi-line copy. Inside a 32px well that line box plus Material's caret
+    // prototype sits the glyphs low against the suffix and the prefix icon.
+    // Height 1.0 at the font size, forced as the strut, and a box that tall
+    // lets the Row centre the value with the 14px icon and the unit caption.
+    final lineStyle = textStyle.copyWith(
+      height: 1.0,
+      leadingDistribution: TextLeadingDistribution.even,
+    );
+    final hintStyle = lineStyle.copyWith(color: colors.textMuted);
+    final input = SizedBox(
+      height: fontSize,
+      child: _input(
+        textStyle: lineStyle,
+        decoration: _collapsedDecoration(hintStyle),
+        maxLines: 1,
+        cursorHeight: fontSize,
+        strutStyle: StrutStyle(
+          fontSize: fontSize,
+          height: 1.0,
+          leading: 0,
+          forceStrutHeight: true,
+          fontFamily: textStyle.fontFamily,
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Same expand rule as [NightshadeDropdown]: fill a bounded slot so the
+        // value reads from the leading edge and the unit sits at the trailing
+        // one; shrink-wrap when the parent is a content-sized Row.
+        final expand = constraints.hasBoundedWidth;
+        // Listener, not GestureDetector: a tap recognizer would publish its
+        // own tappable node and steal the label off the text field.
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: widget.enabled
+              ? (_) {
+                  if (!_focusNode.hasFocus) _focusNode.requestFocus();
+                }
+              : null,
+          child: Container(
+            height: widget.height,
+            width: expand ? constraints.maxWidth : null,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(
+              horizontal: fieldHorizontalPadding,
+            ),
+            decoration: well,
+            child: Row(
+              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                if (widget.prefixIcon != null) ...<Widget>[
+                  ExcludeSemantics(
+                    child: Icon(
+                      widget.prefixIcon,
+                      size: fieldIconSize,
+                      color: _isFocused && widget.enabled
+                          ? colors.primary
+                          : colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                ],
+                Flexible(
+                  fit: expand ? FlexFit.tight : FlexFit.loose,
+                  child: Transform.translate(
+                    offset: fieldInkOffset,
+                    child: input,
+                  ),
+                ),
+                if (widget.suffixWidget != null) widget.suffixWidget!,
+                if (widget.suffix != null) ...<Widget>[
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  ExcludeSemantics(
+                    child: Transform.translate(
+                      offset: fieldInkOffset,
+                      child: Text(
+                        widget.suffix!,
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _multilineField(NightshadeColors colors, BoxDecoration well) {
+    final textStyle = _valueStyle(colors);
+    final ring = well.border!.top.color;
+    OutlineInputBorder outline(Color color) => OutlineInputBorder(
+      borderRadius: NightshadeTokens.borderRadiusSm,
+      borderSide: BorderSide(color: color),
+    );
+    return _input(
+      textStyle: textStyle,
       decoration: InputDecoration(
         isDense: true,
         hintText: widget.hint,
         hintStyle: textStyle.copyWith(color: colors.textMuted),
-        prefixIcon: widget.prefixIcon != null
-            ? Icon(
-                widget.prefixIcon,
-                size: fieldIconSize,
-                color: _isFocused ? colors.primary : colors.textMuted,
-              )
-            : null,
-        prefixIconConstraints: const BoxConstraints(
-          minWidth: fieldIconSize + fieldHorizontalPadding,
-          minHeight: fieldIconSize,
-        ),
-        suffix: widget.suffixWidget,
-        suffixText: widget.suffix,
-        suffixStyle: NightshadeTypography.caption.copyWith(
-          color: colors.textMuted,
-        ),
         filled: true,
-        fillColor: decoration.color,
-        // Symmetric vertical padding of ZERO with `isDense` leaves Material to
-        // centre the text in the box the SizedBox below fixes. A non-zero top
-        // or bottom (or Material's default asymmetric dense padding) parks the
-        // value high in a 32px field, which the first golden showed on "120".
+        fillColor: well.color,
+        counterText: '',
         contentPadding: const EdgeInsets.symmetric(
           horizontal: fieldHorizontalPadding,
+          vertical: NightshadeTokens.spaceSm,
         ),
-        // The counter and helper rows are what push a dense field's text off
-        // centre; neither is used here.
-        counterText: '',
         border: outline(ring),
         enabledBorder: outline(ring),
         focusedBorder: outline(ring),
         disabledBorder: outline(ring),
         errorBorder: outline(colors.error),
         focusedErrorBorder: outline(colors.error),
-        // `errorText` is deliberately NOT handed to the decoration: Material
-        // then reserves a helper-text row under every field whether or not
-        // there is an error, which is exactly the vertical drift a fixed 32px
-        // field exists to avoid. The message is rendered below instead.
       ),
+      maxLines: widget.maxLines,
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final hasError = widget.errorText != null && widget.errorText!.isNotEmpty;
+    final well = NightshadeDecorations.field(
+      colors,
+      focused: _isFocused && widget.enabled,
+      hasError: hasError,
+    );
+
+    final field = widget.maxLines == 1
+        ? _singleLineWell(colors, well)
+        : _multilineField(colors, well);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,13 +355,10 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
         ],
-        SizedBox(
-          height: widget.height,
-          // The caption above is a sibling of the field, so the field itself
-          // reached assistive tech as an anonymous text box — a settings leaf
-          // full of them announced fifteen identical unnamed fields.
-          child: Semantics(label: widget.label, child: field),
-        ),
+        // The caption above is a sibling of the field, so the field itself
+        // reached assistive tech as an anonymous text box — a settings leaf
+        // full of them announced fifteen identical unnamed fields.
+        Semantics(label: widget.label, child: field),
         if (hasError) ...<Widget>[
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(

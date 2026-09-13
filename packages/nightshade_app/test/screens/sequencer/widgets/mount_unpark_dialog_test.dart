@@ -71,7 +71,7 @@ void main() {
     );
     await _openDialog(tester);
 
-    await tester.tap(find.text('Unpark Now'));
+    await tester.tap(find.text('Unpark now'));
     await tester.pump();
     await tester.pump();
 
@@ -103,7 +103,7 @@ void main() {
     );
     await _openDialog(tester);
 
-    await tester.tap(find.text('Unpark Now'));
+    await tester.tap(find.text('Unpark now'));
     await tester.pump();
     await tester.pump();
 

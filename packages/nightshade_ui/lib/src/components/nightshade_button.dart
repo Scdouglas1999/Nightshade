@@ -381,6 +381,7 @@ class _NightshadeButtonState extends State<NightshadeButton>
           duration: NightshadeTokens.durationNormal,
           curve: NightshadeTokens.curveStandard,
           height: widget.height,
+          alignment: Alignment.center,
           // Floor the tappable box on touch platforms. `constraints` rather
           // than extra padding so the fill and border grow with it and the
           // whole visible control is the target, not a small shape inside a
@@ -398,6 +399,7 @@ class _NightshadeButtonState extends State<NightshadeButton>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               if (widget.isLoading) ...<Widget>[
                 SizedBox(

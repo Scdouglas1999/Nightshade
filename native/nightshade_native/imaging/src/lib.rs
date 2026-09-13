@@ -20,6 +20,7 @@ pub mod channel_combine; // NEW: Narrowband/LRGB channel combination
 pub mod color_calibration; // NEW: Photometric color calibration (per-channel white balance)
 pub mod deconvolution; // NEW: PSF estimation + Richardson-Lucy deconvolution
 pub mod defect_map;
+pub mod depthlock;
 pub mod difference_image; // NEW: Difference imaging (Pillar B — First Light) transient detection
 pub mod drizzle; // NEW: Drizzle (variable-pixel linear reconstruction) integration
 

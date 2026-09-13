@@ -24,6 +24,7 @@
 // pump) — never a wall-clock sleep.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -673,6 +674,19 @@ void main() {
       final container = buildContainer();
       final executor = await startRunning(container);
 
+      // The operator's stop decision row — the real wire carries it before
+      // the terminal (`stop_with_origin`); a native-side Stopped with no
+      // authorship evidence is classified 'aborted' instead (L52).
+      eventController.add(
+        _sequencerEvent(
+          'DecisionLogged',
+          data: const {
+            'category': 'manual_intervention',
+            'summary': 'Operator: stop requested',
+          },
+        ),
+      );
+      await pumpEvents();
       eventController.add(_sequencerEvent('Stopped'));
       await pumpEvents();
       await executor.terminalCleanupSettledForTest;
@@ -687,6 +701,91 @@ void main() {
       await pumpEvents();
       await executor.terminalCleanupSettledForTest;
       expect(session.endedStatuses, ['stopped']);
+    });
+
+    test('a trigger ParkAndAbort ends the session aborted and records its '
+        'cause in the run stats (L52)', () async {
+      final container = buildContainer();
+      final executor = await startRunning(container);
+
+      eventController.add(
+        _sequencerEvent(
+          'TriggerFired',
+          data: const {
+            'trigger_id': 'dawn_approaching',
+            'trigger_name': 'Dawn Approaching',
+            'action': 'ParkAndAbort',
+          },
+        ),
+      );
+      await pumpEvents();
+      eventController.add(_sequencerEvent('Stopped'));
+      await pumpEvents();
+      await executor.terminalCleanupSettledForTest;
+
+      // 'aborted' separates a safety/trigger end from the operator's own
+      // press — the Execution History chip already exists for it.
+      expect(session.endedStatuses, ['aborted']);
+      expect(
+        container.read(sequenceExecutionStateProvider),
+        SequenceExecutionState.idle,
+      );
+
+      // The run row carries WHY it ended, not just that it did.
+      final runs = await db.select(db.sequenceRuns).get();
+      expect(runs.single.status, 'aborted');
+      final stats = jsonDecode(runs.single.statsJson) as Map<String, dynamic>;
+      expect(
+        (stats['warningMessages'] as List).join('\n'),
+        contains('Dawn Approaching'),
+      );
+    });
+
+    test('a depth goal that ends a plan early is recorded on the run', () async {
+      final container = buildContainer();
+      await startRunning(container);
+
+      eventController.add(
+        _sequencerEvent(
+          'DepthGoalCompleted',
+          data: const {
+            'node_id': 'smart-1',
+            'filter_name': 'Ha',
+            'goal_id': 'm42-ha',
+            'revision': 3,
+            'evidence_frames': 18,
+            'confirmation_frames': 3,
+            'score': 13.4,
+            'threshold': 12.0,
+          },
+        ),
+      );
+      await pumpEvents();
+      // The write is fire-and-forget so the event loop keeps pumping; one more
+      // turn of the microtask queue is all it needs, never a sleep.
+      await pumpEvents();
+
+      final runId = container.read(currentRunIdProvider)!;
+      final decisions = await container
+          .read(replayDebugServiceProvider)
+          .listByRun(runId);
+      final decision = decisions.single;
+      // Filed as a budget decision: a depth goal IS the budget for a plan
+      // bound to one, and the replay feed already reads that bucket as "the
+      // plan stopped because it had enough".
+      expect(decision.category, DecisionCategory.budgetMet);
+      expect(decision.nodeId, 'smart-1');
+      expect(decision.summary, contains('Ha reached its depth goal'));
+      expect(decision.summary, contains('13.4'));
+      // The whole justification survives, so the Session Report can explain
+      // the short frame count without reopening the goal store.
+      final details = decision.details;
+      expect(details['goal_id'], 'm42-ha');
+      expect(details['revision'], 3);
+      expect(details['score'], 13.4);
+      expect(details['threshold'], 12.0);
+      expect(details['evidence_frames'], 18);
+      expect(details['confirmation_frames'], 3);
     });
   });
 

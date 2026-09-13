@@ -87,13 +87,13 @@ void main() {
     expect(find.textContaining('not the full MPCORB'), findsOneWidget);
   });
 
-  // "Refresh Now" must produce completion feedback the operator notices, not
+  // "Refresh now" must produce completion feedback the operator notices, not
   // just a date buried in a small status line.
   testWidgets('a completed refresh is acknowledged with its counts',
       (tester) async {
     await pumpCard(tester, _FakeService());
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Refresh Now'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Refresh now'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

@@ -213,4 +213,112 @@ mixin _DisconnectedBackendProfileAndImage on Object
   Future<(int, bool)> getDeviceHealth(String deviceId) async {
     _throwNotConnected();
   }
+
+  // DepthLock. The goal store lives on the host beside the frames it
+  // measures, so there is nothing to read or edit while disconnected.
+
+  @override
+  Future<DepthLockStatus> depthLockStatus() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<List<DepthLockGoal>> listDepthLockGoals() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockGoal> getDepthLockGoal(String goalId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockGoal> createDepthLockGoal(
+    DepthLockGoalDefinition definition, {
+    String? goalId,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockGoal> reviseDepthLockGoal({
+    required String goalId,
+    required int expectedRevision,
+    required DepthLockGoalDefinition definition,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockGoal> setDepthLockGoalPreferences({
+    required String goalId,
+    required int expectedRevision,
+    required bool enabled,
+    required bool automaticCompletion,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> removeDepthLockGoal({
+    required String goalId,
+    required int expectedRevision,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockReferenceInfo> inspectDepthLockReference(String path) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<SkyRectangle> depthLockSkyRectangle({
+    required ReferenceGeometry reference,
+    required double x0,
+    required double y0,
+    required double x1,
+    required double y1,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<int> checkDepthLockMeasurement(
+    DepthLockMeasurement measurement,
+  ) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockIngestOutcome> ingestDepthLockFrame({
+    required String goalId,
+    required String path,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockGoal> replayDepthLockGoal(String goalId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<List<DepthLockCurvePoint>> depthLockGoalCurve(
+    String goalId, {
+    int maxPoints = 60,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<DepthLockFloorSuggestion> suggestDepthLockFloor({
+    required String referencePath,
+    required String darkPath,
+    required String flatPath,
+    required double scaleArcsec,
+    double? pixelScaleArcsec,
+  }) async {
+    _throwNotConnected();
+  }
 }

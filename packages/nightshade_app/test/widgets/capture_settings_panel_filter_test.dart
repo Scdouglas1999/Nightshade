@@ -110,7 +110,7 @@ Future<void> _selectFilter(
   // the open tap to the dropdown ancestor of that label.
   final filterDropdown = find.ancestor(
     of: find.text(currentLabel),
-    matching: find.byType(DropdownButton<String>),
+    matching: find.byType(NightshadeDropdown),
   );
   await tester.tap(filterDropdown);
   await tester.pumpAndSettle();
@@ -148,10 +148,10 @@ void main() {
     expect(service.positions, [2]);
     expect(
       tester
-          .widget<DropdownButton<String>>(
+          .widget<NightshadeDropdown>(
             find.ancestor(
               of: find.text('L'),
-              matching: find.byType(DropdownButton<String>),
+              matching: find.byType(NightshadeDropdown),
             ),
           )
           .onChanged,
@@ -176,8 +176,7 @@ void main() {
 
     expect(
       tester
-          .widgetList<DropdownButton<String>>(
-              find.byType(DropdownButton<String>))
+          .widgetList<NightshadeDropdown>(find.byType(NightshadeDropdown))
           .where((dropdown) => dropdown.value == 'G'),
       hasLength(1),
       reason: 'Exposure metadata changes only after the move completes.',

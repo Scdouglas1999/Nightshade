@@ -87,10 +87,13 @@ class FormRow extends StatelessWidget {
       children: <Widget>[
         SizedBox(
           width: labelWidth,
-          child: Text(
-            label,
-            style: NightshadeTypography.bodySm.copyWith(
-              color: colors.textSecondary,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
           ),
         ),

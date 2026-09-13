@@ -330,3 +330,246 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
     );
   }
 }
+
+/// DepthLock bridge conversions.
+///
+/// Separate from [_FfiBackendBridgeModelMappers] only because the goal models
+/// are plain Dart classes with no device-status lineage; the conventions are
+/// the same. Revisions and queue counters are `u64` in Rust and arrive as
+/// `BigInt`; selection timestamps are `i64` and arrive as `PlatformInt64`.
+/// Both collapse to `int` here — a revision that overflowed a Dart int would
+/// mean 2^63 edits of one goal.
+extension _FfiBackendDepthLockMappers on _FfiBackendBase {
+  SkyRectangle _fromBridgeSkyRectangle(bridge_api.ApiSkyRectangle r) =>
+      SkyRectangle(
+        raDeg: r.raDeg,
+        decDeg: r.decDeg,
+        widthArcsec: r.widthArcsec,
+        heightArcsec: r.heightArcsec,
+        rotationDeg: r.rotationDeg,
+      );
+
+  bridge_api.ApiSkyRectangle _toBridgeSkyRectangle(SkyRectangle r) =>
+      bridge_api.ApiSkyRectangle(
+        raDeg: r.raDeg,
+        decDeg: r.decDeg,
+        widthArcsec: r.widthArcsec,
+        heightArcsec: r.heightArcsec,
+        rotationDeg: r.rotationDeg,
+      );
+
+  // The generated geometry uses `cd11`-style names where the models keep the
+  // FITS `CD1_1` spelling; this is the only place the two meet.
+  ReferenceGeometry _fromBridgeReferenceGeometry(
+    bridge_api.ApiReferenceGeometry g,
+  ) => ReferenceGeometry(
+    width: g.width,
+    height: g.height,
+    crval1: g.crval1,
+    crval2: g.crval2,
+    crpix1: g.crpix1,
+    crpix2: g.crpix2,
+    cd1_1: g.cd11,
+    cd1_2: g.cd12,
+    cd2_1: g.cd21,
+    cd2_2: g.cd22,
+  );
+
+  bridge_api.ApiReferenceGeometry _toBridgeReferenceGeometry(
+    ReferenceGeometry g,
+  ) => bridge_api.ApiReferenceGeometry(
+    width: g.width,
+    height: g.height,
+    crval1: g.crval1,
+    crval2: g.crval2,
+    crpix1: g.crpix1,
+    crpix2: g.crpix2,
+    cd11: g.cd1_1,
+    cd12: g.cd1_2,
+    cd21: g.cd2_1,
+    cd22: g.cd2_2,
+  );
+
+  AcquisitionSettings _fromBridgeAcquisitionSettings(
+    bridge_api.ApiAcquisitionSettings a,
+  ) => AcquisitionSettings(
+    instrument: a.instrument,
+    filter: a.filter,
+    exposureSecs: a.exposureSecs,
+    gain: a.gain,
+    offset: a.offset,
+    binX: a.binX,
+    binY: a.binY,
+    ccdTempC: a.ccdTempC,
+  );
+
+  bridge_api.ApiAcquisitionSettings _toBridgeAcquisitionSettings(
+    AcquisitionSettings a,
+  ) => bridge_api.ApiAcquisitionSettings(
+    instrument: a.instrument,
+    filter: a.filter,
+    exposureSecs: a.exposureSecs,
+    gain: a.gain,
+    offset: a.offset,
+    binX: a.binX,
+    binY: a.binY,
+    ccdTempC: a.ccdTempC,
+  );
+
+  DepthLockMeasurement _fromBridgeDepthMeasurement(
+    bridge_api.ApiDepthMeasurement m,
+  ) => DepthLockMeasurement(
+    region: _fromBridgeSkyRectangle(m.region),
+    background: _fromBridgeSkyRectangle(m.background),
+    scaleArcsec: m.scaleArcsec,
+    threshold: m.threshold,
+    minCoverage: m.minCoverage,
+    systematicFloorAdu: m.systematicFloorAdu,
+    systematicFloorSource: m.systematicFloorSource,
+  );
+
+  bridge_api.ApiDepthMeasurement _toBridgeDepthMeasurement(
+    DepthLockMeasurement m,
+  ) => bridge_api.ApiDepthMeasurement(
+    region: _toBridgeSkyRectangle(m.region),
+    background: _toBridgeSkyRectangle(m.background),
+    scaleArcsec: m.scaleArcsec,
+    threshold: m.threshold,
+    minCoverage: m.minCoverage,
+    systematicFloorAdu: m.systematicFloorAdu,
+    systematicFloorSource: m.systematicFloorSource,
+  );
+
+  DepthLockGoalDefinition _fromBridgeDepthGoalDefinition(
+    bridge_api.ApiDepthGoalDefinition d,
+  ) => DepthLockGoalDefinition(
+    label: d.label,
+    projectId: d.projectId,
+    targetId: d.targetId,
+    profileId: d.profileId,
+    filterName: d.filterName,
+    filterIndex: d.filterIndex,
+    referencePath: d.referencePath,
+    reference: _fromBridgeReferenceGeometry(d.reference),
+    acquisition: _fromBridgeAcquisitionSettings(d.acquisition),
+    temperatureToleranceC: d.temperatureToleranceC,
+    darkPath: d.darkPath,
+    flatPath: d.flatPath,
+    measurement: _fromBridgeDepthMeasurement(d.measurement),
+    enabled: d.enabled,
+    automaticCompletion: d.automaticCompletion,
+  );
+
+  bridge_api.ApiDepthGoalDefinition _toBridgeDepthGoalDefinition(
+    DepthLockGoalDefinition d,
+  ) => bridge_api.ApiDepthGoalDefinition(
+    label: d.label,
+    projectId: d.projectId,
+    targetId: d.targetId,
+    profileId: d.profileId,
+    filterName: d.filterName,
+    filterIndex: d.filterIndex,
+    referencePath: d.referencePath,
+    reference: _toBridgeReferenceGeometry(d.reference),
+    acquisition: _toBridgeAcquisitionSettings(d.acquisition),
+    temperatureToleranceC: d.temperatureToleranceC,
+    darkPath: d.darkPath,
+    flatPath: d.flatPath,
+    measurement: _toBridgeDepthMeasurement(d.measurement),
+    enabled: d.enabled,
+    automaticCompletion: d.automaticCompletion,
+  );
+
+  DepthLockForecast _fromBridgeDepthForecast(bridge_api.ApiDepthForecast f) =>
+      DepthLockForecast(
+        framesToThreshold: f.framesToThreshold,
+        framesToConfirm: f.framesToConfirm,
+        reachable: f.reachable,
+        ceilingScore: f.ceilingScore,
+        perFrameNoiseAdu: f.perFrameNoiseAdu,
+        recentFrameNoiseAdu: f.recentFrameNoiseAdu,
+        bestFrameNoiseAdu: f.bestFrameNoiseAdu,
+      );
+
+  DepthLockCurvePoint _fromBridgeDepthCurvePoint(
+    bridge_api.ApiDepthCurvePoint p,
+  ) => DepthLockCurvePoint(
+    frames: p.frames,
+    score: p.score,
+    conservativeScore: p.conservativeScore,
+    projected: p.projected,
+  );
+
+  DepthLockReport _fromBridgeDepthReport(bridge_api.ApiDepthReport r) =>
+      DepthLockReport(
+        state: DepthLockState.fromWire(r.state),
+        score: r.score,
+        conservativeScore: r.conservativeScore,
+        uncertaintyAdu: r.uncertaintyAdu,
+        coverage: r.coverage,
+        evidenceFrames: r.evidenceFrames,
+        confirmationFrames: r.confirmationFrames,
+        reason: r.reason,
+        forecast: r.forecast == null
+            ? null
+            : _fromBridgeDepthForecast(r.forecast!),
+      );
+
+  DepthLockGoal _fromBridgeDepthGoal(bridge_api.ApiDepthGoal g) => DepthLockGoal(
+    id: g.id,
+    revision: g.revision.toInt(),
+    definition: _fromBridgeDepthGoalDefinition(g.definition),
+    selectedAtMs: g.selectedAtMs.toInt(),
+    evidenceFrames: g.evidenceFrames,
+    evidenceRevision: g.evidenceRevision.toInt(),
+    analysisCurrent: g.analysisCurrent,
+    report: g.report == null ? null : _fromBridgeDepthReport(g.report!),
+    candidateFrames: g.candidateFrames,
+    lastIssue: g.lastIssue,
+    archivedRevisions: g.archivedRevisions,
+    estimatorVersion: g.estimatorVersion,
+  );
+
+  DepthLockReferenceInfo _fromBridgeDepthReferenceInfo(
+    bridge_api.ApiDepthReferenceInfo i,
+  ) => DepthLockReferenceInfo(
+    width: i.width,
+    height: i.height,
+    pixelType: i.pixelType,
+    monochrome: i.monochrome,
+    geometry: i.geometry == null
+        ? null
+        : _fromBridgeReferenceGeometry(i.geometry!),
+    geometryIssue: i.geometryIssue,
+    pixelScaleArcsec: i.pixelScaleArcsec,
+    acquisition: i.acquisition == null
+        ? null
+        : _fromBridgeAcquisitionSettings(i.acquisition!),
+    acquisitionIssue: i.acquisitionIssue,
+  );
+
+  DepthLockFloorSuggestion _fromBridgeDepthFloorSuggestion(
+    bridge_api.ApiDepthFloorSuggestion s,
+  ) => DepthLockFloorSuggestion(
+    floorAdu: s.floorAdu,
+    darkNoiseAdu: s.darkNoiseAdu,
+    flatRelativeNoise: s.flatRelativeNoise,
+    skyAdu: s.skyAdu,
+    aperturePixels: s.aperturePixels,
+    source: s.source,
+  );
+
+  DepthLockStatus _fromBridgeDepthLockStatus(bridge_api.ApiDepthLockStatus s) =>
+      DepthLockStatus(
+        available: s.available,
+        goals: s.goals,
+        queueCapacity: s.queueCapacity,
+        queued: s.queued.toInt(),
+        processed: s.processed.toInt(),
+        dropped: s.dropped.toInt(),
+        evidenceAdded: s.evidenceAdded.toInt(),
+        evidenceRejected: s.evidenceRejected.toInt(),
+        lastFrameMs: s.lastFrameMs.toInt(),
+        maxFrameMs: s.maxFrameMs.toInt(),
+      );
+}

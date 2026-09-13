@@ -4,7 +4,7 @@ part of '../stacking_panel.dart';
 
 /// The Stack-and-Share launcher button (component C10).
 ///
-/// A single primary [NightshadeButton] that opens [StackAndShareDialog] for the
+/// A secondary [NightshadeButton] that opens [StackAndShareDialog] for the
 /// current session. The button is disabled — with an explanatory
 /// [NightshadeTooltip] — when there is no active/selected session, or when live
 /// stacking is running (the stacking engine is a singleton, so we surface that
@@ -52,14 +52,13 @@ class _StackAndShareEntry extends StatelessWidget {
     // mid-preview. The reason text is mutually exclusive with an active handler.
     final enabled = disabledReason == null && !isBusy && onPressed != null;
 
-    final button = SizedBox(
-      width: double.infinity,
-      child: NightshadeButton(
-        label: isRemoteMode ? 'Stack & Share on imaging host' : 'Stack & Share',
-        icon: NightshadeIcons.sparkle,
-        isLoading: isBusy,
-        onPressed: enabled ? onPressed : null,
-      ),
+    final button = NightshadeButton(
+      label: isRemoteMode ? 'Stack & Share on imaging host' : 'Stack & Share',
+      icon: NightshadeIcons.sparkle,
+      variant: ButtonVariant.secondary,
+      size: ButtonSize.small,
+      isLoading: isBusy,
+      onPressed: enabled ? onPressed : null,
     );
 
     if (disabledReason == null) {

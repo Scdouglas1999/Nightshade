@@ -35,6 +35,7 @@ class NightshadeIconButton extends StatefulWidget {
     this.size = IconButtonSize.md,
     this.selected = false,
     this.color,
+    this.tooltipPosition,
   });
 
   /// The glyph. Lucide only — never `Icons.*`.
@@ -57,6 +58,14 @@ class NightshadeIconButton extends StatefulWidget {
   /// Overrides the resting glyph colour — a `destructive` action, a status
   /// tint. Hover and selection still apply on top.
   final Color? color;
+
+  /// Where the hover label sits relative to the square.
+  ///
+  /// Strip buttons default to [NightshadeTooltipPosition.left]: they live on
+  /// the right edge of a side panel, and a `top` label is clamped off that
+  /// edge so it no longer points at the icon. Everything else defaults to
+  /// [NightshadeTooltipPosition.top].
+  final NightshadeTooltipPosition? tooltipPosition;
 
   /// The button's edge length in logical pixels.
   double get extent => switch (size) {
@@ -188,6 +197,11 @@ class _NightshadeIconButtonState extends State<NightshadeIconButton> {
           excludeFromSemantics: true,
           child: NightshadeTooltip(
             message: widget.tooltip,
+            position:
+                widget.tooltipPosition ??
+                (widget.size == IconButtonSize.strip
+                    ? NightshadeTooltipPosition.left
+                    : NightshadeTooltipPosition.top),
             child: MouseRegion(
               onEnter: (_) => _setHovered(true),
               onExit: (_) => _setHovered(false),

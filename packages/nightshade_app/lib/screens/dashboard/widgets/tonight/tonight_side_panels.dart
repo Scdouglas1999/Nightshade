@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../../localization/nightshade_localizations.dart';
 import '../standby/moon_card.dart' show MoonPainter;
 import 'tonight_night.dart';
+import '../../../sequencer/run_status_presentation.dart';
 
 /// The phase disc's diameter (06 §Tonight: 56 px).
 const double _discSize = 56;
@@ -162,6 +163,16 @@ class TonightLastNightPanel extends ConsumerWidget {
           data: (runs) => runs.isEmpty ? null : runs.first,
           orElse: () => null,
         );
+    String? failure;
+    final statsJson = lastRun?.statsJson;
+    if (lastRun != null && lastRun.status == 'failed' && statsJson != null) {
+      try {
+        final errors = ParsedRunStats.fromJson(statsJson).errorMessages;
+        if (errors.isNotEmpty) failure = runFailureMessage(errors.last);
+      } on FormatException {
+        // Older runs may have an unreadable stats payload; the outcome remains visible.
+      }
+    }
     // Only claim "Last night" when the run genuinely was last night; a
     // weeks-old run under that header reads as a stale-data bug.
     final recent = lastRun != null &&
@@ -193,6 +204,12 @@ class TonightLastNightPanel extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: NightshadeTokens.spaceSm),
+                if (failure != null) ...[
+                  Text(failure,
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.error)),
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                ],
                 ReadoutRow(
                   gap: NightshadeTokens.spaceXl,
                   children: <Readout>[
@@ -202,7 +219,7 @@ class TonightLastNightPanel extends ConsumerWidget {
                       size: ReadoutSize.sm,
                     ),
                     Readout(
-                      value: lastRun.status,
+                      value: runStatusLabel(lastRun.status),
                       label: l10n.text('tnOutcome'),
                       size: ReadoutSize.sm,
                     ),

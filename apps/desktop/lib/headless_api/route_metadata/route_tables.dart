@@ -25,6 +25,12 @@ const Map<String, String> resourcePrefixKeys = {
   '/api/weather/': 'safety',
   '/api/switch/': 'switch',
   '/api/sequencer/': 'sequencer',
+  // DepthLock goals are what a Smart Exposure plan binds to, and the
+  // sequencer is what consumes the verdict, so a token trusted to run
+  // sequences is exactly the token that may edit the goals it runs against.
+  // Without this entry the surface fell through to the `system` catch-all,
+  // which would have made a goal edit need an admin-adjacent grant.
+  '/api/depthlock/': 'sequencer',
   '/api/framing/': 'framing',
   '/api/calibration/': 'calibration',
   // Collaborative Sky (6.0) routes. Without these entries

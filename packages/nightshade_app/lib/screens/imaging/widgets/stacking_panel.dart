@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // The selector provider is not re-exported through the core barrel; the
@@ -70,7 +69,19 @@ enum _StopDecision { saveMaster, discard, cancel }
 class StackingPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
-  const StackingPanel({super.key, required this.colors});
+  /// Whether the panel draws the stacked image itself.
+  ///
+  /// False when the Live stack tab is showing the stack on its own canvas —
+  /// the picture belongs there, at a size worth looking at, and repeating it
+  /// as a thumbnail beside the controls is the same frame twice. The narrow
+  /// layout, which has no canvas beside the controls, keeps it.
+  final bool showPreview;
+
+  const StackingPanel({
+    super.key,
+    required this.colors,
+    this.showPreview = true,
+  });
 
   @override
   ConsumerState<StackingPanel> createState() => _StackingPanelState();
@@ -520,7 +531,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     // `stacked_frame_count - 1`, because the reference frame is not matched
     // against itself and has zero residual by construction. So with no stack
     // running, or with only the reference frame in, both fields still hold
-    // their 0.0 initialiser — and "Avg Alignment Residual 0.00 px" reads as
+    // their 0.0 initialiser — and "Average alignment residual 0.00 px" reads as
     // sub-pixel-perfect registration rather than "nothing measured yet".
     final hasAlignedFrames = stats.stackedFrameCount > 1;
 
@@ -538,22 +549,30 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     final sessionId = sessionState.dbSessionId;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: NightshadeTokens.paddingLg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Stack-and-Share entry point (C10): one-button launcher for the
-          // post-capture stacking + share pipeline on the current session.
-          _StackAndShareEntry(
-            sessionId: sessionId,
-            liveStackingActive: isRunning,
-            isBusy: _isOpeningStackAndShare,
-            isRemoteMode: isRemoteMode,
-            onPressed: sessionId == null || isRemoteMode
-                ? null
-                : () => _openStackAndShare(sessionId),
+          Wrap(
+            spacing: NightshadeTokens.spaceLg,
+            runSpacing: NightshadeTokens.spaceSm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('Live stack',
+                  style: NightshadeTypography.sectionTitle
+                      .copyWith(color: widget.colors.textPrimary)),
+              _StackAndShareEntry(
+                sessionId: sessionId,
+                liveStackingActive: isRunning,
+                isBusy: _isOpeningStackAndShare,
+                isRemoteMode: isRemoteMode,
+                onPressed: sessionId == null || isRemoteMode
+                    ? null
+                    : () => _openStackAndShare(sessionId),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: NightshadeTokens.spaceLg),
 
           // Error banner
           if (stackState.errorMessage != null)
@@ -568,9 +587,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
             ),
 
           // Status and controls
-          PanelSection(
-            title: 'Live stacking',
-            colors: widget.colors,
+          NightshadePanel(
+            head: PanelHead(label: 'Live stacking'),
             child: Column(
               children: [
                 // Status indicator
@@ -627,88 +645,63 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                     ),
                   ),
 
-                // Start/Stop buttons
-                Row(
+                Wrap(
+                  spacing: NightshadeTokens.spaceSm,
+                  runSpacing: NightshadeTokens.spaceSm,
                   children: [
-                    Expanded(
-                      child: SmallButton(
-                        label: _isStarting ? 'Starting...' : 'Start',
-                        icon: _isStarting
-                            ? NightshadeIcons.loading
-                            : NightshadeIcons.layers,
-                        colors: widget.colors,
-                        isEnabled: !isRunning && !_isStarting,
-                        onTap: _startStacking,
-                      ),
+                    NightshadeButton(
+                      label: _isStarting ? 'Starting...' : 'Start stacking',
+                      icon: NightshadeIcons.layers,
+                      isLoading: _isStarting,
+                      onPressed:
+                          !isRunning && !_isStarting ? _startStacking : null,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SmallButton(
-                        label: _isStopping ? 'Stopping...' : 'Stop',
-                        icon: NightshadeIcons.stop,
-                        isOutline: true,
-                        colors: widget.colors,
-                        isEnabled: isRunning && !_isStopping && !_isEndingStack,
-                        onTap: _stopStacking,
-                      ),
+                    NightshadeButton(
+                      label: _isStopping ? 'Stopping...' : 'Stop',
+                      icon: NightshadeIcons.stop,
+                      variant: ButtonVariant.secondary,
+                      onPressed: isRunning && !_isStopping && !_isEndingStack
+                          ? _stopStacking
+                          : null,
                     ),
+                    if (isRunning)
+                      NightshadeButton(
+                        label: _isResetting ? 'Resetting...' : 'Reset stack',
+                        icon: NightshadeIcons.refresh,
+                        variant: ButtonVariant.ghost,
+                        onPressed: !_isResetting ? _resetStack : null,
+                      ),
                   ],
                 ),
-                if (isRunning) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SmallButton(
-                      label: _isResetting ? 'Resetting...' : 'Reset Stack',
-                      icon: _isResetting
-                          ? NightshadeIcons.loading
-                          : NightshadeIcons.refresh,
-                      isOutline: true,
-                      colors: widget.colors,
-                      isEnabled: !_isResetting,
-                      onTap: _resetStack,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
           const SizedBox(height: 20),
 
           // Statistics
-          PanelSection(
-            title: 'Statistics',
-            colors: widget.colors,
+          NightshadePanel(
+            head: PanelHead(label: 'Statistics'),
             child: Column(
               children: [
-                _StatGroupHeader(
-                  label: 'Frames',
-                  colors: widget.colors,
-                  isFirst: true,
+                ReadoutRow(
+                  children: [
+                    Readout(
+                        value: _frames(stats.stackedFrameCount),
+                        label: 'Stacked frames'),
+                    Readout(
+                        value: _frames(stats.totalFramesAttempted),
+                        label: 'Total attempted'),
+                    Readout(
+                        value: _frames(stats.rejectedAlignmentFailures),
+                        label: 'Rejected (alignment)',
+                        valueColor: stats.rejectedAlignmentFailures > 0
+                            ? widget.colors.warning
+                            : null),
+                  ],
                 ),
+                const SizedBox(height: NightshadeTokens.spaceLg),
                 _StatRow(
-                  label: 'Stacked frames',
-                  value: _frames(stats.stackedFrameCount),
-                  colors: widget.colors,
-                ),
-                const SizedBox(height: 8),
-                _StatRow(
-                  label: 'Total attempted',
-                  value: _frames(stats.totalFramesAttempted),
-                  colors: widget.colors,
-                ),
-                const SizedBox(height: 8),
-                _StatRow(
-                  label: 'Rejected (Alignment)',
-                  value: _frames(stats.rejectedAlignmentFailures),
-                  valueColor: stats.rejectedAlignmentFailures > 0
-                      ? widget.colors.warning
-                      : null,
-                  colors: widget.colors,
-                ),
-                const SizedBox(height: 8),
-                _StatRow(
-                  label: 'Avg Matched Pairs',
+                  label: 'Average matched pairs',
                   value: hasAlignedFrames
                       ? '${stats.avgMatchedPairs.toStringAsFixed(1)} stars'
                       : '—',
@@ -716,7 +709,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
-                  label: 'Avg Alignment Residual',
+                  label: 'Average alignment residual',
                   value: hasAlignedFrames
                       ? '${stats.avgAlignmentResidual.toStringAsFixed(2)} px'
                       : '—',
@@ -730,13 +723,13 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   colors: widget.colors,
                 ),
                 _StatRow(
-                  label: 'Sigma-Rejected (Total)',
+                  label: 'Sigma rejected (total)',
                   value: _pixels(stats.totalSigmaRejectedPixels),
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
-                  label: 'Sigma-Rejected (Last Frame)',
+                  label: 'Sigma rejected (last frame)',
                   value: _pixels(stackState.lastFrameSigmaRejectedPixels),
                   valueColor: _rejectionRateColor(
                       stackState.lastFrameSigmaRejectionRate, widget.colors),
@@ -744,10 +737,10 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
-                  label: 'Rejection Rate (Last Frame)',
+                  label: 'Rejection rate (last frame)',
                   value: stackState.lastFrameTotalPixels > 0
                       ? '${(stackState.lastFrameSigmaRejectionRate * 100).toStringAsFixed(2)}%'
-                      : '--',
+                      : '—',
                   valueColor: _rejectionRateColor(
                       stackState.lastFrameSigmaRejectionRate, widget.colors),
                   colors: widget.colors,
@@ -773,12 +766,12 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           const SizedBox(height: 20),
 
           // Stacked preview
-          if (stackState.previewData != null &&
+          if (widget.showPreview &&
+              stackState.previewData != null &&
               stackState.previewWidth > 0 &&
               stackState.previewHeight > 0)
-            PanelSection(
-              title: 'Stacked preview',
-              colors: widget.colors,
+            NightshadePanel(
+              head: PanelHead(label: 'Stacked preview'),
               child: _StackedPreview(
                 previewData: stackState.previewData!,
                 width: stackState.previewWidth,
@@ -789,12 +782,12 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
               ),
             ),
 
-          if (stackState.previewData != null) const SizedBox(height: 20),
+          if (widget.showPreview && stackState.previewData != null)
+            const SizedBox(height: 20),
 
           // Sigma Clipping config
-          PanelSection(
-            title: 'Sigma clipping',
-            colors: widget.colors,
+          NightshadePanel(
+            head: PanelHead(label: 'Sigma clipping'),
             child: Column(
               children: [
                 Row(
@@ -847,9 +840,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           const SizedBox(height: 20),
 
           // Star Matching config
-          PanelSection(
-            title: 'Star matching',
-            colors: widget.colors,
+          NightshadePanel(
+            head: PanelHead(label: 'Star matching'),
             child: Column(
               children: [
                 InputRowEditable(

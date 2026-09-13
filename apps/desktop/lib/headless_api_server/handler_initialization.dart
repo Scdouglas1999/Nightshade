@@ -174,6 +174,10 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // download is a streamed file the client resumes itself.
     _darkroomDeliveryHandlers = DarkroomDeliveryHandlers(container);
 
+    // DepthLock goal store. The native side owns the goals and the analysis
+    // queue, so the handler is a thin translation layer over the backend role.
+    _depthLockHandlers = DepthLockHandlers(container);
+
     // broadcast controller that fans out NightshadeEvents from
     // the backend stream to every connected SSE subscriber. Created here
     // (rather than in `start()`) so it can be passed to the handler ctor

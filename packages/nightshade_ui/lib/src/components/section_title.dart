@@ -41,6 +41,7 @@ class SectionTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: bottomGap),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           if (icon != null) ...<Widget>[
             Icon(icon, size: iconSize, color: colors.textMuted),

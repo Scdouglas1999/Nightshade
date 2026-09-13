@@ -18,48 +18,65 @@ import '../providers/settings_provider.dart' show LocationSettings;
 /// meridian-flip timing and the horizon mask — so anyone on the path could
 /// both read the observer's public IP and choose where the rig thinks it is.
 ///
+/// City-centroid databases (ipwho.is, and ipapi.co when it answers) often pin
+/// a metro ISP to the city hall. For a US residential IP that is the wrong
+/// observatory: Weather, twilight and the horizon mask all follow the pin.
+/// ipinfo.io's `loc` is typically ZIP-level, so it is the primary; ipwho.is
+/// remains the TLS fallback when ipinfo refuses or rate-limits.
+///
 /// The second rule here is that an unusable answer is an error, never a
 /// coordinate. Defaulting a missing `lat`/`lon` to `0.0` puts the rig on Null
 /// Island — a real place in the Gulf of Guinea, where every target is up at
 /// the wrong time.
 class IpGeolocation {
-  /// Free, no-key, TLS-only IP geolocation. Same shape of service as the
-  /// cleartext one it replaces (`latitude` / `longitude` / `success`).
-  static final Uri endpoint = Uri.parse('https://ipwho.is/');
+  /// Primary lookup. Unauthenticated JSON; ZIP-level `loc` for US IPs.
+  static final Uri endpoint = Uri.parse('https://ipinfo.io/json');
+
+  /// TLS fallback when the primary is unreachable or has no coordinate.
+  static final Uri fallbackEndpoint = Uri.parse('https://ipwho.is/');
 
   /// Client factory, injectable so a test can assert what goes on the wire.
   @visibleForTesting
   static http.Client Function() clientFactory = http.Client.new;
 
-  /// Fetch the estimate. Throws a [NightshadeError] when the service is
-  /// unreachable, refuses, or answers without a usable coordinate.
+  /// Fetch the estimate. Throws a [NightshadeError] when both services are
+  /// unreachable, refuse, or answer without a usable coordinate.
   static Future<LocationSettings> fetch() async {
     final client = clientFactory();
-    final http.Response response;
+    NightshadeError? lastError;
     try {
-      response = await client
-          .get(endpoint)
-          .timeout(const Duration(seconds: 10));
-    } on NightshadeError {
-      rethrow;
-    } catch (e) {
-      throw NightshadeError(
-        category: BackendErrorCategory.io,
-        message: 'Error fetching location: $e',
-        userMessage:
-            'Could not reach the location service at ${endpoint.host}.',
-        isRecoverable: true,
-      );
+      for (final uri in [endpoint, fallbackEndpoint]) {
+        try {
+          return await _fetchUri(client, uri);
+        } on NightshadeError catch (e) {
+          lastError = e;
+        } catch (e) {
+          lastError = NightshadeError(
+            category: BackendErrorCategory.io,
+            message: 'Error fetching location: $e',
+            userMessage:
+                'Could not reach the location service at ${uri.host}.',
+            isRecoverable: true,
+          );
+        }
+      }
     } finally {
       client.close();
     }
+    throw lastError!;
+  }
 
+  static Future<LocationSettings> _fetchUri(
+    http.Client client,
+    Uri uri,
+  ) async {
+    final response = await client.get(uri).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
       throw NightshadeError(
         category: BackendErrorCategory.io,
         message: 'Failed to fetch location: HTTP ${response.statusCode}',
         userMessage:
-            'The location service at ${endpoint.host} returned '
+            'The location service at ${uri.host} returned '
             'HTTP ${response.statusCode}.',
         isRecoverable: true,
       );
@@ -68,7 +85,8 @@ class IpGeolocation {
   }
 
   /// Parse a response body into a site. Separate from [fetch] so the refusal
-  /// rules are testable without a socket.
+  /// rules are testable without a socket. Accepts ipinfo.io (`loc`) and
+  /// ipwho.is / ipapi.co (`latitude` / `longitude`).
   @visibleForTesting
   static LocationSettings parse(String body) {
     Object? decoded;
@@ -83,16 +101,8 @@ class IpGeolocation {
       );
     }
     final data = decoded is Map<String, dynamic> ? decoded : null;
-    // Read the coordinates as `num`: a whole-degree latitude serialises as
-    // `40`, not `40.0`, and a `double` cast would throw on it.
-    final lat = data == null ? null : (data['latitude'] as num?)?.toDouble();
-    final lon = data == null ? null : (data['longitude'] as num?)?.toDouble();
-    if (data == null ||
-        data['success'] == false ||
-        lat == null ||
-        lon == null ||
-        lat.abs() > 90 ||
-        lon.abs() > 180) {
+    final coords = data == null ? null : _latLonFrom(data);
+    if (coords == null) {
       throw NightshadeError(
         category: BackendErrorCategory.io,
         message:
@@ -107,6 +117,45 @@ class IpGeolocation {
     // Elevation is deliberately 0: neither IP service reports one, and
     // inventing the previous site's elevation is how a Pennsylvania fix ended
     // up 1234 m above sea level.
-    return LocationSettings(latitude: lat, longitude: lon, elevation: 0.0);
+    //
+    // Four decimals (~11 m) is finer than an IP estimate and stops a
+    // seven-decimal city-centroid reply from looking like a surveyed pin.
+    return LocationSettings(
+      latitude: _roundIp(coords.$1),
+      longitude: _roundIp(coords.$2),
+      elevation: 0.0,
+    );
   }
+
+  /// Prefer `loc` ("lat,lon") when present: that is ipinfo's ZIP-level fix.
+  /// `latitude`/`longitude` are the city-centroid fields the fallback uses.
+  static (double, double)? _latLonFrom(Map<String, dynamic> data) {
+    if (data['success'] == false || data['error'] == true) return null;
+    if (data['error'] is Map) return null;
+
+    double? lat;
+    double? lon;
+    final loc = data['loc'];
+    if (loc is String) {
+      final parts = loc.split(',');
+      if (parts.length >= 2) {
+        lat = double.tryParse(parts[0].trim());
+        lon = double.tryParse(parts[1].trim());
+      }
+    }
+    // Read as `num`: a whole-degree latitude serialises as `40`, not `40.0`,
+    // and a `double` cast would throw on it.
+    lat ??= (data['latitude'] as num?)?.toDouble();
+    lon ??= (data['longitude'] as num?)?.toDouble();
+    if (lat == null ||
+        lon == null ||
+        lat.abs() > 90 ||
+        lon.abs() > 180) {
+      return null;
+    }
+    return (lat, lon);
+  }
+
+  static double _roundIp(double value) =>
+      double.parse(value.toStringAsFixed(4));
 }

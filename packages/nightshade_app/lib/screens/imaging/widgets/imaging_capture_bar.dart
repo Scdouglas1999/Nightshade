@@ -137,6 +137,7 @@ class _ImagingCaptureBarState extends ConsumerState<ImagingCaptureBar> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   // The screen's two primary actions reached assistive tech as unnamed
                   // generic nodes, so a screen-reader user was never told the shutter

@@ -202,6 +202,24 @@ pub(crate) async fn run_sequencer_event_loop(
                         }),
                     ))
                 }
+                ExecutorEvent::DepthGoalCompleted {
+                    node_id,
+                    filter_name,
+                    completion,
+                } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::DepthGoalCompleted {
+                        node_id: node_id.clone(),
+                        filter_name: filter_name.clone(),
+                        goal_id: completion.goal_id.clone(),
+                        revision: completion.revision,
+                        evidence_frames: completion.evidence_frames,
+                        confirmation_frames: completion.confirmation_frames,
+                        score: completion.score,
+                        threshold: completion.threshold,
+                    }),
+                )),
                 ExecutorEvent::NodeStarted { id, name } => Some(create_event_auto_id(
                     EventSeverity::Info,
                     EventCategory::Sequencer,
@@ -340,6 +358,17 @@ pub(crate) async fn run_sequencer_event_loop(
                     // `InstructionProgress` for back-compat with subscribers
                     // that haven't migrated.
                     if let Some(detail_box) = structured_detail.as_deref() {
+                        // DepthLock ingestion rides the same single
+                        // executor subscription: a cheap try_send per saved
+                        // light, never a second receiver on the broadcast.
+                        if let nightshade_sequencer::ProgressDetail::FrameAccepted {
+                            save_path: Some(path),
+                            capture,
+                            ..
+                        } = detail_box
+                        {
+                            crate::depthlock_service::notify_frame_saved(path, &capture.frame_type);
+                        }
                         if let Some((detail_kind, detail_json)) =
                             structured_progress_payload_from_progress_detail(detail_box)
                         {

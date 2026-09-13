@@ -293,6 +293,13 @@ abstract class FilterPlan with _$FilterPlan {
     /// this filter regardless of any global default. 0 is treated as "no
     /// dither" — matches `ExposureNode.ditherEvery`.
     int? ditherEvery,
+
+    /// Optional DepthLock binding. When set, the executor asks the goal
+    /// store for a verdict before each batch of this plan and treats an
+    /// achieved goal (with automatic completion enabled) as the plan being
+    /// complete. null keeps the plan purely count-bounded — matches Rust
+    /// `FilterPlan::depth_goal`.
+    DepthGoalBinding? depthGoal,
   }) = _FilterPlan;
 
   factory FilterPlan.fromJson(Map<String, dynamic> json) =>
@@ -302,6 +309,26 @@ abstract class FilterPlan with _$FilterPlan {
   /// Does NOT include filter change or dither overhead — that's added by
   /// `SmartExposureNode.estimateTotalSecs`.
   double get integrationSecs => count * durationSecs;
+}
+
+/// A Smart Exposure plan's link to one revision of a DepthLock goal.
+///
+/// Mirrors Rust `depth_goal::DepthGoalBinding`. The revision is part of the
+/// binding on purpose: editing a goal's region or definition produces a new
+/// revision with fresh evidence, and a plan authored against the old one
+/// must not complete on the new one's verdict.
+@Freezed(fromJson: true, toJson: true)
+abstract class DepthGoalBinding with _$DepthGoalBinding {
+  const DepthGoalBinding._();
+
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory DepthGoalBinding({
+    required String goalId,
+    required int revision,
+  }) = _DepthGoalBinding;
+
+  factory DepthGoalBinding.fromJson(Map<String, dynamic> json) =>
+      _$DepthGoalBindingFromJson(json);
 }
 
 /// Map [BinningMode] to the PascalCase string Rust's serde expects.

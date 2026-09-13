@@ -100,6 +100,7 @@ class SidePanel extends StatelessWidget {
               // The strip is as tall as its buttons, so a panel laid out in a
               // context with no height of its own does not throw.
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 const SizedBox(height: stripPadding),
                 for (var i = 0; i < sections!.length; i++) ...<Widget>[

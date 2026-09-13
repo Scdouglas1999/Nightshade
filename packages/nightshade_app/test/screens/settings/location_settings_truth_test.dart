@@ -4,9 +4,9 @@
 //   1. "Sync from server" must not report a green "Location synced from server"
 //      on a standalone desktop, where the read goes to this app's own settings
 //      store and nothing is fetched from anywhere.
-//   2. "Use Device Location" must ask before the third-party IP lookup, and
-//      must not pass the OLD elevation through with new coordinates — that
-//      yields a site that does not exist.
+//   2. "Detect location" must ask before a GPS/GeoClue lookup, must not
+//      write an IP city as the site, and must not pass the OLD elevation
+//      through with new coordinates — that yields a site that does not exist.
 //   3. The Timezone picker must only offer values `clockProvider` can parse
 //      (`UTC` / `UTC±HH:MM`); anything else silently falls back to the system
 //      clock and the picker changes nothing at all.
@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/widgets/location_settings.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
@@ -34,6 +35,7 @@ Future<HarnessHandle> _pumpLocation(
   required AppSettingsState settings,
   bool isRemote = false,
   DeviceLocationFetcher? fetcher,
+  PlaceSearcher? searcher,
 }) async {
   final handle = await pumpAppScreen(
     tester,
@@ -45,6 +47,7 @@ Future<HarnessHandle> _pumpLocation(
       isRemoteModeProvider.overrideWithValue(isRemote),
       if (fetcher != null)
         deviceLocationFetcherProvider.overrideWithValue(fetcher),
+      if (searcher != null) placeSearchProvider.overrideWithValue(searcher),
     ],
   );
   await tester.pumpAndSettle();
@@ -158,6 +161,49 @@ void main() {
         1234,
       );
       expect(find.textContaining('Elevation kept at 1234 m'), findsOneWidget);
+    });
+  });
+
+  group('Search place', () {
+    testWidgets('choosing a hit writes the town and its elevation', (
+      tester,
+    ) async {
+      final handle = await _pumpLocation(
+        tester,
+        settings: const AppSettingsState(elevation: 1234),
+        searcher: (query) async {
+          expect(query, 'Newtown Square');
+          return const [
+            PlaceSearchHit(
+              latitude: 39.9868,
+              longitude: -75.4010,
+              elevation: 127,
+              label: 'Newtown Square, Pennsylvania, United States',
+            ),
+          ];
+        },
+      );
+
+      await tester.enterText(
+        find.byType(NightshadeTextField).first,
+        'Newtown Square',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.textContaining('Newtown Square, Pennsylvania, United States'),
+      );
+      await tester.pumpAndSettle();
+
+      final settings = handle.container.read(appSettingsProvider).requireValue;
+      expect(settings.latitude, closeTo(39.9868, 1e-6));
+      expect(settings.longitude, closeTo(-75.4010, 1e-6));
+      expect(settings.elevation, 127);
+      expect(
+        find.textContaining('Elevation 127 m'),
+        findsOneWidget,
+      );
     });
   });
 

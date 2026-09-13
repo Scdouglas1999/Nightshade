@@ -128,9 +128,9 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: status.isRefreshing ? 'Refreshing…' : 'Refresh Now',
+              label: status.isRefreshing ? 'Refreshing…' : 'Refresh now',
               icon: NightshadeIcons.download,
-              variant: ButtonVariant.primary,
+              variant: ButtonVariant.secondary,
               onPressed: status.isRefreshing
                   ? null
                   : () async {

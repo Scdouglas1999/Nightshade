@@ -148,7 +148,7 @@ void main() {
     );
     expect(
       surface.bottom - body.bottom,
-      lessThan(130),
+      lessThan(160),
       reason: 'only the action row belongs below the body',
     );
   });

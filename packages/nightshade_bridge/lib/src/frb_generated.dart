@@ -9,6 +9,7 @@ import 'api/connection.dart';
 import 'api/connection/alpaca_connections.dart';
 import 'api/connection/ascom_connections.dart';
 import 'api/darkroom/entrypoints.dart';
+import 'api/depthlock.dart';
 import 'api/devices/camera.dart';
 import 'api/devices/cover_calibrator.dart';
 import 'api/devices/dome.dart';
@@ -58,6 +59,7 @@ import 'device.dart';
 import 'device_capabilities/types.dart';
 import 'error.dart';
 import 'event/bus.dart';
+import 'event/depthlock_events.dart';
 import 'event/equipment.dart';
 import 'event/guiding.dart';
 import 'event/imaging.dart';
@@ -124,7 +126,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1858542796;
+  int get rustContentHash => -1467366630;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -587,6 +589,73 @@ abstract class RustLibApi extends BaseApi {
   });
 
   void crateApiStorageApiDeleteProfile({required String profileId});
+
+  int crateApiDepthlockApiDepthlockCheckMeasurement({
+    required ApiDepthMeasurement measurement,
+  });
+
+  ApiDepthGoal crateApiDepthlockApiDepthlockCreateGoal({
+    required String goalId,
+    required ApiDepthGoalDefinition definition,
+  });
+
+  ApiDepthGoal crateApiDepthlockApiDepthlockGetGoal({required String goalId});
+
+  Future<List<ApiDepthCurvePoint>> crateApiDepthlockApiDepthlockGoalCurve({
+    required String goalId,
+    required int maxPoints,
+  });
+
+  Future<ApiDepthIngestOutcome> crateApiDepthlockApiDepthlockIngestFrame({
+    required String goalId,
+    required String path,
+  });
+
+  Future<ApiDepthReferenceInfo> crateApiDepthlockApiDepthlockInspectReference({
+    required String path,
+  });
+
+  List<ApiDepthGoal> crateApiDepthlockApiDepthlockListGoals();
+
+  void crateApiDepthlockApiDepthlockRemoveGoal({
+    required String goalId,
+    required BigInt expectedRevision,
+  });
+
+  Future<ApiDepthGoal> crateApiDepthlockApiDepthlockReplayGoal({
+    required String goalId,
+  });
+
+  ApiDepthGoal crateApiDepthlockApiDepthlockReviseGoal({
+    required String goalId,
+    required BigInt expectedRevision,
+    required ApiDepthGoalDefinition definition,
+  });
+
+  ApiDepthGoal crateApiDepthlockApiDepthlockSetGoalPreferences({
+    required String goalId,
+    required BigInt expectedRevision,
+    required bool enabled,
+    required bool automaticCompletion,
+  });
+
+  ApiSkyRectangle crateApiDepthlockApiDepthlockSkyRectangle({
+    required ApiReferenceGeometry reference,
+    required double x0,
+    required double y0,
+    required double x1,
+    required double y1,
+  });
+
+  ApiDepthLockStatus crateApiDepthlockApiDepthlockStatus();
+
+  Future<ApiDepthFloorSuggestion> crateApiDepthlockApiDepthlockSuggestFloor({
+    required String referencePath,
+    required String darkPath,
+    required String flatPath,
+    required double scaleArcsec,
+    double? pixelScaleArcsec,
+  });
 
   Future<StarDetectionResultApi> crateApiImagingApiDetectStarsInFile({
     required String filePath,
@@ -4958,6 +5027,472 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_delete_profile",
         argNames: ["profileId"],
+      );
+
+  @override
+  int crateApiDepthlockApiDepthlockCheckMeasurement({
+    required ApiDepthMeasurement measurement,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_box_autoadd_api_depth_measurement(measurement);
+          return wire
+              .wire__crate__api__depthlock__api_depthlock_check_measurement(
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_u_32,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockCheckMeasurementConstMeta,
+        argValues: [measurement],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockCheckMeasurementConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_check_measurement",
+        argNames: ["measurement"],
+      );
+
+  @override
+  ApiDepthGoal crateApiDepthlockApiDepthlockCreateGoal({
+    required String goalId,
+    required ApiDepthGoalDefinition definition,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_String(goalId);
+          var arg1 = cst_encode_box_autoadd_api_depth_goal_definition(
+            definition,
+          );
+          return wire.wire__crate__api__depthlock__api_depthlock_create_goal(
+            arg0,
+            arg1,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_goal,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockCreateGoalConstMeta,
+        argValues: [goalId, definition],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockCreateGoalConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_create_goal",
+        argNames: ["goalId", "definition"],
+      );
+
+  @override
+  ApiDepthGoal crateApiDepthlockApiDepthlockGetGoal({required String goalId}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_String(goalId);
+          return wire.wire__crate__api__depthlock__api_depthlock_get_goal(arg0);
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_goal,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockGetGoalConstMeta,
+        argValues: [goalId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockGetGoalConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_get_goal",
+        argNames: ["goalId"],
+      );
+
+  @override
+  Future<List<ApiDepthCurvePoint>> crateApiDepthlockApiDepthlockGoalCurve({
+    required String goalId,
+    required int maxPoints,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(goalId);
+          var arg1 = cst_encode_u_32(maxPoints);
+          return wire.wire__crate__api__depthlock__api_depthlock_goal_curve(
+            port_,
+            arg0,
+            arg1,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_list_api_depth_curve_point,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockGoalCurveConstMeta,
+        argValues: [goalId, maxPoints],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockGoalCurveConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_goal_curve",
+        argNames: ["goalId", "maxPoints"],
+      );
+
+  @override
+  Future<ApiDepthIngestOutcome> crateApiDepthlockApiDepthlockIngestFrame({
+    required String goalId,
+    required String path,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(goalId);
+          var arg1 = cst_encode_String(path);
+          return wire.wire__crate__api__depthlock__api_depthlock_ingest_frame(
+            port_,
+            arg0,
+            arg1,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_ingest_outcome,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockIngestFrameConstMeta,
+        argValues: [goalId, path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockIngestFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_ingest_frame",
+        argNames: ["goalId", "path"],
+      );
+
+  @override
+  Future<ApiDepthReferenceInfo> crateApiDepthlockApiDepthlockInspectReference({
+    required String path,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(path);
+          return wire
+              .wire__crate__api__depthlock__api_depthlock_inspect_reference(
+                port_,
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_reference_info,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockInspectReferenceConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockInspectReferenceConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_inspect_reference",
+        argNames: ["path"],
+      );
+
+  @override
+  List<ApiDepthGoal> crateApiDepthlockApiDepthlockListGoals() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          return wire.wire__crate__api__depthlock__api_depthlock_list_goals();
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_list_api_depth_goal,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockListGoalsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockListGoalsConstMeta =>
+      const TaskConstMeta(debugName: "api_depthlock_list_goals", argNames: []);
+
+  @override
+  void crateApiDepthlockApiDepthlockRemoveGoal({
+    required String goalId,
+    required BigInt expectedRevision,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_String(goalId);
+          var arg1 = cst_encode_u_64(expectedRevision);
+          return wire.wire__crate__api__depthlock__api_depthlock_remove_goal(
+            arg0,
+            arg1,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockRemoveGoalConstMeta,
+        argValues: [goalId, expectedRevision],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockRemoveGoalConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_remove_goal",
+        argNames: ["goalId", "expectedRevision"],
+      );
+
+  @override
+  Future<ApiDepthGoal> crateApiDepthlockApiDepthlockReplayGoal({
+    required String goalId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(goalId);
+          return wire.wire__crate__api__depthlock__api_depthlock_replay_goal(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_goal,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockReplayGoalConstMeta,
+        argValues: [goalId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockReplayGoalConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_replay_goal",
+        argNames: ["goalId"],
+      );
+
+  @override
+  ApiDepthGoal crateApiDepthlockApiDepthlockReviseGoal({
+    required String goalId,
+    required BigInt expectedRevision,
+    required ApiDepthGoalDefinition definition,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_String(goalId);
+          var arg1 = cst_encode_u_64(expectedRevision);
+          var arg2 = cst_encode_box_autoadd_api_depth_goal_definition(
+            definition,
+          );
+          return wire.wire__crate__api__depthlock__api_depthlock_revise_goal(
+            arg0,
+            arg1,
+            arg2,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_goal,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockReviseGoalConstMeta,
+        argValues: [goalId, expectedRevision, definition],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockReviseGoalConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_revise_goal",
+        argNames: ["goalId", "expectedRevision", "definition"],
+      );
+
+  @override
+  ApiDepthGoal crateApiDepthlockApiDepthlockSetGoalPreferences({
+    required String goalId,
+    required BigInt expectedRevision,
+    required bool enabled,
+    required bool automaticCompletion,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_String(goalId);
+          var arg1 = cst_encode_u_64(expectedRevision);
+          var arg2 = cst_encode_bool(enabled);
+          var arg3 = cst_encode_bool(automaticCompletion);
+          return wire
+              .wire__crate__api__depthlock__api_depthlock_set_goal_preferences(
+                arg0,
+                arg1,
+                arg2,
+                arg3,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_goal,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockSetGoalPreferencesConstMeta,
+        argValues: [goalId, expectedRevision, enabled, automaticCompletion],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockSetGoalPreferencesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_set_goal_preferences",
+        argNames: [
+          "goalId",
+          "expectedRevision",
+          "enabled",
+          "automaticCompletion",
+        ],
+      );
+
+  @override
+  ApiSkyRectangle crateApiDepthlockApiDepthlockSkyRectangle({
+    required ApiReferenceGeometry reference,
+    required double x0,
+    required double y0,
+    required double x1,
+    required double y1,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          var arg0 = cst_encode_box_autoadd_api_reference_geometry(reference);
+          var arg1 = cst_encode_f_64(x0);
+          var arg2 = cst_encode_f_64(y0);
+          var arg3 = cst_encode_f_64(x1);
+          var arg4 = cst_encode_f_64(y1);
+          return wire.wire__crate__api__depthlock__api_depthlock_sky_rectangle(
+            arg0,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_sky_rectangle,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockSkyRectangleConstMeta,
+        argValues: [reference, x0, y0, x1, y1],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockSkyRectangleConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_sky_rectangle",
+        argNames: ["reference", "x0", "y0", "x1", "y1"],
+      );
+
+  @override
+  ApiDepthLockStatus crateApiDepthlockApiDepthlockStatus() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          return wire.wire__crate__api__depthlock__api_depthlock_status();
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_lock_status,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockStatusConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockStatusConstMeta =>
+      const TaskConstMeta(debugName: "api_depthlock_status", argNames: []);
+
+  @override
+  Future<ApiDepthFloorSuggestion> crateApiDepthlockApiDepthlockSuggestFloor({
+    required String referencePath,
+    required String darkPath,
+    required String flatPath,
+    required double scaleArcsec,
+    double? pixelScaleArcsec,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(referencePath);
+          var arg1 = cst_encode_String(darkPath);
+          var arg2 = cst_encode_String(flatPath);
+          var arg3 = cst_encode_f_64(scaleArcsec);
+          var arg4 = cst_encode_opt_box_autoadd_f_64(pixelScaleArcsec);
+          return wire.wire__crate__api__depthlock__api_depthlock_suggest_floor(
+            port_,
+            arg0,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_depth_floor_suggestion,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiDepthlockApiDepthlockSuggestFloorConstMeta,
+        argValues: [
+          referencePath,
+          darkPath,
+          flatPath,
+          scaleArcsec,
+          pixelScaleArcsec,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDepthlockApiDepthlockSuggestFloorConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_depthlock_suggest_floor",
+        argNames: [
+          "referencePath",
+          "darkPath",
+          "flatPath",
+          "scaleArcsec",
+          "pixelScaleArcsec",
+        ],
       );
 
   @override
@@ -15683,6 +16218,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiAcquisitionSettings dco_decode_api_acquisition_settings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ApiAcquisitionSettings(
+      instrument: dco_decode_String(arr[0]),
+      filter: dco_decode_String(arr[1]),
+      exposureSecs: dco_decode_f_64(arr[2]),
+      gain: dco_decode_opt_box_autoadd_i_32(arr[3]),
+      offset: dco_decode_opt_box_autoadd_i_32(arr[4]),
+      binX: dco_decode_i_32(arr[5]),
+      binY: dco_decode_i_32(arr[6]),
+      ccdTempC: dco_decode_opt_box_autoadd_f_64(arr[7]),
+    );
+  }
+
+  @protected
   ApiCombineMethod dco_decode_api_combine_method(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -15710,6 +16263,188 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       lastRebuiltUnixSeconds: dco_decode_i_64(arr[5]),
       applyDuringCapture: dco_decode_bool(arr[6]),
       storedOnDisk: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  ApiDepthCurvePoint dco_decode_api_depth_curve_point(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ApiDepthCurvePoint(
+      frames: dco_decode_u_32(arr[0]),
+      score: dco_decode_f_64(arr[1]),
+      conservativeScore: dco_decode_f_64(arr[2]),
+      projected: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
+  ApiDepthFloorSuggestion dco_decode_api_depth_floor_suggestion(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return ApiDepthFloorSuggestion(
+      floorAdu: dco_decode_f_64(arr[0]),
+      darkNoiseAdu: dco_decode_f_64(arr[1]),
+      flatRelativeNoise: dco_decode_f_64(arr[2]),
+      skyAdu: dco_decode_f_64(arr[3]),
+      aperturePixels: dco_decode_f_64(arr[4]),
+      source: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
+  ApiDepthForecast dco_decode_api_depth_forecast(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return ApiDepthForecast(
+      framesToThreshold: dco_decode_u_32(arr[0]),
+      framesToConfirm: dco_decode_u_32(arr[1]),
+      reachable: dco_decode_bool(arr[2]),
+      ceilingScore: dco_decode_f_64(arr[3]),
+      perFrameNoiseAdu: dco_decode_f_64(arr[4]),
+      recentFrameNoiseAdu: dco_decode_f_64(arr[5]),
+      bestFrameNoiseAdu: dco_decode_f_64(arr[6]),
+    );
+  }
+
+  @protected
+  ApiDepthGoal dco_decode_api_depth_goal(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    return ApiDepthGoal(
+      id: dco_decode_String(arr[0]),
+      revision: dco_decode_u_64(arr[1]),
+      definition: dco_decode_api_depth_goal_definition(arr[2]),
+      selectedAtMs: dco_decode_i_64(arr[3]),
+      evidenceFrames: dco_decode_u_32(arr[4]),
+      evidenceRevision: dco_decode_u_64(arr[5]),
+      analysisCurrent: dco_decode_bool(arr[6]),
+      report: dco_decode_opt_box_autoadd_api_depth_report(arr[7]),
+      candidateFrames: dco_decode_u_32(arr[8]),
+      lastIssue: dco_decode_opt_String(arr[9]),
+      archivedRevisions: dco_decode_u_32(arr[10]),
+      estimatorVersion: dco_decode_u_32(arr[11]),
+    );
+  }
+
+  @protected
+  ApiDepthGoalDefinition dco_decode_api_depth_goal_definition(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
+    return ApiDepthGoalDefinition(
+      label: dco_decode_String(arr[0]),
+      projectId: dco_decode_String(arr[1]),
+      targetId: dco_decode_String(arr[2]),
+      profileId: dco_decode_String(arr[3]),
+      filterName: dco_decode_String(arr[4]),
+      filterIndex: dco_decode_opt_box_autoadd_i_32(arr[5]),
+      referencePath: dco_decode_String(arr[6]),
+      reference: dco_decode_api_reference_geometry(arr[7]),
+      acquisition: dco_decode_api_acquisition_settings(arr[8]),
+      temperatureToleranceC: dco_decode_f_64(arr[9]),
+      darkPath: dco_decode_String(arr[10]),
+      flatPath: dco_decode_String(arr[11]),
+      measurement: dco_decode_api_depth_measurement(arr[12]),
+      enabled: dco_decode_bool(arr[13]),
+      automaticCompletion: dco_decode_bool(arr[14]),
+    );
+  }
+
+  @protected
+  ApiDepthIngestOutcome dco_decode_api_depth_ingest_outcome(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ApiDepthIngestOutcome(
+      outcome: dco_decode_String(arr[0]),
+      state: dco_decode_opt_String(arr[1]),
+      reason: dco_decode_opt_String(arr[2]),
+    );
+  }
+
+  @protected
+  ApiDepthLockStatus dco_decode_api_depth_lock_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return ApiDepthLockStatus(
+      available: dco_decode_bool(arr[0]),
+      goals: dco_decode_u_32(arr[1]),
+      queueCapacity: dco_decode_u_32(arr[2]),
+      queued: dco_decode_u_64(arr[3]),
+      processed: dco_decode_u_64(arr[4]),
+      dropped: dco_decode_u_64(arr[5]),
+      evidenceAdded: dco_decode_u_64(arr[6]),
+      evidenceRejected: dco_decode_u_64(arr[7]),
+      lastFrameMs: dco_decode_u_64(arr[8]),
+      maxFrameMs: dco_decode_u_64(arr[9]),
+    );
+  }
+
+  @protected
+  ApiDepthMeasurement dco_decode_api_depth_measurement(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return ApiDepthMeasurement(
+      region: dco_decode_api_sky_rectangle(arr[0]),
+      background: dco_decode_api_sky_rectangle(arr[1]),
+      scaleArcsec: dco_decode_f_64(arr[2]),
+      threshold: dco_decode_f_64(arr[3]),
+      minCoverage: dco_decode_f_64(arr[4]),
+      systematicFloorAdu: dco_decode_f_64(arr[5]),
+      systematicFloorSource: dco_decode_String(arr[6]),
+    );
+  }
+
+  @protected
+  ApiDepthReferenceInfo dco_decode_api_depth_reference_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return ApiDepthReferenceInfo(
+      width: dco_decode_u_32(arr[0]),
+      height: dco_decode_u_32(arr[1]),
+      pixelType: dco_decode_String(arr[2]),
+      monochrome: dco_decode_bool(arr[3]),
+      geometry: dco_decode_opt_box_autoadd_api_reference_geometry(arr[4]),
+      geometryIssue: dco_decode_opt_String(arr[5]),
+      pixelScaleArcsec: dco_decode_opt_box_autoadd_f_64(arr[6]),
+      acquisition: dco_decode_opt_box_autoadd_api_acquisition_settings(arr[7]),
+      acquisitionIssue: dco_decode_opt_String(arr[8]),
+    );
+  }
+
+  @protected
+  ApiDepthReport dco_decode_api_depth_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return ApiDepthReport(
+      state: dco_decode_String(arr[0]),
+      score: dco_decode_opt_box_autoadd_f_64(arr[1]),
+      conservativeScore: dco_decode_opt_box_autoadd_f_64(arr[2]),
+      uncertaintyAdu: dco_decode_opt_box_autoadd_f_64(arr[3]),
+      coverage: dco_decode_f_64(arr[4]),
+      evidenceFrames: dco_decode_u_32(arr[5]),
+      confirmationFrames: dco_decode_u_32(arr[6]),
+      reason: dco_decode_String(arr[7]),
+      forecast: dco_decode_opt_box_autoadd_api_depth_forecast(arr[8]),
     );
   }
 
@@ -15794,6 +16529,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       channels: dco_decode_u_32(arr[7]),
       inputMean: dco_decode_f_64(arr[8]),
       outputMean: dco_decode_f_64(arr[9]),
+    );
+  }
+
+  @protected
+  ApiReferenceGeometry dco_decode_api_reference_geometry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return ApiReferenceGeometry(
+      width: dco_decode_u_32(arr[0]),
+      height: dco_decode_u_32(arr[1]),
+      crval1: dco_decode_f_64(arr[2]),
+      crval2: dco_decode_f_64(arr[3]),
+      crpix1: dco_decode_f_64(arr[4]),
+      crpix2: dco_decode_f_64(arr[5]),
+      cd11: dco_decode_f_64(arr[6]),
+      cd12: dco_decode_f_64(arr[7]),
+      cd21: dco_decode_f_64(arr[8]),
+      cd22: dco_decode_f_64(arr[9]),
+    );
+  }
+
+  @protected
+  ApiSkyRectangle dco_decode_api_sky_rectangle(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ApiSkyRectangle(
+      raDeg: dco_decode_f_64(arr[0]),
+      decDeg: dco_decode_f_64(arr[1]),
+      widthArcsec: dco_decode_f_64(arr[2]),
+      heightArcsec: dco_decode_f_64(arr[3]),
+      rotationDeg: dco_decode_f_64(arr[4]),
     );
   }
 
@@ -15891,6 +16661,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiAcquisitionSettings dco_decode_box_autoadd_api_acquisition_settings(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_acquisition_settings(raw);
+  }
+
+  @protected
   ApiCombineMethod dco_decode_box_autoadd_api_combine_method(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_api_combine_method(raw);
@@ -15903,11 +16681,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDepthForecast dco_decode_box_autoadd_api_depth_forecast(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_depth_forecast(raw);
+  }
+
+  @protected
+  ApiDepthGoalDefinition dco_decode_box_autoadd_api_depth_goal_definition(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_depth_goal_definition(raw);
+  }
+
+  @protected
+  ApiDepthMeasurement dco_decode_box_autoadd_api_depth_measurement(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_depth_measurement(raw);
+  }
+
+  @protected
+  ApiDepthReport dco_decode_box_autoadd_api_depth_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_depth_report(raw);
+  }
+
+  @protected
   ApiLiveStackingConfig dco_decode_box_autoadd_api_live_stacking_config(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_api_live_stacking_config(raw);
+  }
+
+  @protected
+  ApiReferenceGeometry dco_decode_box_autoadd_api_reference_geometry(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_reference_geometry(raw);
   }
 
   @protected
@@ -15957,6 +16771,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CoverState dco_decode_box_autoadd_cover_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_cover_state(raw);
+  }
+
+  @protected
+  DepthLockEvent dco_decode_box_autoadd_depth_lock_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_depth_lock_event(raw);
   }
 
   @protected
@@ -16447,6 +17267,51 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DepthLockEvent dco_decode_depth_lock_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return DepthLockEvent_GoalUpdated(
+          goalId: dco_decode_String(raw[1]),
+          revision: dco_decode_u_64(raw[2]),
+          filterName: dco_decode_String(raw[3]),
+          state: dco_decode_String(raw[4]),
+          score: dco_decode_opt_box_autoadd_f_64(raw[5]),
+          conservativeScore: dco_decode_opt_box_autoadd_f_64(raw[6]),
+          threshold: dco_decode_f_64(raw[7]),
+          uncertaintyAdu: dco_decode_opt_box_autoadd_f_64(raw[8]),
+          coverage: dco_decode_f_64(raw[9]),
+          evidenceFrames: dco_decode_u_32(raw[10]),
+          confirmationFrames: dco_decode_u_32(raw[11]),
+          reason: dco_decode_String(raw[12]),
+          automaticCompletion: dco_decode_bool(raw[13]),
+          framesRemaining: dco_decode_opt_box_autoadd_u_32(raw[14]),
+          reachable: dco_decode_bool(raw[15]),
+        );
+      case 1:
+        return DepthLockEvent_EvidenceRejected(
+          goalId: dco_decode_String(raw[1]),
+          revision: dco_decode_u_64(raw[2]),
+          sourcePath: dco_decode_String(raw[3]),
+          reason: dco_decode_String(raw[4]),
+        );
+      case 2:
+        return DepthLockEvent_AnalysisDropped(
+          sourcePath: dco_decode_String(raw[1]),
+          reason: dco_decode_String(raw[2]),
+        );
+      case 3:
+        return DepthLockEvent_GoalChanged(
+          goalId: dco_decode_String(raw[1]),
+          revision: dco_decode_u_64(raw[2]),
+          change: dco_decode_String(raw[3]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   DetectedStarInfo dco_decode_detected_star_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -16840,6 +17705,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 8:
         return EventPayload_PolarAlignmentImage(
           dco_decode_box_autoadd_polar_alignment_image_event(raw[1]),
+        );
+      case 9:
+        return EventPayload_DepthLock(
+          dco_decode_box_autoadd_depth_lock_event(raw[1]),
         );
       default:
         throw Exception("unreachable");
@@ -17389,6 +18258,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<ApiDepthCurvePoint> dco_decode_list_api_depth_curve_point(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_api_depth_curve_point)
+        .toList();
+  }
+
+  @protected
+  List<ApiDepthGoal> dco_decode_list_api_depth_goal(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_api_depth_goal).toList();
   }
 
   @protected
@@ -17954,6 +18837,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiAcquisitionSettings? dco_decode_opt_box_autoadd_api_acquisition_settings(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_api_acquisition_settings(raw);
+  }
+
+  @protected
   ApiDefectMapStatus? dco_decode_opt_box_autoadd_api_defect_map_status(
     dynamic raw,
   ) {
@@ -17961,6 +18854,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return raw == null
         ? null
         : dco_decode_box_autoadd_api_defect_map_status(raw);
+  }
+
+  @protected
+  ApiDepthForecast? dco_decode_opt_box_autoadd_api_depth_forecast(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_api_depth_forecast(raw);
+  }
+
+  @protected
+  ApiDepthReport? dco_decode_opt_box_autoadd_api_depth_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_api_depth_report(raw);
+  }
+
+  @protected
+  ApiReferenceGeometry? dco_decode_opt_box_autoadd_api_reference_geometry(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_api_reference_geometry(raw);
   }
 
   @protected
@@ -18762,6 +19677,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           detailJson: dco_decode_String(raw[5]),
         );
       case 18:
+        return SequencerEvent_DepthGoalCompleted(
+          nodeId: dco_decode_String(raw[1]),
+          filterName: dco_decode_String(raw[2]),
+          goalId: dco_decode_String(raw[3]),
+          revision: dco_decode_u_64(raw[4]),
+          evidenceFrames: dco_decode_u_32(raw[5]),
+          confirmationFrames: dco_decode_u_32(raw[6]),
+          score: dco_decode_f_64(raw[7]),
+          threshold: dco_decode_f_64(raw[8]),
+        );
+      case 19:
         return SequencerEvent_FrameAccepted(
           nodeId: dco_decode_String(raw[1]),
           frame: dco_decode_u_32(raw[2]),
@@ -18774,7 +19700,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           savePath: dco_decode_opt_String(raw[9]),
           capture: dco_decode_box_autoadd_frame_capture_metadata(raw[10]),
         );
-      case 19:
+      case 20:
         return SequencerEvent_FrameRejected(
           nodeId: dco_decode_String(raw[1]),
           frame: dco_decode_u_32(raw[2]),
@@ -18796,7 +19722,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sensorTempAtCapture: dco_decode_opt_box_autoadd_f_64(raw[18]),
           capture: dco_decode_box_autoadd_frame_capture_metadata(raw[19]),
         );
-      case 20:
+      case 21:
         return SequencerEvent_SchedulerDecision(
           nodeId: dco_decode_String(raw[1]),
           decisionCounter: dco_decode_u_32(raw[2]),
@@ -18805,7 +19731,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pickedScore: dco_decode_opt_box_autoadd_f_64(raw[5]),
           scores: dco_decode_list_scheduler_score_entry(raw[6]),
         );
-      case 21:
+      case 22:
         return SequencerEvent_IntegrationBudget(
           targetId: dco_decode_String(raw[1]),
           filter: dco_decode_String(raw[2]),
@@ -18814,7 +19740,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           fraction: dco_decode_f_64(raw[5]),
           budgetMet: dco_decode_bool(raw[6]),
         );
-      case 22:
+      case 23:
         return SequencerEvent_ExposureAdjusted(
           nodeId: dco_decode_String(raw[1]),
           adaptedSecs: dco_decode_f_64(raw[2]),
@@ -18823,7 +19749,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           filter: dco_decode_opt_String(raw[5]),
           reason: dco_decode_String(raw[6]),
         );
-      case 23:
+      case 24:
         return SequencerEvent_PhotometryFrame(
           nodeId: dco_decode_String(raw[1]),
           targetDesignation: dco_decode_String(raw[2]),
@@ -18842,7 +19768,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           reduceLive: dco_decode_bool(raw[15]),
           applyDifferential: dco_decode_bool(raw[16]),
         );
-      case 24:
+      case 25:
         return SequencerEvent_PhotometryCadenceBroken(
           nodeId: dco_decode_String(raw[1]),
           frame: dco_decode_u_32(raw[2]),
@@ -18851,7 +19777,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           maxGapSecs: dco_decode_f_64(raw[5]),
           cadenceBreaks: dco_decode_u_32(raw[6]),
         );
-      case 25:
+      case 26:
         return SequencerEvent_PhotometrySummary(
           nodeId: dco_decode_String(raw[1]),
           targetDesignation: dco_decode_String(raw[2]),
@@ -18860,7 +19786,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           cadenceBreaks: dco_decode_u_32(raw[5]),
           lastRejectReason: dco_decode_opt_String(raw[6]),
         );
-      case 26:
+      case 27:
         return SequencerEvent_RecoveryStarted(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -18873,7 +19799,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: dco_decode_String(raw[9]),
           lastError: dco_decode_opt_String(raw[10]),
         );
-      case 27:
+      case 28:
         return SequencerEvent_RecoveryProgress(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -18886,7 +19812,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: dco_decode_String(raw[9]),
           lastError: dco_decode_opt_String(raw[10]),
         );
-      case 28:
+      case 29:
         return SequencerEvent_RecoveryCompleted(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -18899,7 +19825,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: dco_decode_String(raw[9]),
           lastError: dco_decode_opt_String(raw[10]),
         );
-      case 29:
+      case 30:
         return SequencerEvent_RecoveryGaveUp(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -18913,7 +19839,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           lastError: dco_decode_opt_String(raw[10]),
           abortedByUser: dco_decode_bool(raw[11]),
         );
-      case 30:
+      case 31:
         return SequencerEvent_PluginNodeRequested(
           nodeId: dco_decode_String(raw[1]),
           pluginId: dco_decode_String(raw[2]),
@@ -18922,14 +19848,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           displayName: dco_decode_opt_String(raw[5]),
           timeoutSecs: dco_decode_u_32(raw[6]),
         );
-      case 31:
+      case 32:
         return SequencerEvent_PluginNodeProgress(
           nodeId: dco_decode_String(raw[1]),
           pluginId: dco_decode_String(raw[2]),
           nodeTypeId: dco_decode_String(raw[3]),
           detailJson: dco_decode_String(raw[4]),
         );
-      case 32:
+      case 33:
         return SequencerEvent_DecisionLogged(
           timestampIso: dco_decode_String(raw[1]),
           category: dco_decode_String(raw[2]),
@@ -19424,6 +20350,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiAcquisitionSettings sse_decode_api_acquisition_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_instrument = sse_decode_String(deserializer);
+    var var_filter = sse_decode_String(deserializer);
+    var var_exposureSecs = sse_decode_f_64(deserializer);
+    var var_gain = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_offset = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_binX = sse_decode_i_32(deserializer);
+    var var_binY = sse_decode_i_32(deserializer);
+    var var_ccdTempC = sse_decode_opt_box_autoadd_f_64(deserializer);
+    return ApiAcquisitionSettings(
+      instrument: var_instrument,
+      filter: var_filter,
+      exposureSecs: var_exposureSecs,
+      gain: var_gain,
+      offset: var_offset,
+      binX: var_binX,
+      binY: var_binY,
+      ccdTempC: var_ccdTempC,
+    );
+  }
+
+  @protected
   ApiCombineMethod sse_decode_api_combine_method(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_method = sse_decode_String(deserializer);
@@ -19458,6 +20409,260 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       lastRebuiltUnixSeconds: var_lastRebuiltUnixSeconds,
       applyDuringCapture: var_applyDuringCapture,
       storedOnDisk: var_storedOnDisk,
+    );
+  }
+
+  @protected
+  ApiDepthCurvePoint sse_decode_api_depth_curve_point(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_frames = sse_decode_u_32(deserializer);
+    var var_score = sse_decode_f_64(deserializer);
+    var var_conservativeScore = sse_decode_f_64(deserializer);
+    var var_projected = sse_decode_bool(deserializer);
+    return ApiDepthCurvePoint(
+      frames: var_frames,
+      score: var_score,
+      conservativeScore: var_conservativeScore,
+      projected: var_projected,
+    );
+  }
+
+  @protected
+  ApiDepthFloorSuggestion sse_decode_api_depth_floor_suggestion(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_floorAdu = sse_decode_f_64(deserializer);
+    var var_darkNoiseAdu = sse_decode_f_64(deserializer);
+    var var_flatRelativeNoise = sse_decode_f_64(deserializer);
+    var var_skyAdu = sse_decode_f_64(deserializer);
+    var var_aperturePixels = sse_decode_f_64(deserializer);
+    var var_source = sse_decode_String(deserializer);
+    return ApiDepthFloorSuggestion(
+      floorAdu: var_floorAdu,
+      darkNoiseAdu: var_darkNoiseAdu,
+      flatRelativeNoise: var_flatRelativeNoise,
+      skyAdu: var_skyAdu,
+      aperturePixels: var_aperturePixels,
+      source: var_source,
+    );
+  }
+
+  @protected
+  ApiDepthForecast sse_decode_api_depth_forecast(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_framesToThreshold = sse_decode_u_32(deserializer);
+    var var_framesToConfirm = sse_decode_u_32(deserializer);
+    var var_reachable = sse_decode_bool(deserializer);
+    var var_ceilingScore = sse_decode_f_64(deserializer);
+    var var_perFrameNoiseAdu = sse_decode_f_64(deserializer);
+    var var_recentFrameNoiseAdu = sse_decode_f_64(deserializer);
+    var var_bestFrameNoiseAdu = sse_decode_f_64(deserializer);
+    return ApiDepthForecast(
+      framesToThreshold: var_framesToThreshold,
+      framesToConfirm: var_framesToConfirm,
+      reachable: var_reachable,
+      ceilingScore: var_ceilingScore,
+      perFrameNoiseAdu: var_perFrameNoiseAdu,
+      recentFrameNoiseAdu: var_recentFrameNoiseAdu,
+      bestFrameNoiseAdu: var_bestFrameNoiseAdu,
+    );
+  }
+
+  @protected
+  ApiDepthGoal sse_decode_api_depth_goal(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_revision = sse_decode_u_64(deserializer);
+    var var_definition = sse_decode_api_depth_goal_definition(deserializer);
+    var var_selectedAtMs = sse_decode_i_64(deserializer);
+    var var_evidenceFrames = sse_decode_u_32(deserializer);
+    var var_evidenceRevision = sse_decode_u_64(deserializer);
+    var var_analysisCurrent = sse_decode_bool(deserializer);
+    var var_report = sse_decode_opt_box_autoadd_api_depth_report(deserializer);
+    var var_candidateFrames = sse_decode_u_32(deserializer);
+    var var_lastIssue = sse_decode_opt_String(deserializer);
+    var var_archivedRevisions = sse_decode_u_32(deserializer);
+    var var_estimatorVersion = sse_decode_u_32(deserializer);
+    return ApiDepthGoal(
+      id: var_id,
+      revision: var_revision,
+      definition: var_definition,
+      selectedAtMs: var_selectedAtMs,
+      evidenceFrames: var_evidenceFrames,
+      evidenceRevision: var_evidenceRevision,
+      analysisCurrent: var_analysisCurrent,
+      report: var_report,
+      candidateFrames: var_candidateFrames,
+      lastIssue: var_lastIssue,
+      archivedRevisions: var_archivedRevisions,
+      estimatorVersion: var_estimatorVersion,
+    );
+  }
+
+  @protected
+  ApiDepthGoalDefinition sse_decode_api_depth_goal_definition(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_label = sse_decode_String(deserializer);
+    var var_projectId = sse_decode_String(deserializer);
+    var var_targetId = sse_decode_String(deserializer);
+    var var_profileId = sse_decode_String(deserializer);
+    var var_filterName = sse_decode_String(deserializer);
+    var var_filterIndex = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_referencePath = sse_decode_String(deserializer);
+    var var_reference = sse_decode_api_reference_geometry(deserializer);
+    var var_acquisition = sse_decode_api_acquisition_settings(deserializer);
+    var var_temperatureToleranceC = sse_decode_f_64(deserializer);
+    var var_darkPath = sse_decode_String(deserializer);
+    var var_flatPath = sse_decode_String(deserializer);
+    var var_measurement = sse_decode_api_depth_measurement(deserializer);
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_automaticCompletion = sse_decode_bool(deserializer);
+    return ApiDepthGoalDefinition(
+      label: var_label,
+      projectId: var_projectId,
+      targetId: var_targetId,
+      profileId: var_profileId,
+      filterName: var_filterName,
+      filterIndex: var_filterIndex,
+      referencePath: var_referencePath,
+      reference: var_reference,
+      acquisition: var_acquisition,
+      temperatureToleranceC: var_temperatureToleranceC,
+      darkPath: var_darkPath,
+      flatPath: var_flatPath,
+      measurement: var_measurement,
+      enabled: var_enabled,
+      automaticCompletion: var_automaticCompletion,
+    );
+  }
+
+  @protected
+  ApiDepthIngestOutcome sse_decode_api_depth_ingest_outcome(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_outcome = sse_decode_String(deserializer);
+    var var_state = sse_decode_opt_String(deserializer);
+    var var_reason = sse_decode_opt_String(deserializer);
+    return ApiDepthIngestOutcome(
+      outcome: var_outcome,
+      state: var_state,
+      reason: var_reason,
+    );
+  }
+
+  @protected
+  ApiDepthLockStatus sse_decode_api_depth_lock_status(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_available = sse_decode_bool(deserializer);
+    var var_goals = sse_decode_u_32(deserializer);
+    var var_queueCapacity = sse_decode_u_32(deserializer);
+    var var_queued = sse_decode_u_64(deserializer);
+    var var_processed = sse_decode_u_64(deserializer);
+    var var_dropped = sse_decode_u_64(deserializer);
+    var var_evidenceAdded = sse_decode_u_64(deserializer);
+    var var_evidenceRejected = sse_decode_u_64(deserializer);
+    var var_lastFrameMs = sse_decode_u_64(deserializer);
+    var var_maxFrameMs = sse_decode_u_64(deserializer);
+    return ApiDepthLockStatus(
+      available: var_available,
+      goals: var_goals,
+      queueCapacity: var_queueCapacity,
+      queued: var_queued,
+      processed: var_processed,
+      dropped: var_dropped,
+      evidenceAdded: var_evidenceAdded,
+      evidenceRejected: var_evidenceRejected,
+      lastFrameMs: var_lastFrameMs,
+      maxFrameMs: var_maxFrameMs,
+    );
+  }
+
+  @protected
+  ApiDepthMeasurement sse_decode_api_depth_measurement(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_region = sse_decode_api_sky_rectangle(deserializer);
+    var var_background = sse_decode_api_sky_rectangle(deserializer);
+    var var_scaleArcsec = sse_decode_f_64(deserializer);
+    var var_threshold = sse_decode_f_64(deserializer);
+    var var_minCoverage = sse_decode_f_64(deserializer);
+    var var_systematicFloorAdu = sse_decode_f_64(deserializer);
+    var var_systematicFloorSource = sse_decode_String(deserializer);
+    return ApiDepthMeasurement(
+      region: var_region,
+      background: var_background,
+      scaleArcsec: var_scaleArcsec,
+      threshold: var_threshold,
+      minCoverage: var_minCoverage,
+      systematicFloorAdu: var_systematicFloorAdu,
+      systematicFloorSource: var_systematicFloorSource,
+    );
+  }
+
+  @protected
+  ApiDepthReferenceInfo sse_decode_api_depth_reference_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_pixelType = sse_decode_String(deserializer);
+    var var_monochrome = sse_decode_bool(deserializer);
+    var var_geometry = sse_decode_opt_box_autoadd_api_reference_geometry(
+      deserializer,
+    );
+    var var_geometryIssue = sse_decode_opt_String(deserializer);
+    var var_pixelScaleArcsec = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_acquisition = sse_decode_opt_box_autoadd_api_acquisition_settings(
+      deserializer,
+    );
+    var var_acquisitionIssue = sse_decode_opt_String(deserializer);
+    return ApiDepthReferenceInfo(
+      width: var_width,
+      height: var_height,
+      pixelType: var_pixelType,
+      monochrome: var_monochrome,
+      geometry: var_geometry,
+      geometryIssue: var_geometryIssue,
+      pixelScaleArcsec: var_pixelScaleArcsec,
+      acquisition: var_acquisition,
+      acquisitionIssue: var_acquisitionIssue,
+    );
+  }
+
+  @protected
+  ApiDepthReport sse_decode_api_depth_report(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_state = sse_decode_String(deserializer);
+    var var_score = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_conservativeScore = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_uncertaintyAdu = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_coverage = sse_decode_f_64(deserializer);
+    var var_evidenceFrames = sse_decode_u_32(deserializer);
+    var var_confirmationFrames = sse_decode_u_32(deserializer);
+    var var_reason = sse_decode_String(deserializer);
+    var var_forecast = sse_decode_opt_box_autoadd_api_depth_forecast(
+      deserializer,
+    );
+    return ApiDepthReport(
+      state: var_state,
+      score: var_score,
+      conservativeScore: var_conservativeScore,
+      uncertaintyAdu: var_uncertaintyAdu,
+      coverage: var_coverage,
+      evidenceFrames: var_evidenceFrames,
+      confirmationFrames: var_confirmationFrames,
+      reason: var_reason,
+      forecast: var_forecast,
     );
   }
 
@@ -19571,6 +20776,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       channels: var_channels,
       inputMean: var_inputMean,
       outputMean: var_outputMean,
+    );
+  }
+
+  @protected
+  ApiReferenceGeometry sse_decode_api_reference_geometry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_crval1 = sse_decode_f_64(deserializer);
+    var var_crval2 = sse_decode_f_64(deserializer);
+    var var_crpix1 = sse_decode_f_64(deserializer);
+    var var_crpix2 = sse_decode_f_64(deserializer);
+    var var_cd11 = sse_decode_f_64(deserializer);
+    var var_cd12 = sse_decode_f_64(deserializer);
+    var var_cd21 = sse_decode_f_64(deserializer);
+    var var_cd22 = sse_decode_f_64(deserializer);
+    return ApiReferenceGeometry(
+      width: var_width,
+      height: var_height,
+      crval1: var_crval1,
+      crval2: var_crval2,
+      crpix1: var_crpix1,
+      crpix2: var_crpix2,
+      cd11: var_cd11,
+      cd12: var_cd12,
+      cd21: var_cd21,
+      cd22: var_cd22,
+    );
+  }
+
+  @protected
+  ApiSkyRectangle sse_decode_api_sky_rectangle(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_raDeg = sse_decode_f_64(deserializer);
+    var var_decDeg = sse_decode_f_64(deserializer);
+    var var_widthArcsec = sse_decode_f_64(deserializer);
+    var var_heightArcsec = sse_decode_f_64(deserializer);
+    var var_rotationDeg = sse_decode_f_64(deserializer);
+    return ApiSkyRectangle(
+      raDeg: var_raDeg,
+      decDeg: var_decDeg,
+      widthArcsec: var_widthArcsec,
+      heightArcsec: var_heightArcsec,
+      rotationDeg: var_rotationDeg,
     );
   }
 
@@ -19695,6 +20946,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiAcquisitionSettings sse_decode_box_autoadd_api_acquisition_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_acquisition_settings(deserializer));
+  }
+
+  @protected
   ApiCombineMethod sse_decode_box_autoadd_api_combine_method(
     SseDeserializer deserializer,
   ) {
@@ -19711,11 +20970,51 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDepthForecast sse_decode_box_autoadd_api_depth_forecast(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_depth_forecast(deserializer));
+  }
+
+  @protected
+  ApiDepthGoalDefinition sse_decode_box_autoadd_api_depth_goal_definition(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_depth_goal_definition(deserializer));
+  }
+
+  @protected
+  ApiDepthMeasurement sse_decode_box_autoadd_api_depth_measurement(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_depth_measurement(deserializer));
+  }
+
+  @protected
+  ApiDepthReport sse_decode_box_autoadd_api_depth_report(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_depth_report(deserializer));
+  }
+
+  @protected
   ApiLiveStackingConfig sse_decode_box_autoadd_api_live_stacking_config(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_api_live_stacking_config(deserializer));
+  }
+
+  @protected
+  ApiReferenceGeometry sse_decode_box_autoadd_api_reference_geometry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_reference_geometry(deserializer));
   }
 
   @protected
@@ -19777,6 +21076,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CoverState sse_decode_box_autoadd_cover_state(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_cover_state(deserializer));
+  }
+
+  @protected
+  DepthLockEvent sse_decode_box_autoadd_depth_lock_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_depth_lock_event(deserializer));
   }
 
   @protected
@@ -20396,6 +21703,79 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DepthLockEvent sse_decode_depth_lock_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_goalId = sse_decode_String(deserializer);
+        var var_revision = sse_decode_u_64(deserializer);
+        var var_filterName = sse_decode_String(deserializer);
+        var var_state = sse_decode_String(deserializer);
+        var var_score = sse_decode_opt_box_autoadd_f_64(deserializer);
+        var var_conservativeScore = sse_decode_opt_box_autoadd_f_64(
+          deserializer,
+        );
+        var var_threshold = sse_decode_f_64(deserializer);
+        var var_uncertaintyAdu = sse_decode_opt_box_autoadd_f_64(deserializer);
+        var var_coverage = sse_decode_f_64(deserializer);
+        var var_evidenceFrames = sse_decode_u_32(deserializer);
+        var var_confirmationFrames = sse_decode_u_32(deserializer);
+        var var_reason = sse_decode_String(deserializer);
+        var var_automaticCompletion = sse_decode_bool(deserializer);
+        var var_framesRemaining = sse_decode_opt_box_autoadd_u_32(deserializer);
+        var var_reachable = sse_decode_bool(deserializer);
+        return DepthLockEvent_GoalUpdated(
+          goalId: var_goalId,
+          revision: var_revision,
+          filterName: var_filterName,
+          state: var_state,
+          score: var_score,
+          conservativeScore: var_conservativeScore,
+          threshold: var_threshold,
+          uncertaintyAdu: var_uncertaintyAdu,
+          coverage: var_coverage,
+          evidenceFrames: var_evidenceFrames,
+          confirmationFrames: var_confirmationFrames,
+          reason: var_reason,
+          automaticCompletion: var_automaticCompletion,
+          framesRemaining: var_framesRemaining,
+          reachable: var_reachable,
+        );
+      case 1:
+        var var_goalId = sse_decode_String(deserializer);
+        var var_revision = sse_decode_u_64(deserializer);
+        var var_sourcePath = sse_decode_String(deserializer);
+        var var_reason = sse_decode_String(deserializer);
+        return DepthLockEvent_EvidenceRejected(
+          goalId: var_goalId,
+          revision: var_revision,
+          sourcePath: var_sourcePath,
+          reason: var_reason,
+        );
+      case 2:
+        var var_sourcePath = sse_decode_String(deserializer);
+        var var_reason = sse_decode_String(deserializer);
+        return DepthLockEvent_AnalysisDropped(
+          sourcePath: var_sourcePath,
+          reason: var_reason,
+        );
+      case 3:
+        var var_goalId = sse_decode_String(deserializer);
+        var var_revision = sse_decode_u_64(deserializer);
+        var var_change = sse_decode_String(deserializer);
+        return DepthLockEvent_GoalChanged(
+          goalId: var_goalId,
+          revision: var_revision,
+          change: var_change,
+        );
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
   DetectedStarInfo sse_decode_detected_star_info(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_x = sse_decode_f_64(deserializer);
@@ -20911,6 +22291,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           deserializer,
         );
         return EventPayload_PolarAlignmentImage(var_field0);
+      case 9:
+        var var_field0 = sse_decode_box_autoadd_depth_lock_event(deserializer);
+        return EventPayload_DepthLock(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -21677,6 +23060,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ApiDepthCurvePoint> sse_decode_list_api_depth_curve_point(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ApiDepthCurvePoint>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_api_depth_curve_point(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ApiDepthGoal> sse_decode_list_api_depth_goal(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ApiDepthGoal>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_api_depth_goal(deserializer));
     }
     return ans_;
   }
@@ -22555,6 +23966,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiAcquisitionSettings? sse_decode_opt_box_autoadd_api_acquisition_settings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_api_acquisition_settings(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   ApiDefectMapStatus? sse_decode_opt_box_autoadd_api_defect_map_status(
     SseDeserializer deserializer,
   ) {
@@ -22562,6 +23986,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_api_defect_map_status(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ApiDepthForecast? sse_decode_opt_box_autoadd_api_depth_forecast(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_api_depth_forecast(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ApiDepthReport? sse_decode_opt_box_autoadd_api_depth_report(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_api_depth_report(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ApiReferenceGeometry? sse_decode_opt_box_autoadd_api_reference_geometry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_api_reference_geometry(deserializer));
     } else {
       return null;
     }
@@ -23635,6 +25098,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 18:
         var var_nodeId = sse_decode_String(deserializer);
+        var var_filterName = sse_decode_String(deserializer);
+        var var_goalId = sse_decode_String(deserializer);
+        var var_revision = sse_decode_u_64(deserializer);
+        var var_evidenceFrames = sse_decode_u_32(deserializer);
+        var var_confirmationFrames = sse_decode_u_32(deserializer);
+        var var_score = sse_decode_f_64(deserializer);
+        var var_threshold = sse_decode_f_64(deserializer);
+        return SequencerEvent_DepthGoalCompleted(
+          nodeId: var_nodeId,
+          filterName: var_filterName,
+          goalId: var_goalId,
+          revision: var_revision,
+          evidenceFrames: var_evidenceFrames,
+          confirmationFrames: var_confirmationFrames,
+          score: var_score,
+          threshold: var_threshold,
+        );
+      case 19:
+        var var_nodeId = sse_decode_String(deserializer);
         var var_frame = sse_decode_u_32(deserializer);
         var var_total = sse_decode_u_32(deserializer);
         var var_hfr = sse_decode_opt_box_autoadd_f_64(deserializer);
@@ -23658,7 +25140,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           savePath: var_savePath,
           capture: var_capture,
         );
-      case 19:
+      case 20:
         var var_nodeId = sse_decode_String(deserializer);
         var var_frame = sse_decode_u_32(deserializer);
         var var_total = sse_decode_u_32(deserializer);
@@ -23709,7 +25191,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sensorTempAtCapture: var_sensorTempAtCapture,
           capture: var_capture,
         );
-      case 20:
+      case 21:
         var var_nodeId = sse_decode_String(deserializer);
         var var_decisionCounter = sse_decode_u_32(deserializer);
         var var_pickedTargetId = sse_decode_opt_String(deserializer);
@@ -23724,7 +25206,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pickedScore: var_pickedScore,
           scores: var_scores,
         );
-      case 21:
+      case 22:
         var var_targetId = sse_decode_String(deserializer);
         var var_filter = sse_decode_String(deserializer);
         var var_completedSecs = sse_decode_f_64(deserializer);
@@ -23739,7 +25221,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           fraction: var_fraction,
           budgetMet: var_budgetMet,
         );
-      case 22:
+      case 23:
         var var_nodeId = sse_decode_String(deserializer);
         var var_adaptedSecs = sse_decode_f_64(deserializer);
         var var_nominalSecs = sse_decode_f_64(deserializer);
@@ -23756,7 +25238,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           filter: var_filter,
           reason: var_reason,
         );
-      case 23:
+      case 24:
         var var_nodeId = sse_decode_String(deserializer);
         var var_targetDesignation = sse_decode_String(deserializer);
         var var_referenceStars = sse_decode_list_String(deserializer);
@@ -23791,7 +25273,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           reduceLive: var_reduceLive,
           applyDifferential: var_applyDifferential,
         );
-      case 24:
+      case 25:
         var var_nodeId = sse_decode_String(deserializer);
         var var_frame = sse_decode_u_32(deserializer);
         var var_total = sse_decode_u_32(deserializer);
@@ -23806,7 +25288,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           maxGapSecs: var_maxGapSecs,
           cadenceBreaks: var_cadenceBreaks,
         );
-      case 25:
+      case 26:
         var var_nodeId = sse_decode_String(deserializer);
         var var_targetDesignation = sse_decode_String(deserializer);
         var var_filter = sse_decode_String(deserializer);
@@ -23821,7 +25303,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           cadenceBreaks: var_cadenceBreaks,
           lastRejectReason: var_lastRejectReason,
         );
-      case 26:
+      case 27:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -23844,7 +25326,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: var_phase,
           lastError: var_lastError,
         );
-      case 27:
+      case 28:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -23867,7 +25349,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: var_phase,
           lastError: var_lastError,
         );
-      case 28:
+      case 29:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -23890,7 +25372,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: var_phase,
           lastError: var_lastError,
         );
-      case 29:
+      case 30:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -23915,7 +25397,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           lastError: var_lastError,
           abortedByUser: var_abortedByUser,
         );
-      case 30:
+      case 31:
         var var_nodeId = sse_decode_String(deserializer);
         var var_pluginId = sse_decode_String(deserializer);
         var var_nodeTypeId = sse_decode_String(deserializer);
@@ -23930,7 +25412,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           displayName: var_displayName,
           timeoutSecs: var_timeoutSecs,
         );
-      case 31:
+      case 32:
         var var_nodeId = sse_decode_String(deserializer);
         var var_pluginId = sse_decode_String(deserializer);
         var var_nodeTypeId = sse_decode_String(deserializer);
@@ -23941,7 +25423,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           nodeTypeId: var_nodeTypeId,
           detailJson: var_detailJson,
         );
-      case 32:
+      case 33:
         var var_timestampIso = sse_decode_String(deserializer);
         var var_category = sse_decode_String(deserializer);
         var var_summary = sse_decode_String(deserializer);
@@ -24729,6 +26211,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_api_acquisition_settings(
+    ApiAcquisitionSettings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.instrument, serializer);
+    sse_encode_String(self.filter, serializer);
+    sse_encode_f_64(self.exposureSecs, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.gain, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.offset, serializer);
+    sse_encode_i_32(self.binX, serializer);
+    sse_encode_i_32(self.binY, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.ccdTempC, serializer);
+  }
+
+  @protected
   void sse_encode_api_combine_method(
     ApiCombineMethod self,
     SseSerializer serializer,
@@ -24753,6 +26251,171 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_64(self.lastRebuiltUnixSeconds, serializer);
     sse_encode_bool(self.applyDuringCapture, serializer);
     sse_encode_bool(self.storedOnDisk, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_curve_point(
+    ApiDepthCurvePoint self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.frames, serializer);
+    sse_encode_f_64(self.score, serializer);
+    sse_encode_f_64(self.conservativeScore, serializer);
+    sse_encode_bool(self.projected, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_floor_suggestion(
+    ApiDepthFloorSuggestion self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.floorAdu, serializer);
+    sse_encode_f_64(self.darkNoiseAdu, serializer);
+    sse_encode_f_64(self.flatRelativeNoise, serializer);
+    sse_encode_f_64(self.skyAdu, serializer);
+    sse_encode_f_64(self.aperturePixels, serializer);
+    sse_encode_String(self.source, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_forecast(
+    ApiDepthForecast self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.framesToThreshold, serializer);
+    sse_encode_u_32(self.framesToConfirm, serializer);
+    sse_encode_bool(self.reachable, serializer);
+    sse_encode_f_64(self.ceilingScore, serializer);
+    sse_encode_f_64(self.perFrameNoiseAdu, serializer);
+    sse_encode_f_64(self.recentFrameNoiseAdu, serializer);
+    sse_encode_f_64(self.bestFrameNoiseAdu, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_goal(ApiDepthGoal self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_u_64(self.revision, serializer);
+    sse_encode_api_depth_goal_definition(self.definition, serializer);
+    sse_encode_i_64(self.selectedAtMs, serializer);
+    sse_encode_u_32(self.evidenceFrames, serializer);
+    sse_encode_u_64(self.evidenceRevision, serializer);
+    sse_encode_bool(self.analysisCurrent, serializer);
+    sse_encode_opt_box_autoadd_api_depth_report(self.report, serializer);
+    sse_encode_u_32(self.candidateFrames, serializer);
+    sse_encode_opt_String(self.lastIssue, serializer);
+    sse_encode_u_32(self.archivedRevisions, serializer);
+    sse_encode_u_32(self.estimatorVersion, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_goal_definition(
+    ApiDepthGoalDefinition self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.label, serializer);
+    sse_encode_String(self.projectId, serializer);
+    sse_encode_String(self.targetId, serializer);
+    sse_encode_String(self.profileId, serializer);
+    sse_encode_String(self.filterName, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.filterIndex, serializer);
+    sse_encode_String(self.referencePath, serializer);
+    sse_encode_api_reference_geometry(self.reference, serializer);
+    sse_encode_api_acquisition_settings(self.acquisition, serializer);
+    sse_encode_f_64(self.temperatureToleranceC, serializer);
+    sse_encode_String(self.darkPath, serializer);
+    sse_encode_String(self.flatPath, serializer);
+    sse_encode_api_depth_measurement(self.measurement, serializer);
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_bool(self.automaticCompletion, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_ingest_outcome(
+    ApiDepthIngestOutcome self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.outcome, serializer);
+    sse_encode_opt_String(self.state, serializer);
+    sse_encode_opt_String(self.reason, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_lock_status(
+    ApiDepthLockStatus self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.available, serializer);
+    sse_encode_u_32(self.goals, serializer);
+    sse_encode_u_32(self.queueCapacity, serializer);
+    sse_encode_u_64(self.queued, serializer);
+    sse_encode_u_64(self.processed, serializer);
+    sse_encode_u_64(self.dropped, serializer);
+    sse_encode_u_64(self.evidenceAdded, serializer);
+    sse_encode_u_64(self.evidenceRejected, serializer);
+    sse_encode_u_64(self.lastFrameMs, serializer);
+    sse_encode_u_64(self.maxFrameMs, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_measurement(
+    ApiDepthMeasurement self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_sky_rectangle(self.region, serializer);
+    sse_encode_api_sky_rectangle(self.background, serializer);
+    sse_encode_f_64(self.scaleArcsec, serializer);
+    sse_encode_f_64(self.threshold, serializer);
+    sse_encode_f_64(self.minCoverage, serializer);
+    sse_encode_f_64(self.systematicFloorAdu, serializer);
+    sse_encode_String(self.systematicFloorSource, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_reference_info(
+    ApiDepthReferenceInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_String(self.pixelType, serializer);
+    sse_encode_bool(self.monochrome, serializer);
+    sse_encode_opt_box_autoadd_api_reference_geometry(
+      self.geometry,
+      serializer,
+    );
+    sse_encode_opt_String(self.geometryIssue, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.pixelScaleArcsec, serializer);
+    sse_encode_opt_box_autoadd_api_acquisition_settings(
+      self.acquisition,
+      serializer,
+    );
+    sse_encode_opt_String(self.acquisitionIssue, serializer);
+  }
+
+  @protected
+  void sse_encode_api_depth_report(
+    ApiDepthReport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.state, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.score, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.conservativeScore, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.uncertaintyAdu, serializer);
+    sse_encode_f_64(self.coverage, serializer);
+    sse_encode_u_32(self.evidenceFrames, serializer);
+    sse_encode_u_32(self.confirmationFrames, serializer);
+    sse_encode_String(self.reason, serializer);
+    sse_encode_opt_box_autoadd_api_depth_forecast(self.forecast, serializer);
   }
 
   @protected
@@ -24827,6 +26490,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.channels, serializer);
     sse_encode_f_64(self.inputMean, serializer);
     sse_encode_f_64(self.outputMean, serializer);
+  }
+
+  @protected
+  void sse_encode_api_reference_geometry(
+    ApiReferenceGeometry self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_f_64(self.crval1, serializer);
+    sse_encode_f_64(self.crval2, serializer);
+    sse_encode_f_64(self.crpix1, serializer);
+    sse_encode_f_64(self.crpix2, serializer);
+    sse_encode_f_64(self.cd11, serializer);
+    sse_encode_f_64(self.cd12, serializer);
+    sse_encode_f_64(self.cd21, serializer);
+    sse_encode_f_64(self.cd22, serializer);
+  }
+
+  @protected
+  void sse_encode_api_sky_rectangle(
+    ApiSkyRectangle self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.raDeg, serializer);
+    sse_encode_f_64(self.decDeg, serializer);
+    sse_encode_f_64(self.widthArcsec, serializer);
+    sse_encode_f_64(self.heightArcsec, serializer);
+    sse_encode_f_64(self.rotationDeg, serializer);
   }
 
   @protected
@@ -24921,6 +26615,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_api_acquisition_settings(
+    ApiAcquisitionSettings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_acquisition_settings(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_api_combine_method(
     ApiCombineMethod self,
     SseSerializer serializer,
@@ -24939,12 +26642,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_api_depth_forecast(
+    ApiDepthForecast self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_depth_forecast(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_api_depth_goal_definition(
+    ApiDepthGoalDefinition self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_depth_goal_definition(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_api_depth_measurement(
+    ApiDepthMeasurement self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_depth_measurement(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_api_depth_report(
+    ApiDepthReport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_depth_report(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_api_live_stacking_config(
     ApiLiveStackingConfig self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_api_live_stacking_config(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_api_reference_geometry(
+    ApiReferenceGeometry self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_reference_geometry(self, serializer);
   }
 
   @protected
@@ -25014,6 +26762,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_cover_state(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_depth_lock_event(
+    DepthLockEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_depth_lock_event(self, serializer);
   }
 
   @protected
@@ -25569,6 +27326,76 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_depth_lock_event(
+    DepthLockEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case DepthLockEvent_GoalUpdated(
+        goalId: final goalId,
+        revision: final revision,
+        filterName: final filterName,
+        state: final state,
+        score: final score,
+        conservativeScore: final conservativeScore,
+        threshold: final threshold,
+        uncertaintyAdu: final uncertaintyAdu,
+        coverage: final coverage,
+        evidenceFrames: final evidenceFrames,
+        confirmationFrames: final confirmationFrames,
+        reason: final reason,
+        automaticCompletion: final automaticCompletion,
+        framesRemaining: final framesRemaining,
+        reachable: final reachable,
+      ):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(goalId, serializer);
+        sse_encode_u_64(revision, serializer);
+        sse_encode_String(filterName, serializer);
+        sse_encode_String(state, serializer);
+        sse_encode_opt_box_autoadd_f_64(score, serializer);
+        sse_encode_opt_box_autoadd_f_64(conservativeScore, serializer);
+        sse_encode_f_64(threshold, serializer);
+        sse_encode_opt_box_autoadd_f_64(uncertaintyAdu, serializer);
+        sse_encode_f_64(coverage, serializer);
+        sse_encode_u_32(evidenceFrames, serializer);
+        sse_encode_u_32(confirmationFrames, serializer);
+        sse_encode_String(reason, serializer);
+        sse_encode_bool(automaticCompletion, serializer);
+        sse_encode_opt_box_autoadd_u_32(framesRemaining, serializer);
+        sse_encode_bool(reachable, serializer);
+      case DepthLockEvent_EvidenceRejected(
+        goalId: final goalId,
+        revision: final revision,
+        sourcePath: final sourcePath,
+        reason: final reason,
+      ):
+        sse_encode_i_32(1, serializer);
+        sse_encode_String(goalId, serializer);
+        sse_encode_u_64(revision, serializer);
+        sse_encode_String(sourcePath, serializer);
+        sse_encode_String(reason, serializer);
+      case DepthLockEvent_AnalysisDropped(
+        sourcePath: final sourcePath,
+        reason: final reason,
+      ):
+        sse_encode_i_32(2, serializer);
+        sse_encode_String(sourcePath, serializer);
+        sse_encode_String(reason, serializer);
+      case DepthLockEvent_GoalChanged(
+        goalId: final goalId,
+        revision: final revision,
+        change: final change,
+      ):
+        sse_encode_i_32(3, serializer);
+        sse_encode_String(goalId, serializer);
+        sse_encode_u_64(revision, serializer);
+        sse_encode_String(change, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_detected_star_info(
     DetectedStarInfo self,
     SseSerializer serializer,
@@ -25972,6 +27799,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case EventPayload_PolarAlignmentImage(field0: final field0):
         sse_encode_i_32(8, serializer);
         sse_encode_box_autoadd_polar_alignment_image_event(field0, serializer);
+      case EventPayload_DepthLock(field0: final field0):
+        sse_encode_i_32(9, serializer);
+        sse_encode_box_autoadd_depth_lock_event(field0, serializer);
     }
   }
 
@@ -26518,6 +28348,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_api_depth_curve_point(
+    List<ApiDepthCurvePoint> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_api_depth_curve_point(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_api_depth_goal(
+    List<ApiDepthGoal> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_api_depth_goal(item, serializer);
     }
   }
 
@@ -27293,6 +29147,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_api_acquisition_settings(
+    ApiAcquisitionSettings? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_api_acquisition_settings(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_api_defect_map_status(
     ApiDefectMapStatus? self,
     SseSerializer serializer,
@@ -27302,6 +29169,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_api_defect_map_status(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_api_depth_forecast(
+    ApiDepthForecast? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_api_depth_forecast(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_api_depth_report(
+    ApiDepthReport? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_api_depth_report(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_api_reference_geometry(
+    ApiReferenceGeometry? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_api_reference_geometry(self, serializer);
     }
   }
 
@@ -28182,6 +30088,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_f_64(progressPercent, serializer);
         sse_encode_String(detailKind, serializer);
         sse_encode_String(detailJson, serializer);
+      case SequencerEvent_DepthGoalCompleted(
+        nodeId: final nodeId,
+        filterName: final filterName,
+        goalId: final goalId,
+        revision: final revision,
+        evidenceFrames: final evidenceFrames,
+        confirmationFrames: final confirmationFrames,
+        score: final score,
+        threshold: final threshold,
+      ):
+        sse_encode_i_32(18, serializer);
+        sse_encode_String(nodeId, serializer);
+        sse_encode_String(filterName, serializer);
+        sse_encode_String(goalId, serializer);
+        sse_encode_u_64(revision, serializer);
+        sse_encode_u_32(evidenceFrames, serializer);
+        sse_encode_u_32(confirmationFrames, serializer);
+        sse_encode_f_64(score, serializer);
+        sse_encode_f_64(threshold, serializer);
       case SequencerEvent_FrameAccepted(
         nodeId: final nodeId,
         frame: final frame,
@@ -28194,7 +30119,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         savePath: final savePath,
         capture: final capture,
       ):
-        sse_encode_i_32(18, serializer);
+        sse_encode_i_32(19, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_u_32(frame, serializer);
         sse_encode_u_32(total, serializer);
@@ -28226,7 +30151,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sensorTempAtCapture: final sensorTempAtCapture,
         capture: final capture,
       ):
-        sse_encode_i_32(19, serializer);
+        sse_encode_i_32(20, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_u_32(frame, serializer);
         sse_encode_u_32(total, serializer);
@@ -28254,7 +30179,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         pickedScore: final pickedScore,
         scores: final scores,
       ):
-        sse_encode_i_32(20, serializer);
+        sse_encode_i_32(21, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_u_32(decisionCounter, serializer);
         sse_encode_opt_String(pickedTargetId, serializer);
@@ -28269,7 +30194,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         fraction: final fraction,
         budgetMet: final budgetMet,
       ):
-        sse_encode_i_32(21, serializer);
+        sse_encode_i_32(22, serializer);
         sse_encode_String(targetId, serializer);
         sse_encode_String(filter, serializer);
         sse_encode_f_64(completedSecs, serializer);
@@ -28284,7 +30209,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         filter: final filter,
         reason: final reason,
       ):
-        sse_encode_i_32(22, serializer);
+        sse_encode_i_32(23, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_f_64(adaptedSecs, serializer);
         sse_encode_f_64(nominalSecs, serializer);
@@ -28309,7 +30234,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         reduceLive: final reduceLive,
         applyDifferential: final applyDifferential,
       ):
-        sse_encode_i_32(23, serializer);
+        sse_encode_i_32(24, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_String(targetDesignation, serializer);
         sse_encode_list_String(referenceStars, serializer);
@@ -28334,7 +30259,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         maxGapSecs: final maxGapSecs,
         cadenceBreaks: final cadenceBreaks,
       ):
-        sse_encode_i_32(24, serializer);
+        sse_encode_i_32(25, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_u_32(frame, serializer);
         sse_encode_u_32(total, serializer);
@@ -28349,7 +30274,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         cadenceBreaks: final cadenceBreaks,
         lastRejectReason: final lastRejectReason,
       ):
-        sse_encode_i_32(25, serializer);
+        sse_encode_i_32(26, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_String(targetDesignation, serializer);
         sse_encode_String(filter, serializer);
@@ -28357,29 +30282,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_u_32(cadenceBreaks, serializer);
         sse_encode_opt_String(lastRejectReason, serializer);
       case SequencerEvent_RecoveryStarted(
-        startedAtIso: final startedAtIso,
-        causeKind: final causeKind,
-        causeCustomLabel: final causeCustomLabel,
-        lastAttemptAtIso: final lastAttemptAtIso,
-        attemptCount: final attemptCount,
-        maxAttempts: final maxAttempts,
-        retryIntervalSecs: final retryIntervalSecs,
-        maxDurationSecs: final maxDurationSecs,
-        phase: final phase,
-        lastError: final lastError,
-      ):
-        sse_encode_i_32(26, serializer);
-        sse_encode_String(startedAtIso, serializer);
-        sse_encode_String(causeKind, serializer);
-        sse_encode_opt_String(causeCustomLabel, serializer);
-        sse_encode_opt_String(lastAttemptAtIso, serializer);
-        sse_encode_u_32(attemptCount, serializer);
-        sse_encode_u_32(maxAttempts, serializer);
-        sse_encode_f_64(retryIntervalSecs, serializer);
-        sse_encode_f_64(maxDurationSecs, serializer);
-        sse_encode_String(phase, serializer);
-        sse_encode_opt_String(lastError, serializer);
-      case SequencerEvent_RecoveryProgress(
         startedAtIso: final startedAtIso,
         causeKind: final causeKind,
         causeCustomLabel: final causeCustomLabel,
@@ -28402,7 +30304,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_f_64(maxDurationSecs, serializer);
         sse_encode_String(phase, serializer);
         sse_encode_opt_String(lastError, serializer);
-      case SequencerEvent_RecoveryCompleted(
+      case SequencerEvent_RecoveryProgress(
         startedAtIso: final startedAtIso,
         causeKind: final causeKind,
         causeCustomLabel: final causeCustomLabel,
@@ -28415,6 +30317,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         lastError: final lastError,
       ):
         sse_encode_i_32(28, serializer);
+        sse_encode_String(startedAtIso, serializer);
+        sse_encode_String(causeKind, serializer);
+        sse_encode_opt_String(causeCustomLabel, serializer);
+        sse_encode_opt_String(lastAttemptAtIso, serializer);
+        sse_encode_u_32(attemptCount, serializer);
+        sse_encode_u_32(maxAttempts, serializer);
+        sse_encode_f_64(retryIntervalSecs, serializer);
+        sse_encode_f_64(maxDurationSecs, serializer);
+        sse_encode_String(phase, serializer);
+        sse_encode_opt_String(lastError, serializer);
+      case SequencerEvent_RecoveryCompleted(
+        startedAtIso: final startedAtIso,
+        causeKind: final causeKind,
+        causeCustomLabel: final causeCustomLabel,
+        lastAttemptAtIso: final lastAttemptAtIso,
+        attemptCount: final attemptCount,
+        maxAttempts: final maxAttempts,
+        retryIntervalSecs: final retryIntervalSecs,
+        maxDurationSecs: final maxDurationSecs,
+        phase: final phase,
+        lastError: final lastError,
+      ):
+        sse_encode_i_32(29, serializer);
         sse_encode_String(startedAtIso, serializer);
         sse_encode_String(causeKind, serializer);
         sse_encode_opt_String(causeCustomLabel, serializer);
@@ -28438,7 +30363,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         lastError: final lastError,
         abortedByUser: final abortedByUser,
       ):
-        sse_encode_i_32(29, serializer);
+        sse_encode_i_32(30, serializer);
         sse_encode_String(startedAtIso, serializer);
         sse_encode_String(causeKind, serializer);
         sse_encode_opt_String(causeCustomLabel, serializer);
@@ -28458,7 +30383,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         displayName: final displayName,
         timeoutSecs: final timeoutSecs,
       ):
-        sse_encode_i_32(30, serializer);
+        sse_encode_i_32(31, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_String(pluginId, serializer);
         sse_encode_String(nodeTypeId, serializer);
@@ -28471,7 +30396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         nodeTypeId: final nodeTypeId,
         detailJson: final detailJson,
       ):
-        sse_encode_i_32(31, serializer);
+        sse_encode_i_32(32, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_String(pluginId, serializer);
         sse_encode_String(nodeTypeId, serializer);
@@ -28484,7 +30409,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         nodeId: final nodeId,
         sequenceRunId: final sequenceRunId,
       ):
-        sse_encode_i_32(32, serializer);
+        sse_encode_i_32(33, serializer);
         sse_encode_String(timestampIso, serializer);
         sse_encode_String(category, serializer);
         sse_encode_String(summary, serializer);

@@ -44,6 +44,7 @@ pub enum EventPayload {
     PolarAlignment(PolarAlignmentEvent),
     PolarAlignmentStatus(PolarAlignmentStatus),
     PolarAlignmentImage(PolarAlignmentImageEvent),
+    DepthLock(DepthLockEvent),
 }
 
 /// Statistics about the event bus

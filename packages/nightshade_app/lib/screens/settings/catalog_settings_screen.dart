@@ -572,10 +572,6 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
     return Scaffold(
       backgroundColor: colors.background,
-      appBar: AppBar(
-        title: const Text('Catalog Settings'),
-        backgroundColor: colors.surface,
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

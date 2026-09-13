@@ -10,6 +10,13 @@ import 'widgets/fullscreen_image_viewer.dart';
 import 'widgets/imaging_capture_bar.dart';
 import 'widgets/imaging_preview_toolbar.dart';
 import 'widgets/imaging_session_frames.dart';
+import 'widgets/depthlock/depthlock_commit_host.dart';
+import 'widgets/depthlock/depthlock_hint.dart';
+import 'widgets/depthlock/depthlock_selection.dart'
+    show DepthLockCanvas, depthLockCanvasProvider;
+import 'widgets/live_stack_canvas.dart';
+import 'widgets/depthlock/depthlock_region_layer.dart'
+    show depthLockRegionToolActiveProvider;
 import 'widgets/imaging_side_panel.dart';
 import 'widgets/imaging_status_strip.dart';
 import 'widgets/live_preview_area.dart';
@@ -127,71 +134,112 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
     // context is the ImagingScreen element — an ANCESTOR of this widget — so an
     // inherited-only lookup returned null and the toast landed on top of
     // Snapshot / Loop, the exact defect this declaration exists to prevent.
-    return TransientBottomInsetPublisher(
-      inset: _captureBarHeight,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          PageHeader(
-            icon: NightshadeIcons.camera,
-            title: 'Imaging',
-            tabs: AdaptiveTabBar(
-              key: ImagingTutorialKeys.tabBar,
-              horizontalPadding: 0,
-              tabs: <AdaptiveTab>[
-                for (final ImagingTab tab in ImagingTab.values)
-                  AdaptiveTab(
-                    label: tab.label,
-                    icon: tab.icon,
-                    count: tab == ImagingTab.sessionFrames && frameCount > 0
-                        ? '$frameCount'
-                        : null,
+    return DepthLockRegionCommitHost(
+      child: TransientBottomInsetPublisher(
+        inset: _captureBarHeight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            PageHeader(
+              icon: NightshadeIcons.camera,
+              title: 'Imaging',
+              tabs: AdaptiveTabBar(
+                key: ImagingTutorialKeys.tabBar,
+                horizontalPadding: 0,
+                tabs: <AdaptiveTab>[
+                  for (final ImagingTab tab in ImagingTab.values)
+                    AdaptiveTab(
+                      label: tab.label,
+                      icon: tab.icon,
+                      count: tab == ImagingTab.sessionFrames && frameCount > 0
+                          ? '$frameCount'
+                          : null,
+                    ),
+                ],
+                selectedIndex: _tab.index,
+                onSelected: (int index) {
+                  final tab = ImagingTab.values[index];
+                  setState(() => _tab = tab);
+                  // A region belongs to the canvas it is drawn on, so the tab is
+                  // what decides which frame DepthLock is talking about.
+                  ref.read(depthLockCanvasProvider.notifier).state =
+                      tab == ImagingTab.liveStack
+                          ? DepthLockCanvas.liveStack
+                          : DepthLockCanvas.liveView;
+                },
+              ),
+              actions: <Widget>[
+                NightshadeButton(
+                  label: 'Immersive',
+                  icon: NightshadeIcons.expand,
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.ghost,
+                  onPressed: _openImmersive,
+                ),
+                NightshadeIconButton(
+                  icon: LucideIcons.panelRight,
+                  tooltip: _sidePanelCollapsed
+                      ? 'Show the controls panel'
+                      : 'Hide the controls panel',
+                  tooltipPosition: NightshadeTooltipPosition.bottom,
+                  selected: !_sidePanelCollapsed,
+                  onPressed: () => setState(
+                    () => _sidePanelCollapsed = !_sidePanelCollapsed,
                   ),
+                ),
               ],
-              selectedIndex: _tab.index,
-              onSelected: (int index) =>
-                  setState(() => _tab = ImagingTab.values[index]),
+              // Below the breakpoint there is no instrument bar (04 §5), so the
+              // 28 px strip under the header is where the rig's state lives.
+              bottom: narrow ? const ImagingStatusStrip() : null,
             ),
-            actions: <Widget>[
-              NightshadeButton(
-                label: 'Immersive',
-                icon: NightshadeIcons.expand,
-                size: ButtonSize.small,
-                variant: ButtonVariant.ghost,
-                onPressed: _openImmersive,
-              ),
-              NightshadeIconButton(
-                icon: LucideIcons.panelRight,
-                tooltip: _sidePanelCollapsed
-                    ? 'Show the controls panel'
-                    : 'Hide the controls panel',
-                selected: !_sidePanelCollapsed,
-                onPressed: () => setState(
-                  () => _sidePanelCollapsed = !_sidePanelCollapsed,
-                ),
-              ),
-            ],
-            // Below the breakpoint there is no instrument bar (04 §5), so the
-            // 28 px strip under the header is where the rig's state lives.
-            bottom: narrow ? const ImagingStatusStrip() : null,
-          ),
 
-          // Live meridian-flip countdown. Self-hides (SizedBox.shrink, zero
-          // height) whenever a flip is not armed, so it adds no chrome on idle
-          // nights and never pushes the canvas down.
-          const MeridianFlipCountdownBanner(),
+            // Live meridian-flip countdown. Self-hides (SizedBox.shrink, zero
+            // height) whenever a flip is not armed, so it adds no chrome on idle
+            // nights and never pushes the canvas down.
+            const MeridianFlipCountdownBanner(),
 
-          Expanded(
-            child: switch (_tab) {
-              ImagingTab.liveView => _liveView(colors, selectedSection, narrow),
-              ImagingTab.liveStack => StackingPanel(colors: colors),
-              ImagingTab.sessionFrames => ImagingSessionFrames(
-                  onFrameSelected: _showFrame,
-                ),
-            },
-          ),
-        ],
+            Expanded(
+              child: switch (_tab) {
+                ImagingTab.liveView => _liveView(colors, selectedSection, narrow),
+                ImagingTab.liveStack => _liveStack(colors, narrow),
+                ImagingTab.sessionFrames => ImagingSessionFrames(
+                    onFrameSelected: _showFrame,
+                  ),
+              },
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  /// The Live stack tab: the stacked image on its own canvas, with the
+  /// stacking controls beside it.
+  ///
+  /// The stack gets a canvas rather than a thumbnail because a region is
+  /// marked ON it — the stacker registers every frame into the reference sub's
+  /// pixel grid, so a box drawn here is a box in that sub's pixels, and a
+  /// 180 px preview is not something anyone can mark a faint structure on.
+  ///
+  /// Narrow keeps the single scrolling column it has today, preview included:
+  /// there is no room beside the controls for a canvas worth drawing on.
+  Widget _liveStack(NightshadeColors colors, bool narrow) {
+    if (narrow) return StackingPanel(colors: colors);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Expanded(child: LiveStackCanvas()),
+        SizedBox(
+          width: ShellChromeMetrics.sidePanelWidth,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: colors.border)),
+            ),
+            padding: SidePanel.contentPadding,
+            child: StackingPanel(colors: colors, showPreview: false),
+          ),
+        ),
+      ],
     );
   }
 
@@ -262,6 +310,24 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
                 onFullscreen: _openImmersive,
               );
             },
+          ),
+        // The one-time introduction, between the toolbar and the frame. It
+        // takes no height once dismissed, and it is only offered while a
+        // solved sub is up and no goal exists yet — see
+        // `depthLockHintVisibleProvider`.
+        if (!narrow)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NightshadeTokens.spaceMd,
+              NightshadeTokens.spaceSm,
+              NightshadeTokens.spaceMd,
+              0,
+            ),
+            child: DepthLockHint(
+              onMarkRegion: () =>
+                  ref.read(depthLockRegionToolActiveProvider.notifier).state =
+                      true,
+            ),
           ),
         Expanded(child: _canvas(colors, narrow)),
       ],

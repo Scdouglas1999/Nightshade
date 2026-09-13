@@ -302,6 +302,21 @@ sealed class SequencerEvent with _$SequencerEvent {
     required String detailJson,
   }) = SequencerEvent_InstructionProgressStructured;
 
+  /// A Smart Exposure plan finished early because its bound DepthLock
+  /// goal was achieved. Mirrors `ExecutorEvent::DepthGoalCompleted`; the
+  /// numbers are the evidence the verdict rested on, so the run history
+  /// can explain the transition without the goal store.
+  const factory SequencerEvent.depthGoalCompleted({
+    required String nodeId,
+    required String filterName,
+    required String goalId,
+    required BigInt revision,
+    required int evidenceFrames,
+    required int confirmationFrames,
+    required double score,
+    required double threshold,
+  }) = SequencerEvent_DepthGoalCompleted;
+
   /// Image Grading: a frame passed every configured
   /// quality threshold and was saved to the normal output folder.
   /// Mirrors `ProgressDetail::FrameAccepted`.

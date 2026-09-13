@@ -130,6 +130,7 @@ pub async fn api_invalidate_discovery_cache() {
 pub(crate) mod api_version;
 pub(crate) mod connection;
 pub mod darkroom;
+pub mod depthlock;
 pub mod devices;
 pub mod diagnostics;
 pub mod difference_image;
@@ -166,6 +167,7 @@ pub use darkroom::{
     api_darkroom_cancel, api_darkroom_registry, api_darkroom_render_export,
     api_darkroom_render_preview, api_darkroom_validate, DarkroomPreview,
 };
+pub use depthlock::*;
 pub use devices::*;
 pub use diagnostics::*;
 pub use difference_image::*;

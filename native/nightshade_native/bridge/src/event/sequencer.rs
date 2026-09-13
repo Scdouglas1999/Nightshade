@@ -134,6 +134,20 @@ pub enum SequencerEvent {
     // matches on the structured `ProgressDetail` and emits the typed variant; the
     // legacy `InstructionProgress` is emitted alongside it, so the typed variants
     // are additional, not replacements, and unmigrated subscribers keep working.
+    /// A Smart Exposure plan finished early because its bound DepthLock
+    /// goal was achieved. Mirrors `ExecutorEvent::DepthGoalCompleted`; the
+    /// numbers are the evidence the verdict rested on, so the run history
+    /// can explain the transition without the goal store.
+    DepthGoalCompleted {
+        node_id: String,
+        filter_name: String,
+        goal_id: String,
+        revision: u64,
+        evidence_frames: u32,
+        confirmation_frames: u32,
+        score: f64,
+        threshold: f64,
+    },
     /// Image Grading: a frame passed every configured
     /// quality threshold and was saved to the normal output folder.
     /// Mirrors `ProgressDetail::FrameAccepted`.

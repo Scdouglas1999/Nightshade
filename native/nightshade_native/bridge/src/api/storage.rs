@@ -81,8 +81,12 @@ pub fn api_init_settings_storage(storage_path: String) -> Result<(), NightshadeE
     // Plate-solver preferences share the settings directory. Errors here are
     // not fatal — the API falls back to in-memory defaults if storage is
     // unavailable — but a hard failure to initialise still surfaces.
-    crate::state::init_platesolver_storage(path)
+    crate::state::init_platesolver_storage(path.clone())
         .map_err(|e| NightshadeError::OperationFailed(e))?;
+    // DepthLock goals share the settings directory too, and its verdict
+    // source is installed on the executor here so a bound plan is honored
+    // from the first run of the launch.
+    crate::depthlock_service::init(&path).map_err(NightshadeError::OperationFailed)?;
 
     // Push the persisted plate-solver paths into the imaging crate's
     // process-global so every subsequent solve call (blind_solve, solve_near,

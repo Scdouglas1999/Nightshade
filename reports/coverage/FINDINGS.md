@@ -5625,3 +5625,17 @@ Column-by-column that is: 1-5 blank, 6-12 'NS0001 ', 13 ' ', 14 'C', 15 ' ', 16-
 
 **Proposed fix:** Wrap the failing-frame list in an Expanded + Scrollbar(thumbVisibility: true) inside the dialog's constrained body so it scrolls independently of the footer.
 
+
+### Connection stale banner can never render on a desktop remote client — only the mobile app drives its provider
+
+`defect` · remote-appliance · **CONFIRMED** _(found during the paired-appliance sweep, 2026-09-12)_
+
+**What happens:** Paired a desktop client to a headless appliance (`--remote-host`, admin scope) and killed the appliance mid-session to force a WebSocket drop. The connection icon went red and the client cycled reconnects, but `ConnectionStaleBanner` — the "Reconnecting to server… session controls may be stale" strip with a Retry button — never rendered at any point in the 30 s window.
+
+**Expected:** The banner is mounted unconditionally in the desktop shell (`app_shell.dart:460`) and the backend supports `reconnectNow()`, so a desktop remote client inside its reconnect grace window should see it the same way the mobile app does.
+
+**Root cause:** `connectionStaleProvider` (`connection_stale_banner.dart:11`) is written **only** by `apps/mobile/lib/main_parts/mobile_connection_state.dart:278,288`. Nothing in the desktop remote-client path ever sets it, so on desktop the widget is mounted but permanently `false` — dead code — and a desktop remote operator gets no stale-connection warning and no Retry control during a dropout.
+
+**Where:** `packages/nightshade_app/lib/widgets/connection_stale_banner.dart:11` (provider); `apps/mobile/lib/main_parts/mobile_connection_state.dart:278,288` (only writers); `packages/nightshade_app/lib/screens/shell/app_shell.dart:460` (desktop mount point); `packages/nightshade_core/lib/src/backend/network_backend.dart` (`_reconnectAttempt`/`reconnectNow` — the shared state machine the desktop could map).
+
+**Proposed fix:** Either wire the desktop connection-state machine to `connectionStaleProvider` (the desktop NetworkBackend already tracks reconnect attempts and exposes `reconnectNow()` for the Retry button), or scope the mount to the mobile shell so the desktop does not carry a permanently-inert widget. Product call which side is intended — but today the desktop mount is dead either way.

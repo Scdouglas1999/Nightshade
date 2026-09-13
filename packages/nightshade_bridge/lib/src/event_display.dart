@@ -42,6 +42,8 @@ String nightshadeEventDisplayTitle(NightshadeEvent event) {
       return 'Polar alignment: ${v.status}';
     case EventPayload_PolarAlignmentImage(field0: final v):
       return 'Polar alignment ${v.phase}';
+    case EventPayload_DepthLock(field0: final v):
+      return _depthLockTitle(v);
   }
 }
 
@@ -71,6 +73,8 @@ String nightshadeEventDisplayDetail(NightshadeEvent event) {
       return v.phase == 'measuring'
           ? 'Measurement ${v.point}/3'
           : 'Adjustment phase';
+    case EventPayload_DepthLock(field0: final v):
+      return _depthLockDetail(v);
   }
 }
 
@@ -430,6 +434,10 @@ String _sequencerTitle(SequencerEvent v) {
       ok ? 'Photometry frame' : 'Photometry frame rejected',
     SequencerEvent_PhotometryCadenceBroken() => 'Cadence broken',
     SequencerEvent_PhotometrySummary() => 'Photometry complete',
+    // DepthLock: a Smart Exposure plan stopped early because the filter's
+    // depth goal was reached. Its own title so the feed says what ended the
+    // plan rather than filing it under "Step finished".
+    SequencerEvent_DepthGoalCompleted() => 'Depth goal reached',
   };
 }
 
@@ -635,6 +643,83 @@ String _sequencerDetail(SequencerEvent v) {
     ) =>
       '$tgt $flt: $frames frames, $breaks cadence breaks'
           '${reason != null && reason.isNotEmpty ? ", last reject: $reason" : ""}',
+    SequencerEvent_DepthGoalCompleted(
+      filterName: final flt,
+      score: final score,
+      threshold: final threshold,
+      evidenceFrames: final evidence,
+      confirmationFrames: final confirming,
+    ) =>
+      depthGoalCompletedDetail(
+        filterName: flt,
+        score: score,
+        threshold: threshold,
+        evidenceFrames: evidence,
+        confirmationFrames: confirming,
+      ),
+  };
+}
+
+/// One line for a Smart Exposure plan that ended on its depth goal.
+///
+/// Shared rather than inlined in the switch arm because the run dashboard
+/// and the session report render the same sentence — a plan that stopped
+/// early has to read identically wherever the operator finds it.
+String depthGoalCompletedDetail({
+  required String filterName,
+  required double score,
+  required double threshold,
+  required int evidenceFrames,
+  required int confirmationFrames,
+}) =>
+    '$filterName reached its depth goal '
+    '(score ${score.toStringAsFixed(1)} >= ${threshold.toStringAsFixed(1)}, '
+    '$evidenceFrames exposure${evidenceFrames == 1 ? '' : 's'}, '
+    '$confirmationFrames confirming)';
+
+/// Title for a DepthLock event. The goal store's own events, not the
+/// sequencer's: they arrive while nothing is running too, whenever an
+/// archival frame is offered to a goal.
+String _depthLockTitle(DepthLockEvent v) {
+  return switch (v) {
+    DepthLockEvent_GoalUpdated(state: final state) => switch (state) {
+      'achieved' => 'Depth goal achieved',
+      'confirmationPending' => 'Depth goal confirming',
+      'unreliable' => 'Depth evidence unreliable',
+      _ => 'Depth goal progress',
+    },
+    DepthLockEvent_EvidenceRejected() => 'Depth evidence rejected',
+    DepthLockEvent_AnalysisDropped() => 'Depth analysis dropped',
+    DepthLockEvent_GoalChanged(change: final change) => 'Depth goal $change',
+  };
+}
+
+String _depthLockDetail(DepthLockEvent v) {
+  return switch (v) {
+    DepthLockEvent_GoalUpdated(
+      filterName: final filter,
+      score: final score,
+      threshold: final threshold,
+      evidenceFrames: final evidence,
+      reason: final reason,
+    ) =>
+      score == null
+          ? '$filter: $reason'
+          : '$filter: score ${score.toStringAsFixed(1)} / '
+                '${threshold.toStringAsFixed(1)} over $evidence '
+                'exposure${evidence == 1 ? '' : 's'} — $reason',
+    DepthLockEvent_EvidenceRejected(
+      sourcePath: final path,
+      reason: final reason,
+    ) =>
+      '$reason ($path)',
+    DepthLockEvent_AnalysisDropped(
+      sourcePath: final path,
+      reason: final reason,
+    ) =>
+      '$reason ($path)',
+    DepthLockEvent_GoalChanged(goalId: final id, revision: final revision) =>
+      '$id (revision $revision)',
   };
 }
 

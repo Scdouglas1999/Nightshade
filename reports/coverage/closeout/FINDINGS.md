@@ -41,6 +41,30 @@ The closeout plan treats centering_dialog and details_panel as unblocked because
 
 S9 added a real-sky renderer (sim_sky.rs + sim_frame::synthesize_sim_frame) and wired it into device_manager/ops/camera.rs:1217, but the capture the Imaging screen actually performs goes through api/imaging.rs, whose `device_id.starts_with("sim_")` branch calls generate_simulated_image() (imaging.rs:1304-1344) - background plus rand::thread_rng() stars at random positions with random brightness. Reproduced end to end on the release build with everything else correct: ASTAP + D05 detected and set
 
+## [P1 / defect] Rejected frames are never persisted to frame_forensics — the whole forensics surface is dead data in production
+
+`packages/nightshade_core/lib/src/providers/sequence/sequence_executor/event_operations.dart (case 'FrameRejected'); packages/nightshade_core/lib/src/services/forensics_service.dart recordRejection`
+
+Proven live across four graded runs (2026-09-12, min-stars 99999 so every light frame rejects): 12 frames landed in captured_images with is_accepted=0 / runtime_grade='reject', the native sequencer logged '[FORENSICS] Frame N/M cause=... evidence=[...]' for every reject, and the FrameRejected wire event carries the full forensics payload (likely_cause_label, evidence, environment stats — event_translation.rs). Yet frame_forensics stayed EMPTY except for two rows I seeded by hand. The Dart FrameRejected handler calls _carryFrameVerdict(accepted:false) + _registerSequenceFrame and breaks — it never calls ForensicsService.recordRejection, the only code path that inserts into frame_forensics and broadcasts to forensicsStreamProvider. Consequence: the 'Frame forensics' cockpit panel (opt-in widget), run_dashboard/frame_detail_dialog, and the report-side forensics provider (forensicsRecordsForRunProvider — which additionally has NO production watcher and no report section file left in the tree) can only ever render seeded/test data. One call-site fix unwedges the entire surface.
+
+Evidence: sqlite — captured_images rows 12-21 is_accepted=0 vs frame_forensics only seeds; app.log 16:34-16:55 [GRADE]...REJECTED + [FORENSICS] lines; shots 252-c3.png / 253-detail.png (panel + dialog rendered with seeds).
+
+## [P1 / defect] Recovery loops run and are recorded natively but never reach Dart — recovery banner, report Recoveries section, and persisted history are all unreachable
+
+`packages/nightshade_core/lib/src/providers/recovery_provider.dart:175 (recoveryEventBridgeProvider)`
+
+Run #8 (2026-09-12) executed a complete native recovery loop live: 3 consecutive grading rejects → '[RECOVERY] Attempt 1/9 (cause=ConsecutiveRejectsExceeded)' → escalation to operator Pause → UNATTENDED-rig SafeAbandon (mount parked, run Failed, ExecutorEvent::RecoveryGaveUp emitted — monitoring.rs:496). The Dart side recorded nothing: session_diagnostics.recovery_history_json persisted [] for session 9, and no Recoveries section appears in the session report. Cause: recoveryEventBridgeProvider — the sole forwarder from SequencerEvent_Recovery* wire events into currentRecoveryProvider/recoveryHistoryProvider — is never ref.watch-ed or ref.read anywhere in app/core/desktop code (only in tests). Its doc comment claims 'the Run Dashboard scaffolding watches it'; no watcher exists. currentRecoveryProvider therefore never populates (recovery_banner dead live), recoveryHistoryProvider stays empty (report section + recovery_history_json dead), all despite the native side emitting RecoveryStarted/Progress/GaveUp correctly. Same defect family as the frame_forensics wire: production events + translation + consumers all exist, but the bridging provider is never activated.
+
+Evidence: app.log run #8 recovery lines 2034-2042 ('Stopping mount tracking', 'Attempt 1/9', 'escalated ... UNATTENDED rig ... abandoning safely', 'Parked mount'); sqlite session_diagnostics session_id=9 → recovery_history_json='[]'; grep -rn recoveryEventBridgeProvider packages apps → only comments + tests.
+
+## [P2 / defect] A reject-storm 'pause for inspection' never lands on a guider-less rig — the queued dither kills the run first, and unattended rigs abandon outright
+
+`native/nightshade_native/sequencer/src/executor/recovery_ops.rs:254 (PauseForOperator); executor/monitoring.rs:386 (apply_recovery_escalation)`
+
+Live on runs #5/#6/#7: when image grading hit '3 consecutive rejects' the executor logged 'Sequence paused for inspection' and '[RECOVERY] Promoted consecutive-reject storm to recovery', but the in-flight post-frame dither executed before the pause could take effect and failed hard — 'Dither failed: Built-in guider dither requires active guiding; not guiding' — failing the whole run in the same tick. The advertised operator-pause path is effectively unreachable with ditherEvery>0 and no guider. With ditherEvery=0 (run #8) the recovery driver did engage, but an unattended rig (operator_present=false, the default) escalates to SafeAbandon — park + close + fail the run — rather than pausing. So on a default unattended rig a reject storm ALWAYS ends the run; the 'paused for inspection' state the error message announces never actually exists for the operator to find.
+
+Evidence: app.log 16:34:49 / 16:38:35 'Promoted ... to recovery' immediately followed by 'Dither failed ... Exposure failed' → NodeCompleted Failure; 16:55:17 same promotion → 'abandoning safely (park + close cover + close dome)' → run Failed.
+
 ## [P2 / defect] Inline sequencer quick-edit popovers commit from a stale node snapshot, so a stepper only ever moves by one  — FIXED
 
 `packages/nightshade_app/lib/screens/sequencer/widgets/node_summary_inline_editors.dart:195`
@@ -448,3 +472,51 @@ Typing an unreachable path produced: 'Nightshade could not create or reach "/roo
 `PluginNode properties panel, Timeout field`
 
 Typing 99999 into Timeout left 7200 in the field with no message -- the input formatter rewrites each keystroke to the maximum. The Alpaca editor two screens away treats the same situation as a validation error on purpose ('no silent coercion of a bad port'), so the app contradicts itself about what a too-large number means. A 0 is also accepted with no indication of whether it means 'no timeout' or 'give up immediately' (plugin_node_rules.dart treats 0 as legal, so it is deliberate but unexplai
+
+## [P4 / ux] Geolocation 'Detect location' fails silently on a desktop with no fix
+
+`Onboarding > Observing site > Use my current location` (geolocation_consent dialog)
+
+Live on the 2026-09-12 sweep: granting consent and pressing 'Detect location' simply closed the dialog with no position applied and no message of any kind -- no spinner result, no 'could not get a fix' error. A first-time operator on a machine without GPS cannot tell whether detection ran, is still running, or failed. The consent gate itself worked correctly (dialog appears on first use only).
+
+## [P2 / stability] The desktop UI froze ~100 s after a trigger-terminated run, while the native side kept running
+
+Observed live on the 2026-09-12 L52 repro (local sim rig, scratch profile). At 17:18:51 UTC the Dawn Approaching trigger fired ParkAndAbort: the cancel cascade ran, the mount parked, `[TRIGGER_MONITOR] terminating sequence` logged at .808774 — the last run-related line in app.log. The window then went dead: the status-bar clock stuck at 13:20:36 EDT (~105 s after the abort), clicks produced nothing, and the AT-SPI tree collapsed to the bare window frame, while the process stayed alive at ~18% CPU logging `conditions_score` every 30 s until it was killed at ~17:23. A restart was required.
+
+Attribution is not proven: the freeze followed a trigger-terminal + post-run report + 'How did this run go?' prompt sequence on a softpipe/Xvfb rig, and the app had been driven hard all session. But the native executor had already returned to idle, so whatever wedged was on the Flutter side after a terminated run — the same window a real operator watches at dawn. Follow-up: the identical trigger-abort re-run on the rebuilt bundle did NOT freeze (responsive 2.5+ min post-abort), so it is a single occurrence of unknown cause, not a deterministic abort-path wedge.
+
+## [P3 / untrue] 'Meridian flip completed' notification is emitted per progress tick, not on the outcome — it claims success while attempts are still failing
+
+`packages/nightshade_core/lib/src/services/notification/event_classifier.dart` (`case 'InstructionProgress'`)
+
+During the live flip on 2026-09-12 (run 11, sim rig), the toast 'Meridian flip performed — Meridian flip completed.' appeared while the node header read 'MeridianFlip: attempt 1/4 failed, retrying in 30s'. The classifier maps ANY InstructionProgress event whose instruction contains 'meridian' to NotificationCategory.meridianFlipPerformed — with no success check at all — so every 25/50/75% NodeProgress tick asserts 'completed', including on a flip that ultimately failed all 4 attempts and failed the run. The real verdict arrives separately as MeridianFlipOutcome, which the classifier ignores. An operator glancing at the notification sees 'flip completed' for a procedure that is, at that moment, in a retry loop heading for failure.
+
+## [P3 / dead-code] meridian_flip_progress_dialog has no production call site — a real flip shows only the node-header status
+
+`packages/nightshade_app/lib/screens/sequencer/widgets/meridian_flip_progress_dialog.dart`
+
+`showMeridianFlipProgressDialog` is referenced nowhere outside its own file. During the same live flip (~4 min, 8 steps, 4 retries) no dialog ever mounted; the only UI surface was the Take Exposures node header's 'MeridianFlip: attempt N/4 failed' line. The dialog is unreachable by construction, not by missing runtime state. Same class of finding as NextUsePromptCard and broadcast_panel.
+
+## [P3 / ux] PauseAndAlert for a failed flip never produces an observable pause when a second trigger is armed — the abort wins the same tick
+
+`native/nightshade_native/sequencer/src/executor/start/trigger_monitor.rs`
+
+Run 11 logged '[MERIDIAN] Flip failed - pausing and alerting user' and 'Trigger fired: Dawn Approaching - ParkAndAbort' in the same 100 ms window, then '[TRIGGER_MONITOR] terminating sequence ... fired 2 triggers' + 'In-flight trigger recovery action quiesced; ending run'. The pause the failure action promises was quiesced by the co-firing abort, and the run went straight to failed. Third distinct mechanism by which 'paused for inspection' never lands on an unattended sim rig (after the dither-step kill and the unattended safe-abandon): any second armed trigger sharing the poll tick outranks the pause. Whether that ordering is intended is a product question; the observable result is that PauseAndAlert can silently never pause.
+
+## [P1 / wiring] hotplugEventBridgeProvider is never watched — plugging a device mid-session never refreshes the equipment lists
+
+`packages/nightshade_core/lib/src/providers/hotplug_event_bridge_provider.dart`
+
+Same defect family as the recovery bridge, wider blast radius. The Rust hot-plug watcher (hotplug.rs: 300 s poll + libusb/WM_DEVICECHANGE callbacks) emits DeviceDiscovered/DeviceLost events; this bridge is the ONLY code that invalidates the ten per-class discovery providers in response. `grep -rn 'watch(hotplugEventBridgeProvider)\|read(hotplugEventBridgeProvider)'` across packages/ + apps/ finds zero non-test watchers — its own comment claims 'the desktop/mobile dashboard scaffolding does this', and nothing does. Live consequence: a camera plugged in mid-session fires the native event, the event reaches the FFI stream (event_mapping.dart maps it), and the equipment screen still never updates until the operator manually rescans — the entire hot-plug feature is dead in production.
+
+## [P3 / wiring] usbDisconnectEventBridgeProvider + recoveryAudibleBridgeProvider + recoveryPushBridgeProvider are also unwatched
+
+`packages/nightshade_core/lib/src/providers/usb_disconnect_log_provider.dart:41`, `recovery_provider.dart:447,481`
+
+A systematic audit of every `*BridgeProvider` found five side-effect providers and exactly one watcher (`errorNotificationBridgeProvider`, app_shell.dart:367). Beyond the already-recorded recovery bridge and the hotplug bridge above: the USB-disconnect log bridge ('Run Dashboard scaffolding watches this' — it does not) so the disconnect history misses every event that arrives before a manual recorder runs, and the recovery audible/push bridges, so recovery events produce no sound and no push notification even where those channels are configured. All five comments assert a watcher that does not exist.
+
+## [P2 / defect] Remote checkpoint resume always reports failure: the companion's own session-open collides with the session the host's resume just created
+
+`packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:2227` (inside `_resumeFromCheckpointInner`) → `imaging_records_repository.dart:160` (`_remote.createSession`) → `apps/desktop/lib/headless_api/handlers/analytics_handlers.dart:279`
+
+Observed end-to-end on the emulator (fresh 7.0 debug build paired to the headless appliance, resumable checkpoint from a real stopped run). On the companion, `resumeFromCheckpoint()` runs `_resumeFromCheckpointInner` locally with a NetworkBackend: step one POSTs `/api/sequencer/checkpoint/resume`, which makes the HOST run the identical inner flow — the host's executor opens imaging_sessions row N, opens the run row and starts execution. The companion's inner flow then reaches its own `sessionNotifier.startSession`, which forwards `createSession` remotely; the host's `sessionsDao.startSession` sees the session its own resume just opened and throws `ActiveImagingSessionException`, surfacing as `409 active_session_exists` back to the phone. Verified live: the phone displayed 'Recovery did not complete — active_session_exists: Imaging session 2 is already active. The checkpoint is still on disk.' with Retry/Discard affordances, while `/api/sequencer/status` simultaneously showed `state: running` on the resumed sequence — which then ran to completion (6/6 frames, run 'completed', session 2 'completed', checkpoint consumed). Every remote resume hits this: the companion-side session open is unconditional, so the collision is guaranteed. The dialog's retry loop works as designed but presents a false failure for a recovery that succeeded; an operator who then taps Discard clears a checkpoint belonging to a live run.

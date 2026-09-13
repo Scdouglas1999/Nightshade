@@ -12,17 +12,17 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
         // Header - hide on mobile since parent shows it
         if (!widget.isMobile) ...[
           Text(
-            'Astronomical Catalogs',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: colors.textPrimary,
-                ),
+            'Catalogs',
+            style: NightshadeTypography.pageTitle.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Download star and deep sky object catalogs to enable full planetarium functionality.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
           const SizedBox(height: 32),
         ],
@@ -46,13 +46,12 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           context: context,
           title: 'HYG Star Database',
           description:
-              'Combined Hipparcos, Yale, and Gliese star catalogs with ~120,000 stars',
+              'Combined Hipparcos, Yale, and Gliese star catalogs with ~120000 stars',
           sourceUrl: 'github.com/astronexus/HYG-Database',
           status: _starStatus,
           type: 'stars',
           icon: NightshadeIcons.star,
-          usedFor:
-              'Required for plate solving; draws the star field in the planetarium and finder.',
+          usedFor: 'Draws the star field in the planetarium and finder.',
           // The version the resolver would actually download, not a literal
           // that has to be remembered when the asset rolls. A hardcoded '4.2'
           // here outlived the move to hyg_v44 and made the newest fetchable
@@ -67,13 +66,13 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           context: context,
           title: 'OpenNGC',
           description:
-              'Open source NGC/IC deep sky catalog with ~13,000 objects',
+              'Open source NGC/IC deep sky catalog with ~13000 objects',
           sourceUrl: 'github.com/mattiaverga/OpenNGC',
           status: _dsoStatus,
           type: 'dso',
           // KEEP MATERIAL: no clean Lucide "out-of-focus disc" glyph
           // (icon-migration-map.md flagged exception).
-          icon: Icons.blur_circular,
+          icon: NightshadeIcons.target,
           usedFor:
               'Powers deep-sky target search, framing, and on-image NGC/IC labels.',
           latestVersion: openNgcCatalog.version,
@@ -178,7 +177,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Download Catalogs',
+            'Download catalogs',
             style: NightshadeTypography.sectionTitle
                 .copyWith(color: colors.textPrimary),
           ),
@@ -221,14 +220,14 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             ),
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
+          Align(
+            alignment: Alignment.centerLeft,
             child: NightshadeButton(
               label: _isDeleting
                   ? 'Deleting catalogs…'
                   : _isDownloading
                       ? 'Downloading...'
-                      : 'Download Catalogs',
+                      : 'Download catalogs',
               icon: NightshadeIcons.download,
               variant: ButtonVariant.primary,
               onPressed: _isDownloading ? null : _downloadCatalogs,
@@ -305,30 +304,15 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
     final isInstalled = _annotationStatus?.isInstalled ?? false;
     final rigStatus = isRemote ? _rigStatusFor('annotation') : null;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(
-          color: isInstalled
-              ? colors.success.withValues(alpha: 0.3)
-              : colors.primary.withValues(alpha: 0.3),
-        ),
-      ),
+    return NightshadePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration:
-                    NightshadeDecorations.chip(colors, tone: colors.primary),
-                child:
-                    Icon(NightshadeIcons.tag, color: colors.primary, size: 24),
-              ),
-              const SizedBox(width: 16),
+              Icon(NightshadeIcons.tag,
+                  color: colors.textMuted, size: NightshadeTokens.iconMd),
+              const SizedBox(width: NightshadeTokens.spaceMd),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,7 +323,7 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          'GLADE+ Galaxy Catalog',
+                          'GLADE+ galaxy catalog',
                           style: NightshadeTypography.sectionTitle
                               .copyWith(color: colors.textPrimary),
                         ),
@@ -438,46 +422,57 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
           ],
           const SizedBox(height: 20),
           if (!isInstalled) ...[
-            // Tier selection for annotation catalog
-            Text(
-              'Select catalog tier:',
-              style: NightshadeTypography.bodySm.copyWith(
-                color: colors.textSecondary,
+            FormRow(
+              label: 'Catalog tier',
+              child: NightshadeDropdown(
+                value: _selectedAnnotationPackage.name,
+                items: AnnotationPackage.values.map((p) => p.name).toList(),
+                itemLabels:
+                    AnnotationPackage.values.map((p) => p.displayName).toList(),
+                onChanged: _isDownloading
+                    ? null
+                    : (value) {
+                        if (value != null)
+                          setState(() {
+                            _selectedAnnotationPackage =
+                                AnnotationPackage.values.byName(value);
+                          });
+                      },
               ),
             ),
-            const SizedBox(height: 12),
-            ...AnnotationPackage.values
-                .map((package) => _buildAnnotationPackageOption(
-                      context: context,
-                      package: package,
-                    )),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              _selectedAnnotationPackage.description,
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
+            Align(
+              alignment: Alignment.centerLeft,
               child: NightshadeButton(
                 label:
                     'Download ${_selectedAnnotationPackage.displayName} (~${_selectedAnnotationPackage.approximateSizeMB} MB)',
                 icon: NightshadeIcons.download,
-                variant: ButtonVariant.primary,
+                variant: ButtonVariant.secondary,
                 onPressed: _isDownloading ? null : _downloadAnnotationCatalog,
               ),
             ),
             const SizedBox(height: 12),
             // Optional manual import
-            SizedBox(
-              width: double.infinity,
+            Align(
+              alignment: Alignment.centerLeft,
               child: NightshadeButton(
-                label: 'Or Import from File (CSV)',
+                label: 'Import CSV',
                 icon: NightshadeIcons.folderOpen,
                 variant: ButtonVariant.secondary,
                 onPressed: _isDownloading ? null : _importAnnotationCatalog,
               ),
             ),
           ] else ...[
-            SizedBox(
-              width: double.infinity,
+            Align(
+              alignment: Alignment.centerLeft,
               child: NightshadeButton(
-                label: 'Delete Annotation Catalog',
+                label: 'Delete annotation catalog',
                 icon: NightshadeIcons.delete,
                 variant: ButtonVariant.destructive,
                 onPressed: _isDownloading ? null : _deleteAnnotationCatalog,
@@ -486,93 +481,6 @@ extension _CatalogSettingsViewBuilders on _CatalogSettingsScreenState {
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildAnnotationPackageOption({
-    required BuildContext context,
-    required AnnotationPackage package,
-  }) {
-    final colors = context.nightshadeColors;
-    final isSelected = _selectedAnnotationPackage == package;
-
-    return GestureDetector(
-      onTap: _isDownloading
-          ? null
-          : () {
-              setState(() => _selectedAnnotationPackage = package);
-            },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.border.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? NightshadeIcons.success : NightshadeIcons.circle,
-              color: isSelected ? colors.primary : colors.textSecondary,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          package.displayName,
-                          style: NightshadeTypography.bodyStrong
-                              .copyWith(color: colors.textPrimary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.border,
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                        ),
-                        child: Text(
-                          package == AnnotationPackage.complete
-                              ? '~${(package.approximateSizeMB / 1000).toStringAsFixed(1)} GB'
-                              : '~${package.approximateSizeMB} MB',
-                          style: NightshadeTypography.captionSm.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    package.description,
-                    style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -269,6 +269,10 @@ pub struct ExecutionContext {
     /// The same `Arc` the executor holds, so the wizard sink and the
     /// streaming-checkpoint task share one manager (and one info cache).
     pub checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>>,
+    /// DepthLock verdict source, installed by the host at start. `None`
+    /// when the host has no goal store; a bound plan then warns once and
+    /// stays count-bounded.
+    pub depth_goal_ops: Option<crate::depth_goal::SharedDepthGoalOps>,
     /// shared per-target integration budget registry.
     /// `TargetHeader` runtime registers a state on entry; `expose` instruction
     /// credits successful bursts; the next `TargetHeader` child-boundary
@@ -667,6 +671,7 @@ impl ExecutionContext {
             // is not persisted and every run starts at step 0. The
             // executor installs its own Arc at start().
             checkpoint_manager: None,
+            depth_goal_ops: None,
             budget_registry: BudgetRegistry::new(),
             // Image Grading: a non-empty session id is preferred to
             // "" so log lines always render a stable identifier; default

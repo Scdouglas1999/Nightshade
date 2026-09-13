@@ -690,10 +690,16 @@ class _WithHelp extends StatelessWidget {
   Widget build(BuildContext context) {
     final copy = helpFor(helpId);
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: child),
         const SizedBox(width: NightshadeTokens.spaceSm),
-        helpAffordance(context, title: copy.title, body: copy.body),
+        helpAffordance(
+          context,
+          title: copy.title,
+          body: copy.body,
+          position: NightshadeTooltipPosition.left,
+        ),
       ],
     );
   }

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../run_status_presentation.dart';
 
 /// Dialog showing detailed post-session statistics for a sequence run.
 class PostSessionStatsDialog extends StatelessWidget {
@@ -26,242 +27,172 @@ class PostSessionStatsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM d, yyyy HH:mm:ss');
-    final dialogSize = AdaptiveDialogConstraints.dialogSize(
-      context,
-      designWidth: 600,
-      designHeight: 700,
-    );
-
-    return Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        side: BorderSide(color: colors.border),
-      ),
-      child: SizedBox(
-        width: dialogSize.width,
-        height: dialogSize.height,
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.barChart3, size: 22, color: colors.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Session Summary',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize18,
-                            fontWeight: FontWeight.w700,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          sequenceName,
-                          style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize13,
-                              color: colors.textMuted),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(LucideIcons.x, color: colors.textMuted),
-                    tooltip: 'Close',
-                  ),
-                ],
-              ),
-            ),
-
-            // Body
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Time info
-                    _Section(
-                      colors: colors,
-                      title: 'Timing',
-                      icon: LucideIcons.clock,
-                      children: [
-                        _StatRow(
-                            colors: colors,
-                            label: 'Started',
-                            value: dateFormat.format(startedAt)),
-                        if (endedAt != null)
-                          _StatRow(
-                              colors: colors,
-                              label: 'Ended',
-                              value: dateFormat.format(endedAt!)),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Wall clock',
-                            value: stats.formatDuration(stats.wallClockSecs)),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Integration time',
-                            value: stats.formatDuration(stats.integrationSecs)),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Overhead',
-                            value: stats.formatDuration(stats.overheadSecs)),
-                        if (stats.wallClockSecs > 0)
-                          _StatRow(
-                            colors: colors,
-                            label: 'Efficiency',
-                            value:
-                                '${(stats.integrationSecs / stats.wallClockSecs * 100).toStringAsFixed(1)}%',
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Frames
-                    _Section(
-                      colors: colors,
-                      title: 'Frames',
-                      icon: LucideIcons.camera,
-                      children: [
-                        _StatRow(
-                            colors: colors,
-                            label: 'Captured',
-                            value: '${stats.framesCaptured}'),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Rejected',
-                            value: '${stats.framesRejected}',
-                            valueColor: stats.framesRejected > 0
-                                ? colors.warning
-                                : null),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Accepted',
-                            value:
-                                '${stats.framesCaptured - stats.framesRejected}'),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Operations
-                    _Section(
-                      colors: colors,
-                      title: 'Operations',
-                      icon: LucideIcons.settings,
-                      children: [
-                        _StatRow(
-                            colors: colors,
-                            label: 'Autofocus runs',
-                            value: '${stats.autofocusRuns}'),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Meridian flips',
-                            value: '${stats.meridianFlips}'),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Dithers',
-                            value: '${stats.ditherCount}'),
-                        _StatRow(
-                            colors: colors,
-                            label: 'Trigger fires',
-                            value: '${stats.triggerFires}'),
-                      ],
-                    ),
-
-                    // Target/Filter Breakdown
-                    if (stats.targetBreakdown.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      _Section(
-                        colors: colors,
-                        title: 'Target breakdown',
-                        icon: LucideIcons.target,
-                        children: [
-                          for (final te in stats.targetBreakdown.entries) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8, bottom: 4),
-                              child: Text(
-                                te.key,
-                                style: NightshadeTypography.labelStrong
-                                    .copyWith(color: colors.textPrimary),
-                              ),
-                            ),
-                            for (final fe in te.value.entries)
-                              _StatRow(
-                                colors: colors,
-                                label:
-                                    '  ${fe.key.isEmpty ? 'No filter' : fe.key}',
-                                value:
-                                    '${(fe.value['captured'] as num?)?.toInt() ?? 0} frames  |  '
-                                    '${stats.formatDuration((fe.value['integrationSecs'] as num?)?.toDouble() ?? 0)}',
-                              ),
-                          ],
-                        ],
-                      ),
-                    ],
-
-                    // Errors
-                    if (stats.errorMessages.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      _Section(
-                        colors: colors,
-                        title: 'Errors (${stats.errorMessages.length})',
-                        icon: LucideIcons.alertTriangle,
-                        titleColor: colors.error,
-                        children: [
-                          for (final msg in stats.errorMessages)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                msg,
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  color: colors.error,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ],
+    return NightshadeDialog(
+      title: 'Session summary',
+      icon: LucideIcons.barChart3,
+      width: NightshadeDialog.widthForm,
+      actions: [
+        NightshadeButton(
+            label: 'Close',
+            variant: ButtonVariant.ghost,
+            onPressed: () => Navigator.of(context).pop()),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(sequenceName,
+              style: NightshadeTypography.bodyStrong
+                  .copyWith(color: colors.textPrimary)),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          // Time info
+          _Section(
+            colors: colors,
+            title: 'Timing',
+            icon: LucideIcons.clock,
+            children: [
+              _StatRow(
+                  colors: colors,
+                  label: 'Started',
+                  value: dateFormat.format(startedAt)),
+              if (endedAt != null)
+                _StatRow(
+                    colors: colors,
+                    label: 'Ended',
+                    value: dateFormat.format(endedAt!)),
+              _StatRow(
+                  colors: colors,
+                  label: 'Wall clock',
+                  value: stats.formatDuration(stats.wallClockSecs)),
+              _StatRow(
+                  colors: colors,
+                  label: 'Integration time',
+                  value: stats.formatDuration(stats.integrationSecs)),
+              _StatRow(
+                  colors: colors,
+                  label: 'Overhead',
+                  value: stats.formatDuration(stats.overheadSecs)),
+              if (stats.wallClockSecs > 0)
+                _StatRow(
+                  colors: colors,
+                  label: 'Efficiency',
+                  value:
+                      '${(stats.integrationSecs / stats.wallClockSecs * 100).toStringAsFixed(1)}%',
                 ),
-              ),
-            ),
+            ],
+          ),
 
-            // Footer
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+          const SizedBox(height: 20),
+
+          // Frames
+          _Section(
+            colors: colors,
+            title: 'Frames',
+            icon: LucideIcons.camera,
+            children: [
+              _StatRow(
+                  colors: colors,
+                  label: 'Captured',
+                  value: '${stats.framesCaptured}'),
+              _StatRow(
+                  colors: colors,
+                  label: 'Rejected',
+                  value: '${stats.framesRejected}',
+                  valueColor: stats.framesRejected > 0 ? colors.warning : null),
+              _StatRow(
+                  colors: colors,
+                  label: 'Accepted',
+                  value: '${stats.framesCaptured - stats.framesRejected}'),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Operations
+          _Section(
+            colors: colors,
+            title: 'Operations',
+            icon: LucideIcons.settings,
+            children: [
+              _StatRow(
+                  colors: colors,
+                  label: 'Autofocus runs',
+                  value: '${stats.autofocusRuns}'),
+              _StatRow(
+                  colors: colors,
+                  label: 'Meridian flips',
+                  value: '${stats.meridianFlips}'),
+              _StatRow(
+                  colors: colors,
+                  label: 'Dithers',
+                  value: '${stats.ditherCount}'),
+              _StatRow(
+                  colors: colors,
+                  label: 'Trigger fires',
+                  value: '${stats.triggerFires}'),
+            ],
+          ),
+
+          // Target/Filter Breakdown
+          if (stats.targetBreakdown.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _Section(
+              colors: colors,
+              title: 'Target breakdown',
+              icon: LucideIcons.target,
+              children: [
+                for (final te in stats.targetBreakdown.entries) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
                     child: Text(
-                      'Close',
-                      style: TextStyle(color: colors.textSecondary),
+                      te.key,
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ),
+                  for (final fe in te.value.entries)
+                    _StatRow(
+                      colors: colors,
+                      label: '  ${fe.key.isEmpty ? 'No filter' : fe.key}',
+                      value:
+                          '${(fe.value['captured'] as num?)?.toInt() ?? 0} frames  |  '
+                          '${stats.formatDuration((fe.value['integrationSecs'] as num?)?.toDouble() ?? 0)}',
+                    ),
                 ],
-              ),
+              ],
             ),
           ],
-        ),
+
+          // Errors
+          if (stats.errorMessages.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _Section(
+              colors: colors,
+              title: 'Errors (${stats.errorMessages.length})',
+              icon: LucideIcons.alertTriangle,
+              titleColor: colors.error,
+              children: [
+                for (final msg in stats.errorMessages)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      runFailureMessage(msg),
+                      style: NightshadeTypography.caption.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+
+          if (stats.errorMessages
+              .any((message) => runFailureMessage(message) != message))
+            ExpansionTile(
+              title: const Text('Technical details'),
+              children: [SelectableText(stats.errorMessages.join('\n'))],
+            ),
+        ],
       ),
     );
   }
@@ -287,22 +218,8 @@ class _Section extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: titleColor ?? colors.primary),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w700,
-                color: titleColor ?? colors.textPrimary,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+        SectionTitle(title: title, icon: icon),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         ...children,
       ],
     );
@@ -325,23 +242,8 @@ class _StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textMuted),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: NightshadeTypography.label
-                .copyWith(color: valueColor ?? colors.textPrimary),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+      child: KeyValueList(rows: [(label, value)]),
     );
   }
 }

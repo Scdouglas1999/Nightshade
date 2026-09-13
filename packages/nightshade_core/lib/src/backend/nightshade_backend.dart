@@ -1,3 +1,4 @@
+import 'roles/depthlock_backend.dart';
 import 'roles/device_backend.dart';
 import 'roles/diagnostics_backend.dart';
 import 'roles/guiding_backend.dart';
@@ -56,6 +57,7 @@ abstract class NightshadeBackend
         ImagingBackend,
         SequencerBackend,
         ProfileSettingsBackend,
-        DiagnosticsBackend {
+        DiagnosticsBackend,
+        DepthLockBackend {
   // Intentionally empty. See class doc.
 }

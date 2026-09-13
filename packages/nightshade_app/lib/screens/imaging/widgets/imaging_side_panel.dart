@@ -10,6 +10,7 @@ import 'annotation_panel.dart';
 import 'calibration_section.dart';
 import 'camera_panel.dart';
 import 'capture_panel.dart';
+import 'depthlock/depthlock_panel.dart';
 import 'focus_panel.dart';
 import 'guiding_panel.dart';
 import 'rotator_panel.dart';
@@ -59,6 +60,13 @@ class ImagingSidePanel extends ConsumerWidget {
         icon: NightshadeIcons.filterWheel, tooltip: 'Filter wheel'),
     SidePanelSection(icon: NightshadeIcons.rotator, tooltip: 'Rotator'),
     SidePanelSection(icon: NightshadeIcons.tag, tooltip: 'Annotations'),
+    SidePanelSection(
+      icon: NightshadeIcons.target,
+      // The strip is glyphs only, and a target reticle says nothing about
+      // what DepthLock is. The tooltip is the only place the section can
+      // introduce itself.
+      tooltip: 'DepthLock — goals for faint detail',
+    ),
   ];
 
   @override
@@ -101,6 +109,7 @@ class ImagingSectionBody extends StatelessWidget {
         _FilterWheelSection(colors: colors),
         RotatorPanel(colors: colors),
         AnnotationTabPanel(colors: colors),
+        DepthLockPanel(colors: colors),
       ],
     );
   }

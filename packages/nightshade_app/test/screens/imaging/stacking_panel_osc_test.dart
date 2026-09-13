@@ -92,8 +92,8 @@ void main() {
         (tester) async {
       await _pumpPanel(tester);
 
-      expect(find.text('Color (OSC)'), findsOneWidget);
-      expect(find.text('OSC / Color'), findsOneWidget);
+      expect(find.text('COLOR (OSC)'), findsOneWidget);
+      expect(find.text('OSC / color'), findsOneWidget);
 
       // No camera connected → pristine mono config → switch OFF → dropdowns
       // hidden.

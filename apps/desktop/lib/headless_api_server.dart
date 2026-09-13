@@ -396,6 +396,9 @@ class HeadlessApiServer {
   late final PostSessionHandlers _postSessionHandlers;
   late final DarkroomDeliveryHandlers _darkroomDeliveryHandlers;
 
+  // DepthLock goal store (per-filter depth goals around a marked sky region).
+  late final DepthLockHandlers _depthLockHandlers;
+
   // Run-Watch (phone/tablet monitoring).
   // The handler exposes /api/run-watch/{snapshot,frame-thumbnail,events}.
   // Backed by a fan-out broadcast stream over `backend.eventStream` so the

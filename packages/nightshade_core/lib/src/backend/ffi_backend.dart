@@ -28,6 +28,7 @@ part 'ffi_backend/status_profile_operations.dart';
 part 'ffi_backend/image_polar_operations.dart';
 part 'ffi_backend/session_heartbeat_operations.dart';
 part 'ffi_backend/bridge_model_mappers.dart';
+part 'ffi_backend/depthlock_operations.dart';
 
 /// Map user-facing curve-fitting labels onto the native bridge's actual
 /// autofocus method enum strings. "Trend Lines" is the V-curve/trend-line
@@ -129,7 +130,8 @@ class FfiBackend extends _FfiBackendBase
         _FfiSequencerRecoveryOperations,
         _FfiStatusProfileOperations,
         _FfiImagePolarOperations,
-        _FfiSessionHeartbeatOperations
+        _FfiSessionHeartbeatOperations,
+        _FfiDepthLockOperations
     implements
         NightshadeBackend,
         EnvironmentalStatusBackend,
@@ -181,4 +183,7 @@ class FfiBackend extends _FfiBackendBase
   @visibleForTesting
   (String, Map<String, dynamic>) imagingEventInfoForTesting(dynamic event) =>
       _extractImagingEventInfo(event);
+  @visibleForTesting
+  (String, Map<String, dynamic>) depthLockEventInfoForTesting(dynamic event) =>
+      _extractDepthLockEventInfo(event);
 }

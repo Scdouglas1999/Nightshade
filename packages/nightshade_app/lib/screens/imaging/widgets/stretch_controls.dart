@@ -115,6 +115,7 @@ class _CompactStretchControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Toggle switch with label
         NightshadeTooltip(

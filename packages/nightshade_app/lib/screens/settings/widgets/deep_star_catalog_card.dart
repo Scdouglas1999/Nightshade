@@ -336,7 +336,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                     child: NightshadeButton(
                       label: label,
                       icon: NightshadeIcons.download,
-                      variant: ButtonVariant.primary,
+                      variant: ButtonVariant.secondary,
                       // Disabled until a host is entered: with no URL the
                       // request can only fail, so don't offer it.
                       onPressed: (_busy || blocked != null) ? null : _download,

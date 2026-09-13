@@ -13,31 +13,20 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.error,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.alertCircle, size: 16, color: colors.error),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: NightshadeTypography.caption.copyWith(color: colors.error),
-            ),
-          ),
-          if (onRetry != null) ...[
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: onRetry,
-              child: const Text('Retry preview'),
-            ),
-          ],
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
+      child: NightshadeBanner(
+        title: 'Live stacking needs attention',
+        message: message,
+        tone: BannerTone.error,
+        action: onRetry == null
+            ? null
+            : NightshadeButton(
+                label: 'Retry preview',
+                variant: ButtonVariant.secondary,
+                size: ButtonSize.small,
+                onPressed: onRetry,
+              ),
       ),
     );
   }
@@ -58,22 +47,7 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(label,
-              style: NightshadeTypography.caption
-                  .copyWith(color: colors.textSecondary)),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: NightshadeTypography.labelSm
-              .copyWith(color: valueColor ?? colors.textPrimary),
-        ),
-      ],
-    );
+    return KeyValueList(rows: [(label, value)]);
   }
 }
 
@@ -83,13 +57,9 @@ class _StatGroupHeader extends StatelessWidget {
   final String label;
   final NightshadeColors colors;
 
-  /// The first group needs no separating rule above it.
-  final bool isFirst;
-
   const _StatGroupHeader({
     required this.label,
     required this.colors,
-    this.isFirst = false,
   });
 
   @override
@@ -97,10 +67,8 @@ class _StatGroupHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!isFirst) ...[
-          const SizedBox(height: 12),
-          Container(height: 1, color: colors.border),
-        ],
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Container(height: 1, color: colors.border),
         const SizedBox(height: 10),
         Align(
           alignment: Alignment.centerLeft,
@@ -235,7 +203,7 @@ class _AlignmentQualityBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Alignment Quality',
+            Text('Alignment quality',
                 style: NightshadeTypography.caption
                     .copyWith(color: colors.textSecondary)),
             Text(qualityLabel,

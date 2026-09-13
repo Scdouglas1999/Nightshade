@@ -27,6 +27,18 @@
 //! manual `FilterChange → Loop(N) → TakeExposure` chain the user would
 //! otherwise have written.
 //!
+//! # DepthLock early completion
+//!
+//! A plan may carry a [`crate::depth_goal::DepthGoalBinding`]. Before each
+//! batch the node asks the host's verdict source ([`ExecutionContext::depth_goal_ops`])
+//! about every still-open bound plan; an achieved verdict for the bound
+//! revision retires the plan's remaining count and is announced once via
+//! [`ExecutorEvent::DepthGoalCompleted`]. Nothing else changes: the check
+//! sits between batches (an in-flight exposure is never aborted), the
+//! authored count/budget/window bounds still end the node first when they
+//! arrive first, and a missing or stale verdict source degrades to the
+//! plain count-bounded plan with one warning per plan per run.
+//!
 //! # Autofocus on filter change
 //!
 //! We rely on the existing trigger system: when [`ChangeFilterInstruction`]
@@ -36,6 +48,8 @@
 //! its own autofocus run — that would duplicate the trigger pipeline and
 //! desync from the rest of the sequencer.
 
+use crate::depth_goal::DepthGoalVerdict;
+use crate::executor::ExecutorEvent;
 use crate::node::context::ExecutionContext;
 use crate::node::progress::{ProgressDetail, ProgressUpdate};
 use crate::node::registry::{registry, InstructionNode};
@@ -44,6 +58,7 @@ use crate::{
     NodeStatus, NodeType, SmartExposureCheckpoint, SmartExposureConfig,
 };
 use async_trait::async_trait;
+use std::collections::HashSet;
 
 pub struct SmartExposureInstruction;
 
@@ -174,6 +189,9 @@ impl InstructionNode for SmartExposureInstruction {
 
         let total_plans = config.plans.len();
         let mut current_filter: Option<String> = context.current_filter.clone();
+        // Plans whose binding could not be honored this run; each is warned
+        // about once, then treated as count-bounded.
+        let mut depth_unavailable_warned: HashSet<usize> = HashSet::new();
 
         // The outer loop drives "rounds" when rotate_filters is true; with
         // rotate_filters off, this loop body still runs once per plan but
@@ -212,6 +230,18 @@ impl InstructionNode for SmartExposureInstruction {
                     return NodeStatus::Success;
                 }
             }
+
+            // DepthLock: retire any bound plan whose goal is achieved. This
+            // runs before the pick so an achieved plan is skipped rather
+            // than started, and only between batches so the exposure that
+            // produced the deciding frame was never interrupted.
+            refresh_depth_completions(
+                node_id,
+                config,
+                &mut state,
+                &mut depth_unavailable_warned,
+                context,
+            );
 
             // Budget short-circuit. We check before each batch so a small
             // overshoot is bounded by one batch's worth of exposure time.
@@ -278,7 +308,14 @@ impl InstructionNode for SmartExposureInstruction {
             // entirely before moving on — so we ignore `batch_size` in that
             // mode. Loop-until-stopped always takes exactly one sub (forced
             // batch_size=1 and remaining=1 above).
-            let batch_size = if config.rotate_filters {
+            //
+            // A plan bound to a DepthLock goal is the exception to draining:
+            // its verdict is only consulted between batches, so a single
+            // burst of the whole remaining count would make "complete at the
+            // next safe boundary" mean "after the last frame". It keeps the
+            // drain order (sequential `next_plan` re-picks it until done)
+            // but in `batch_size` steps.
+            let batch_size = if config.rotate_filters || plan.depth_goal.is_some() {
                 config.batch_size.max(1).min(remaining)
             } else {
                 remaining
@@ -412,7 +449,13 @@ fn next_plan(config: &SmartExposureConfig, state: &SmartExposureCheckpoint) -> O
     // (clamped). `rotate_filters` is forced true in this mode, so the
     // execute() body advances `current_plan_index` after each sub.
     if config.loop_until_stopped {
-        return Some(state.current_plan_index.min(n - 1));
+        // Counts are ignored, but a plan whose DepthLock goal is achieved is
+        // still finished: skip it in rotation, and when every plan is
+        // finished that way the node has nothing left to loop over.
+        let start = state.current_plan_index.min(n - 1);
+        return (0..n)
+            .map(|offset| (start + offset) % n)
+            .find(|idx| !depth_completed(config, state, *idx));
     }
     if config.rotate_filters {
         // Start scan from current_plan_index (re-visit the same row when we
@@ -450,6 +493,9 @@ fn remaining_for_plan(
     state: &SmartExposureCheckpoint,
     plan_index: usize,
 ) -> u32 {
+    if depth_completed(config, state, plan_index) {
+        return 0;
+    }
     let plan = &config.plans[plan_index];
     let completed = state
         .per_filter_completed
@@ -457,6 +503,152 @@ fn remaining_for_plan(
         .copied()
         .unwrap_or(0);
     plan.count.saturating_sub(completed)
+}
+
+/// True when the plan's DepthLock binding has been retired by an achieved
+/// verdict for exactly the bound revision. An unbound plan is never
+/// depth-completed, and a completion recorded for another revision of the
+/// same goal does not count.
+fn depth_completed(
+    config: &SmartExposureConfig,
+    state: &SmartExposureCheckpoint,
+    plan_index: usize,
+) -> bool {
+    config.plans[plan_index]
+        .depth_goal
+        .as_ref()
+        .is_some_and(|binding| {
+            state.depth_completed.get(&binding.goal_id) == Some(&binding.revision)
+        })
+}
+
+/// Ask the host's verdict source about every open bound plan and retire the
+/// achieved ones. Idempotent across iterations and resumes: a goal already in
+/// `state.depth_completed` is not asked again, so the completion event fires
+/// once per goal per checkpoint lifetime.
+fn refresh_depth_completions(
+    node_id: &str,
+    config: &SmartExposureConfig,
+    state: &mut SmartExposureCheckpoint,
+    unavailable_warned: &mut HashSet<usize>,
+    context: &ExecutionContext,
+) {
+    for (plan_index, plan) in config.plans.iter().enumerate() {
+        let Some(binding) = &plan.depth_goal else {
+            continue;
+        };
+        if depth_completed(config, state, plan_index) {
+            continue;
+        }
+        let Some(ops) = &context.depth_goal_ops else {
+            warn_depth_unavailable(
+                node_id,
+                plan,
+                plan_index,
+                unavailable_warned,
+                context,
+                "no DepthLock goal store is available to this run",
+            );
+            continue;
+        };
+        match ops.verdict(binding) {
+            DepthGoalVerdict::Achieved(completion) => {
+                // The verdict source answers for the binding it was given;
+                // anything else would let a late or stale answer retire the
+                // wrong plan.
+                if completion.goal_id != binding.goal_id || completion.revision != binding.revision
+                {
+                    warn_depth_unavailable(
+                        node_id,
+                        plan,
+                        plan_index,
+                        unavailable_warned,
+                        context,
+                        &format!(
+                            "the verdict source answered for goal {} revision {} instead of {} revision {}",
+                            completion.goal_id, completion.revision, binding.goal_id, binding.revision
+                        ),
+                    );
+                    continue;
+                }
+                tracing::info!(
+                    "SmartExposure '{}' plan {} ({}) complete: DepthLock goal {} revision {} achieved                      (score {:.2} vs threshold {:.2} over {} exposures, {} confirming)",
+                    node_id,
+                    plan_index,
+                    plan.filter_name,
+                    completion.goal_id,
+                    completion.revision,
+                    completion.score,
+                    completion.threshold,
+                    completion.evidence_frames,
+                    completion.confirmation_frames,
+                );
+                state
+                    .depth_completed
+                    .insert(binding.goal_id.clone(), binding.revision);
+                if let Some(event_tx) = &context.event_tx {
+                    // A closed receiver only means no subscriber; the log line
+                    // above is the durable record.
+                    let _ = event_tx.send(ExecutorEvent::DepthGoalCompleted {
+                        node_id: node_id.to_string(),
+                        filter_name: plan.filter_name.clone(),
+                        completion,
+                    });
+                }
+            }
+            DepthGoalVerdict::Continue { reason } => {
+                tracing::debug!(
+                    "SmartExposure '{}' plan {} ({}) DepthLock goal {} rev {}: {}",
+                    node_id,
+                    plan_index,
+                    plan.filter_name,
+                    binding.goal_id,
+                    binding.revision,
+                    reason
+                );
+            }
+            DepthGoalVerdict::Unavailable { reason } => {
+                warn_depth_unavailable(
+                    node_id,
+                    plan,
+                    plan_index,
+                    unavailable_warned,
+                    context,
+                    &reason,
+                );
+            }
+        }
+    }
+}
+
+/// Warn once per plan per run that its DepthLock binding cannot be honored,
+/// so the operator learns the plan is running to its authored count and why.
+fn warn_depth_unavailable(
+    node_id: &str,
+    plan: &FilterPlan,
+    plan_index: usize,
+    unavailable_warned: &mut HashSet<usize>,
+    context: &ExecutionContext,
+    reason: &str,
+) {
+    if !unavailable_warned.insert(plan_index) {
+        return;
+    }
+    let Some(binding) = &plan.depth_goal else {
+        return;
+    };
+    let message = format!(
+        "Smart Exposure plan {} ({}) is bound to DepthLock goal {} revision {}, but the goal          cannot be consulted: {}. The plan will run to its authored count instead.",
+        plan_index + 1,
+        plan.filter_name,
+        binding.goal_id,
+        binding.revision,
+        reason
+    );
+    tracing::warn!("SmartExposure '{}': {}", node_id, message);
+    if let Some(event_tx) = &context.event_tx {
+        let _ = event_tx.send(ExecutorEvent::Warning { message });
+    }
 }
 
 fn integration_budget_exceeded(
@@ -593,7 +785,7 @@ fn emit_progress(
         .get(&plan.filter_name)
         .copied()
         .unwrap_or(0);
-    let mut upd = ProgressUpdate::instruction_progress(
+    let upd = ProgressUpdate::instruction_progress(
         node_id.to_string(),
         "Smart Exposure",
         percent,
@@ -605,8 +797,12 @@ fn emit_progress(
             total_frames: total,
         },
     );
-    upd.current_frame = Some(frame_in_plan);
-    upd.total_frames = Some(total);
+    // Deliberately no `current_frame` / `total_frames` here. The delegated
+    // exposure burst runs under this same node id and already reports every
+    // frame it takes; the executor's progress callback keys its frame
+    // counter on node id, so a second, plan-scaled number from this node
+    // was credited as more frames (a 2+2 run read "7/4 exposures"). The
+    // per-plan figures stay in the structured detail for the dashboard.
     context.send_progress(upd);
 }
 
@@ -760,6 +956,7 @@ mod tests {
             offset: Some(30),
             binning: Binning::Two,
             dither_every: Some(2),
+            depth_goal: None,
         };
         let cfg = build_exposure_config(&p, 2);
         assert_eq!(cfg.duration_secs, 300.0);
@@ -1224,6 +1421,7 @@ mod tests {
             per_filter_completed: HashMap::from([("L".to_string(), 7)]),
             current_plan_index: 1,
             completed_integration_secs: 420.0,
+            depth_completed: HashMap::new(),
         };
 
         // The async helpers need a runtime — use a single-thread current-thread

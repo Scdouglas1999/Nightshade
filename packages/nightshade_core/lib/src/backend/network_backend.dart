@@ -42,6 +42,7 @@ part 'network_backend/sequencer_operations.dart';
 part 'network_backend/replay_debug_operations.dart';
 part 'network_backend/stacking_operations.dart';
 part 'network_backend/post_session_operations.dart';
+part 'network_backend/depthlock_operations.dart';
 part 'network_backend/imaging_profile_operations.dart';
 part 'network_backend/webrtc_subscription.dart';
 part 'network_backend/wire_models.dart';
@@ -435,7 +436,8 @@ class NetworkBackend extends _NetworkBackendTransport
         _NetworkBackendPostSessionOperations,
         _NetworkBackendImagingProfileOperations,
         _NetworkBackendPlanningDataOperations,
-        _NetworkBackendObservingListOperations
+        _NetworkBackendObservingListOperations,
+        _NetworkBackendDepthLockOperations
     implements
         NightshadeBackend,
         EnvironmentalStatusBackend,

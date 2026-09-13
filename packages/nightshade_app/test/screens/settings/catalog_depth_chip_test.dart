@@ -26,7 +26,7 @@ Future<void> _settleCatalogLoad(WidgetTester tester) async {
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );
     await tester.pump();
-    if (find.text('Depth').evaluate().isNotEmpty) return;
+    if (find.text('DEPTH').evaluate().isNotEmpty) return;
   }
 }
 
@@ -69,7 +69,7 @@ void main() {
     );
     await _settleCatalogLoad(tester);
 
-    expect(find.text('Depth'), findsWidgets);
+    expect(find.text('DEPTH'), findsWidgets);
     expect(
       find.text('mag ≤ ${kHygFaintFloorMag.toStringAsFixed(1)}'),
       findsOneWidget,

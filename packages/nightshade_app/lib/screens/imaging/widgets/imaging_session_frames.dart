@@ -31,24 +31,38 @@ class ImagingSessionFrames extends ConsumerWidget {
     // Newest first: the frame an operator wants is the one that just landed.
     final ordered = frames.reversed.toList(growable: false);
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        NightshadeTokens.space2xl,
-        NightshadeTokens.spaceXl,
-        NightshadeTokens.space2xl,
-        NightshadeTokens.space2xl,
+    return Padding(
+      padding: NightshadeTokens.paddingLg,
+      child: NightshadePanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PanelHead(
+              label: 'Session frames',
+              icon: NightshadeIcons.image,
+              trailing: [NightshadeChip(label: '${ordered.length}')],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Expanded(
+              child: ListView.builder(
+                itemCount: ordered.length,
+                itemBuilder: (context, index) {
+                  final frame = ordered[index];
+                  return ListRow(
+                    icon: NightshadeIcons.image,
+                    title: _frameTitle(frame),
+                    trailing: _timeLabel(frame.capturedAt),
+                    showDivider: index < ordered.length - 1,
+                    onTap: onFrameSelected == null
+                        ? null
+                        : () => onFrameSelected!(frame),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
-      itemCount: ordered.length,
-      itemBuilder: (BuildContext context, int index) {
-        final frame = ordered[index];
-        return ListRow(
-          icon: NightshadeIcons.image,
-          title: _frameTitle(frame),
-          trailing: _timeLabel(frame.capturedAt),
-          showDivider: index < ordered.length - 1,
-          onTap: onFrameSelected == null ? null : () => onFrameSelected!(frame),
-        );
-      },
     );
   }
 
@@ -62,6 +76,9 @@ class ImagingSessionFrames extends ConsumerWidget {
       frame.settings.frameType.displayName,
       exposureLabel,
       if (filter != null && filter.isNotEmpty) filter,
+      if (frame.stats?.hfr != null)
+        'HFR ${frame.stats!.hfr!.toStringAsFixed(2)} px',
+      if (frame.stats?.starCount != null) '${frame.stats!.starCount} stars',
     ];
     return parts.join(' · ');
   }

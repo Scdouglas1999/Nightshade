@@ -589,9 +589,14 @@ class _ReportBody extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(
-            msg,
+            runFailureMessage(msg),
             style: NightshadeTypography.caption.copyWith(color: colors.error),
           ),
+        ),
+      if (_errorMessages.any((msg) => runFailureMessage(msg) != msg))
+        ExpansionTile(
+          title: const Text('Technical details'),
+          children: [SelectableText(_errorMessages.join('\n'))],
         ),
     ];
   }

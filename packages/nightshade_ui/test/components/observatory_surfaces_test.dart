@@ -260,6 +260,51 @@ void main() {
       expect(picked, 0);
     });
 
+    testWidgets('strip hover labels sit to the left, centred on the icon', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(800, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        _host(
+          Align(
+            alignment: Alignment.centerRight,
+            child: SidePanel(
+              sections: const <SidePanelSection>[
+                SidePanelSection(icon: LucideIcons.camera, tooltip: 'Capture'),
+                SidePanelSection(
+                  icon: LucideIcons.thermometer,
+                  tooltip: 'Camera',
+                ),
+              ],
+              child: const Text('body'),
+            ),
+          ),
+          size: const Size(800, 600),
+        ),
+      );
+
+      final button = tester.getRect(find.bySemanticsLabel('Capture'));
+      await tester.longPress(find.bySemanticsLabel('Capture'));
+      await tester.pumpAndSettle();
+
+      final label = tester.getRect(find.text('Capture'));
+      expect(
+        label.center.dy,
+        closeTo(button.center.dy, 2.0),
+        reason: 'strip tooltip must share a centre line with its icon',
+      );
+      expect(
+        label.right,
+        lessThanOrEqualTo(button.left + 1.0),
+        reason: 'strip tooltip belongs to the left of a right-edge icon',
+      );
+
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('without sections there is no strip', (tester) async {
       await tester.pumpWidget(
         _host(const SidePanel(child: Text('body')), size: const Size(320, 300)),

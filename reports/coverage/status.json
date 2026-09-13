@@ -1219,9 +1219,8 @@
   "by": "planetarium + your_sky + constellation"
  },
  "screen:constellation/shared_target_detail_screen.dart": {
-  "state": "unreached",
-  "by": "planetarium + your_sky + constellation",
-  "why": "Reachable only from a live Constellation hub: the screen's only entry point is a shared target published by a federated hub, and Constellation is LAN-only/self-hosted with no hub on this sandbox. Verified the gate itself works - connecting to a dead address returns 'Cannot reach 127.0.0.1: Connection refused' in about 2 s rather than hanging."
+  "state": "visited",
+  "by": "remote-appliance (paired client + local nightshade_hub 2026-09-12; seeded targets via /v1/targets, detail screen + Join/Leave exercised)"
  },
  "screen:planetarium/compass_calibration_dialog.dart": {
   "state": "unreached",
@@ -1509,14 +1508,12 @@
   "by": "shared-widgets"
  },
  "widget:remote_directory_picker_dialog.dart": {
-  "state": "unreached",
-  "by": "shared-widgets",
-  "why": "Remote-client-only. Every caller (imaging capture_panel, calibration_section, flat-wizard save_path_dialog, onboarding capture_dir_step) branches on isRemote and falls back to file_selector's getDirectoryPath when the app is driving local hardware. Confirmed live: Imaging > File Settings > Save Path folder button opened the native GTK 'Choose Directory' chooser (accessibility tree showed 'file chooser: Choose Directory'), not this dialog. Reaching it needs a paired remote/headless host, which this sandbox has no backend for."
+  "state": "visited",
+  "by": "remote-appliance (paired headless client sweep 2026-09-12; browse+select+validate+write over the wire)"
  },
  "widget:remote_host_path_dialog.dart": {
-  "state": "unreached",
-  "by": "shared-widgets",
-  "why": "Same isRemote gate \u2014 plate_solving_settings_screen, calibration_settings and phd2_guiding_settings all call it only when isRemote is true, otherwise they use the native open/save-file dialogs. Not reachable from a local desktop session."
+  "state": "visited",
+  "by": "remote-appliance (paired headless client sweep 2026-09-12; ASTAP host path set + remote Verify)"
  },
  "widget:guide_health_card.dart": {
   "state": "unreached",
@@ -1530,8 +1527,8 @@
  },
  "widget:connection_stale_banner.dart": {
   "state": "unreached",
-  "by": "shared-widgets",
-  "why": "Renders only when backendProvider is a NetworkBackend (remote/paired client) and its websocket is inside the reconnect grace window; _handleRetry itself bails with 'The remote session is no longer available' when the backend is not a NetworkBackend. The audited instance is a local desktop host with no paired remote, so the banner never mounts. Reaching it needs a second machine or a headless host to pair with."
+  "by": "shared-widgets, remote-appliance",
+  "why": "Refuted by live drive on a paired client: connectionStaleProvider is written ONLY by apps/mobile/lib/main_parts/mobile_connection_state.dart:278,288 \u2014 the desktop remote client never sets it even though the widget is mounted in the desktop shell (app_shell.dart:460) and NetworkBackend.reconnectNow() exists. Killed the appliance mid-session and watched through the reconnect window: red icon only, no banner. Dead code on desktop unless the desktop connection-state machine is wired to it."
  },
  "widget:database_recovery_launcher.dart": {
   "state": "unreached",

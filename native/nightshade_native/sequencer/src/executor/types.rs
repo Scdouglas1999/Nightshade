@@ -562,6 +562,15 @@ pub enum ExecutorEvent {
         total: u32,
         duration_secs: f64,
     },
+    /// A Smart Exposure plan finished early because its bound DepthLock goal
+    /// reported an achieved verdict for the bound revision. Carries the
+    /// evidence the verdict rested on so the run history can explain the
+    /// transition without consulting the goal store.
+    DepthGoalCompleted {
+        node_id: NodeId,
+        filter_name: String,
+        completion: crate::depth_goal::DepthGoalCompletion,
+    },
     TargetStarted {
         name: String,
         ra: f64,

@@ -10,6 +10,12 @@ import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_panel.dart' show annotationPanelVisibleProvider;
 import 'custom_annotation_drawing.dart'
     show customAnnotationDrawModeActiveProvider, toggleAnnotationDrawPalette;
+import 'depthlock/depthlock_region_layer.dart'
+    show
+        cancelDepthLockRegionTool,
+        depthLockGoalOverlayVisibleProvider,
+        depthLockRegionToolActiveProvider;
+import 'depthlock/depthlock_selection.dart' show depthLockSelectionProvider;
 import 'live_preview_area.dart' show previewReadoutsVisibleProvider;
 import 'preview_display_scale.dart' show previewDisplayScaleProvider;
 
@@ -109,6 +115,7 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
             onToggleStarOverlay: widget.onToggleStarOverlay,
           ),
           _AnnotateButton(enabled: currentImage != null),
+          const _DepthLockRegionButton(),
         ],
         <Widget>[
           NightshadeIconButton(
@@ -190,6 +197,7 @@ class _ImagingPreviewToolbarState extends ConsumerState<ImagingPreviewToolbar> {
               child: IntrinsicWidth(
                 child: Row(
                   key: ImagingTutorialKeys.zoomControls,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
                     meta,
                     const SizedBox(width: NightshadeTokens.spaceSm),
@@ -309,7 +317,61 @@ class _AnnotateButton extends ConsumerWidget {
         size: ButtonSize.small,
         variant: ButtonVariant.ghost,
         semanticsHint: enabled ? null : 'Available once a frame is on screen',
-        onPressed: enabled ? () => toggleAnnotationDrawPalette(ref) : null,
+        onPressed: enabled
+            ? () {
+                // The DepthLock region tool captures the same drag, so only
+                // one of the two may own the canvas at a time.
+                cancelDepthLockRegionTool(ref);
+                toggleAnnotationDrawPalette(ref);
+              }
+            : null,
+      ),
+    );
+  }
+}
+
+/// Enters and leaves the DepthLock region tool.
+///
+/// It sits beside Annotate because it is the same kind of thing — a mode in
+/// which a drag on the canvas draws rather than pans — and because the two
+/// must be mutually exclusive: entering one leaves the other, so a drag can
+/// only ever mean one thing.
+class _DepthLockRegionButton extends ConsumerWidget {
+  const _DepthLockRegionButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(depthLockRegionToolActiveProvider);
+    // The same answer the DepthLock panel gives, so the button is never live
+    // over a frame that cannot anchor a region — and when it is not, it says
+    // why in the hint rather than doing nothing.
+    final selection = ref.watch(depthLockSelectionProvider);
+    final enabled = selection.canSelect;
+    return Semantics(
+      toggled: active,
+      child: NightshadeButton(
+        label: 'Mark region',
+        icon: NightshadeIcons.crosshair,
+        size: ButtonSize.small,
+        variant: ButtonVariant.ghost,
+        semanticsHint: enabled
+            ? 'Drag two boxes on the frame to define a DepthLock goal'
+            : selection.blocker,
+        onPressed: enabled
+            ? () {
+                if (active) {
+                  cancelDepthLockRegionTool(ref);
+                  return;
+                }
+                // Leave any annotation tool first: two layers capturing the
+                // same drag would each draw half a shape.
+                if (ref.read(customAnnotationDrawModeActiveProvider)) {
+                  toggleAnnotationDrawPalette(ref);
+                }
+                ref.read(depthLockRegionToolActiveProvider.notifier).state =
+                    true;
+              }
+            : null,
       ),
     );
   }
@@ -342,6 +404,8 @@ class OverlaysMenuButton extends ConsumerWidget {
     final scienceMode = ref.watch(scienceModeStateProvider);
     final scienceHudVisible = scienceMode.scienceHudVisible;
     final readoutsVisible = ref.watch(previewReadoutsVisibleProvider);
+    final depthLockGoalsVisible =
+        ref.watch(depthLockGoalOverlayVisibleProvider);
 
     // Undeclared, this publishes as `panel: Overlays [DISABLED]` — a live popup
     // trigger announced as an inert panel — because PopupMenuButton's InkWell
@@ -440,6 +504,17 @@ class OverlaysMenuButton extends ConsumerWidget {
               _overlayItem(
                 colors: colors,
                 value: 6,
+                icon: NightshadeIcons.target,
+                label: 'DepthLock goals',
+                subtitle: 'Marked regions and their state',
+                active: depthLockGoalsVisible,
+                onTap: () => ref
+                    .read(depthLockGoalOverlayVisibleProvider.notifier)
+                    .state = !depthLockGoalsVisible,
+              ),
+              _overlayItem(
+                colors: colors,
+                value: 7,
                 icon: NightshadeIcons.activity,
                 label: 'Readouts',
                 subtitle: 'Histogram, HFR / stars, image stats',
