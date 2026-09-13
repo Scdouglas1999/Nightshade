@@ -54,9 +54,9 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
 
   void _onTabChanged() {
     if (!_tabController.indexIsChanging) {
-      // Mirror every tab (including Queue) back to the enum provider so the
-      // provider is the single source of truth for the active toolbox tab
-      // and persists the user's last choice.
+      // Mirror every tab (including Targets) back to the enum provider so
+      // the provider is the single source of truth for the active toolbox
+      // tab and persists the user's last choice.
       final tab = SequencerToolboxTab.values[_tabController.index];
       if (ref.read(sequencerToolboxTabProvider) != tab) {
         ref.read(sequencerToolboxTabProvider.notifier).state = tab;
@@ -100,12 +100,12 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                   // Scrolls rather than shrinks: the palette can be dragged
                   // down to 220 px, where three labels do not fit, and the old
                   // strip answered that by cutting "Nodes" to "\odes" and
-                  // "Queue" to "Queu". 07: "Do not scale fonts down to make
-                  // something fit. Reduce content or let it scroll."
+                  // "Targets" to "Target". 07: "Do not scale fonts down to
+                  // make something fit. Reduce content or let it scroll."
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SegmentedControl(
-                      segments: const ['Nodes', 'Snippets', 'Queue'],
+                      segments: const ['Nodes', 'Snippets', 'Targets'],
                       selectedIndex: activeIndex,
                       onSelected: _tabController.animateTo,
                     ),
@@ -131,9 +131,9 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                 _NodePaletteContent(colors: widget.colors),
                 // Snippet Palette
                 _SnippetPaletteContent(colors: widget.colors),
-                // Target Queue panel mirrors the
-                // planetarium's queue and lets the user drag queued
-                // targets onto the sequence tree.
+                // Targets: the sequence's own target headers above the
+                // planetarium's saved-for-later wishlist, which is still
+                // draggable onto the sequence tree.
                 TargetQueuePanel(colors: widget.colors),
               ],
             ),

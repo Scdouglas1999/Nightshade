@@ -5,7 +5,8 @@ import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 import '../utils/touch_target.dart';
 
-/// A second-level switch INSIDE a panel — Sequencer's Nodes / Snippets / Queue.
+/// A second-level switch INSIDE a panel — Sequencer's Nodes / Snippets /
+/// Targets.
 ///
 /// Never in a page header: that is [AdaptiveTabBar]'s job and the app has one
 /// tab style. A segmented control has no outer container and no border either;

@@ -96,8 +96,8 @@ SequencerTab? sequencerTabFromQuery(String? value) {
 /// The tabs inside the desktop toolbox panel, in display order.
 ///
 /// A tab selection rather than a visibility flag, so Ctrl+T always has a
-/// visible effect even when the user is on the Queue tab.
-enum SequencerToolboxTab { nodes, snippets, queue }
+/// visible effect even when the user is on the Targets tab.
+enum SequencerToolboxTab { nodes, snippets, targets }
 
 /// Currently selected sequencer tab.
 final sequencerTabProvider =
@@ -131,7 +131,7 @@ final sequencerToolboxForceOpenProvider = StateProvider<bool>((ref) => false);
 final sequencerPropertiesForceOpenProvider =
     StateProvider<bool>((ref) => false);
 
-/// Which toolbox sub-tab is active (Nodes / Snippets / Queue).
+/// Which toolbox sub-tab is active (Nodes / Snippets / Targets).
 ///
 /// Drives the toolbox [TabController] index. Persisted in-session; the
 /// modelChangeRequests record the optional cross-restart settings field.
@@ -490,8 +490,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
           _tabController.animateTo(SequencerTab.history.index);
         },
         // Ctrl+T (or Cmd+T on Mac) toggles the toolbox between Nodes and
-        // Snippets. From the Queue tab it switches to Snippets so the
-        // keystroke always has a visible effect.
+        // Snippets. From the Targets tab it lands on Nodes, so the keystroke
+        // always has a visible effect wherever it is pressed.
         const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
           if (currentTab != SequencerTab.builder.index) return;
           final current = ref.read(sequencerToolboxTabProvider);

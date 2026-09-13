@@ -96,7 +96,7 @@ void main() {
     // finding its labels proves the wide layout did not collapse anything.
     expect(find.text('Nodes'), findsOneWidget);
     expect(find.text('Snippets'), findsOneWidget);
-    expect(find.text('Queue'), findsOneWidget);
+    expect(find.text('Targets'), findsOneWidget);
   });
 
   // The palette tabs switch panes on click, so the accessibility tree must not
@@ -114,7 +114,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 600));
 
-    for (final label in const ['Nodes', 'Snippets', 'Queue']) {
+    for (final label in const ['Nodes', 'Snippets', 'Targets']) {
       final data = tester.getSemantics(find.text(label)).getSemanticsData();
       expect(
         // ignore: deprecated_member_use
@@ -144,7 +144,7 @@ void main() {
       return;
     }
     final stripRect = tester.getRect(tabBar.first);
-    for (final label in const ['Nodes', 'Snippets', 'Queue']) {
+    for (final label in const ['Nodes', 'Snippets', 'Targets']) {
       final finder = find.text(label);
       if (finder.evaluate().isEmpty) continue;
       final rect = tester.getRect(finder.first);

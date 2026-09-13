@@ -21,6 +21,7 @@ import 'node_progress_panels.dart';
 import 'node_summary.dart';
 import 'node_summary_line.dart';
 import 'sequence_minimap.dart';
+import 'sequence_overview_prefs.dart';
 import 'sequence_tree/fold_group_actions.dart';
 import 'sequence_tree/ledger_columns.dart';
 import 'sequence_tree/rollup_summary.dart';
@@ -47,11 +48,50 @@ part 'sequence_tree/node_item_helpers.dart';
 ///
 /// [SequenceTree] publishes its registry here so sibling widgets (notably
 /// [SequenceMinimap]) can route "navigate to node" through the SAME
-/// `Scrollable.ensureVisible` path the auto-follow uses, instead of
+/// [revealSequenceRow] path the auto-follow uses, instead of
 /// guessing a scroll offset. Null until the tree mounts. Not autoDispose:
 /// the minimap may rebuild independently and must keep resolving keys.
 final treeNodeKeyRegistryProvider =
     StateProvider<Map<String, GlobalKey>?>((ref) => null);
+
+/// Scroll the TREE — and only the tree — so the row at [rowContext] lands
+/// [alignment] of the way down its viewport.
+///
+/// Every "jump to this node" in the builder goes through here: the run's
+/// auto-follow, the pinned-ancestor tap, the map/gutter jump, Find a step, and
+/// the Targets panel's "In this sequence" rows. One helper because they are one
+/// movement, and because the alternative is one bug repeated five times.
+///
+/// That bug was `Scrollable.ensureVisible`, which does not scroll *a*
+/// scrollable — it walks EVERY ancestor `Scrollable` and scrolls each one so
+/// the target is visible in it. The builder sits inside the sequencer screen's
+/// `TabBarView` pager, so revealing a row also asked the pager to centre it:
+/// the whole screen lurched sideways toward the next (lazily empty) page and
+/// the page physics sprang it back. During a run the auto-follow fires on every
+/// step, so the screen bounced at every node change.
+///
+/// Resolving the row's own [ScrollPosition] and calling
+/// [ScrollPosition.ensureVisible] on it moves the tree and nothing else.
+/// `Scrollable.maybeOf` finds the nearest enclosing scrollable, which for a row
+/// key is always the tree's own viewport.
+void revealSequenceRow(
+  BuildContext rowContext, {
+  required double alignment,
+  required Duration duration,
+}) {
+  final position = Scrollable.maybeOf(rowContext)?.position;
+  final target = rowContext.findRenderObject();
+  if (position == null || target == null || !target.attached) return;
+  position.ensureVisible(
+    target,
+    alignment: alignment,
+    duration: animationDuration(rowContext, duration),
+    // One curve for all five callers: the map's jump and the run's own scroll
+    // are the same movement started by different hands (spec §9), and a jump
+    // that eased differently would read as a different kind of navigation.
+    curve: NightshadeTokens.curveStandard,
+  );
+}
 
 /// Provider to track when a node is being dragged globally
 /// This allows all drop zones to become visible when any drag starts
@@ -332,10 +372,9 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     _userScrolledManually = false;
     _lastScrolledToNodeId = currentNodeId;
 
-    Scrollable.ensureVisible(
+    revealSequenceRow(
       key.currentContext!,
-      duration: animationDuration(context, NightshadeTokens.durationSlow),
-      curve: NightshadeTokens.curveStandard,
+      duration: NightshadeTokens.durationSlow,
       alignment: 0.3, // show node ~30% from the top
     );
   }
@@ -350,10 +389,9 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   void _scrollToPinnedRow(String nodeId) {
     final rowContext = _nodeKeyRegistry[nodeId]?.currentContext;
     if (rowContext == null) return;
-    Scrollable.ensureVisible(
+    revealSequenceRow(
       rowContext,
-      duration: animationDuration(context, NightshadeTokens.durationSlow),
-      curve: NightshadeTokens.curveStandard,
+      duration: NightshadeTokens.durationSlow,
       alignment: 0,
     );
   }
@@ -850,6 +888,17 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               // provider) or a frame late (the measurement).
               _syncCanvasDensity(canvasDensity);
 
+              // Straight from the preference against the density THIS frame
+              // resolved, not through `sequenceOverviewVisibleProvider`: that
+              // provider reads the resolved density the tree only publishes
+              // after the frame, so on the frame a narrow canvas clamps Ledger
+              // to compact rows it would still be answering with Ledger's
+              // choice and flash the strip on for one frame.
+              final overviewPrefs =
+                  ref.watch(sequenceOverviewPrefsProvider).valueOrNull ??
+                      SequenceOverviewPrefs.defaults;
+              final showOverview = overviewPrefs.visibleIn(canvasDensity);
+
               // The pinned stack floats over the top of the tree, so the
               // scroll viewport gives up exactly its height while it is up.
               // Padding the scroll CONTENT instead would only change which
@@ -953,17 +1002,18 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                             ],
                           ),
                         ),
-                        // Ledger's overview is always on and lives beside the
-                        // rows it maps (spec §7); the other two densities keep
-                        // the toggled strip below. It fades with the rows
-                        // rather than snapping away from beside them (spec §9).
+                        // Ledger's overview lives beside the rows it maps
+                        // (spec §7); the other two densities put the same map
+                        // in the strip below. It fades with the rows rather
+                        // than snapping away from beside them (spec §9), and
+                        // the rows take back its width when it is off.
                         densityCrossfade(
                           context: context,
                           density: canvasDensity,
                           animate: !densityClamped,
                           child: canvasDensity == SequencerDensity.ledger
-                              ? _SequenceGutterMap(
-                                  key: sequenceGutterMapKey,
+                              ? _GutterMapSlot(
+                                  visible: showOverview,
                                   colors: widget.colors,
                                   scrollController: _scrollController,
                                   rowAtContentOffset: _rowAtContentOffset,
@@ -985,23 +1035,17 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                     },
                   ),
 
-                  // Mini-map (toggled via minimapVisibleProvider). Ledger has
-                  // the gutter instead, so the strip would be a second copy of
-                  // the same map.
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final showMinimap = ref.watch(minimapVisibleProvider);
-                      if (!showMinimap ||
-                          widget.isMobile ||
-                          canvasDensity == SequencerDensity.ledger) {
-                        return const SizedBox.shrink();
-                      }
-                      return SequenceMinimap(
-                        colors: widget.colors,
-                        scrollController: _scrollController,
-                      );
-                    },
-                  ),
+                  // The overview's strip shape, toggled by the same canvas-bar
+                  // control the gutter answers to. Ledger has the gutter
+                  // instead, so the strip would be a second copy of the map
+                  // already beside the rows.
+                  if (showOverview &&
+                      !widget.isMobile &&
+                      canvasDensity != SequencerDensity.ledger)
+                    SequenceMinimap(
+                      colors: widget.colors,
+                      scrollController: _scrollController,
+                    ),
                 ],
               );
             },

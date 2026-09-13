@@ -14,7 +14,7 @@ import 'sequence_tree_shortcuts.dart';
 /// sequence now), so the search moved into the canvas bar's overflow menu and
 /// became a proper dialog: the same
 /// [visibleNodeOrderProvider] filter, the same "select then
-/// `Scrollable.ensureVisible` through [treeNodeKeyRegistryProvider]" jump the
+/// [revealSequenceRow] through [treeNodeKeyRegistryProvider]" jump the
 /// run's auto-follow uses, and no bespoke overlay portal.
 Future<void> showSequenceStepFinder(BuildContext context) {
   return showAdaptiveModal<void>(
@@ -51,10 +51,9 @@ class _StepFinderState extends ConsumerState<_StepFinder> {
     final key = ref.read(treeNodeKeyRegistryProvider)?[nodeId];
     final target = key?.currentContext;
     if (target != null) {
-      Scrollable.ensureVisible(
+      revealSequenceRow(
         target,
         duration: NightshadeTokens.durationSmooth,
-        curve: NightshadeTokens.curveStandard,
         alignment: 0.3,
       );
     }

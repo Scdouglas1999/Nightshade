@@ -2,11 +2,12 @@ part of '../sequence_tree.dart';
 
 // The Ledger gutter map (spec §7).
 //
-// Comfortable and Compact keep the 80 px strip under the tree, toggled from
-// the canvas bar. Ledger's whole promise is that the night fits on one screen,
-// so its overview is always on and lives where the eye already is — a narrow
-// column down the right edge of the tree's own viewport, drawn by the same
-// painter the strip uses.
+// Comfortable and Compact put the overview in the 80 px strip under the tree.
+// Ledger's whole promise is that the night fits on one screen, so its overview
+// lives where the eye already is — a narrow column down the right edge of the
+// tree's own viewport, drawn by the same painter the strip uses. Both shapes
+// answer to the same canvas-bar control, which is on by default here and off
+// by default there.
 
 /// Identifies the gutter for tests.
 const Key sequenceGutterMapKey = Key('sequence-tree-gutter-map');
@@ -14,6 +15,61 @@ const Key sequenceGutterMapKey = Key('sequence-tree-gutter-map');
 /// The gutter's width: wide enough that a block reads as a block and the
 /// viewport rectangle is grabbable, narrow enough to cost the tree nothing.
 const double _gutterMapWidth = 34.0;
+
+/// The width the gutter is given, animated so the ledger columns take it back
+/// (and give it up) instead of jumping by 34 px.
+///
+/// A width factor rather than an `AnimatedContainer` around the gutter: the
+/// painter sizes itself from its constraints, so shrinking the box would
+/// re-lay-out and repaint every block on every frame of the close. Clipping a
+/// full-width gutter costs one layer and paints the same picture throughout.
+///
+/// At rest closed the gutter is not built at all — the painter repaints from
+/// the tree's scroll controller, and an invisible map has no business
+/// repainting while the operator scrolls.
+class _GutterMapSlot extends StatelessWidget {
+  final bool visible;
+  final NightshadeColors colors;
+  final ScrollController scrollController;
+  final int? Function(double contentOffset) rowAtContentOffset;
+
+  const _GutterMapSlot({
+    required this.visible,
+    required this.colors,
+    required this.scrollController,
+    required this.rowAtContentOffset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      // No `begin`: a tween with only an end starts AT that end, so a tree
+      // that mounts with the gutter on draws it open rather than sliding it
+      // in over the first rows the operator reads.
+      tween: Tween<double>(end: visible ? 1.0 : 0.0),
+      duration: animationDuration(context, NightshadeTokens.durationSmooth),
+      curve: NightshadeTokens.curveStandard,
+      child: _SequenceGutterMap(
+        key: sequenceGutterMapKey,
+        colors: colors,
+        scrollController: scrollController,
+        rowAtContentOffset: rowAtContentOffset,
+      ),
+      builder: (context, openness, child) {
+        if (openness <= 0) return const SizedBox.shrink();
+        return ClipRect(
+          child: Align(
+            // Anchored to its own left edge, so the blocks slide out under
+            // the rows rather than the map redrawing itself narrower.
+            alignment: Alignment.centerLeft,
+            widthFactor: openness,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _SequenceGutterMap extends ConsumerStatefulWidget {
   final NightshadeColors colors;

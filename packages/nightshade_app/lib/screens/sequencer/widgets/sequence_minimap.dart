@@ -5,12 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import 'sequence_tree.dart' show nodeCategoryTint, treeNodeKeyRegistryProvider;
+import 'sequence_tree.dart'
+    show nodeCategoryTint, revealSequenceRow, treeNodeKeyRegistryProvider;
 import 'sequence_tree_shortcuts.dart'
     show VisibleNode, visibleNodeOrderProvider;
-
-/// Toggle for mini-map visibility.
-final minimapVisibleProvider = StateProvider<bool>((ref) => false);
 
 /// One row of the sequence overview.
 ///
@@ -124,10 +122,9 @@ void navigateToSequenceMapRow(
   final duration = animationDuration(context, _navigateDuration);
   final key = ref.read(treeNodeKeyRegistryProvider)?[row.node.id];
   if (key?.currentContext != null) {
-    Scrollable.ensureVisible(
+    revealSequenceRow(
       key!.currentContext!,
-      duration: duration,
-      curve: NightshadeTokens.curveStandard,
+      duration: _navigateDuration,
       alignment: _navigateAlignment,
     );
     return;
@@ -157,8 +154,9 @@ const double _viewportIndicatorMinExtent = 8.0;
 /// Shows a viewport indicator for the currently visible region and highlights
 /// the executing node. Click to navigate to that position in the tree.
 ///
-/// Governed by [minimapVisibleProvider] in Comfortable and Compact density.
-/// Ledger replaces it with the always-on gutter at the tree's right edge.
+/// The Comfortable and Compact shape of the overview the canvas bar toggles
+/// through `sequenceOverviewVisibleProvider`; Ledger draws the same map as a
+/// gutter at the tree's right edge instead.
 class SequenceMinimap extends ConsumerWidget {
   final NightshadeColors colors;
   final ScrollController scrollController;

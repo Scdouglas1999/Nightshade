@@ -189,14 +189,28 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
       ..addAll(List.generate(widget.tabs.length, (_) => GlobalKey()));
   }
 
+  /// Bring the selected tab into view WITHOUT disturbing anything the bar is
+  /// sitting inside.
+  ///
+  /// `Scrollable.ensureVisible` walks every ancestor `Scrollable` and scrolls
+  /// each one, which is wrong for a strip that is hosted inside other
+  /// scrollables. In the sequencer the inspector's Settings/Activity/Notes bar
+  /// lives inside the screen's `TabBarView` pager: selecting Activity scrolled
+  /// that pager ~29 px toward the next (lazily empty) page and its page physics
+  /// sprang it back, so the whole screen bounced left and revealed blank space
+  /// on the right. Scrolling this bar's OWN position leaves the hosts alone —
+  /// `ScrollPosition.ensureVisible` resolves the nearest enclosing viewport,
+  /// which is this strip's, and applies the offset to this position only.
   void _ensureSelectedVisible() {
     if (!mounted || !_scrollController.hasClients) return;
     final index = widget.selectedIndex;
     if (index < 0 || index >= _tabKeys.length) return;
     final keyContext = _tabKeys[index].currentContext;
     if (keyContext == null) return;
-    Scrollable.ensureVisible(
-      keyContext,
+    final target = keyContext.findRenderObject();
+    if (target == null || !target.attached) return;
+    _scrollController.position.ensureVisible(
+      target,
       alignment: 0.5,
       duration: NightshadeTokens.durationQuick,
       curve: NightshadeTokens.curveSnappy,

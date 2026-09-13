@@ -112,7 +112,7 @@ help popover). Actions: ghost "Preflight" with a warning count chip, `start` but
 instrument bar shows it.
 
 Builder body (flush), three columns 264 / 1fr / 300:
-- **Palette** (left): `SegmentedControl` Nodes / Snippets / Queue at the top (8 px padding), a 30 px
+- **Palette** (left): `SegmentedControl` Nodes / Snippets / Targets at the top (8 px padding), a 30 px
   search field, then eyebrow-labelled groups of node rows (26 px icon square in `well`, name 13,
   description 12 muted, trailing `plus` muted). Rows are draggable as today.
 - **Canvas** (middle): a 44 px bar: sequence name 15 / 600 (never truncated: it gets the space

@@ -254,4 +254,57 @@ void main() {
     expect(find.byIcon(Icons.bar_chart), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  // The bar is almost always a passenger inside something else that scrolls —
+  // a page pager, a settings list. Keeping the selected tab visible is the
+  // bar's own business and must not move its host: `Scrollable.ensureVisible`
+  // walks EVERY ancestor Scrollable, which made the sequencer's whole screen
+  // lurch sideways when the inspector's Activity tab was clicked.
+  testWidgets('selecting a clipped tab does not scroll the host', (
+    tester,
+  ) async {
+    final hostController = ScrollController();
+    addTearDown(hostController.dispose);
+    var selected = 0;
+
+    await _pumpAt(
+      tester,
+      const Size(420, 600),
+      MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            controller: hostController,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              // Wider than the 420px viewport, so the host has somewhere to
+              // scroll to and a bug there is observable.
+              width: 900,
+              child: StatefulBuilder(
+                builder: (context, setState) => SizedBox(
+                  height: 48,
+                  child: AdaptiveTabBar(
+                    tabs: _tabs,
+                    selectedIndex: selected,
+                    onSelected: (i) => setState(() => selected = i),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(hostController.offset, 0);
+    await tester.tap(find.text('History'));
+    await tester.pumpAndSettle();
+
+    expect(selected, 1, reason: 'the tap has to have selected the tab');
+    expect(
+      hostController.offset,
+      0,
+      reason: 'the host scrolled because the bar revealed its own tab',
+    );
+  });
 }
