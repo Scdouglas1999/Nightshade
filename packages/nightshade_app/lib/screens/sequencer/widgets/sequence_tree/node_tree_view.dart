@@ -684,6 +684,9 @@ class _NodeTreeView extends ConsumerWidget {
   ///
   /// [siblingCount] is the parent's child count, which bounds the block's
   /// Move Down.
+  ///
+  /// Desktop-only by construction: folding is a Ledger rendering, and
+  /// `effectiveSequencerDensity` never resolves Ledger on a phone.
   Widget _buildFoldEntry(
     BuildContext context,
     WidgetRef ref, {
@@ -783,8 +786,6 @@ class _NodeTreeView extends ConsumerWidget {
         ),
       ),
     );
-
-    if (isMobile) return decorated;
 
     return LongPressDraggable<FoldDragPayload>(
       data: FoldDragPayload(

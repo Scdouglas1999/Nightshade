@@ -112,7 +112,8 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
     final group = widget.group;
 
     final state = _aggregateState();
-    final columns = _columns();
+    final readout = _columns(state);
+    final columns = readout.columns;
     final summary = foldProgressText(group, widget.progress);
     final isSelected = ref.watch(
       multiSelectedNodeIdsProvider
@@ -124,6 +125,7 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
       columns: columns,
       summary: summary,
       state: state,
+      etaMuted: readout.etaMuted,
     );
 
     final row = SizedBox(
@@ -218,6 +220,7 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
     required LedgerColumns columns,
     required String summary,
     required _FoldRowState state,
+    required bool etaMuted,
   }) {
     final colors = widget.colors;
     final group = widget.group;
@@ -253,7 +256,12 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
                 ? sequenceNodeIcon('camera')
                 : LucideIcons.layers,
             size: _ledgerIconSize,
-            color: state.isDone ? colors.textMuted : state.tint(colors),
+            // Every node a run can hold — the four acquire leaves and the
+            // exposure — is an instruction, so the run's glyph takes the
+            // instruction tint its members' rows would have taken.
+            color: state.isDone
+                ? colors.textMuted
+                : nodeCategoryTint(NodeCategory.instruction, colors),
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
@@ -305,7 +313,11 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
           ),
         ),
         _buildActions(context),
-        _LedgerColumnCells(values: columns.values, color: columnColor),
+        _LedgerColumnCells(
+          values: columns.values,
+          color: columnColor,
+          etaColor: etaMuted ? colors.textMuted : null,
+        ),
         const SizedBox(width: _ledgerBadgeGutter),
       ],
     );
@@ -463,7 +475,11 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
   /// ellipsise them. Count multiplies the shared frame count by the number of
   /// members, Duration sums the members' own rollups, and ETA is the earliest
   /// member start — the moment the run begins.
-  LedgerColumns _columns() {
+  ///
+  /// `etaMuted` follows [_LedgerRow]'s rule: once the run has started, an ETA
+  /// still quoting the estimator's projection is stale, and the cell shows it
+  /// as a prediction rather than as fact.
+  ({LedgerColumns columns, bool etaMuted}) _columns(_FoldRowState state) {
     final group = widget.group;
 
     var total = Duration.zero;
@@ -484,11 +500,14 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
 
     final durationSecs = group.durationSecs;
     final count = group.count;
-    return LedgerColumns(
-      filterExp: durationSecs == null ? '' : '${_fmtFoldSecs(durationSecs)}s',
-      count: count == null ? '' : '${count * group.memberIds.length}',
-      duration: total.inSeconds <= 0 ? '' : formatRollupDuration(total),
-      eta: earliest == null ? '' : formatLedgerClock(earliest.start),
+    return (
+      columns: LedgerColumns(
+        filterExp: durationSecs == null ? '' : '${_fmtFoldSecs(durationSecs)}s',
+        count: count == null ? '' : '${count * group.memberIds.length}',
+        duration: total.inSeconds <= 0 ? '' : formatRollupDuration(total),
+        eta: earliest == null ? '' : formatLedgerClock(earliest.start),
+      ),
+      etaMuted: earliest != null && !earliest.isActual && state.hasBar,
     );
   }
 
@@ -542,12 +561,6 @@ class _FoldRowState {
     required this.hasBar,
     required this.fraction,
   });
-
-  /// The glyph tint: a filter run is imaging (instruction category), the
-  /// acquire quartet is the mount/focus work that sets a target up (also
-  /// instruction) — both take the same family the member rows would.
-  Color tint(NightshadeColors colors) =>
-      nodeCategoryTint(NodeCategory.instruction, colors);
 }
 
 /// The eye / duplicate / delete trio for a run. Same chips, same reserved

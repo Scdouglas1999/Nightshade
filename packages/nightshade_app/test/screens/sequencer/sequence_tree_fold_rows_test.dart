@@ -17,12 +17,18 @@ import 'package:nightshade_app/screens/sequencer/widgets/batch_operations_toolba
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/tutorial_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 import '../../harness/pump_app_screen.dart';
+
+/// Test-only bridge so one test can flip the tree's density without rebuilding
+/// the ProviderScope.
+final _testDensityProvider =
+    StateProvider<SequencerDensity>((ref) => SequencerDensity.ledger);
 
 /// Root → `Alpha` (Settle, Ha, OIII, SII) + `Beta` (Warm up).
 ///
@@ -127,6 +133,8 @@ Future<HarnessHandle> _pumpTree(
       // The minute clock is a real periodic stream; in the fake-async zone its
       // timer outlives every pump and fails teardown.
       ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+      sequencerDensityProvider
+          .overrideWith((ref) => ref.watch(_testDensityProvider)),
     ],
   );
   await tester.pump();
@@ -288,6 +296,27 @@ void main() {
     expect(find.byKey(SequencerTutorialKeys.captureNode), findsOneWidget);
     expect(find.text('Ha subs'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('leaving Ledger hands the run back to its member rows',
+      (tester) async {
+    // The folded row holds the first member's scroll GlobalKey while it is
+    // drawn. Switching density unmounts it and mounts that member's own row in
+    // the same frame — the key has to move, not collide.
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence);
+    expect(find.text('Ha · OIII · SII'), findsOneWidget);
+
+    handle.container.read(_testDensityProvider.notifier).state =
+        SequencerDensity.comfortable;
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Ha · OIII · SII'), findsNothing);
+    expect(find.text('Ha subs'), findsOneWidget);
+    expect(find.text('OIII subs'), findsOneWidget);
+    expect(find.text('SII subs'), findsOneWidget);
     await _drainValidationDebounce(tester);
   });
 
