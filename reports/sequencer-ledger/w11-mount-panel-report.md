@@ -86,3 +86,86 @@ Copy that is still Title Case in sections I did not otherwise touch, and so was
 left for the copy pass rather than mixed into a layout fix: "Tracked Stars",
 "Guider Configuration", "Step Size:", "Go To Position...", "Run Autofocus",
 "Temperature Compensation", "Gain / Offset".
+## Proved live
+
+Release bundle built in this worktree; the app driven headless on `:98` with
+`tools/ui_audit/drive_linux.py --profile w11mount`, seeded from
+`~/.cache/nightshade-ledger-preview/data` minus `nightshade.db.lock`. Route:
+Skip the Continue Session dialog → Imaging in the left rail (`tree` shows
+"Live view") → the mount glyph on the right rail.
+
+| Window | Shot | Result |
+| --- | --- | --- |
+| before (supplied fixture, 1920×1200) | `~/.cache/ns-worktrees/fixtures/imaging-mount-tab-truncated.png` | "U…", "St…", "ABORT SLEW", "Three-Point P…", "RA (H…", "Sl…", "S…" |
+| 1920×1200 | `reports/sequencer-ledger/w11-mount-panel-shots/after-mount-1920x1200.png` | every label in full |
+| 1600×900 | `reports/sequencer-ledger/w11-mount-panel-shots/after-1600x900.png` | every label in full |
+| 1280×800 | `reports/sequencer-ledger/w11-mount-panel-shots/after-1280x800.png` | every label in full |
+| 1280×800, scrolled | `reports/sequencer-ledger/w11-mount-panel-shots/after-1280x800-scrolled.png` | Go to & sync and Pulse guide in full |
+| Camera section | `reports/sequencer-ledger/w11-mount-panel-shots/after-camera-1920x1200.png` | "Cool down" / "Warm up" / "Build defect map..." in full; "Target temperature" on one line |
+| Guiding section | `reports/sequencer-ledger/w11-mount-panel-shots/after-guiding-1920x1200.png` | Start/Stop share a row (they fit); "Settle threshold" on one line |
+| Focus section | `reports/sequencer-ledger/w11-mount-panel-shots/after-focus-1920x1200.png` | the step strip wraps; 500 is whole |
+
+The accessibility tree at each size names them `Unpark`, `Start tracking`
+(disabled — the mount is parked), `Abort slew`, `Polar alignment`, `Slew`,
+`Sync`, with the chip as `Stopped`. The painted labels match, read off the
+screenshots.
+
+The panel's own layout decisions at the real 320px panel (216px inside a
+section card, measured with the shipped HankenGrotesk):
+
+- Actions stack. Two labelled buttons need ~2 × 143 + 8 = 294px.
+- Slew/Sync stack. The Slew cell has to reserve the popup chevron
+  (`4 + kMinInteractiveDimension`), which puts the pair at ~264px.
+- RA/Dec share a row: a sexagesimal RA is ~101px at `readoutSm`, so 2 × 101 + 12
+  fits 216 — measured, not assumed, and it drops to one column when it stops
+  fitting (which it does at the 160px the widget test pins).
+- In the narrow bottom sheet (a phone at 430) the same code puts the actions
+  two-up, because there the measurement says they fit.
+
+## Verification
+
+Unpiped, exit codes recorded:
+
+| Command | Exit |
+| --- | --- |
+| `flutter test test/screens/imaging --concurrency=3` (nightshade_app) | 0 — **373 passed** (360 on base: +10 mount fit, +1 SmallButton measure, +2 slider label) |
+| `flutter test --concurrency=3` (nightshade_ui, whole package) | 0 — 530 passed |
+| `dart analyze lib` (nightshade_app) | 682 infos vs **692 on base** — ten FEWER (the rewrite dropped deprecated `ButtonVariant.outline` / `h5` / `surfaceAlt` uses). Zero warnings, zero errors, zero new. |
+| `dart analyze lib` (nightshade_ui) | 0 — "No issues found!" |
+| `dart format --set-exit-if-changed` on every file I touched | 0 |
+| `flutter build linux --release` | 0 |
+
+Pre-existing and NOT mine, confirmed by re-running against `9c233bdd0`:
+
+- `test/widgets/go_to_position_dialog_test.dart` — all 10 tests fail on the base
+  commit too ("LayoutBuilder does not support returning intrinsic dimensions"
+  inside the focuser's `AlertDialog`).
+- `dart format` would rewrite 41 files that predate this branch (the DepthLock
+  set, `imaging_screen.dart`, `live_preview_area.dart`, `preview_viewport.dart`,
+  `nightshade_tooltip.dart`, several `nightshade_core` files). Left alone.
+- `test/golden/guiding_panel_builtin_golden_test.dart` rewrites
+  `docs/design/goldens/surface-guiding-panel-builtin-multistar.png` when it
+  runs. The regenerated PNG was reverted, per "do not modify golden PNGs" — the
+  guiding panel's Control row did change, so that golden is now stale and wants
+  a deliberate regeneration on the CI host.
+
+## One thing the owner should know
+
+`~/.cache/ns-worktrees/libnightshade_bridge.ownertree-1467366630.so` — the
+prebuilt bridge this brief names — **cannot be read past 41MB**: `dd` stops with
+an I/O error at 40,976,384 of 48,789,784 bytes and `md5sum` refuses it. Every
+copy of it is a hardlink to the same damaged inode, so
+`preview-merged`, `w8-performance` and `cargo-target/release` are all the same
+unreadable file. This looks like the btrfs corruption from 2026-08-14 rather
+than anything this branch did.
+
+The bundle here was linked against
+`~/Documents/Nightshade2/native/nightshade_native/target/release/libnightshade_bridge.so`
+instead — same `rustContentHash` (-1467366630), built 2026-09-13 00:20, reads
+clean (md5 `c226e4aecdd9b071ecb03dd81b823c98`). The app ran, talked to the
+simulators and reported live mount state, so the pairing is good.
+
+Also: this worktree's `native/nightshade_native/target` was checked out as a
+regular FILE containing the path it should point at, not as the symlink git
+records (mode 120000). That is why `flutter build linux` warned "Rust library
+not found". Restored to a real symlink; `git status` is clean either way.
