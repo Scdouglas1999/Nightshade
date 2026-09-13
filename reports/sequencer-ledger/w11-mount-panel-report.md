@@ -65,3 +65,24 @@ needs, the **icon** gives way, never the words. At every real host width the
 icons are all there; the wrapper is what makes 160px honest rather than a
 special case.
 
+## The sibling sections in the same rail
+
+Driven live at the panel's real width (release bundle, harness profile
+`w11mount`, `NS_AUDIT_DISPLAY=:98`), one section at a time off the icon strip:
+
+| Section | Found | Done |
+| --- | --- | --- |
+| Capture | Clean. Its buttons ("View quick captures", "Clear session") are content-sized `Align`ed, not a fixed pair. The `Save to` / `Name` **fields** show truncated values, which is a field showing a long value, not a control hiding its own name. | — |
+| Camera (cooling + calibration) | **Same defect.** "Cool Down" rendered "Cool D…" in a fixed two-column `Row`; "Target temperature" broke **mid-word** as "temperatur / e" in the slider's label column. | `AdaptiveColumns` for the pair; label is "Target"; copy sentence-cased ("Cool down", "Cancel warm-up") |
+| Focus | The manual step-size strip clipped `500` to "50(" — a horizontal `SingleChildScrollView` with no fade, arrow or part-visible chip to say it continued. Same defect the rotator's relative-move strip was fixed for. | `Wrap` |
+| Guiding | Same fixed two-column pair (Start / Stop). At rest both fit; `Starting...` beside Stop does not at 216px. | `AdaptiveColumns` |
+| Mount | The reported defect. | rebuilt (above) |
+| Filter wheel | Clean — positions are wrapping chips. | — |
+| Rotator | Not reproducible in the sim profile (no rotator connected, so the panel is its empty state). By inspection its Go to / Sync rows are `Expanded` **field** + content-sized button, so the button cannot truncate; the field takes the squeeze. Not the same defect. | — |
+| Annotations | Clean (empty state, wrapping filter chips). | — |
+| DepthLock | Clean — already `Wrap`s its button groups. | — |
+
+Copy that is still Title Case in sections I did not otherwise touch, and so was
+left for the copy pass rather than mixed into a layout fix: "Tracked Stars",
+"Guider Configuration", "Step Size:", "Go To Position...", "Run Autofocus",
+"Temperature Compensation", "Gain / Offset".
