@@ -11,6 +11,12 @@
 //    into one ~300px row, so at 1920x1200 three of five action labels rendered
 //    as 'Frami...', 'Sequ...' and 'Log Observati...'. A truncated control label
 //    is not a legible control, and 'Sequ...' at 2am is genuinely ambiguous.
+//
+// The action labels below are the popup's CURRENT copy. The Observatory pass
+// put every button in sentence case (06 §Copy: "Frame type", not "Frame
+// Type"), so 'Log Observation' and 'Target Queue' became 'Log observation' and
+// 'Target queue'; these assertions name the strings on screen so a rename
+// cannot quietly take the guard with it.
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -180,9 +186,9 @@ void main() {
         for (final label in const [
           'Framing',
           'Sequence',
-          'Log Observation',
+          'Log observation',
           'Add to List',
-          'Target Queue',
+          'Target queue',
         ]) {
           expect(find.text(label), findsOneWidget, reason: '$label is missing');
           expect(
@@ -200,9 +206,9 @@ void main() {
         for (final label in const [
           'Framing',
           'Sequence',
-          'Log Observation',
+          'Log observation',
           'Add to List',
-          'Target Queue',
+          'Target queue',
         ]) {
           expect(
             _isTruncated(tester, label),
@@ -219,9 +225,9 @@ void main() {
         for (final label in const [
           'Framing',
           'Sequence',
-          'Log Observation',
+          'Log observation',
           'Add to List',
-          'Target Queue',
+          'Target queue',
         ]) {
           // Round to absorb sub-pixel differences between siblings.
           final y = tester.getTopLeft(find.text(label)).dy.roundToDouble();

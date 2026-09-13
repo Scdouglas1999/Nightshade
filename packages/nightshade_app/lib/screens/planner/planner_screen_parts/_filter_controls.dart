@@ -5,7 +5,6 @@ class _SearchField extends StatelessWidget {
   final TextEditingController controller;
   final NightshadeColors colors;
   final ValueChanged<String> onChanged;
-  final double height;
 
   /// On phone the field tightens (shorter, smaller hint) so search + the
   /// Filters button fit one row and the controls bar stays a single strip.
@@ -16,7 +15,6 @@ class _SearchField extends StatelessWidget {
     required this.colors,
     required this.onChanged,
     this.compact = false,
-    this.height = 36,
   });
 
   @override
