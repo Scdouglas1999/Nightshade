@@ -4,9 +4,11 @@
 //   1. "Sync from server" must not report a green "Location synced from server"
 //      on a standalone desktop, where the read goes to this app's own settings
 //      store and nothing is fetched from anywhere.
-//   2. "Detect location" must ask before a GPS/GeoClue lookup, must not
-//      write an IP city as the site, and must not pass the OLD elevation
-//      through with new coordinates — that yields a site that does not exist.
+//   2. "Detect location" must ask before a lookup that can send the machine's
+//      public IP to a third party, must say which path answered (device GPS
+//      vs internet) and how precise it claims to be, and must not pass the
+//      OLD elevation through with new coordinates — that yields a site that
+//      does not exist.
 //   3. The Timezone picker must only offer values `clockProvider` can parse
 //      (`UTC` / `UTC±HH:MM`); anything else silently falls back to the system
 //      clock and the picker changes nothing at all.
@@ -95,7 +97,13 @@ void main() {
         settings: seattle,
         fetcher: () async {
           calls++;
-          return (39.9817, -75.4072, 'Newtown Square, Pennsylvania');
+          return const GeolocationFix(
+            latitude: 39.9817,
+            longitude: -75.4072,
+            locationName: 'Newtown Square, Pennsylvania',
+            source: GeolocationSource.internet,
+            providerHost: 'ipinfo.io',
+          );
         },
       );
 
@@ -103,6 +111,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Detect this site’s location?'), findsOneWidget);
+      // The dialog has to say what leaves the machine: the public IP to the
+      // named services over HTTPS.
+      expect(find.textContaining('ipinfo.io'), findsOneWidget);
+      expect(find.textContaining('public IP'), findsOneWidget);
       expect(calls, 0, reason: 'the lookup ran before the user consented');
 
       await tester.tap(find.text('Cancel'));
@@ -116,8 +128,13 @@ void main() {
       final handle = await _pumpLocation(
         tester,
         settings: seattle,
-        fetcher: () async =>
-            (39.9817, -75.4072, 'Newtown Square, Pennsylvania'),
+        fetcher: () async => const GeolocationFix(
+          latitude: 39.9817,
+          longitude: -75.4072,
+          locationName: 'Newtown Square, Pennsylvania',
+          source: GeolocationSource.internet,
+          providerHost: 'ipinfo.io',
+        ),
       );
 
       await tester.tap(find.byIcon(LucideIcons.crosshair));
@@ -144,7 +161,13 @@ void main() {
         tester,
         settings: seattle,
         // ~2 km from the stored position: the same observing site.
-        fetcher: () async => (47.6242, -122.3321, 'Seattle, Washington'),
+        fetcher: () async => const GeolocationFix(
+          latitude: 47.6242,
+          longitude: -122.3321,
+          locationName: 'Seattle, Washington',
+          source: GeolocationSource.device,
+          accuracyMeters: 18,
+        ),
       );
 
       await tester.tap(find.byIcon(LucideIcons.crosshair));
@@ -161,6 +184,90 @@ void main() {
         1234,
       );
       expect(find.textContaining('Elevation kept at 1234 m'), findsOneWidget);
+    });
+
+    // On a desktop with no GPS receiver the same click lands the internet
+    // fix — and has to say so, because a ~10 km guess is not a fix.
+    testWidgets('an internet fix is written and named as approximate', (
+      tester,
+    ) async {
+      final handle = await _pumpLocation(
+        tester,
+        settings: seattle,
+        fetcher: () async => const GeolocationFix(
+          latitude: 39.9817,
+          longitude: -75.4072,
+          locationName: 'Newtown Square, Pennsylvania',
+          source: GeolocationSource.internet,
+          providerHost: 'ipinfo.io',
+        ),
+      );
+
+      await tester.tap(find.byIcon(LucideIcons.crosshair));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(NightshadeButton, 'Detect location'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        handle.container.read(appSettingsProvider).requireValue.latitude,
+        closeTo(39.9817, 1e-6),
+      );
+      expect(
+        find.textContaining(
+          'approximate: from your internet connection (ipinfo.io)',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Refine with Search place or the map if it is off'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a device fix is named with its metres and no refine nudge', (
+      tester,
+    ) async {
+      await _pumpLocation(
+        tester,
+        settings: seattle,
+        fetcher: () async => const GeolocationFix(
+          latitude: 47.6242,
+          longitude: -122.3321,
+          locationName: 'GPS: 47.6242, -122.3321',
+          source: GeolocationSource.device,
+          accuracyMeters: 18,
+        ),
+      );
+
+      await tester.tap(find.byIcon(LucideIcons.crosshair));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(NightshadeButton, 'Detect location'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('GPS fix, ±18 m'), findsOneWidget);
+      // The subtitle names the internet path too, so the snackbar-only
+      // phrases are what distinguish the confirmation.
+      expect(find.textContaining('approximate:'), findsNothing);
+      expect(find.textContaining('Refine with Search place'), findsNothing);
+    });
+
+    testWidgets('the row no longer steers desktops away from Detect', (
+      tester,
+    ) async {
+      await _pumpLocation(tester, settings: seattle);
+      expect(
+        find.textContaining('internet connection'),
+        findsOneWidget,
+        reason: 'the subtitle must say the click works without a GPS',
+      );
+      expect(
+        find.textContaining('search for a place by name instead'),
+        findsNothing,
+      );
     });
   });
 

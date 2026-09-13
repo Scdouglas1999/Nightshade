@@ -19,6 +19,7 @@ import 'package:nightshade_app/screens/onboarding/steps/site_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/summary_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/welcome_step.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 NightshadeDatabase _newDb() =>
@@ -247,7 +248,7 @@ void main() {
       WidgetTester tester,
       NightshadeDatabase db, {
       ApproximateLocationLookup? approximateLocation,
-      ApproximateLocationLookup? deviceLocation,
+      DeviceLocationLookup? deviceLocation,
       ({double latitude, double longitude, double elevation})? seed,
     }) async {
       late ProviderContainer container;
@@ -577,7 +578,13 @@ void main() {
         seed: (latitude: 47.6062, longitude: -122.3321, elevation: 1234.0),
         deviceLocation: () async {
           calls++;
-          return (39.9817, -75.4072, 'Newtown Square, PA');
+          return const GeolocationFix(
+            latitude: 39.9817,
+            longitude: -75.4072,
+            locationName: 'Newtown Square, PA',
+            source: GeolocationSource.internet,
+            providerHost: 'ipinfo.io',
+          );
         },
       );
 

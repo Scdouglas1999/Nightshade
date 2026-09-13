@@ -400,7 +400,6 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Decimal degrees or DMS (121 18 55 W). Positive is',
     'Decimal degrees or DMS (44 3 29 N). Positive is',
     'Detect location',
-    'Device GPS if this machine has it. Desktops',
     'Elevation',
     'Fetch location from the connected imaging host',
     'Height above sea level',
@@ -417,6 +416,7 @@ const Map<String, List<String>> kSettingsSearchTerms = {
     'Timezone',
     'Town or observatory by name. Accurate on a desktop',
     'Use system time',
+    'Uses this machine’s GPS if it has one,',
   ],
   'logs': [
     'Entries on screen',
