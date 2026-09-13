@@ -180,12 +180,49 @@ role test, was the one asserting the literal label — three `'Queue'` assertion
 | --- | --- |
 | `dart format --output=none --set-exit-if-changed packages/nightshade_app packages/nightshade_core packages/nightshade_ui` | 0 (3808 files, 0 changed) |
 | `cd packages/nightshade_app && dart analyze` | 2 — 886 issues, all pre-existing info-level; base is 890, and none of the 886 are in a file this branch touched |
-| `flutter test test/screens/sequencer --concurrency=3` | see below |
+| `cd packages/nightshade_app && flutter test test/screens/sequencer --concurrency=3` | 0 — `+733: All tests passed!` |
 
 Analyzer note: `dart analyze` exits 2 on info-level lints in this package, on
 base as well as on this branch. The number went DOWN by four (890 → 886)
 because the panel's deprecated `surfaceAlt` uses went with the rewrite.
 
+Test-count note: the brief's baseline is 721 for `test/screens/sequencer`. This
+branch adds 12 — ten in `target_panel_in_sequence_test.dart`, one in
+`target_queue_panel_test.dart`, one in `toolbox_tab_role_test.dart` — for 733.
+The first full run flagged two failures, both in
+`builder_narrow_desktop_test.dart` asserting the literal label `'Queue'`; that
+file is where the tab name was really pinned, and updating those three
+assertions is part of the rename. `TMPDIR=$HOME/.cache/ns-tmp/w6-queue-panel`
+throughout.
+
+## The live look — attempted, blocked
+
+Built the bundle in this worktree (`cd apps/desktop && flutter build linux
+--release`, exit 0) and copied
+`/home/scdouglas/.cache/ns-worktrees/cargo-target/release/libnightshade_bridge.so`
+into `build/linux/x64/release/bundle/lib/`, with the audit profile seeded from
+`/home/scdouglas/.cache/nightshade-ledger-preview/data` minus
+`nightshade.db.lock`. The app refused to start:
+
+```
+Bad state: Native bridge failed to initialize: libnightshade_bridge.so could
+not be loaded, or it is stale relative to this build.
+```
+
+The copied `.so` is byte-identical in size to the one in the `preview-merged`
+and `w8-performance` bundles, so it is the newest shared build; the mismatch is
+between that library and this tree's generated Dart bridge, not a bad copy. The
+fix would be a `cargo build --release` writing into the SHARED
+`ns-worktrees/cargo-target` that other agents are reading from mid-run, which is
+not a side effect to cause from inside one workstream — so the run was stopped
+there. `drive_linux.py --profile w6queue stop` reported
+`stopped app_pid 2083544` / `stopped xvfb_pid 2083439`; nothing of mine is left
+running and no other worktree was touched.
+
+The panel's behaviour is therefore evidenced by the widget tests, including the
+tap-selects-and-scrolls one that drives a real `Scrollable`, not by a
+screenshot. Worth a look on the next build that has a matching bridge.
+
 ## Left undone
 
-Nothing in the brief. The harness look is recorded below.
+Nothing else in the brief.
