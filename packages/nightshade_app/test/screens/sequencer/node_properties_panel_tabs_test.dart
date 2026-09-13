@@ -9,6 +9,7 @@
 // than the private widget names inside the tab bodies.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/node_activity_tab.dart';
@@ -162,6 +163,251 @@ void main() {
     final updated =
         handle.container.read(currentSequenceProvider)!.nodes[node.id]!;
     expect(updated.comment, 'check flats at dawn');
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('Ctrl+Enter commits the comment from inside the field',
+      (tester) async {
+    final handle = await pumpPanel(tester);
+    final node = ExposureNode(name: 'Ha 300s', count: 4);
+    loadAndSelect(handle, singleNodeSequence(node), node.id);
+    await tester.pump();
+
+    await tester.tap(find.text('Notes'), warnIfMissed: false);
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('node-comment-field')),
+      'focus is drifting',
+    );
+
+    // `onSubmitted` cannot fire on a multiline field — the keyboard commit
+    // path is Ctrl+Enter.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(
+      handle.container.read(currentSequenceProvider)!.nodes[node.id]!.comment,
+      'focus is drifting',
+    );
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'selecting another node commits the typed note exactly once, '
+      'against the node it was typed on', (tester) async {
+    final handle = await pumpPanel(tester);
+    final a = ExposureNode(name: 'A', count: 2);
+    final b = ExposureNode(name: 'B', count: 2);
+    final root = InstructionSetNode(name: 'Root');
+    final sequence = Sequence.create(
+      name: 'Commit attribution',
+      rootNodeId: root.id,
+      nodes: {
+        root.id: root.copyWith(childIds: [a.id, b.id]),
+        a.id: a.copyWith(parentId: root.id),
+        b.id: b.copyWith(parentId: root.id),
+      },
+    );
+    handle.container
+        .read(currentSequenceProvider.notifier)
+        .loadSequence(sequence, discardUnsaved: true);
+    handle.container.read(selectedNodeIdProvider.notifier).state = a.id;
+    await tester.pump();
+
+    await tester.tap(find.text('Notes'), warnIfMissed: false);
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('node-comment-field')),
+      'typed on A',
+    );
+
+    // Count comment writes per node from here on: the pre-review code
+    // committed once via onTapOutside and then AGAIN inside didUpdateWidget
+    // (a duplicate undo entry and a provider write mid-build).
+    var aWrites = 0;
+    var bWrites = 0;
+    handle.container.listen(currentSequenceProvider, (prev, next) {
+      if (prev?.nodes[a.id]?.comment != next?.nodes[a.id]?.comment) aWrites++;
+      if (prev?.nodes[b.id]?.comment != next?.nodes[b.id]?.comment) bWrites++;
+    });
+
+    handle.container.read(selectedNodeIdProvider.notifier).state = b.id;
+    await tester.pump();
+    // Flush the deferred commit's microtask.
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(aWrites, 1, reason: 'the note must land on A exactly once');
+    expect(bWrites, 0, reason: 'B must not inherit A\'s pending text');
+    expect(
+      handle.container.read(currentSequenceProvider)!.nodes[a.id]!.comment,
+      'typed on A',
+    );
+    expect(
+      handle.container.read(currentSequenceProvider)!.nodes[b.id]!.comment,
+      isNull,
+    );
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('unmounting the Notes tab commits the pending note',
+      (tester) async {
+    final handle = await pumpPanel(tester);
+    final node = ExposureNode(name: 'Ha 300s', count: 4);
+    loadAndSelect(handle, singleNodeSequence(node), node.id);
+    await tester.pump();
+
+    await tester.tap(find.text('Notes'), warnIfMissed: false);
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('node-comment-field')),
+      'save on close',
+    );
+
+    // Deselect: the editor unmounts without ever losing focus through the
+    // field's own gesture path.
+    handle.container.read(selectedNodeIdProvider.notifier).state = null;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(
+      handle.container.read(currentSequenceProvider)!.nodes[node.id]!.comment,
+      'save on close',
+    );
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'Activity shows last-known values after the run clears the '
+      'maps — seeded while the Settings tab was shown', (tester) async {
+    final handle = await pumpPanel(tester);
+    final node = ExposureNode(name: 'L 60s', count: 4, durationSecs: 60);
+    loadAndSelect(handle, singleNodeSequence(node), node.id);
+    await tester.pump();
+    // The Settings tab is showing — nothing has opened Activity yet, but the
+    // panel keeps lastKnownNodeActivityProvider alive, so it still folds.
+    expect(find.text('Name'), findsOneWidget);
+
+    final exec = handle.container.read(sequenceExecutionStateProvider.notifier);
+    exec.state = SequenceExecutionState.running;
+    final progress = handle.container.read(sequenceProgressProvider.notifier);
+    progress.updateNodeStatus(node.id, NodeStatus.running);
+    handle.container
+        .read(nodeExposureTallyProvider.notifier)
+        .recordFrames(node.id, captured: 4, planned: 4);
+    progress.updateNodeStatus(node.id, NodeStatus.success);
+    // The run ends and the per-node maps clear (reset at the next run's
+    // start — the tally follows the same lifecycle).
+    progress.reset();
+    handle.container.read(nodeExposureTallyProvider.notifier).reset();
+    exec.state = SequenceExecutionState.completed;
+    await tester.pump();
+
+    await tester.tap(find.text('Activity'), warnIfMissed: false);
+    await tester.pump();
+
+    expect(find.text('4 of 4 done'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('4 of 4 frames captured'),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'a NEW run clears last-known activity — run #2 does not show '
+      'run #1\'s finished frames', (tester) async {
+    final handle = await pumpPanel(tester);
+    final node = ExposureNode(name: 'L 60s', count: 4, durationSecs: 60);
+    loadAndSelect(handle, singleNodeSequence(node), node.id);
+    await tester.pump();
+
+    final exec = handle.container.read(sequenceExecutionStateProvider.notifier);
+    final progress = handle.container.read(sequenceProgressProvider.notifier);
+    final tally = handle.container.read(nodeExposureTallyProvider.notifier);
+
+    // Run 1: the node completes all four frames.
+    exec.state = SequenceExecutionState.running;
+    progress.updateNodeStatus(node.id, NodeStatus.running);
+    tally.recordFrames(node.id, captured: 4, planned: 4);
+    progress.updateNodeStatus(node.id, NodeStatus.success);
+    exec.state = SequenceExecutionState.completed;
+    await tester.pump();
+
+    // Run 2 starts: the executor resets the progress + tally maps and the
+    // execution state re-enters running from a settled state.
+    progress.reset();
+    tally.reset();
+    exec.state = SequenceExecutionState.running;
+    await tester.pump();
+
+    await tester.tap(find.text('Activity'), warnIfMissed: false);
+    await tester.pump();
+
+    expect(
+      find.text('Nothing has run for this node yet.'),
+      findsOneWidget,
+      reason: 'run #2 has not reached this node — run #1\'s 4/4 must be gone',
+    );
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a just-started node captions 0 done, not -1', (tester) async {
+    final handle = await pumpPanel(tester);
+    final node = ExposureNode(name: 'L 60s', count: 12, durationSecs: 60);
+    loadAndSelect(handle, singleNodeSequence(node), node.id);
+    await tester.pump();
+
+    // Running with no tally and no parsed detail yet: the unclamped
+    // `liveFrame - 1` read "-1 of 12 done" here.
+    handle.container
+        .read(sequenceProgressProvider.notifier)
+        .updateNodeStatus(node.id, NodeStatus.running);
+    await tester.pump();
+
+    await tester.tap(find.text('Activity'), warnIfMissed: false);
+    await tester.pump();
+
+    expect(find.text('0 of 12 done'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'frame-landed pop does not fire on selection, only on a real '
+      'increment', (tester) async {
+    final handle = await pumpPanel(tester);
+    final node = ExposureNode(name: 'L 60s', count: 12, durationSecs: 60);
+    loadAndSelect(handle, singleNodeSequence(node), node.id);
+    await tester.pump();
+
+    // Six frames already captured BEFORE the tab opens: opening must not
+    // pop — those frames did not "just land".
+    handle.container
+        .read(sequenceProgressProvider.notifier)
+        .updateNodeStatus(node.id, NodeStatus.running);
+    handle.container
+        .read(nodeExposureTallyProvider.notifier)
+        .recordFrames(node.id, captured: 6, planned: 12);
+    await tester.pump();
+
+    await tester.tap(find.text('Activity'), warnIfMissed: false);
+    await tester.pump();
+
+    expect(
+      find.byType(TweenAnimationBuilder<double>),
+      findsNothing,
+      reason: 'a seeded captured count must not animate on selection',
+    );
+
+    // A real landing — the count increments while the tab is open — pops
+    // exactly the new cell.
+    handle.container
+        .read(nodeExposureTallyProvider.notifier)
+        .recordFrames(node.id, captured: 7, planned: 12);
+    await tester.pump();
+
+    expect(find.byType(TweenAnimationBuilder<double>), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
   });
 
@@ -391,6 +637,84 @@ void main() {
       expect(snapshot!.status, NodeStatus.running);
       expect(snapshot.detail, isNull);
       expect(snapshot.percent, isNull);
+    });
+
+    test(
+        'clears every snapshot when a new run enters running from a '
+        'settled state', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final progress = container.read(sequenceProgressProvider.notifier);
+      final exec = container.read(sequenceExecutionStateProvider.notifier);
+      container.read(lastKnownNodeActivityProvider);
+
+      // Run 1 leaves a finished-node snapshot behind.
+      exec.state = SequenceExecutionState.running;
+      progress.updateNodeStatus('n1', NodeStatus.running);
+      progress.updateNodeStatus('n1', NodeStatus.success);
+      progress.reset();
+      exec.state = SequenceExecutionState.completed;
+      expect(
+        container.read(lastKnownNodeActivityProvider)['n1'],
+        isNotNull,
+      );
+
+      // Run 2 starts — completed -> running is a start-admissible
+      // transition, so run 1's memory is gone with it.
+      exec.state = SequenceExecutionState.running;
+      expect(container.read(lastKnownNodeActivityProvider), isEmpty);
+
+      // A RESUME (paused -> running) is not a new run and must not clear.
+      progress.updateNodeStatus('n2', NodeStatus.running);
+      exec.state = SequenceExecutionState.paused;
+      exec.state = SequenceExecutionState.running;
+      expect(
+        container.read(lastKnownNodeActivityProvider)['n2']!.status,
+        NodeStatus.running,
+      );
+    });
+  });
+
+  group('value equality (select dedupe)', () {
+    test('NodeActivitySnapshot compares by value', () {
+      const a = NodeActivitySnapshot(
+        status: NodeStatus.success,
+        percent: 50,
+        detail: 'Frame 2/4',
+      );
+      const b = NodeActivitySnapshot(
+        status: NodeStatus.success,
+        percent: 50,
+        detail: 'Frame 2/4',
+      );
+      const c = NodeActivitySnapshot(status: NodeStatus.running);
+      expect(a, equals(b));
+      expect(a.hashCode, b.hashCode);
+      expect(a, isNot(equals(c)));
+    });
+
+    test('SubtreeActivity compares by value', () {
+      const a = SubtreeActivity(
+        plannedFrames: 10,
+        doneFrames: 3,
+        plannedIntegrationSecs: 600,
+        hasOpenEndedLoop: false,
+        hasUnboundedRepeat: false,
+        completionUnknown: false,
+        ran: true,
+      );
+      const b = SubtreeActivity(
+        plannedFrames: 10,
+        doneFrames: 3,
+        plannedIntegrationSecs: 600,
+        hasOpenEndedLoop: false,
+        hasUnboundedRepeat: false,
+        completionUnknown: false,
+        ran: true,
+      );
+      expect(a, equals(b));
+      expect(a.hashCode, b.hashCode);
+      expect(a, isNot(equals(SubtreeActivity.empty)));
     });
   });
 }

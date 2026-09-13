@@ -47,6 +47,23 @@ class NodeActivitySnapshot {
       runFilter: runFilter ?? this.runFilter,
     );
   }
+
+  // Value equality lets `provider.select((m) => m[nodeId])` dedupe rebuilds:
+  // a progress tick that rewrites an identical snapshot must not rebuild the
+  // tab.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NodeActivitySnapshot &&
+          other.status == status &&
+          other.percent == percent &&
+          other.detail == detail &&
+          other.structuredDetail == structuredDetail &&
+          other.runFilter == runFilter;
+
+  @override
+  int get hashCode =>
+      Object.hash(status, percent, detail, structuredDetail, runFilter);
 }
 
 /// Per-node session memory of run progress, keyed by node id.
@@ -58,6 +75,14 @@ class NodeActivitySnapshot {
 /// `_forgetLiveProgress`). `SequenceProgressNotifier.reset()` empties the maps
 /// without touching this state, which is exactly what lets a finished node's
 /// last readings survive for the rest of the session.
+///
+/// One bound on that survival: a NEW run clears the whole map. `reset()`
+/// also empties the progress maps, so it is invisible inside `_fold` — the
+/// signal that separates "run ended, keep the memory" from "run #2 is
+/// starting, run #1's frames are no longer this node's story" is the
+/// execution-state transition into `running` from a state the enum itself
+/// marks as start-admissible (`canStart`: idle / completed / failed). Resume
+/// arrives via `paused`/`recovering` and deliberately does not clear.
 ///
 /// The tree keeps its private copy in `_NodeItem` until the density-mode
 /// workstream removes the inline panels; this provider is the shared slot the
@@ -72,6 +97,11 @@ class LastKnownNodeActivityNotifier
   LastKnownNodeActivityNotifier(Ref ref) : super(const {}) {
     _fold(ref.read(sequenceProgressProvider));
     ref.listen(sequenceProgressProvider, (_, next) => _fold(next));
+    ref.listen(sequenceExecutionStateProvider, (prev, next) {
+      final started =
+          next == SequenceExecutionState.running && (prev?.canStart ?? false);
+      if (started && state.isNotEmpty) state = const {};
+    });
   }
 
   void _fold(SequenceProgress progress) {
@@ -88,7 +118,7 @@ class LastKnownNodeActivityNotifier
       var snapshot = next[id] ?? const NodeActivitySnapshot();
       final status = progress.nodeStatuses[id];
       if (status == NodeStatus.running && snapshot.status != status) {
-        // Fresh pass: last run's frames/detail are no longer this node's
+        // Fresh pass: last run's frames are no longer this node's
         // story, so the snapshot restarts from the running marker alone.
         snapshot = const NodeActivitySnapshot(status: NodeStatus.running);
       }

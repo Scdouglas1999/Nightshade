@@ -79,6 +79,42 @@ class SubtreeActivity {
       : 0.0;
 
   bool get hasKnownCompletion => !completionUnknown;
+
+  /// The pre-run / no-sequence value.
+  static const empty = SubtreeActivity(
+    plannedFrames: 0,
+    doneFrames: 0,
+    plannedIntegrationSecs: 0,
+    hasOpenEndedLoop: false,
+    hasUnboundedRepeat: false,
+    completionUnknown: false,
+    ran: false,
+  );
+
+  // Value equality lets the subtree provider's `.select` dedupe rebuilds:
+  // a progress tick that lands on identical numbers must not rebuild the tab.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SubtreeActivity &&
+          other.plannedFrames == plannedFrames &&
+          other.doneFrames == doneFrames &&
+          other.plannedIntegrationSecs == plannedIntegrationSecs &&
+          other.hasOpenEndedLoop == hasOpenEndedLoop &&
+          other.hasUnboundedRepeat == hasUnboundedRepeat &&
+          other.completionUnknown == completionUnknown &&
+          other.ran == ran;
+
+  @override
+  int get hashCode => Object.hash(
+        plannedFrames,
+        doneFrames,
+        plannedIntegrationSecs,
+        hasOpenEndedLoop,
+        hasUnboundedRepeat,
+        completionUnknown,
+        ran,
+      );
 }
 
 /// Walk [sequence] under [rootId] and reconcile the plan
@@ -183,6 +219,24 @@ SubtreeActivity subtreeActivityProgress(
   );
 }
 
+/// Subtree activity for one container id.
+///
+/// The provider recomputes on every progress emission (the walk is cheap),
+/// and callers subscribe through `.select` — [SubtreeActivity]'s value
+/// equality then rebuilds the widget only when the numbers actually move,
+/// instead of on every unrelated node's progress tick.
+final _subtreeActivityProvider =
+    Provider.family<SubtreeActivity, String>((ref, nodeId) {
+  final sequence = ref.watch(currentSequenceProvider);
+  if (sequence == null) return SubtreeActivity.empty;
+  return subtreeActivityProgress(
+    sequence,
+    ref.watch(sequenceProgressProvider),
+    ref.watch(nodeExposureTallyProvider),
+    nodeId,
+  );
+});
+
 /// The node categories the tree treats as containers — the same list
 /// `node_tree_view.dart` uses to decide which rows get children. The
 /// Activity tab keys its subtree section off the identical set so a row and
@@ -211,21 +265,37 @@ class NodeActivityTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(sequenceProgressProvider);
+    // Per-node slices, not the whole progress object: every node in the run
+    // ticks these maps, and watching them wholesale rebuilt this tab on
+    // frames belonging to nodes it does not even name.
+    final liveStatus = ref.watch(
+      sequenceProgressProvider.select((p) => p.nodeStatuses[node.id]),
+    );
+    final livePercent = ref.watch(
+      sequenceProgressProvider.select((p) => p.nodeProgressPercent[node.id]),
+    );
+    final liveDetail = ref.watch(
+      sequenceProgressProvider.select((p) => p.nodeProgressDetail[node.id]),
+    );
+    final liveStructured = ref.watch(
+      sequenceProgressProvider
+          .select((p) => p.nodeProgressStructuredDetail[node.id]),
+    );
+    final liveFilter =
+        ref.watch(sequenceProgressProvider.select((p) => p.currentFilter));
     final snapshot = ref.watch(
       lastKnownNodeActivityProvider.select((m) => m[node.id]),
     );
-    final tallies = ref.watch(nodeExposureTallyProvider);
-    final tally = tallies[node.id];
+    final tally =
+        ref.watch(nodeExposureTallyProvider.select((m) => m[node.id]));
 
     // Live values win; the snapshot is the memory of the last thing that was
     // true when the run cleared the per-node maps on the success path.
-    final status = progress.nodeStatuses[node.id] ?? snapshot?.status;
-    final percent = progress.nodeProgressPercent[node.id] ?? snapshot?.percent;
-    final detail = progress.nodeProgressDetail[node.id] ?? snapshot?.detail;
-    final structured = progress.nodeProgressStructuredDetail[node.id] ??
-        snapshot?.structuredDetail;
-    final runFilter = progress.currentFilter ?? snapshot?.runFilter;
+    final status = liveStatus ?? snapshot?.status;
+    final percent = livePercent ?? snapshot?.percent;
+    final detail = liveDetail ?? snapshot?.detail;
+    final structured = liveStructured ?? snapshot?.structuredDetail;
+    final runFilter = liveFilter ?? snapshot?.runFilter;
 
     final hasOwnActivity = status != null ||
         percent != null ||
@@ -234,9 +304,8 @@ class NodeActivityTab extends ConsumerWidget {
         tally != null;
 
     final isContainer = _isContainerNode(node);
-    final sequence = ref.watch(currentSequenceProvider);
-    final subtree = isContainer && sequence != null
-        ? subtreeActivityProgress(sequence, progress, tallies, node.id)
+    final subtree = isContainer
+        ? ref.watch(_subtreeActivityProvider(node.id).select((s) => s))
         : null;
 
     // A node that captured frames in an EARLIER session has thumbnails but no
@@ -271,16 +340,15 @@ class NodeActivityTab extends ConsumerWidget {
       ] else ...[
         if (hasOwnActivity)
           getProgressPanelForNode(
-                node: node,
-                colors: colors,
-                progressPercent: percent ?? 0,
-                progressDetail: detail,
-                structuredProgressDetail: structured,
-                nodeStatus: status,
-                runFilter: runFilter,
-                exposureTally: tally,
-              ) ??
-              const SizedBox.shrink(),
+            node: node,
+            colors: colors,
+            progressPercent: percent ?? 0,
+            progressDetail: detail,
+            structuredProgressDetail: structured,
+            nodeStatus: status,
+            runFilter: runFilter,
+            exposureTally: tally,
+          ),
         if (subtree != null &&
             (subtree.plannedFrames > 0 ||
                 subtree.hasOpenEndedLoop ||
@@ -375,10 +443,14 @@ class _ExposureActivitySectionState
   /// Frame-landed bookkeeping: the cell index (0-based) that should play the
   /// 0.6 → 1.0 pop, and a stamp so the SAME index re-pops on a later pass
   /// (a re-run lands on cell 0 again, and a key that never changes would
-  /// keep its settled end-state and skip the animation).
+  /// keep its settled end-state and skip the animation). [_seeded] marks
+  /// "the baseline was taken from the resolved count" — without it, opening
+  /// the tab on a node mid-run (6 captured, `_previousCaptured` still 0)
+  /// reads as six frames landing at once and pops on mere selection.
   int _previousCaptured = 0;
   int _landedIndex = -1;
   int _landedStamp = 0;
+  bool _seeded = false;
 
   @override
   void didUpdateWidget(_ExposureActivitySection oldWidget) {
@@ -387,7 +459,7 @@ class _ExposureActivitySectionState
     // (same runtime type in the same slot), so the previous node's captured
     // count would otherwise read as "a frame just landed" on this one.
     if (oldWidget.node.id != widget.node.id) {
-      _previousCaptured = 0;
+      _seeded = false;
       _landedIndex = -1;
     }
   }
@@ -417,8 +489,12 @@ class _ExposureActivitySectionState
       final isDone = widget.status == NodeStatus.success ||
           (liveFrameIsDone && liveFrame >= totalFrames);
       current = (isDone || liveFrameIsDone) ? 0 : liveFrame;
+      // Clamp like `_ExposureProgressPanel.headerFrames` does: a node that
+      // just entered `running` reports frame 0 with nothing parsed yet, and
+      // `liveFrame - 1` would caption "-1 of 12 done".
       completed =
-          isDone ? totalFrames : (liveFrameIsDone ? liveFrame : liveFrame - 1);
+          (isDone ? totalFrames : (liveFrameIsDone ? liveFrame : liveFrame - 1))
+              .clamp(0, totalFrames);
     }
     final durationSecs =
         exposureDetail != null && exposureDetail.durationSecs > 0
@@ -449,7 +525,13 @@ class _ExposureActivitySectionState
     // Rebuilds for unrelated reasons must not re-trigger it, so the trigger
     // is a plain field comparison, not an animation keyed off the count
     // itself (which would re-pop every settled cell on any rebuild).
-    if (frames.completedFrames < _previousCaptured) {
+    if (!_seeded) {
+      // First build for this node (or after a node switch): adopt the
+      // resolved count as the baseline so existing frames are simply true,
+      // not "landed".
+      _previousCaptured = frames.completedFrames;
+      _seeded = true;
+    } else if (frames.completedFrames < _previousCaptured) {
       // A new pass reset the count (the tally dropped its previous frames):
       // re-baseline so the first landing of THIS pass pops too.
       _previousCaptured = 0;
@@ -537,6 +619,9 @@ class _ExposureActivitySectionState
         Semantics(
           label:
               '${frames.completedFrames} of ${frames.totalFrames} frames captured',
+          // The label IS the announcement; without this the '+N' overflow
+          // cell's text would be read a second time.
+          excludeSemantics: true,
           child: _ActivityFrameGrid(
             colors: colors,
             totalFrames: frames.totalFrames,
@@ -705,6 +790,8 @@ class _SubtreeActivitySection extends ConsumerWidget {
           : '${subtree.plannedFrames} frames planned';
       return Semantics(
         label: '$frameLabel, estimated ${formatRollupDuration(rollup)}',
+        // The wrapped Text would otherwise announce the same sentence again.
+        excludeSemantics: true,
         child: Text(
           hasPlan
               ? '$frameLabel · ${formatRollupDuration(rollup)}'
@@ -724,6 +811,9 @@ class _SubtreeActivitySection extends ConsumerWidget {
 
     return Semantics(
       label: '$summary captured, $remainingLabel',
+      // The label summarizes; the inner Texts would announce the same facts
+      // a second time (and the progress bar adds its own reading).
+      excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

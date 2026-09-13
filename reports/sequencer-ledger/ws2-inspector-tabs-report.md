@@ -83,14 +83,99 @@ Branch: `agent/ws2-inspector-tabs`
   0 issues of any severity. Base count was 893; the change nets −2
   (removed a `surfaceAlt` use the notes editor would have added, and no new
   diagnostics).
-- `graphify update .` (post-implementation) → see final log line below.
+- `graphify update .` (post-implementation) → exit 0
+
+### Post-review verification
+
+- `flutter test test/screens/sequencer/node_properties_panel_tabs_test.dart
+  --concurrency=4` → exit 0, 21/21
+- `flutter test test/screens/sequencer --concurrency=4` → exit 0,
+  **528/528**
+- `dart analyze` on all touched files (incl. `sequencer_screen.dart`) →
+  exit 0, 0 issues
+- `dart format --set-exit-if-changed` on all touched files → exit 0
+- `dart analyze` on `node_item.dart` (untouched, out of scope) reports the
+  one expected `dead_null_aware_expression` warning noted under fix 9.
+
+## Review fixes (adversarial review of 8ee4f68eb)
+
+1. **HIGH — snapshots survived into run #2.** `reset()` empties the
+   progress maps, so `if (ids.isEmpty) return;` made a new run invisible to
+   the fold. Fixed by listening to `sequenceExecutionStateProvider` inside
+   the notifier: entering `running` from a `canStart` state
+   (idle/completed/failed — the enum's own admission set) clears the map.
+   `paused`/`recovering` → `running` (resume) deliberately does not clear.
+   Test: `a NEW run clears last-known activity…` + provider-level
+   `clears every snapshot when a new run enters running from a settled
+   state`.
+2. **HIGH — lazy provider saw nothing.** The notifier only existed once
+   the Activity tab was built. `NodePropertiesPanel.build` now watches
+   `lastKnownNodeActivityProvider` (keeps it alive whenever the inspector
+   exists — which is also what makes the widget test honest), and
+   `sequencer_screen.dart` got the permitted ONE `ref.watch` line (+ the
+   import needed to see the provider) so the fold runs even with the panel
+   closed. Test: `Activity shows last-known values after the run clears
+   the maps — seeded while the Settings tab was shown`.
+3. **HIGH — double commit / write-during-build in the Notes editor.**
+   `didUpdateWidget` committed synchronously against the stale
+   `oldWidget.node`: a duplicate undo entry plus a
+   `currentSequenceProvider` write mid-build (Riverpod asserts in debug).
+   Both deferred paths (node-switch and unmount) now write via
+   `Future.microtask` + `_commitText`, which re-reads the LIVE comment from
+   `currentSequenceProvider` before comparing — so a commit that already
+   landed dedupes instead of writing twice. The interactive path
+   (focus-loss, Ctrl+Enter) keeps `withSequenceMutation` but also compares
+   against the fresh provider value. Test: `selecting another node commits
+   the typed note exactly once, against the node it was typed on`
+   (counts writes per node; asserts no build-phase assert by simply
+   pumping).
+4. **MED — "-1 of 12 done" caption.** `liveFrame - 1` with `liveFrame == 0`
+   (just-entered `running`, no tally/detail yet) went negative.
+   `completed` is now clamped to `[0, totalFrames]`, matching
+   `_ExposureProgressPanel`'s intent (`headerFrames` never goes negative).
+   Test: `a just-started node captions 0 done, not -1`.
+5. **MED — dead "commits on Enter".** `onSubmitted` never fires on a
+   multiline field (Enter inserts a newline). Removed it; added a
+   `CallbackShortcuts` Ctrl+Enter / Cmd+Enter commit (the key event is seen
+   before the field consumes it) and the help text now says
+   "Ctrl+Enter saves." Test: `Ctrl+Enter commits the comment from inside
+   the field`.
+6. **MED — pop fired on selection.** `_previousCaptured` started at 0, so
+   opening Activity on a node with 6 captured frames popped as if six
+   frames just landed. A `_seeded` flag now makes the first build (and
+   every build after a node switch) adopt the resolved count as baseline;
+   only a real increment pops. The new-pass drop still re-arms the
+   animation. Test: `frame-landed pop does not fire on selection, only on
+   a real increment`.
+7. **MED — rebuild storm.** The tab watched the whole
+   `sequenceProgressProvider` and the whole tally map. It now watches
+   per-node `.select` slices (`nodeStatuses[id]`, `percent[id]`,
+   `detail[id]`, `structuredDetail[id]`, `currentFilter`, snapshot[id],
+   tally[id]). `NodeActivitySnapshot` and `SubtreeActivity` gained value
+   equality so `select` dedupes; containers read a
+   `_subtreeActivityProvider(node.id)` family (recompute per tick, rebuild
+   only when the numbers move). Tests: `value equality` group.
+8. **MED — note lost on unmount.** The focus listener was removed before
+   `_focusNode.dispose()`, so a focused field unmounted mid-edit dropped
+   its text. `dispose()` now schedules `_commitText` on a microtask
+   through the `ProviderContainer` captured in `initState` (`ref`/`context`
+   are invalid there — `containerOf` throws after deactivate). Test:
+   `unmounting the Notes tab commits the pending note`.
+9. **LOW — nullable factory.** `getProgressPanelForNode` now returns
+   `Widget`; the `?? SizedBox.shrink()` at my call site is gone.
+   **Known consequence:** the untouched call site in `node_item.dart:327`
+   now reports `dead_null_aware_expression` — that file is owned by the
+   density workstream (its inline panels, and this `??`, are being
+   removed there); I may not edit it.
+10. **LOW — double announcement.** Both `Semantics(label:)` wrappers
+    (frame grid, subtree section — two sites) now set
+    `excludeSemantics: true`, so the label is the single announcement
+    instead of label-plus-inner-text.
 
 ## Left undone
 
 - The tree's private `_lastKnown*` copy in `node_item.dart` is deliberately
   left in place — the density-mode workstream removes it when the inline
   panels move; `lastKnownNodeActivityProvider` is the shared slot they will
-  switch to.
-- `getProgressPanelForNode` still declares `Widget?` though it never
-  returns null; the `?? SizedBox.shrink()` at my call site is type-system
-  glue only.
+  switch to. Its `?? SizedBox.shrink()` after `getProgressPanelForNode` is
+  now a `dead_null_aware_expression` warning owned by the same removal.

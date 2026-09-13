@@ -8,14 +8,15 @@
 //     tree already renders as a muted italic line under the row. Nothing in
 //     the app edited it before this tab.
 //
-// The comment commits on focus loss or Enter through the canonical
-// `currentSequenceProvider.notifier.updateNode` path, guarded by
+// The comment commits on focus loss, Ctrl/Cmd+Enter, or unmount through the
+// canonical `currentSequenceProvider.notifier.updateNode` path, guarded by
 // `canEditSequenceProvider` and wrapped in `withSequenceMutation` like every
 // other inspector edit. "No comment" is stored as `''` — every node's
 // `copyWith(comment:)` is keep-or-replace so null cannot clear it, and both
 // the tree's italic line and the tab's dot check `isNotEmpty`.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -71,8 +72,8 @@ class NodeNotesTab extends ConsumerWidget {
                 NodePropertyField(
                   colors: colors,
                   label: 'Comment',
-                  helpText:
-                      'Shown as an italic line under this node in the tree.',
+                  helpText: 'Shown as an italic line under this node in the '
+                      'tree. Ctrl+Enter saves.',
                   child: _NodeCommentEditor(node: node, colors: colors),
                 ),
               ],
@@ -84,9 +85,15 @@ class NodeNotesTab extends ConsumerWidget {
   }
 }
 
-/// Multi-line editor for [SequenceNode.comment], committing on focus loss or
-/// submit. The node's own `updateNode` call carries undo/redo, autosave and
-/// `modifiedAt` bookkeeping, so no notes-specific write path is needed.
+/// Multi-line editor for [SequenceNode.comment]. Commits happen three ways:
+/// focus loss and Ctrl/Cmd+Enter go through [_commit] (a live context, so
+/// failures can still reach a snackbar); selection switches and unmounts go
+/// through [_commitText] on a microtask — provider writes are illegal
+/// mid-build (`didUpdateWidget`) and `ref` is dead after `dispose`, so both
+/// deferred paths write through the container captured in `initState` and
+/// re-read the LIVE comment before comparing (the interactive commit may
+/// already have landed the same text — re-checking the stale widget prop
+/// would double-commit and mint a duplicate undo entry).
 class _NodeCommentEditor extends ConsumerStatefulWidget {
   final SequenceNode node;
   final NightshadeColors colors;
@@ -100,20 +107,32 @@ class _NodeCommentEditor extends ConsumerStatefulWidget {
 class _NodeCommentEditorState extends ConsumerState<_NodeCommentEditor> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
+
+  /// Captured in `initState` while `context` is still safe for inherited
+  /// lookup — `dispose()` runs after deactivate, where `containerOf` throws.
+  late final ProviderContainer _container;
   bool _focused = false;
 
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
     _controller = TextEditingController(text: widget.node.comment ?? '');
     _focusNode = FocusNode()..addListener(_handleFocusChange);
   }
 
   @override
   void dispose() {
+    // Unmount mid-edit is still a commit opportunity — the focus listener
+    // dies with the widget, so the pending text would otherwise vanish. The
+    // write runs on a microtask: synchronous provider writes from dispose
+    // are as illegal as mid-build ones.
+    final node = widget.node;
+    final text = _controller.text;
     _focusNode.removeListener(_handleFocusChange);
     _focusNode.dispose();
     _controller.dispose();
+    Future.microtask(() => _commitText(_container, node, text));
     super.dispose();
   }
 
@@ -123,8 +142,12 @@ class _NodeCommentEditorState extends ConsumerState<_NodeCommentEditor> {
     if (oldWidget.node.id != widget.node.id) {
       // Selection moved while the field may hold uncommitted text: commit it
       // against the node it was typed on — carrying it onto the new node's
-      // comment would silently misattribute the note.
-      _commitAgainst(oldWidget.node);
+      // comment would silently misattribute the note. Deferred: writing
+      // currentSequenceProvider inside didUpdateWidget trips Riverpod's
+      // "modified during build" assert.
+      final oldNode = oldWidget.node;
+      final pendingText = _controller.text;
+      Future.microtask(() => _commitText(_container, oldNode, pendingText));
       _controller.text = widget.node.comment ?? '';
     } else if (!_focusNode.hasFocus &&
         widget.node.comment != oldWidget.node.comment) {
@@ -142,11 +165,16 @@ class _NodeCommentEditorState extends ConsumerState<_NodeCommentEditor> {
     if (!_focusNode.hasFocus) _commit();
   }
 
-  void _commit() => _commitAgainst(widget.node);
-
-  void _commitAgainst(SequenceNode node) {
+  /// Interactive commit (focus loss, Ctrl/Cmd+Enter): a live context, so the
+  /// shared mutation wrapper can still surface errors as snackbars. The
+  /// comparison reads the comment from the provider — `widget.node.comment`
+  /// is the value this build was handed and may lag the commit that just ran.
+  void _commit() {
+    final node = widget.node;
     final text = _controller.text.trim();
-    if (text == (node.comment ?? '')) return;
+    final current =
+        ref.read(currentSequenceProvider)?.nodes[node.id]?.comment ?? '';
+    if (text == current) return;
     if (!ref.read(canEditSequenceProvider)) return;
     withSequenceMutation(
       context,
@@ -160,6 +188,25 @@ class _NodeCommentEditorState extends ConsumerState<_NodeCommentEditor> {
     );
   }
 
+  /// Deferred commit: writes [raw] as [node]'s comment via [container]
+  /// (valid where `ref` and `context` are not), skipping the write when the
+  /// live comment already says the same thing — the dedupe that keeps a
+  /// focus-loss commit and a node-switch commit from landing twice.
+  static void _commitText(
+    ProviderContainer container,
+    SequenceNode node,
+    String raw,
+  ) {
+    final text = raw.trim();
+    final current =
+        container.read(currentSequenceProvider)?.nodes[node.id]?.comment ?? '';
+    if (text == current) return;
+    if (!container.read(canEditSequenceProvider)) return;
+    container.read(currentSequenceProvider.notifier).updateNode(
+          node.copyWith(comment: text),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -171,27 +218,37 @@ class _NodeCommentEditorState extends ConsumerState<_NodeCommentEditor> {
         ),
         decoration:
             NightshadeDecorations.field(widget.colors, focused: _focused),
-        child: TextField(
-          key: const ValueKey('node-comment-field'),
-          controller: _controller,
-          focusNode: _focusNode,
-          minLines: 4,
-          maxLines: 10,
-          // A tap anywhere else — another tab, another row — is the
-          // focus-loss commit; without this the field would keep focus until
-          // it unmounted and the half-typed note would silently vanish.
-          onTapOutside: (_) => _focusNode.unfocus(),
-          onSubmitted: (_) => _commit(),
-          style: NightshadeTypography.bodySm.copyWith(
-            color: widget.colors.textPrimary,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Add a note for this node…',
-            hintStyle: NightshadeTypography.bodySm.copyWith(
-              color: widget.colors.textMuted,
+        // Enter inserts a newline in a multiline field — `onSubmitted` never
+        // fires there — so the keyboard commit is Ctrl/Cmd+Enter via
+        // CallbackShortcuts, which sees the keys before the field eats them.
+        child: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.enter, control: true):
+                _commit,
+            const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                _commit,
+          },
+          child: TextField(
+            key: const ValueKey('node-comment-field'),
+            controller: _controller,
+            focusNode: _focusNode,
+            minLines: 4,
+            maxLines: 10,
+            // A tap anywhere else — another tab, another row — is the
+            // focus-loss commit; without this the field would keep focus until
+            // it unmounted and the half-typed note would silently vanish.
+            onTapOutside: (_) => _focusNode.unfocus(),
+            style: NightshadeTypography.bodySm.copyWith(
+              color: widget.colors.textPrimary,
             ),
-            border: InputBorder.none,
-            isDense: true,
+            decoration: InputDecoration(
+              hintText: 'Add a note for this node…',
+              hintStyle: NightshadeTypography.bodySm.copyWith(
+                color: widget.colors.textMuted,
+              ),
+              border: InputBorder.none,
+              isDense: true,
+            ),
           ),
         ),
       ),

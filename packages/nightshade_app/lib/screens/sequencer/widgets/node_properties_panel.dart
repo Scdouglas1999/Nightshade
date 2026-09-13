@@ -19,6 +19,7 @@ import 'live_stacking_properties.dart';
 import 'meridian_flip_edit_helper.dart';
 import 'node_activity_tab.dart';
 import 'node_notes_tab.dart';
+import 'node_progress_panels.dart';
 import 'node_property_widgets.dart';
 import 'node_timing_section.dart';
 import 'science_photometry_properties.dart';
@@ -77,6 +78,11 @@ class NodePropertiesPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedNode = ref.watch(selectedNodeProvider);
+
+    // Keep the session's last-known progress fold alive while the inspector
+    // exists: the Activity tab only watches it when it is built, and a
+    // lazily-created notifier would see only the post-reset empty maps.
+    ref.watch(lastKnownNodeActivityProvider);
 
     if (isMobileSheet) {
       return _buildMobileSheetContent(context, ref, selectedNode);
