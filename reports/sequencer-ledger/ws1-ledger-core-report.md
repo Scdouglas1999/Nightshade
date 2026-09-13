@@ -247,6 +247,172 @@ Dedicated runs during development:
 - `sequence_tree_ledger_mode_test.dart`: 6/6 pass.
 - `graphify update .` — rebuilt graph (113554 nodes), EXIT=0.
 
+## Review fixes
+
+An adversarial senior review of the six original commits found nine defects.
+All nine are fixed on this branch.
+
+### 1. HIGH — Ledger rows had no Enable/Duplicate/Delete actions
+
+`_NodeOverflowMenu`'s trio entries are gated on `isTouch`, so a desktop
+ledger row showed only the kebab and the three callbacks threaded from
+`node_tree_view.dart` were dead code.
+
+**Fix:** the eye/duplicate/delete chips were extracted from `_NodeItem` into
+`_NodeActionChips` (`support_widgets.dart`, callback types corrected to
+`VoidCallback?`), and `_LedgerRow._buildActions` renders them plus the kebab
+inside a permanently reserved `_ledgerActionsWidth` slot (3×28 + 24 = 108 px)
+on pointer platforms, so hover reveal cannot shift the columns. On touch the
+trio stays inside the kebab (see item 7). `_ledgerColumnsMinWidth` moved
+420 → 500 because the wider reservation pushed the depth-1 fixed cost to
+437 px; the old threshold sat below the row's own cost.
+
+**Test:** `sequence_tree_ledger_mode_test.dart` — "hover reveals the action
+chips; Delete removes the node" drives a real mouse pointer onto a row (with
+a linux-platform theme, since the suite's default platform is touch), taps
+Delete, confirms the dialog, asserts the node is gone.
+
+### 2. HIGH — ETA anchored to a stale `DateTime.now()`; no actual starts
+
+`sequenceTimelineProvider` simulates once at `DateTime.now()` and never
+refreshes, and spec §2's "finished nodes show the actual start time" was
+unimplemented.
+
+**Fix** (`ledger_columns.dart`):
+- `ledgerClockProvider` — a `Stream.periodic(1 min)` stream gated on
+  `sequenceExecutionStateProvider.canStart`: it emits only while the executor
+  is settled, so no timer runs during a run. Riverpod cancels the
+  subscription on rebuild/dispose, which kills the timer with it.
+- `ledgerActualStartsProvider` — a `StateNotifier` folding the typed
+  `nightshadeEventsProvider` stream (the same `ref.listen` fold
+  `eventHistoryProvider` uses): `SequencerEvent_Started` clears the map,
+  `SequencerEvent_NodeStarted` records the event envelope's millisecond
+  timestamp per node id.
+- `ledgerEtasFor(sequence, simulation, {now, runActive, runStart,
+  actualStarts})` — pure, fake-clock-testable. Pre-run it shifts the whole
+  simulation to `now`; during a run it shifts to
+  `sessionStateProvider.startTime` (falling back to the simulation anchor
+  while `startSession` resolves). Observed starts always win, and both the
+  predicted and observed maps fold through `_foldStarts`, so a container
+  inherits the earliest start — predicted or observed — in its subtree.
+- `LedgerEta{start, isActual}` lets the row mark a started-but-unobserved
+  ETA `textMuted` rather than present a stale prediction as fact.
+
+**Timestamp model note:** `SequenceProgress` and the exposure tally carry no
+per-node timestamps; `sessionStateProvider.startTime` is the only run-start
+record. Actual per-node starts come from the typed `NodeStarted` event
+envelopes — the only timestamp source that exists — so the "actual" ETA is
+as precise as the event stream's delivery (millisecond envelope stamps).
+`LedgerEta.isActual` keeps observed and predicted values visually distinct.
+
+**Tests:** six `ledgerEtasFor` unit tests in `ledger_columns_test.dart`
+(pre-run re-anchor, run-anchor, missing-run-start fallback, actual-beats-
+prediction, actual folding into the parent, actuals-without-simulation) and
+the muted-ETA widget test in `sequence_tree_ledger_mode_test.dart`.
+
+### 3. MED-HIGH — Compact collapsed rows had no rollup summary
+
+**Fix:** `_NodeItem` watches `rollupSummaryMapProvider.select` only when
+`!showInlineExtras && isCollapsed && hasChildren` and appends the summary to
+the title row in `textMuted`, single-line ellipsised — the same provider the
+ledger row uses, so the two densities cannot disagree.
+
+**Test:** "compact mode shows the rollup summary on a collapsed container"
+flips to compact, collapses the loop, and asserts `L · R 60 s ×10 each`.
+
+### 4. MED — Running-row progress groove laid out at 0×0
+
+**Fix:** the `surfaceHover` track inside the progress `Stack` is now
+`Positioned.fill`, so it takes the bar's bounds instead of the loose-Stack
+zero size.
+
+**Test:** "a running row paints the progress groove under its fill" finds the
+track ColoredBox and the 0.4 `FractionallySizedBox` fill under it.
+
+### 5. MED — Per-row `LayoutBuilder` + O(N·depth) column/rollup work per tick
+
+**Fix:**
+- `ledgerColumnsMapProvider` and `rollupSummaryMapProvider` are map providers
+  keyed off `currentSequenceProvider` — the subtree walks run once per
+  sequence change, and rows read their own entry via `.select`.
+- The width decision is hoisted into `SequenceTree`'s single existing
+  `LayoutBuilder` (see item 6); `_LedgerRow` has no `LayoutBuilder` at all.
+- ETAs deliberately live in their own map (`ledgerEtaProvider`) so the
+  minute/event ticks don't invalidate the static columns.
+
+### 6. MED — Toolbar/tree responsive signals disagreed; narrow tier stripped columns
+
+**Fix:** the density control's visibility now uses the same short-side
+predicate the layout does — `BreakpointTokens.isPhone(min(width, height))`
+instead of `Responsive.isPhone(context)` — so a narrow-but-tall desktop
+window keeps the control. And below `_ledgerColumnsMinWidth` the tree's
+hoisted `LayoutBuilder` resolves `canvasDensity` to compact: the preference
+says what is wanted, the canvas says what it can host, and a ledger row
+never draws without its columns.
+
+**Tests:** `sequence_toolbar_density_test.dart` (labelled `SegmentedControl`
+tier and glyph tier, each asserting all three modes and the persisted write);
+"a canvas below the column floor falls back to compact rows" in the ledger
+test file.
+
+### 7. LOW — Ledger kebab was 24×28 on touch
+
+**Fix:** the actions slot's width is `_ledgerActionsSlotWidth(context)` —
+`_ledgerActionsWidth` on pointer platforms, `NightshadeTouchTarget.minExtent`
+on touch — and the touch branch wraps the kebab in an `OverflowBox` at that
+extent so its hit area clears the platform floor symmetrically over the
+28 px row instead of clipping to it. The header's reservation uses the same
+helper, so the columns stay aligned on both platforms.
+
+### 8. LOW — `nodeCategoryTint` could drift from `NodeSummaryLine._categoryColor`
+
+**Fix:** `NodeSummaryLine.categoryColorForTesting` (`@visibleForTesting`
+static accessor) exposes the card's mapping, and
+`category_tint_agreement_test.dart` asserts it equals `nodeCategoryTint` for
+every `NodeCategory`.
+
+### 9. LOW — Coverage gaps
+
+Added: hover→Delete flow, long-press drag reorder (stationary-press +
+`startGesture` — `timedDrag` moves inside `LongPressDraggable`'s 150 ms
+window and never arms), the inter-row `_DropZone` at its index, semantics
+label contents (name + column values + state), the running progress groove,
+the compact collapsed rollup, the tint agreement, the toolbar's labelled and
+glyph tiers, and the six `ledgerEtasFor` anchoring tests.
+
+A note on the clock's test surface: `ledgerClockProvider` is a real periodic
+stream, and a periodic zone timer cannot survive a widget test's teardown —
+`autoDispose` deactivates too late to help. Tests that pump a ledger tree
+stub it with `Stream<DateTime>.empty()` (the same seam the suite already
+uses for `tickerProvider`), and the anchoring math is covered through the
+fake-clock unit tests instead.
+
+### Review-fix verification
+
+```
+dart format <the 21 touched files>
+```
+EXIT=0 — "Formatted 21 files (13 changed)".
+
+```
+cd packages/nightshade_app && dart analyze
+```
+EXIT=2 — 891 issues, identical to the base commit's count: zero net new
+diagnostics; the lints in touched files are pre-existing `deprecated_member_use`
+infos that moved with the extracted code.
+
+```
+cd packages/nightshade_app && flutter test test/screens/sequencer \
+  --concurrency=4        # TMPDIR=$HOME/.cache/ns-tmp/ws1-ledger-core
+```
+EXIT=0 — **+562, all passed** (545 prior + 17 new: 6 `ledgerEtasFor` + 8
+ledger-mode widget tests + 2 toolbar tiers + 1 tint agreement).
+
+```
+graphify update .
+```
+EXIT=0 — graph rebuilt (113587 nodes).
+
 ## Left undone
 
 - Nothing in scope. Mobile is intentionally untouched per the brief.
