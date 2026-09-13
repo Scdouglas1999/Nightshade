@@ -15,15 +15,6 @@ const double fieldHorizontalPadding = NightshadeTokens.inputPaddingHorizontal;
 /// Leading icon size inside a field, in logical pixels (05 §8: 14 muted).
 const double fieldIconSize = NightshadeTokens.iconXs;
 
-/// Lift applied to a field's value (and the matching dropdown label) so the
-/// painted ink sits on the well centre.
-///
-/// Hanken Grotesk's em box is ascent 1000 / cap-height 697 per 1000 UPM, so
-/// a geometrically centred line leaves the caps a little low in the 32px well.
-/// 1.5px is one hairline on a 2x display and is the smallest shift that reads
-/// as centred rather than "sitting on the floor of the box".
-const Offset fieldInkOffset = Offset(0, -1.5);
-
 /// A single-line text or number field on the Observatory scale.
 ///
 /// 32px tall, 28 with [dense]. The [NightshadeDecorations.field] face is a
@@ -140,7 +131,10 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
         );
   }
 
-  InputDecoration _collapsedDecoration(TextStyle hintStyle) {
+  InputDecoration _collapsedDecoration(
+    TextStyle hintStyle,
+    NightshadeColors colors,
+  ) {
     // Collapsed: the chrome lives on the wrapping well, not on Material's
     // InputDecorator. An outline decorator with `isDense` sizes its *fill* to
     // the text line (~20px) and top-aligns that fill inside a 32px slot, which
@@ -152,12 +146,33 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
     return InputDecoration(
       isCollapsed: true,
       isDense: true,
+      // The platform's VisualDensity (-8px on desktop's compact default) is
+      // folded into the decorator's baseline math as phantom vertical room;
+      // `textAlignVertical.center` then drops the editable 4px below its own
+      // slot, which is what sat the digits low in the well. Pin standard so
+      // the input fills the slot identically on every platform.
+      visualDensity: VisualDensity.standard,
       filled: false,
       hintText: widget.hint,
       hintStyle: hintStyle,
       counterText: '',
       contentPadding: EdgeInsets.zero,
       floatingLabelBehavior: FloatingLabelBehavior.never,
+      // The decorator lays the unit out on the input's baseline, so it reads
+      // as a suffix of the value rather than a caption floating at the row's
+      // centre line. height 1.0 keeps its line inside the 14px slot.
+      suffix: widget.suffix == null
+          ? null
+          : ExcludeSemantics(
+              child: Text(
+                widget.suffix!,
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                  height: 1.0,
+                  leadingDistribution: TextLeadingDistribution.even,
+                ),
+              ),
+            ),
       border: InputBorder.none,
       enabledBorder: InputBorder.none,
       focusedBorder: InputBorder.none,
@@ -215,7 +230,7 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
       height: fontSize,
       child: _input(
         textStyle: lineStyle,
-        decoration: _collapsedDecoration(hintStyle),
+        decoration: _collapsedDecoration(hintStyle, colors),
         maxLines: 1,
         cursorHeight: fontSize,
         strutStyle: StrutStyle(
@@ -269,26 +284,9 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
                 ],
                 Flexible(
                   fit: expand ? FlexFit.tight : FlexFit.loose,
-                  child: Transform.translate(
-                    offset: fieldInkOffset,
-                    child: input,
-                  ),
+                  child: input,
                 ),
                 if (widget.suffixWidget != null) widget.suffixWidget!,
-                if (widget.suffix != null) ...<Widget>[
-                  const SizedBox(width: NightshadeTokens.spaceXs),
-                  ExcludeSemantics(
-                    child: Transform.translate(
-                      offset: fieldInkOffset,
-                      child: Text(
-                        widget.suffix!,
-                        style: NightshadeTypography.caption.copyWith(
-                          color: colors.textMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -308,6 +306,8 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
       textStyle: textStyle,
       decoration: InputDecoration(
         isDense: true,
+        // Same platform-density pin as the collapsed single-line well.
+        visualDensity: VisualDensity.standard,
         hintText: widget.hint,
         hintStyle: textStyle.copyWith(color: colors.textMuted),
         filled: true,

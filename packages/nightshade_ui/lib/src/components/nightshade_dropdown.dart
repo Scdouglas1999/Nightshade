@@ -251,10 +251,7 @@ class _NightshadeDropdownState extends State<NightshadeDropdown> {
         mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Flexible(
-            fit: expand ? FlexFit.tight : FlexFit.loose,
-            child: Transform.translate(offset: fieldInkOffset, child: label),
-          ),
+          Flexible(fit: expand ? FlexFit.tight : FlexFit.loose, child: label),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Icon(
             LucideIcons.chevronDown,
