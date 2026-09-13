@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
@@ -57,8 +58,13 @@ void main() {
   testWidgets(
     'trigger-category node (MeridianFlipNode) shows the Watchdog badge',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // The ledger ETA clock is a real periodic stream; in the
+        // fake-async zone its timer outlives every pump and fails teardown.
+        ledgerClockProvider
+            .overrideWith((ref) => const Stream<DateTime>.empty()),
+      ]);
       addTearDown(container.dispose);
 
       await _pumpTreeWithNode(tester, container, MeridianFlipNode());
@@ -78,8 +84,13 @@ void main() {
   testWidgets(
     'instruction-category node (ExposureNode) does not show the Watchdog badge',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // The ledger ETA clock is a real periodic stream; in the
+        // fake-async zone its timer outlives every pump and fails teardown.
+        ledgerClockProvider
+            .overrideWith((ref) => const Stream<DateTime>.empty()),
+      ]);
       addTearDown(container.dispose);
 
       await _pumpTreeWithNode(tester, container, ExposureNode());

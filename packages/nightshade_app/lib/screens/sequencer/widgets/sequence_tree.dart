@@ -17,14 +17,19 @@ import 'node_progress_panels.dart';
 import 'node_summary.dart';
 import 'node_summary_line.dart';
 import 'sequence_minimap.dart';
+import 'sequence_tree/ledger_columns.dart';
+import 'sequence_tree/rollup_summary.dart';
 import 'sequence_tree_context_menu.dart';
 import 'sequence_tree_shortcuts.dart';
+import 'sequencer_density.dart';
+import 'target_coordinates.dart';
 import 'target_header_card.dart';
 import 'target_queue_panel.dart';
 import 'visual_timeline.dart';
 
 part 'sequence_tree/node_tree_view.dart';
 part 'sequence_tree/node_item.dart';
+part 'sequence_tree/ledger_row.dart';
 part 'sequence_tree/support_widgets.dart';
 part 'sequence_tree/tree_controls.dart';
 part 'sequence_tree/node_item_helpers.dart';
@@ -316,6 +321,10 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     final sequence = ref.watch(currentSequenceProvider);
     final progress = ref.watch(sequenceProgressProvider);
     final validation = ref.watch(liveValidationProvider);
+    final density = effectiveSequencerDensity(
+      ref.watch(sequencerDensityProvider),
+      isMobile: widget.isMobile,
+    );
 
     // Auto-scroll whenever the executing node changes
     final followExecution = ref.watch(followExecutionProvider);
@@ -365,7 +374,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
           // tab; auto-focus so arrows work right after switching tabs.
           autofocus: !widget.isMobile,
           child: _buildDragTarget(
-              context, sequence, rootNode, progress, validation),
+              context, sequence, rootNode, progress, validation, density),
         ),
       ),
     );
@@ -377,6 +386,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     SequenceNode rootNode,
     SequenceProgress progress,
     LiveValidationState validation,
+    SequencerDensity density,
   ) {
     return DragTarget<Object>(
       onWillAcceptWithDetails: (details) =>
@@ -427,6 +437,21 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               if (constraints.hasBoundedHeight && constraints.maxHeight < 80) {
                 return const SizedBox.expand();
               }
+              // The one width decision the ledger rows rely on: below
+              // `_ledgerColumnsMinWidth` the four columns cannot leave the
+              // step names any room, so the whole tree falls back to compact
+              // rows — the preference says which density is wanted, this says
+              // which the canvas can actually host. Rows read the resolved
+              // density, so a ledger row never has to wonder whether it can
+              // afford its own columns.
+              final contentWidth = constraints.maxWidth -
+                  (widget.isMobile
+                      ? NightshadeTokens.spaceMd * 2
+                      : NightshadeTokens.spaceXl * 2);
+              final canvasDensity = density == SequencerDensity.ledger &&
+                      contentWidth < _ledgerColumnsMinWidth
+                  ? SequencerDensity.compact
+                  : density;
               return Column(
                 children: [
                   // No header row: the canvas bar above the tree carries the
@@ -442,16 +467,28 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                               horizontal: NightshadeTokens.spaceXl,
                               vertical: NightshadeTokens.spaceLg,
                             ),
-                      child: _NodeTreeView(
-                        colors: widget.colors,
-                        sequence: sequence,
-                        nodeId: rootNode.id,
-                        progress: progress,
-                        validation: validation,
-                        depth: 0,
-                        isMobile: widget.isMobile,
-                        onNodeTap: widget.onNodeTap,
-                        keyRegistry: _nodeKeyRegistry,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // The ledger's column headings ride inside the
+                          // scroll view so they take the same horizontal
+                          // padding the rows do and sit over the columns they
+                          // name.
+                          if (canvasDensity == SequencerDensity.ledger)
+                            _LedgerColumnHeader(colors: widget.colors),
+                          _NodeTreeView(
+                            colors: widget.colors,
+                            sequence: sequence,
+                            nodeId: rootNode.id,
+                            progress: progress,
+                            validation: validation,
+                            depth: 0,
+                            density: canvasDensity,
+                            isMobile: widget.isMobile,
+                            onNodeTap: widget.onNodeTap,
+                            keyRegistry: _nodeKeyRegistry,
+                          ),
+                        ],
                       ),
                     ),
                   ),

@@ -28,6 +28,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -143,8 +144,13 @@ void main() {
   testWidgets(
     'the waveF burst leaves the finished node reading 4 / 4, not 0 / 4',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // Card-content assertions pin the comfortable row; the ledger
+        // row intentionally carries no inline frame tally.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       // Only node 1 is in the tree, so `findsNothing` below is about THIS
@@ -191,8 +197,13 @@ void main() {
   testWidgets(
     'a node that captured nothing still reads 0 / 4 beside one that captured everything',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // Card-content assertions pin the comfortable row; the ledger
+        // row intentionally carries no inline frame tally.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       final node1 = ExposureNode(durationSecs: 15, count: 4);
@@ -217,8 +228,13 @@ void main() {
   testWidgets(
     "node 2's opening progress cannot claim node 1's frames",
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // Card-content assertions pin the comfortable row; the ledger
+        // row intentionally carries no inline frame tally.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       final node1 = ExposureNode(durationSecs: 15, count: 4);

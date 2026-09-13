@@ -33,8 +33,16 @@ class _NodeItem extends ConsumerStatefulWidget {
   /// consistent. Only meaningful for containers ([hasChildren] / target).
   final bool isCollapsed;
 
+  /// Whether the row keeps the content that renders BELOW its title block —
+  /// the live progress panel and the node's comment line.
+  ///
+  /// False in Compact density, where the row is the summary line and nothing
+  /// else; that content moves to the node inspector. The panel's own
+  /// persistence state machine still runs, so switching back to Comfortable
+  /// mid-run reveals the panel the run is actually on rather than a blank.
+  final bool showInlineExtras;
+
   const _NodeItem({
-    super.key,
     required this.colors,
     required this.node,
     required this.isSelected,
@@ -54,6 +62,7 @@ class _NodeItem extends ConsumerStatefulWidget {
     this.runFilter,
     this.isMobile = false,
     this.isCollapsed = false,
+    this.showInlineExtras = true,
   });
 
   @override
@@ -213,6 +222,16 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     final summaryFragments =
         nodeSummary(node, globalAutofocusMethod: globalAfMethod);
     final summaryA11yText = _summaryA11yText(summaryFragments);
+    // The collapsed-container rollup, shown on the title row only when the
+    // density has stripped the inline extras (compact): an expanded container
+    // has its children on screen and needs no summary, and comfortable mode
+    // already spends the space on them.
+    final rollupText =
+        !widget.showInlineExtras && widget.isCollapsed && widget.hasChildren
+            ? ref.watch(rollupSummaryMapProvider
+                    .select((summaries) => summaries[widget.node.id])) ??
+                ''
+            : '';
     final isDisabled = !widget.node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
     final isSuccess = widget.nodeStatus == NodeStatus.success;
@@ -274,6 +293,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     context: context,
                     statusColor: statusColor,
                     summaryFragments: summaryFragments,
+                    rollupText: rollupText,
                     isDisabled: isDisabled,
                     isRunning: isRunning,
                     isSuccess: isSuccess,
@@ -306,7 +326,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
           ),
         ),
         // Progress panel for expanded details
-        if (_shouldShowProgressPanel)
+        if (widget.showInlineExtras && _shouldShowProgressPanel)
           getProgressPanelForNode(
                 node: widget.node,
                 colors: widget.colors,
@@ -366,6 +386,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     required BuildContext context,
     required Color statusColor,
     required List<SummaryFragment> summaryFragments,
+    required String rollupText,
     required bool isDisabled,
     required bool isRunning,
     required bool isSuccess,
@@ -489,6 +510,20 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                       const SizedBox(width: NightshadeTokens.spaceSm),
                       _WatchdogBadge(colors: widget.colors),
                     ],
+                    if (rollupText.isNotEmpty) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Flexible(
+                        child: Text(
+                          rollupText,
+                          style: NightshadeTypography.caption.copyWith(
+                            color: widget.colors.textMuted,
+                          ),
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 if (summaryFragments.isNotEmpty)
@@ -505,7 +540,8 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     ),
                   ),
                 // Show node comment as gray italic text
-                if (widget.node.comment != null &&
+                if (widget.showInlineExtras &&
+                    widget.node.comment != null &&
                     widget.node.comment!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -571,209 +607,32 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Per-row action icons mutate the tree
-                  // (toggle enabled, duplicate, delete) and must
-                  // be disabled when a sequence is running. The
-                  // kebab below gates move_up/move_down; this is
-                  // the matching gate for the inline icons.
-                  Builder(builder: (context) {
-                    final canEdit = ref.watch(canEditSequenceProvider);
-                    const lockedSuffix = ' (locked while sequence is running)';
-                    final lockedTail = canEdit ? '' : lockedSuffix;
-                    final toggleLabel =
-                        widget.node.isEnabled ? 'Disable' : 'Enable';
-                    // On touch these fold into the kebab instead of sitting
-                    // inline. Three 24dp chips are not legal Android tap
-                    // targets, and padding each one up to 48 adds 72dp to a
-                    // row that then overflows a 360dp phone by 30 — measured,
-                    // not guessed. Moving them behind the kebab gives the same
-                    // three actions a single already-compliant 48dp target and
-                    // hands 84dp back to the row.
-                    if (NightshadeTouchTarget.isTouch(context)) {
-                      return const SizedBox.shrink();
-                    }
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _NodeActionButton(
-                          icon: widget.node.isEnabled
-                              ? LucideIcons.eye
-                              : LucideIcons.eyeOff,
-                          tooltip: '$toggleLabel$lockedTail',
-                          colors: widget.colors,
-                          onPressed: canEdit ? widget.onToggleEnabled : null,
-                        ),
-                        _NodeActionButton(
-                          icon: LucideIcons.copy,
-                          tooltip: 'Duplicate$lockedTail',
-                          colors: widget.colors,
-                          onPressed: canEdit ? widget.onDuplicate : null,
-                        ),
-                        _NodeActionButton(
-                          icon: LucideIcons.trash2,
-                          tooltip: 'Delete$lockedTail',
-                          colors: widget.colors,
-                          color: widget.colors.error,
-                          onPressed: canEdit ? widget.onDelete : null,
-                        ),
-                      ],
-                    );
-                  }),
+                  // On touch the eye/duplicate/delete chips fold into the
+                  // kebab instead of sitting inline. Three 24dp chips are not
+                  // legal Android tap targets, and padding each one up to 48
+                  // adds 72dp to a row that then overflows a 360dp phone by
+                  // 30 — measured, not guessed. Moving them behind the kebab
+                  // gives the same three actions a single already-compliant
+                  // 48dp target and hands 84dp back to the row.
+                  if (!NightshadeTouchTarget.isTouch(context))
+                    _NodeActionChips(
+                      colors: widget.colors,
+                      node: widget.node,
+                      onToggleEnabled: widget.onToggleEnabled,
+                      onDuplicate: widget.onDuplicate,
+                      onDelete: widget.onDelete,
+                    ),
 
-                  // Inline more-actions menu.
-                  //
-                  // Reconciliation: the right-click / long-press
-                  // context menu (`SequenceTreeContextMenu`) is the
-                  // comprehensive surface for tree mutations (Insert,
-                  // Move Up/Down, Duplicate, Group, Enable/Disable,
-                  // Delete). This kebab repeats:
-                  //   * Move Up / Move Down — a visible, tappable
-                  //     re-order handle. Touch has no right-click and
-                  //     drag-reordering a row inside a scrolling tree
-                  //     is fiddly, so the affordance stays on-screen.
-                  //     (`sequence_tree_shortcuts.dart` binds
-                  //     Shift+Up/Down to EXTEND the selection, not to
-                  //     move a node — there is no keyboard reorder.)
-                  //   * Save as Template — a "promote-this-subtree-
-                  //     to-the-library" action that is not part of
-                  //     the per-node edit vocabulary the context
-                  //     menu covers.
-                  // Items here respect `canEditSequenceProvider` —
-                  // when a sequence is Running / Paused / Stopping
-                  // the kebab still opens but mutating entries are
-                  // disabled (Save as Template is read-only so it
-                  // stays enabled).
-                  Builder(builder: (context) {
-                    final canEdit = ref.watch(canEditSequenceProvider);
-                    return Theme(
-                      data: Theme.of(context).copyWith(
-                        popupMenuTheme: PopupMenuThemeData(
-                          color: widget.colors.surfaceAlt,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline8),
-                            side: BorderSide(color: widget.colors.border),
-                          ),
-                        ),
-                      ),
-                      child: PopupMenuButton<String>(
-                        icon: Icon(LucideIcons.moreVertical,
-                            size: 14, color: widget.colors.textMuted),
-                        tooltip: 'More Actions',
-                        padding: EdgeInsets.zero,
-                        itemBuilder: (context) => [
-                          // The inline eye / duplicate / delete chips are not
-                          // rendered on touch (see above) — they live here so
-                          // the actions stay reachable through one compliant
-                          // target instead of three illegal ones.
-                          if (NightshadeTouchTarget.isTouch(context)) ...[
-                            PopupMenuItem<String>(
-                              value: 'toggle_enabled',
-                              height: 40,
-                              enabled: canEdit,
-                              child: Text(
-                                widget.node.isEnabled ? 'Disable' : 'Enable',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                  color: canEdit
-                                      ? widget.colors.textPrimary
-                                      : widget.colors.textMuted,
-                                ),
-                              ),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'duplicate',
-                              height: 40,
-                              enabled: canEdit,
-                              child: Text(
-                                'Duplicate',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                  color: canEdit
-                                      ? widget.colors.textPrimary
-                                      : widget.colors.textMuted,
-                                ),
-                              ),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'delete',
-                              height: 40,
-                              enabled: canEdit,
-                              child: Text(
-                                'Delete',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                  color: canEdit
-                                      ? widget.colors.error
-                                      : widget.colors.textMuted,
-                                ),
-                              ),
-                            ),
-                            const PopupMenuDivider(height: 8),
-                          ],
-                          if (widget.onMoveUp != null)
-                            PopupMenuItem<String>(
-                              value: 'move_up',
-                              height: 32,
-                              enabled: canEdit,
-                              child: Text('Move Up',
-                                  style: NightshadeTypography.bodySm.copyWith(
-                                    color: canEdit
-                                        ? widget.colors.textPrimary
-                                        : widget.colors.textMuted,
-                                  )),
-                            ),
-                          if (widget.onMoveDown != null)
-                            PopupMenuItem<String>(
-                              value: 'move_down',
-                              height: 32,
-                              enabled: canEdit,
-                              child: Text('Move Down',
-                                  style: NightshadeTypography.bodySm.copyWith(
-                                    color: canEdit
-                                        ? widget.colors.textPrimary
-                                        : widget.colors.textMuted,
-                                  )),
-                            ),
-                          if (widget.onMoveUp != null ||
-                              widget.onMoveDown != null)
-                            const PopupMenuDivider(height: 8),
-                          // Save as Template is read-only (it
-                          // copies the subtree to the snippet
-                          // library; it does not mutate the
-                          // current sequence), so it stays enabled
-                          // even while the sequence is running.
-                          PopupMenuItem<String>(
-                            value: 'save_snippet',
-                            height: 32,
-                            child: Text('Save as Template',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                    color: widget.colors.textPrimary)),
-                          ),
-                        ],
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'toggle_enabled':
-                              widget.onToggleEnabled?.call();
-                              break;
-                            case 'duplicate':
-                              widget.onDuplicate?.call();
-                              break;
-                            case 'delete':
-                              widget.onDelete?.call();
-                              break;
-                            case 'move_up':
-                              widget.onMoveUp?.call();
-                              break;
-                            case 'move_down':
-                              widget.onMoveDown?.call();
-                              break;
-                            case 'save_snippet':
-                              _showSaveAsSnippetDialog(
-                                  context, ref, widget.node);
-                              break;
-                          }
-                        },
-                      ),
-                    );
-                  }),
+                  // Inline more-actions menu, shared with the ledger row.
+                  _NodeOverflowMenu(
+                    colors: widget.colors,
+                    node: widget.node,
+                    onToggleEnabled: widget.onToggleEnabled,
+                    onDuplicate: widget.onDuplicate,
+                    onDelete: widget.onDelete,
+                    onMoveUp: widget.onMoveUp,
+                    onMoveDown: widget.onMoveDown,
+                  ),
                 ],
               );
             },

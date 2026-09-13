@@ -10,6 +10,12 @@ class _NodeTreeView extends ConsumerWidget {
   final bool isMobile;
   final void Function(String nodeId)? onNodeTap;
 
+  /// How dense this row draws, resolved once by [SequenceTree] and threaded
+  /// down so every level of the tree agrees. Ledger swaps the row widget
+  /// outright; Compact and Ledger both suppress the inline extras that render
+  /// below a row (they move to the node inspector).
+  final SequencerDensity density;
+
   /// Lifecycle-scoped key registry handed down from [_SequenceTreeState].
   /// Treat as read-write: this view inserts new keys for nodes it draws,
   /// and the state-level pruner removes keys for nodes that disappear.
@@ -22,6 +28,7 @@ class _NodeTreeView extends ConsumerWidget {
     required this.progress,
     required this.validation,
     required this.depth,
+    required this.density,
     required this.keyRegistry,
     this.isMobile = false,
     this.onNodeTap,
@@ -63,15 +70,15 @@ class _NodeTreeView extends ConsumerWidget {
         node.parentId != null && node.orderIndex < siblingCount - 1;
 
     // Check if node can have children (is a container)
-    final isContainer = node is TargetHeaderNode ||
-        node is LoopNode ||
-        node is InstructionSetNode ||
-        node is ParallelNode ||
-        node is ConditionalNode ||
-        node is RecoveryNode;
+    final isContainer = isSequenceContainer(node);
 
-    // Use TargetHeaderCard for TargetHeaderNode, otherwise use _NodeItem
-    final targetHeaderNode = node is TargetHeaderNode ? node : null;
+    final isLedger = density == SequencerDensity.ledger;
+
+    // Use TargetHeaderCard for TargetHeaderNode, otherwise use _NodeItem. In
+    // Ledger the big card is gone: a target is a row like every other row, so
+    // the columns line up through it (spec §2).
+    final targetHeaderNode =
+        node is TargetHeaderNode && !isLedger ? node : null;
 
     // Determine tutorial key based on node type and depth. The anchors are
     // static GlobalKeys, so only the FIRST depth-1 node of each type may
@@ -82,7 +89,7 @@ class _NodeTreeView extends ConsumerWidget {
     GlobalKey? tutorialKey;
     if (depth == 1 && node.parentId != null) {
       final siblings = sequence.getChildren(node.parentId!);
-      if (targetHeaderNode != null) {
+      if (node is TargetHeaderNode) {
         final anchor = siblings.where((n) => n is TargetHeaderNode).firstOrNull;
         if (anchor?.id == nodeId) {
           tutorialKey = SequencerTutorialKeys.targetNode;
@@ -133,30 +140,60 @@ class _NodeTreeView extends ConsumerWidget {
       }
     }
 
-    // The header row. When the container is collapsed its children DragTarget
-    // is not rendered, so wrap the header itself in a DragTarget (desktop
-    // only — mobile has no drag) so drops still land inside it.
-    //
-    // `baseRow` is `final` on purpose. The collapsed-container wrapper below
-    // builds its child from a CLOSURE, and a closure captures the VARIABLE,
-    // not the value it held when the closure was written. Reassigning
-    // `headerRow` to the DragTarget and then reading `headerRow` inside that
-    // DragTarget's builder made the row its own descendant: every build
-    // nested another DragTarget → AnimatedContainer → DragTarget … until the
-    // element tree blows the stack (~30k frames). In a release build a
-    // subtree that throws is replaced by ErrorWidget, which paints a bare grey
-    // rectangle over the rest of the tree. Only collapsed containers take that
-    // branch, so it shows on Collapse-all and vanishes on Expand-all.
-    final Widget baseRow = SequenceTreeContextMenu(
-      nodeId: nodeId,
-      colors: colors,
-      child: _NodeValidationWrapper(
-        colors: colors,
-        validationSeverity: nodeValidationSeverity,
-        validationIssues: validation.issuesByNodeId[nodeId],
-        child: targetHeaderNode != null
+    // The row itself, in whichever density is active. Ledger draws every node
+    // — target headers included — as one 28 px line; the other two densities
+    // keep today's card rows.
+    final Widget densityRow = isLedger
+        ? _LedgerRow(
+            colors: colors,
+            sequence: sequence,
+            node: node,
+            depth: depth,
+            isSelected: isSelected || isMultiSelected,
+            isContainer: isContainer,
+            isCollapsed: isCollapsed,
+            nodeStatus: nodeStatus,
+            progressPercent: progress.nodeProgressPercent[nodeId],
+            onSelect: () {
+              _handleNodeSelect(ref, nodeId);
+              onNodeTap?.call(nodeId);
+            },
+            onToggleEnabled: () {
+              ref
+                  .read(currentSequenceProvider.notifier)
+                  .toggleNodeEnabled(nodeId);
+            },
+            onDelete: () {
+              confirmAndDeleteSequenceNode(
+                context: context,
+                ref: ref,
+                nodeId: nodeId,
+              );
+            },
+            onDuplicate: () {
+              ref.read(currentSequenceProvider.notifier).duplicateNode(nodeId);
+            },
+            onMoveUp: canMoveUp
+                ? () {
+                    ref.read(currentSequenceProvider.notifier).moveNode(
+                          nodeId,
+                          node.parentId!,
+                          node.orderIndex - 1,
+                        );
+                  }
+                : null,
+            onMoveDown: canMoveDown
+                ? () {
+                    ref.read(currentSequenceProvider.notifier).moveNode(
+                          nodeId,
+                          node.parentId!,
+                          node.orderIndex + 1,
+                        );
+                  }
+                : null,
+          )
+        : targetHeaderNode != null
             ? TargetHeaderCard(
-                key: tutorialKey,
                 node: targetHeaderNode,
                 colors: colors,
                 isSelected: isSelected || isMultiSelected,
@@ -183,7 +220,6 @@ class _NodeTreeView extends ConsumerWidget {
                 },
               )
             : _NodeItem(
-                key: tutorialKey,
                 colors: colors,
                 node: node,
                 isSelected: isSelected || isMultiSelected,
@@ -191,6 +227,7 @@ class _NodeTreeView extends ConsumerWidget {
                 hasChildren: hasChildren,
                 depth: depth,
                 isCollapsed: isCollapsed,
+                showInlineExtras: density.showsInlineExtras,
                 progressPercent: progress.nodeProgressPercent[nodeId],
                 progressDetail: progress.nodeProgressDetail[nodeId],
                 structuredProgressDetail:
@@ -241,7 +278,43 @@ class _NodeTreeView extends ConsumerWidget {
                             );
                       }
                     : null,
-              ),
+              );
+
+    // Crossfade between the two row sets when the density changes (spec §9).
+    // The switcher sits INSIDE the scroll key and the tutorial anchor so the
+    // outgoing row, which stays mounted for the length of the fade, can never
+    // hold a GlobalKey the incoming row also wants — two live holders of one
+    // GlobalKey is a hard framework error.
+    final Widget crossfadedRow = AnimatedSwitcher(
+      duration: _ledgerMotion(context, NightshadeTokens.durationSmooth),
+      switchInCurve: NightshadeTokens.curveStandard,
+      switchOutCurve: NightshadeTokens.curveStandard,
+      child: KeyedSubtree(
+        key: ValueKey<SequencerDensity>(density),
+        child: densityRow,
+      ),
+    );
+
+    // `baseRow` is `final` on purpose. The collapsed-container wrapper below
+    // builds its child from a CLOSURE, and a closure captures the VARIABLE,
+    // not the value it held when the closure was written. Reassigning
+    // `headerRow` to the DragTarget and then reading `headerRow` inside that
+    // DragTarget's builder made the row its own descendant: every build
+    // nested another DragTarget → AnimatedContainer → DragTarget … until the
+    // element tree blows the stack (~30k frames). In a release build a
+    // subtree that throws is replaced by ErrorWidget, which paints a bare grey
+    // rectangle over the rest of the tree. Only collapsed containers take that
+    // branch, so it shows on Collapse-all and vanishes on Expand-all.
+    final Widget baseRow = SequenceTreeContextMenu(
+      nodeId: nodeId,
+      colors: colors,
+      child: _NodeValidationWrapper(
+        colors: colors,
+        validationSeverity: nodeValidationSeverity,
+        validationIssues: validation.issuesByNodeId[nodeId],
+        child: tutorialKey == null
+            ? crossfadedRow
+            : KeyedSubtree(key: tutorialKey, child: crossfadedRow),
       ),
     );
 
@@ -294,8 +367,9 @@ class _NodeTreeView extends ConsumerWidget {
         // Per-container duration rollup chip ("~2h 14m"). Shown for
         // container node types only — leaves already display their
         // own per-node detail. Lives below the row so a wide row name
-        // doesn't get squeezed.
-        if (isContainer && !isRoot)
+        // doesn't get squeezed. Compact and Ledger drop it: Ledger has a
+        // Duration column, and Compact moves it to the inspector.
+        if (isContainer && !isRoot && density.showsInlineExtras)
           Padding(
             padding: EdgeInsets.only(left: isMobile ? 16 : 24, bottom: 2),
             child: Align(
@@ -315,7 +389,7 @@ class _NodeTreeView extends ConsumerWidget {
         // collapses silently when no frames exist for the node, when
         // the user has turned thumbnails off, or when prefs haven't
         // loaded yet — so adding it here doesn't bloat empty trees.
-        if (node is ExposureNode)
+        if (node is ExposureNode && density.showsInlineExtras)
           Padding(
             padding: EdgeInsets.only(left: isMobile ? 24 : 36, right: 8),
             child: ExposureNodeThumbnailStrip(nodeId: nodeId),
@@ -324,8 +398,12 @@ class _NodeTreeView extends ConsumerWidget {
         // Children area
         if ((hasChildren || isContainer) && !isCollapsed)
           Padding(
+            // Ledger indents with the 18 px guide column each row draws for
+            // its own depth, so the children area adds nothing: padding here
+            // as well would double the indent and push the drop zones out of
+            // line with the rows they sit between.
             padding: EdgeInsets.only(
-              left: isRoot ? 0 : (isMobile ? 16 : 24),
+              left: isRoot || isLedger ? 0 : (isMobile ? 16 : 24),
             ),
             child: DragTarget<Object>(
               onWillAcceptWithDetails: (data) =>
@@ -412,6 +490,7 @@ class _NodeTreeView extends ConsumerWidget {
                             progress: progress,
                             validation: validation,
                             depth: depth + 1,
+                            density: density,
                             isMobile: isMobile,
                             onNodeTap: onNodeTap,
                             keyRegistry: keyRegistry,
@@ -437,25 +516,45 @@ class _NodeTreeView extends ConsumerWidget {
                               child: Opacity(
                                 opacity: 0.8,
                                 child: SizedBox(
-                                  width: children[i] is TargetHeaderNode
-                                      ? 400
-                                      : 300,
-                                  child: children[i] is TargetHeaderNode
-                                      ? TargetHeaderCard(
-                                          node: children[i] as TargetHeaderNode,
+                                  // The dragged row looks like the row it came
+                                  // from: a ledger line, not the card that
+                                  // density does not draw.
+                                  width: isLedger
+                                      ? _ledgerDragFeedbackWidth
+                                      : children[i] is TargetHeaderNode
+                                          ? 400
+                                          : 300,
+                                  child: isLedger
+                                      ? _LedgerRow(
                                           colors: colors,
-                                          isSelected: false,
-                                          nodeStatus: null,
-                                        )
-                                      : _NodeItem(
-                                          colors: colors,
+                                          sequence: sequence,
                                           node: children[i],
-                                          isSelected: false,
-                                          nodeStatus: null,
-                                          hasChildren: false,
                                           depth: depth + 1,
+                                          isSelected: false,
+                                          isContainer: isSequenceContainer(
+                                            children[i],
+                                          ),
+                                          isCollapsed: false,
+                                          nodeStatus: null,
                                           isDragging: true,
-                                        ),
+                                        )
+                                      : children[i] is TargetHeaderNode
+                                          ? TargetHeaderCard(
+                                              node: children[i]
+                                                  as TargetHeaderNode,
+                                              colors: colors,
+                                              isSelected: false,
+                                              nodeStatus: null,
+                                            )
+                                          : _NodeItem(
+                                              colors: colors,
+                                              node: children[i],
+                                              isSelected: false,
+                                              nodeStatus: null,
+                                              hasChildren: false,
+                                              depth: depth + 1,
+                                              isDragging: true,
+                                            ),
                                 ),
                               ),
                             ),
@@ -468,6 +567,7 @@ class _NodeTreeView extends ConsumerWidget {
                                 progress: progress,
                                 validation: validation,
                                 depth: depth + 1,
+                                density: density,
                                 keyRegistry: keyRegistry,
                               ),
                             ),
@@ -478,6 +578,7 @@ class _NodeTreeView extends ConsumerWidget {
                               progress: progress,
                               validation: validation,
                               depth: depth + 1,
+                              density: density,
                               keyRegistry: keyRegistry,
                             ),
                           ),

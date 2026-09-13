@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/tutorial_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -42,6 +43,9 @@ Future<({ProviderContainer container, void Function() dispose})> _pumpTree(
         n.state = sequence;
         return n;
       }),
+      // The ledger ETA clock is a real periodic stream; in the fake-async
+      // zone its timer outlives every pump and fails teardown.
+      ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
     ],
   );
   var disposed = false;

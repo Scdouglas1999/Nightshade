@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -84,7 +85,13 @@ void _setExecutionState(
 void main() {
   testWidgets('a running node spins; a paused one stops', (tester) async {
     final container = ProviderContainer(
-      overrides: [inMemoryDatabaseOverride()],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        // The spinner lives on the comfortable card row; the ledger row
+        // marks a running step with its tint + progress bar instead.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -115,7 +122,13 @@ void main() {
   testWidgets('a node left marked running after the run ends does not spin',
       (tester) async {
     final container = ProviderContainer(
-      overrides: [inMemoryDatabaseOverride()],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        // The spinner lives on the comfortable card row; the ledger row
+        // marks a running step with its tint + progress bar instead.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -137,7 +150,13 @@ void main() {
 
   testWidgets('a paused tree comes to rest', (tester) async {
     final container = ProviderContainer(
-      overrides: [inMemoryDatabaseOverride()],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        // The spinner lives on the comfortable card row; the ledger row
+        // marks a running step with its tint + progress bar instead.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ],
     );
     addTearDown(container.dispose);
 

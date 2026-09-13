@@ -105,7 +105,18 @@ class NodeSummaryLine extends ConsumerWidget {
 
   /// Map [category] to its chip tint, mirroring `sequence_tree`'s
   /// `_getCategoryColor` exactly so summary chips match their node's color.
-  Color _categoryColor(NodeCategory category) {
+  Color _categoryColor(NodeCategory category) =>
+      categoryColorForTesting(colors, category);
+
+  /// The same mapping as [_categoryColor], reachable from tests so the
+  /// agreement check against `nodeCategoryTint` (which the ledger row's glyph
+  /// tint uses) cannot drift — the two must produce identical tints for every
+  /// category.
+  @visibleForTesting
+  static Color categoryColorForTesting(
+    NightshadeColors colors,
+    NodeCategory category,
+  ) {
     switch (category) {
       case NodeCategory.instruction:
         return colors.primary;
