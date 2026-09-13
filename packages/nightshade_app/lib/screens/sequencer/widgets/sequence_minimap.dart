@@ -9,9 +9,6 @@ import 'sequence_tree.dart' show nodeCategoryTint, treeNodeKeyRegistryProvider;
 import 'sequence_tree_shortcuts.dart'
     show VisibleNode, visibleNodeOrderProvider;
 
-/// Toggle for mini-map visibility.
-final minimapVisibleProvider = StateProvider<bool>((ref) => false);
-
 /// One row of the sequence overview.
 ///
 /// The 80 px strip below the tree and the Ledger gutter at its right edge draw
@@ -157,8 +154,9 @@ const double _viewportIndicatorMinExtent = 8.0;
 /// Shows a viewport indicator for the currently visible region and highlights
 /// the executing node. Click to navigate to that position in the tree.
 ///
-/// Governed by [minimapVisibleProvider] in Comfortable and Compact density.
-/// Ledger replaces it with the always-on gutter at the tree's right edge.
+/// The Comfortable and Compact shape of the overview the canvas bar toggles
+/// through `sequenceOverviewVisibleProvider`; Ledger draws the same map as a
+/// gutter at the tree's right edge instead.
 class SequenceMinimap extends ConsumerWidget {
   final NightshadeColors colors;
   final ScrollController scrollController;
