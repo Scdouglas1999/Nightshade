@@ -59,7 +59,18 @@ class DashboardTile extends StatelessWidget {
         );
 
         if (!isEditing) {
-          return frame;
+          // Flutter's Linux embedder has no damage region: ANY dirty frame
+          // re-rasterises the whole window, and the status bar's wall clock
+          // dirties one every second on every screen. Without a boundary per
+          // tile the whole dashboard is one layer, so that one ticking digit
+          // repaints every card's text, gradient and chart from scratch.
+          // A boundary per tile lets the raster cache hand back the tiles that
+          // did not change and repaint only the one that did.
+          //
+          // Not applied while editing: a tile being dragged is repainting every
+          // frame anyway, and a boundary around a moving layer only adds a
+          // cache miss per frame.
+          return RepaintBoundary(child: frame);
         }
 
         return LongPressDraggable<DashboardWidgetId>(
