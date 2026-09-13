@@ -470,12 +470,9 @@ class WifiScanner {
   /// to be used for geolocation. It is the convention every positioning
   /// service honours, and honouring it here means the request never carries
   /// the network in the first place.
-  static bool _optedOut(String ssid) =>
-      ssid.toLowerCase().endsWith('_nomap');
+  static bool _optedOut(String ssid) => ssid.toLowerCase().endsWith('_nomap');
 
-  static final RegExp _macPattern = RegExp(
-    r'^([0-9a-f]{2}:){5}[0-9a-f]{2}$',
-  );
+  static final RegExp _macPattern = RegExp(r'^([0-9a-f]{2}:){5}[0-9a-f]{2}$');
 
   static String? _normaliseMac(String raw) {
     final candidate = raw.trim().toLowerCase().replaceAll('-', ':');

@@ -38,13 +38,12 @@ final onboardingApproximateLocationProvider =
 /// confirmation can say how precise the answer is and the step can offer the
 /// one failure the operator can fix. Injected so the consent, radio-power and
 /// elevation rules can be driven in tests without a network or a GPS.
-typedef SiteLocator =
-    Future<PositioningAttempt> Function({
-      required bool allowWifiScan,
-      required bool allowIp,
-      bool mayEnableWifiRadio,
-      String? googleApiKey,
-    });
+typedef SiteLocator = Future<PositioningAttempt> Function({
+  required bool allowWifiScan,
+  required bool allowIp,
+  bool mayEnableWifiRadio,
+  String? googleApiKey,
+});
 
 final onboardingSiteLocatorProvider = Provider<SiteLocator>(
   (ref) => GeolocationService.locate,
@@ -401,9 +400,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
         // The wizard has no map and no place search, so the nudge points at
         // the fields directly below instead of an affordance that is not
         // here yet.
-        '${location.isPrecise ? '' : attempt.canRetryWithWifi
-            ? ' Turn Wi-Fi on for a precise fix.'
-            : ' Correct the coordinates below if it is off.'}',
+        '${location.isPrecise ? '' : attempt.canRetryWithWifi ? ' Turn Wi-Fi on for a precise fix.' : ' Correct the coordinates below if it is off.'}',
       );
     } catch (error) {
       if (mounted && identical(ref.read(backendProvider), authority)) {
@@ -557,11 +554,11 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
                     onPressed: _locating
                         ? null
                         : () => unawaited(
-                            _useDeviceLocation(
-                              settings,
-                              mayEnableWifiRadio: true,
+                              _useDeviceLocation(
+                                settings,
+                                mayEnableWifiRadio: true,
+                              ),
                             ),
-                          ),
                   ),
                 ),
               ],

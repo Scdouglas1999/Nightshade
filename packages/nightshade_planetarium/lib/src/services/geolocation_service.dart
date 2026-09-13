@@ -436,8 +436,10 @@ class GeolocationService {
           permission == LocationPermission.deniedForever) {
         return (
           null,
-          failed('Nightshade is not permitted to use this machine’s '
-              'location service.'),
+          failed(
+            'Nightshade is not permitted to use this machine’s '
+            'location service.',
+          ),
         );
       }
 

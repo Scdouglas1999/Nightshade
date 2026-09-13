@@ -7,9 +7,10 @@
 // (SequenceIssuesDialog, the unwritable-capture-folder confirm) is bounded by
 // AdaptiveDialogConstraints at the 480 px design width.
 //
-// This is the consent gate for the app's only outbound request that carries
-// the operator's public IP address, so it is exactly the dialog that has to
-// look deliberate and be easy to read.
+// This is the consent gate for every outbound request the app makes about
+// where it is — the names of the networks around the house as well as the
+// operator's public IP address — so it is exactly the dialog that has to look
+// deliberate and be easy to read.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/geolocation_consent.dart';
@@ -47,7 +48,7 @@ void main() {
 
     expect(find.text('Detect this site’s location?'), findsOneWidget);
 
-    final body = find.textContaining('third-party geolocation service');
+    final body = find.textContaining('Nightshade will try these in order');
     expect(body, findsOneWidget);
 
     final width = tester.getSize(body).width;

@@ -26,9 +26,9 @@ class WifiPositioningProvider {
   /// Google's Geolocation API. Same request body; the key is a query
   /// parameter, so it never appears in the payload that could be logged
   /// alongside the BSSIDs.
-  static Uri googleEndpoint(String apiKey) =>
-      Uri.parse('https://www.googleapis.com/geolocation/v1/geolocate')
-          .replace(queryParameters: {'key': apiKey});
+  static Uri googleEndpoint(String apiKey) => Uri.parse(
+    'https://www.googleapis.com/geolocation/v1/geolocate',
+  ).replace(queryParameters: {'key': apiKey});
 
   static const String googleName = 'Google Location Services';
 

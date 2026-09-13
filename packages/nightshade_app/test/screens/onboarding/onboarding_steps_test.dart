@@ -248,7 +248,7 @@ void main() {
       WidgetTester tester,
       NightshadeDatabase db, {
       ApproximateLocationLookup? approximateLocation,
-      DeviceLocationLookup? deviceLocation,
+      SiteLocator? locator,
       ({double latitude, double longitude, double elevation})? seed,
     }) async {
       late ProviderContainer container;
@@ -274,8 +274,15 @@ void main() {
             onboardingApproximateLocationProvider.overrideWithValue(
               approximateLocation ?? () async => null,
             ),
-            onboardingDeviceLocationProvider.overrideWithValue(
-              deviceLocation ?? () async => null,
+            onboardingSiteLocatorProvider.overrideWithValue(
+              locator ??
+                  ({
+                    required bool allowWifiScan,
+                    required bool allowIp,
+                    bool mayEnableWifiRadio = false,
+                    String? googleApiKey,
+                  }) async =>
+                      const PositioningAttempt(fix: null, outcomes: []),
             ),
           ],
           child: Consumer(builder: (ctx, ref, _) {
@@ -576,14 +583,22 @@ void main() {
         db,
         // Seattle, 1234 m: the site this run is moving away from.
         seed: (latitude: 47.6062, longitude: -122.3321, elevation: 1234.0),
-        deviceLocation: () async {
+        locator: ({
+          required bool allowWifiScan,
+          required bool allowIp,
+          bool mayEnableWifiRadio = false,
+          String? googleApiKey,
+        }) async {
           calls++;
-          return const GeolocationFix(
-            latitude: 39.9817,
-            longitude: -75.4072,
-            locationName: 'Newtown Square, PA',
-            source: GeolocationSource.internet,
-            providerHost: 'ipinfo.io',
+          return const PositioningAttempt(
+            fix: PositioningResult(
+              latitude: 39.9817,
+              longitude: -75.4072,
+              locationName: 'Newtown Square, PA',
+              source: PositioningSource.ipAddress,
+              provider: 'ipinfo.io',
+            ),
+            outcomes: [],
           );
         },
       );

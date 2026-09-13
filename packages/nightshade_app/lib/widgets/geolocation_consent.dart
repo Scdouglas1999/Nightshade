@@ -36,8 +36,8 @@ final geolocationConsentProvider = StateProvider<GeolocationConsent?>(
 /// tier is what runs.
 final googleGeolocationKeyProvider =
     AsyncNotifierProvider<GoogleGeolocationKeyNotifier, String>(
-      GoogleGeolocationKeyNotifier.new,
-    );
+  GoogleGeolocationKeyNotifier.new,
+);
 
 const String _googleGeolocationKeySetting = 'location_google_geolocation_key';
 
@@ -51,9 +51,9 @@ class GoogleGeolocationKeyNotifier extends AsyncNotifier<String> {
   Future<void> setKey(String key) async {
     final trimmed = key.trim();
     await ref.read(settingsDaoProvider).setSetting(
-      _googleGeolocationKeySetting,
-      trimmed,
-    );
+          _googleGeolocationKeySetting,
+          trimmed,
+        );
     state = AsyncData(trimmed);
   }
 }
@@ -188,14 +188,14 @@ String geolocationConsentBody({
     if (includeWifiScan)
       googleKeyPresent
           ? 'The names and signal strengths of nearby Wi-Fi networks, sent to '
-                'Google (your Geolocation API key), and to beaconDB (an open '
-                'positioning service) if Google cannot place them. This is '
-                'the step that finds your yard rather than your town. The '
-                'networks are used for this one request and never saved.'
+              'Google (your Geolocation API key), and to beaconDB (an open '
+              'positioning service) if Google cannot place them. This is '
+              'the step that finds your yard rather than your town. The '
+              'networks are used for this one request and never saved.'
           : 'The names and signal strengths of nearby Wi-Fi networks, sent to '
-                'beaconDB (an open positioning service). This is the step '
-                'that finds your yard rather than your town. The networks are '
-                'used for this one request and never saved.',
+              'beaconDB (an open positioning service). This is the step '
+              'that finds your yard rather than your town. The networks are '
+              'used for this one request and never saved.',
     if (includeIpFallback)
       'Your public IP address, sent to ipinfo.io over HTTPS (falling back to '
           'ipwho.is). That only locates your internet provider — city level, '

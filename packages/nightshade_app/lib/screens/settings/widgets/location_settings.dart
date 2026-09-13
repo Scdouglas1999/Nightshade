@@ -32,13 +32,12 @@ typedef HorizonImportReader = Future<String> Function(
 /// service, then the public-IP estimate — and reports what each one did.
 /// Injected so the consent, radio-power and write flows can be driven in
 /// tests without a network, a GPS or a wireless card.
-typedef SiteLocator =
-    Future<PositioningAttempt> Function({
-      required bool allowWifiScan,
-      required bool allowIp,
-      bool mayEnableWifiRadio,
-      String? googleApiKey,
-    });
+typedef SiteLocator = Future<PositioningAttempt> Function({
+  required bool allowWifiScan,
+  required bool allowIp,
+  bool mayEnableWifiRadio,
+  String? googleApiKey,
+});
 
 final siteLocatorProvider = Provider<SiteLocator>(
   (ref) => GeolocationService.locate,

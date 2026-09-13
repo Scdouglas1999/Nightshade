@@ -4,11 +4,12 @@
 //   1. "Sync from server" must not report a green "Location synced from server"
 //      on a standalone desktop, where the read goes to this app's own settings
 //      store and nothing is fetched from anywhere.
-//   2. "Detect location" must ask before a lookup that can send the machine's
-//      public IP to a third party, must say which path answered (device GPS
-//      vs internet) and how precise it claims to be, and must not pass the
-//      OLD elevation through with new coordinates — that yields a site that
-//      does not exist.
+//   2. "Detect location" must ask before a lookup that can send the names of
+//      the networks around the house, or the machine's public IP, to a third
+//      party; must say which tier answered and inside what radius; must
+//      prefer the precise tier over a coarse one whatever order they ran in;
+//      and must not pass the OLD elevation through with new coordinates —
+//      that yields a site that does not exist.
 //   3. The Timezone picker must only offer values `clockProvider` can parse
 //      (`UTC` / `UTC±HH:MM`); anything else silently falls back to the system
 //      clock and the picker changes nothing at all.
@@ -36,7 +37,7 @@ Future<HarnessHandle> _pumpLocation(
   WidgetTester tester, {
   required AppSettingsState settings,
   bool isRemote = false,
-  DeviceLocationFetcher? fetcher,
+  SiteLocator? locator,
   PlaceSearcher? searcher,
 }) async {
   final handle = await pumpAppScreen(
@@ -47,8 +48,7 @@ Future<HarnessHandle> _pumpLocation(
       appSettingsProvider
           .overrideWith(() => _StubAppSettingsNotifier(settings)),
       isRemoteModeProvider.overrideWithValue(isRemote),
-      if (fetcher != null)
-        deviceLocationFetcherProvider.overrideWithValue(fetcher),
+      if (locator != null) siteLocatorProvider.overrideWithValue(locator),
       if (searcher != null) placeSearchProvider.overrideWithValue(searcher),
     ],
   );
@@ -84,6 +84,56 @@ void main() {
       elevation: 1234,
     );
 
+    SiteLocator answering(PositioningAttempt attempt) => ({
+          required bool allowWifiScan,
+          required bool allowIp,
+          bool mayEnableWifiRadio = false,
+          String? googleApiKey,
+        }) async =>
+            attempt;
+
+    Future<void> consentAndDetect(WidgetTester tester) async {
+      await tester.tap(find.byIcon(LucideIcons.crosshair));
+      await tester.pumpAndSettle();
+      // The consent dialog's confirm button, not the row that opened it:
+      // both read 'Detect location' now that the row title is sentence case.
+      await tester.tap(
+        find.widgetWithText(NightshadeButton, 'Detect location'),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    const wifiFix = PositioningAttempt(
+      fix: PositioningResult(
+        latitude: 39.9817,
+        longitude: -75.4072,
+        accuracyMetres: 40,
+        source: PositioningSource.wifiScan,
+        provider: 'beaconDB',
+        accessPointsUsed: 9,
+      ),
+      outcomes: [],
+    );
+
+    const ipFix = PositioningAttempt(
+      fix: PositioningResult(
+        latitude: 39.9817,
+        longitude: -75.4072,
+        source: PositioningSource.ipAddress,
+        provider: 'ipinfo.io',
+        locationName: 'Newtown Square, Pennsylvania',
+      ),
+      outcomes: [
+        TierOutcome(
+          tier: PositioningTier.wifiScan,
+          succeeded: false,
+          detail: 'Wi-Fi is switched off on this machine.',
+        ),
+      ],
+      wifiRadioOff: true,
+      wifiRadioCanBeEnabled: true,
+    );
+
     testWidgets('is not labelled GPS', (tester) async {
       await _pumpLocation(tester, settings: seattle);
       expect(find.text('Get location from GPS'), findsNothing);
@@ -95,15 +145,14 @@ void main() {
       await _pumpLocation(
         tester,
         settings: seattle,
-        fetcher: () async {
+        locator: ({
+          required bool allowWifiScan,
+          required bool allowIp,
+          bool mayEnableWifiRadio = false,
+          String? googleApiKey,
+        }) async {
           calls++;
-          return const GeolocationFix(
-            latitude: 39.9817,
-            longitude: -75.4072,
-            locationName: 'Newtown Square, Pennsylvania',
-            source: GeolocationSource.internet,
-            providerHost: 'ipinfo.io',
-          );
+          return ipFix;
         },
       );
 
@@ -111,15 +160,35 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Detect this site’s location?'), findsOneWidget);
-      // The dialog has to say what leaves the machine: the public IP to the
-      // named services over HTTPS.
-      expect(find.textContaining('ipinfo.io'), findsOneWidget);
-      expect(find.textContaining('public IP'), findsOneWidget);
+      // The dialog has to say what leaves the machine at each tier: the
+      // nearby network names to beaconDB, and the public IP to ipinfo.io.
+      expect(
+          find.textContaining('beaconDB (an open positioning'), findsOneWidget);
+      expect(
+          find.textContaining('sent to ipinfo.io over HTTPS'), findsOneWidget);
+      expect(find.textContaining('Your public IP address'), findsOneWidget);
       expect(calls, 0, reason: 'the lookup ran before the user consented');
 
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(calls, 0);
+    });
+
+    testWidgets('consent is asked once and then remembered for the session', (
+      tester,
+    ) async {
+      await _pumpLocation(tester, settings: seattle, locator: answering(ipFix));
+
+      await consentAndDetect(tester);
+      expect(find.text('Detect this site’s location?'), findsNothing);
+
+      await tester.tap(find.byIcon(LucideIcons.crosshair));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Detect this site’s location?'),
+        findsNothing,
+        reason: 'the operator was asked the same question twice',
+      );
     });
 
     testWidgets('a fix at another site clears the inherited elevation', (
@@ -128,32 +197,16 @@ void main() {
       final handle = await _pumpLocation(
         tester,
         settings: seattle,
-        fetcher: () async => const GeolocationFix(
-          latitude: 39.9817,
-          longitude: -75.4072,
-          locationName: 'Newtown Square, Pennsylvania',
-          source: GeolocationSource.internet,
-          providerHost: 'ipinfo.io',
-        ),
+        locator: answering(ipFix),
       );
 
-      await tester.tap(find.byIcon(LucideIcons.crosshair));
-      await tester.pumpAndSettle();
-      // The consent dialog's confirm button, not the row that opened it:
-      // both read 'Detect location' now that the row title is sentence case.
-      await tester.tap(
-        find.widgetWithText(NightshadeButton, 'Detect location'),
-      );
-      await tester.pumpAndSettle();
+      await consentAndDetect(tester);
 
       final settings = handle.container.read(appSettingsProvider).requireValue;
       expect(settings.latitude, closeTo(39.9817, 1e-6));
       // 1234 m came from Seattle; Pennsylvania's highest point is 979 m.
       expect(settings.elevation, 0);
-      expect(
-        find.textContaining('Elevation cleared to 0 m'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Elevation cleared to 0 m'), findsOneWidget);
     });
 
     testWidgets('a fix at the same site keeps the elevation', (tester) async {
@@ -161,23 +214,21 @@ void main() {
         tester,
         settings: seattle,
         // ~2 km from the stored position: the same observing site.
-        fetcher: () async => const GeolocationFix(
-          latitude: 47.6242,
-          longitude: -122.3321,
-          locationName: 'Seattle, Washington',
-          source: GeolocationSource.device,
-          accuracyMeters: 18,
+        locator: answering(
+          const PositioningAttempt(
+            fix: PositioningResult(
+              latitude: 47.6242,
+              longitude: -122.3321,
+              accuracyMetres: 18,
+              source: PositioningSource.platformService,
+              provider: 'Windows Location Services',
+            ),
+            outcomes: [],
+          ),
         ),
       );
 
-      await tester.tap(find.byIcon(LucideIcons.crosshair));
-      await tester.pumpAndSettle();
-      // The consent dialog's confirm button, not the row that opened it:
-      // both read 'Detect location' now that the row title is sentence case.
-      await tester.tap(
-        find.widgetWithText(NightshadeButton, 'Detect location'),
-      );
-      await tester.pumpAndSettle();
+      await consentAndDetect(tester);
 
       expect(
         handle.container.read(appSettingsProvider).requireValue.elevation,
@@ -186,29 +237,36 @@ void main() {
       expect(find.textContaining('Elevation kept at 1234 m'), findsOneWidget);
     });
 
-    // On a desktop with no GPS receiver the same click lands the internet
-    // fix — and has to say so, because a ~10 km guess is not a fix.
-    testWidgets('an internet fix is written and named as approximate', (
-      tester,
-    ) async {
+    testWidgets('a Wi-Fi fix names its radius and how many networks placed it',
+        (tester) async {
+      await _pumpLocation(tester,
+          settings: seattle, locator: answering(wifiFix));
+
+      await consentAndDetect(tester);
+
+      expect(
+        find.textContaining(
+          'Located to within 40 m using 9 nearby Wi-Fi networks (beaconDB). ',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Refine on the map if it is off.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Approximate only'), findsNothing);
+    });
+
+    testWidgets(
+        'an IP fix is written, named as approximate, and offers the '
+        'precise tier', (tester) async {
       final handle = await _pumpLocation(
         tester,
         settings: seattle,
-        fetcher: () async => const GeolocationFix(
-          latitude: 39.9817,
-          longitude: -75.4072,
-          locationName: 'Newtown Square, Pennsylvania',
-          source: GeolocationSource.internet,
-          providerHost: 'ipinfo.io',
-        ),
+        locator: answering(ipFix),
       );
 
-      await tester.tap(find.byIcon(LucideIcons.crosshair));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.widgetWithText(NightshadeButton, 'Detect location'),
-      );
-      await tester.pumpAndSettle();
+      await consentAndDetect(tester);
 
       expect(
         handle.container.read(appSettingsProvider).requireValue.latitude,
@@ -216,30 +274,159 @@ void main() {
       );
       expect(
         find.textContaining(
-          'approximate: from your internet connection (ipinfo.io)',
+          'Approximate only: from your internet address (ipinfo.io). City '
+          'level — typically tens of kilometres.',
         ),
         findsOneWidget,
       );
       expect(
-        find.textContaining('Refine with Search place or the map if it is off'),
+        find.textContaining('Turn Wi-Fi on for a precise fix.'),
+        findsWidgets,
+        reason: 'a switched-off radio is the one cause the operator can fix',
+      );
+    });
+
+    testWidgets(
+        'the radio-off row appears only after a detect that hit it, '
+        'and retries with the radio enabled', (tester) async {
+      var sawRetryFlag = false;
+      await _pumpLocation(
+        tester,
+        settings: seattle,
+        locator: ({
+          required bool allowWifiScan,
+          required bool allowIp,
+          bool mayEnableWifiRadio = false,
+          String? googleApiKey,
+        }) async {
+          if (mayEnableWifiRadio) {
+            sawRetryFlag = true;
+            return wifiFix;
+          }
+          return ipFix;
+        },
+      );
+
+      expect(
+        find.text('Turn Wi-Fi on for a precise fix'),
+        findsNothing,
+        reason: 'the offer appeared before anything established Wi-Fi was off',
+      );
+
+      await consentAndDetect(tester);
+      expect(find.text('Turn Wi-Fi on for a precise fix'), findsOneWidget);
+
+      // Let the first confirmation expire: ScaffoldMessenger QUEUES snackbars,
+      // so without this the second one never renders and the assertion below
+      // would be reading the first message's text.
+      await tester.pumpAndSettle(const Duration(seconds: 6));
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Scan'));
+      await tester.pumpAndSettle();
+
+      expect(sawRetryFlag, isTrue);
+      expect(
+        find.textContaining('Located to within 40 m'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Turn Wi-Fi on for a precise fix'),
+        findsNothing,
+        reason: 'the offer stayed up after the precise fix it asked for',
+      );
+    });
+
+    testWidgets('a total failure names every tier’s reason', (tester) async {
+      await _pumpLocation(
+        tester,
+        settings: seattle,
+        locator: answering(
+          const PositioningAttempt(
+            fix: null,
+            outcomes: [
+              TierOutcome(
+                tier: PositioningTier.platformService,
+                succeeded: false,
+                detail: 'This machine has no working location service.',
+              ),
+              TierOutcome(
+                tier: PositioningTier.wifiScan,
+                succeeded: false,
+                detail: 'This machine has no Wi-Fi adapter.',
+              ),
+              TierOutcome(
+                tier: PositioningTier.ipAddress,
+                succeeded: false,
+                detail: 'Neither ipinfo.io nor ipwho.is answered.',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await consentAndDetect(tester);
+
+      expect(
+        find.textContaining(
+          'This machine has no working location service. This machine has no '
+          'Wi-Fi adapter. Neither ipinfo.io nor ipwho.is answered.',
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('a device fix is named with its metres and no refine nudge', (
+    testWidgets('the row leads with the tier that actually finds a yard', (
       tester,
     ) async {
+      await _pumpLocation(tester, settings: seattle);
+      expect(
+        find.textContaining('Nearby Wi-Fi networks place you to within'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('search for a place by name instead'),
+        findsNothing,
+      );
+    });
+  });
+
+  group('Advanced', () {
+    testWidgets('the Google key field says what it is for, without a link', (
+      tester,
+    ) async {
+      await _pumpLocation(tester, settings: const AppSettingsState());
+
+      expect(find.text('Google Geolocation API key'), findsOneWidget);
+      expect(
+        find.textContaining('mapped by volunteers and has no coverage'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('http'), findsNothing);
+    });
+
+    testWidgets('a key entered here is what the lookup is given', (
+      tester,
+    ) async {
+      String? seenKey;
       await _pumpLocation(
         tester,
-        settings: seattle,
-        fetcher: () async => const GeolocationFix(
-          latitude: 47.6242,
-          longitude: -122.3321,
-          locationName: 'GPS: 47.6242, -122.3321',
-          source: GeolocationSource.device,
-          accuracyMeters: 18,
-        ),
+        settings: const AppSettingsState(),
+        locator: ({
+          required bool allowWifiScan,
+          required bool allowIp,
+          bool mayEnableWifiRadio = false,
+          String? googleApiKey,
+        }) async {
+          seenKey = googleApiKey;
+          return const PositioningAttempt(fix: null, outcomes: []);
+        },
       );
+
+      await tester.enterText(
+        find.widgetWithText(NightshadeTextField, 'Paste a key, or leave empty'),
+        'AIza-test',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byIcon(LucideIcons.crosshair));
       await tester.pumpAndSettle();
@@ -248,26 +435,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('GPS fix, ±18 m'), findsOneWidget);
-      // The subtitle names the internet path too, so the snackbar-only
-      // phrases are what distinguish the confirmation.
-      expect(find.textContaining('approximate:'), findsNothing);
-      expect(find.textContaining('Refine with Search place'), findsNothing);
-    });
-
-    testWidgets('the row no longer steers desktops away from Detect', (
-      tester,
-    ) async {
-      await _pumpLocation(tester, settings: seattle);
-      expect(
-        find.textContaining('internet connection'),
-        findsOneWidget,
-        reason: 'the subtitle must say the click works without a GPS',
-      );
-      expect(
-        find.textContaining('search for a place by name instead'),
-        findsNothing,
-      );
+      expect(seenKey, 'AIza-test');
     });
   });
 
