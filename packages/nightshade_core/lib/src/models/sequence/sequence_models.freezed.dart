@@ -2578,7 +2578,7 @@ return $default(_that.filterName,_that.filterIndex,_that.count,_that.durationSec
 
 /// @nodoc
 
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true, explicitToJson: true)
 class _FilterPlan extends FilterPlan {
   const _FilterPlan({this.filterName = '', this.filterIndex, this.count = 10, this.durationSecs = 60.0, this.gain, this.offset, @BinningModeJsonConverter() this.binning = BinningMode.one, this.ditherEvery, this.depthGoal}): super._();
   factory _FilterPlan.fromJson(Map<String, dynamic> json) => _$FilterPlanFromJson(json);

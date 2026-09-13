@@ -47,6 +47,7 @@ native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1554:            Err
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1562:            Err("not implemented".to_string())
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1590:            "CoolerPower is not implemented (reported by ASCOM.Simulator.Camera, 0x80040400)";
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:474:                            let readout_modes = cam.readout_modes().unwrap_or_default();
+native/nightshade_native/bridge/src/depthlock_service/store.rs:293:                .unwrap_or_default() // Why: a non-UTF-8 file stem yields "", which valid_goal_id below rejects
 native/nightshade_native/bridge/src/device_capabilities/alpaca.rs:172:                camera.disconnect().await.ok();
 native/nightshade_native/bridge/src/device_capabilities/alpaca.rs:209:                focuser.disconnect().await.ok();
 native/nightshade_native/bridge/src/device_capabilities/alpaca.rs:264:                fw.disconnect().await.ok();

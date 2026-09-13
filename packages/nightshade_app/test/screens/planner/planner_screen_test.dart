@@ -105,18 +105,6 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
 int _selectedTabIndex(WidgetTester tester) =>
     tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar)).selectedIndex;
 
-Future<void> _tapCandidateAction(
-  WidgetTester tester,
-  String label, {
-  bool first = false,
-}) async {
-  final matches = find.widgetWithText(NightshadeButton, label);
-  final button = first ? matches.first : matches;
-  await tester.ensureVisible(button);
-  await tester.pump();
-  await tester.tap(button);
-}
-
 /// Opens the observing-list dialog.
 ///
 /// A candidate row carries ONE button (05 §9) and the SELECTED row spends it on

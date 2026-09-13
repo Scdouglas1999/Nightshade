@@ -29,7 +29,6 @@ import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/darkroom/delivery.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/artifact_transport.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_artifact.dart';
-import 'package:nightshade_core/src/services/darkroom_delivery/delivery_failure.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_service.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/delivery_transport_factory.dart';
 import 'package:nightshade_core/src/services/darkroom_delivery/watched_folder_transport.dart';
