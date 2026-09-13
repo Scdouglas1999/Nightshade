@@ -173,3 +173,35 @@ second on every screen, for the life of the process**. Dropping the `:ss` — or
 showing seconds only on screens that need them — would remove 2 of every 3
 remaining idle frames. That is the owner's call, so it is reported, not taken.
 
+## 3. Refresh rate: what the app does today
+
+**Nothing sets, queries, or caps the display refresh rate on desktop.**
+
+* `flutter_displaymode` is not a dependency (`grep -rn "displaymode" apps/desktop packages/*/lib` → no matches outside the planetarium's own FPS *readout*).
+* `apps/desktop/linux/runner/{main.cc,my_application.cc}` is the stock Flutter GTK runner. It forwards `argv` to `fl_dart_project_set_dart_entrypoint_arguments` and nothing else — no GL swap-interval call, no engine switches, no frame throttling.
+* The only explicit cadence control in the app is `AlignedTicker`
+  (`packages/nightshade_core/lib/src/utils/aligned_ticker.dart`), and it does not
+  cap anything: it *phase-aligns* the app's 1 Hz clocks to the epoch second so
+  their ticks coalesce into one frame instead of three. It is the fix for the
+  historical "idle frame rate = number of independently-phased clocks" defect,
+  and it is still doing its job — four call sites, all 1 Hz, all aligned:
+  `status_bar/temperature_and_time.dart:148`, `clock_provider.dart:228`,
+  `planetarium_providers/observer_time.dart:158` and `:227`.
+
+So the app takes whatever cadence GTK/EGL gives it, which on a normal desktop is
+the monitor's vsync. Nothing fights it and nothing pins it to a lower rate.
+
+**The thing that does NOT hold the monitor's rate is the cost per frame, not the
+cadence.** Flutter's shipped Linux embedder has no partial-repaint path at all:
+
+```
+nm -D --defined-only build/.../lib/libflutter_linux_gtk.so | grep -c damage       -> 0
+strings ... | grep -iE 'partial_update|buffer_age|existing_damage|FlutterDamage'  -> (nothing)
+```
+
+Every dirty frame is a full-window redraw. That is why the two idle clocks
+measured above cost what they cost, and why per-tile `RepaintBoundary`s (which
+let the raster cache return unchanged layers) are the lever that actually
+applies on the owner's GPU, where per-pixel raster is cheap but re-painting
+every card's text and gradient still is not.
+
