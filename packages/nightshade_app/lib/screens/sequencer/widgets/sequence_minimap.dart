@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import 'sequence_tree.dart' show nodeCategoryTint, treeNodeKeyRegistryProvider;
+import 'sequence_tree.dart'
+    show nodeCategoryTint, revealSequenceRow, treeNodeKeyRegistryProvider;
 import 'sequence_tree_shortcuts.dart'
     show VisibleNode, visibleNodeOrderProvider;
 
@@ -121,10 +122,9 @@ void navigateToSequenceMapRow(
   final duration = animationDuration(context, _navigateDuration);
   final key = ref.read(treeNodeKeyRegistryProvider)?[row.node.id];
   if (key?.currentContext != null) {
-    Scrollable.ensureVisible(
+    revealSequenceRow(
       key!.currentContext!,
-      duration: duration,
-      curve: NightshadeTokens.curveStandard,
+      duration: _navigateDuration,
       alignment: _navigateAlignment,
     );
     return;

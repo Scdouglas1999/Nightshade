@@ -42,7 +42,7 @@ import '../../../utils/add_target_header_helper.dart';
 import '../../../utils/count_label.dart';
 import '../../accessible_dropdown.dart';
 import '../plan_math.dart';
-import 'sequence_tree.dart' show treeNodeKeyRegistryProvider;
+import 'sequence_tree.dart' show revealSequenceRow, treeNodeKeyRegistryProvider;
 import 'target_coordinates.dart';
 import 'target_header_card.dart';
 
@@ -733,7 +733,7 @@ String _sentenceCase(String value) =>
 /// One target already in the loaded sequence.
 ///
 /// Tapping it selects the header in the tree and scrolls it into view \u2014 the
-/// same "select, then `Scrollable.ensureVisible` through the key registry"
+/// same "select, then [revealSequenceRow] through the key registry"
 /// jump the step finder and the minimap make, so the three navigations land
 /// the row in the same place at the same speed.
 class _InSequenceRow extends ConsumerWidget {
@@ -763,10 +763,9 @@ class _InSequenceRow extends ConsumerWidget {
     final target = ref.read(treeNodeKeyRegistryProvider)?[node.id];
     final anchor = target?.currentContext;
     if (anchor != null) {
-      Scrollable.ensureVisible(
+      revealSequenceRow(
         anchor,
-        duration: animationDuration(context, NightshadeTokens.durationSlow),
-        curve: NightshadeTokens.curveStandard,
+        duration: NightshadeTokens.durationSlow,
         alignment: _revealAlignment,
       );
     }
