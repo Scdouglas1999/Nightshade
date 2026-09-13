@@ -328,23 +328,20 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
         // Progress panel for expanded details
         if (widget.showInlineExtras && _shouldShowProgressPanel)
           getProgressPanelForNode(
-                node: widget.node,
-                colors: widget.colors,
-                progressPercent:
-                    widget.progressPercent ?? _lastKnownPercent ?? 0,
-                progressDetail: widget.progressDetail ?? _lastKnownDetail,
-                structuredProgressDetail: widget.structuredProgressDetail ??
-                    _lastKnownStructuredDetail,
-                nodeStatus: widget.nodeStatus ?? _lastKnownStatus,
-                runFilter: widget.runFilter ?? _lastKnownRunFilter,
-                // The frames this node actually captured, from the slot no
-                // other instruction can overwrite. Watched here rather
-                // than threaded down the tree so the count reaches the card by
-                // the shortest path there is.
-                exposureTally:
-                    ref.watch(nodeExposureTallyProvider)[widget.node.id],
-              ) ??
-              const SizedBox.shrink(),
+            node: widget.node,
+            colors: widget.colors,
+            progressPercent: widget.progressPercent ?? _lastKnownPercent ?? 0,
+            progressDetail: widget.progressDetail ?? _lastKnownDetail,
+            structuredProgressDetail:
+                widget.structuredProgressDetail ?? _lastKnownStructuredDetail,
+            nodeStatus: widget.nodeStatus ?? _lastKnownStatus,
+            runFilter: widget.runFilter ?? _lastKnownRunFilter,
+            // The frames this node actually captured, from the slot no
+            // other instruction can overwrite. Watched here rather
+            // than threaded down the tree so the count reaches the card by
+            // the shortest path there is.
+            exposureTally: ref.watch(nodeExposureTallyProvider)[widget.node.id],
+          ),
       ],
     );
   }
