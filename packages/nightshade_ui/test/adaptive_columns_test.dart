@@ -79,8 +79,9 @@ void main() {
     });
   });
 
-  testWidgets('cells share a row when both fit and stack when they do not',
-      (tester) async {
+  testWidgets('cells share a row when both fit and stack when they do not', (
+    tester,
+  ) async {
     await _pumpAt(tester, 300);
     final wideA = tester.getRect(find.byKey(const Key('a')));
     final wideB = tester.getRect(find.byKey(const Key('b')));
@@ -98,8 +99,9 @@ void main() {
     expect(narrowB.width, 150);
   });
 
-  testWidgets('an unbounded row lays cells out at the width they measured',
-      (tester) async {
+  testWidgets('an unbounded row lays cells out at the width they measured', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Row(
@@ -121,8 +123,9 @@ void main() {
     expect(tester.getRect(find.byKey(const Key('b'))).width, 60);
   });
 
-  testWidgets('measureWidth covers the label, the icon slot and the padding',
-      (tester) async {
+  testWidgets('measureWidth covers the label, the icon slot and the padding', (
+    tester,
+  ) async {
     late double withIcon;
     late double withoutIcon;
     await tester.pumpWidget(

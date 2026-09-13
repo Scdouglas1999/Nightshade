@@ -122,7 +122,10 @@ class AdaptiveColumns extends StatelessWidget {
               ..add(const Expanded(child: SizedBox.shrink()));
           }
           rows.add(
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
           );
         }
 

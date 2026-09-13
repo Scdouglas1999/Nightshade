@@ -684,6 +684,12 @@ class SliderRowInteractive extends StatelessWidget {
   }
 }
 
+/// Horizontal padding inside a [SmallButton], its icon size, and the gap
+/// between that icon and the label, in logical pixels.
+const double _smallButtonPaddingH = 14;
+const double _smallButtonIconSize = 14;
+const double _smallButtonIconGap = 6;
+
 class SmallButton extends StatefulWidget {
   final String label;
   final IconData icon;
@@ -701,6 +707,22 @@ class SmallButton extends StatefulWidget {
     required this.colors,
     this.onTap,
   });
+
+  /// The width this button needs to render [label] in full, in logical pixels.
+  ///
+  /// The label is `Flexible` with `TextOverflow.ellipsis`, so a pair of these
+  /// in a fixed two-column `Row` shrinks to "Cool D…" without overflowing,
+  /// throwing or logging anything. `AdaptiveColumns` asks this first and
+  /// stacks the pair when the answer does not fit.
+  static double measureWidth(BuildContext context, {required String label}) =>
+      measureTextWidth(
+        context,
+        text: label,
+        style: NightshadeTypography.labelSm,
+      ) +
+      _smallButtonIconSize +
+      _smallButtonIconGap +
+      2 * _smallButtonPaddingH;
 
   @override
   State<SmallButton> createState() => _SmallButtonState();
@@ -740,7 +762,10 @@ class _SmallButtonState extends State<SmallButton> {
         onTap: isEnabled ? widget.onTap : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+          padding: const EdgeInsets.symmetric(
+            vertical: 10,
+            horizontal: _smallButtonPaddingH,
+          ),
           decoration: widget.isOutline
               ? BoxDecoration(
                   color: _isHovered && isEnabled
@@ -763,10 +788,10 @@ class _SmallButtonState extends State<SmallButton> {
             children: [
               Icon(
                 widget.icon,
-                size: 14,
+                size: _smallButtonIconSize,
                 color: contentColor,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: _smallButtonIconGap),
               Flexible(
                 child: Text(
                   widget.label,

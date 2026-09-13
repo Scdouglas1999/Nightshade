@@ -228,7 +228,11 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
 
                 // Target temperature slider
                 SliderRowInteractive(
-                  label: 'Target temperature',
+                  // "Target temperature" is wider than the row's label column
+                  // at the side panel's 216px, and broke mid-word as
+                  // "temperatur / e". Inside a card headed Cooling, under
+                  // Current and Power, one word says it.
+                  label: 'Target',
                   value: targetTemp.clamp(coolerMinTempC, coolerMaxTempC),
                   min: coolerMinTempC,
                   max: coolerMaxTempC,
@@ -247,11 +251,15 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                       : null,
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
+                AdaptiveColumns(
+                  cells: [
+                    AdaptiveCell(
+                      minWidth: SmallButton.measureWidth(
+                        context,
+                        label: _isCooling ? 'Setting...' : 'Cool down',
+                      ),
                       child: SmallButton(
-                        label: _isCooling ? 'Setting...' : 'Cool Down',
+                        label: _isCooling ? 'Setting...' : 'Cool down',
                         icon: NightshadeIcons.frost,
                         colors: widget.colors,
                         isEnabled: isConnected &&
@@ -294,11 +302,17 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
+                    AdaptiveCell(
+                      minWidth: SmallButton.measureWidth(
+                        context,
+                        label: cameraState.isWarming
+                            ? 'Cancel warm-up'
+                            : 'Warm up',
+                      ),
                       child: SmallButton(
-                        label:
-                            cameraState.isWarming ? 'Cancel Warm' : 'Warm up',
+                        label: cameraState.isWarming
+                            ? 'Cancel warm-up'
+                            : 'Warm up',
                         icon: LucideIcons.flame,
                         isOutline: true,
                         colors: widget.colors,

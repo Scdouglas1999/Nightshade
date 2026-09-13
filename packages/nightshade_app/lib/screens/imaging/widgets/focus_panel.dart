@@ -10,6 +10,9 @@ import '../../../widgets/focus_model_curve_card.dart';
 import '../../../widgets/focuser_controls.dart';
 import 'panel_widgets.dart';
 
+/// Gap between the manual-focus step-size chips, in logical pixels.
+const double _stepChipGap = 6;
+
 class FocusPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
@@ -248,53 +251,51 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                         style: NightshadeTypography.caption
                             .copyWith(color: widget.colors.textSecondary)),
                     const SizedBox(width: 8),
+                    // A Wrap, not a horizontal scroll view: at the side
+                    // panel's 216px the strip clipped 500 to "50(" with no
+                    // fade or arrow to say it continued, so the largest step
+                    // read as a rendering fault rather than a control.
                     Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [10, 50, 100, 500].map((step) {
-                            final isSelected = focusSettings.stepSize == step;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: GestureDetector(
-                                onTap: () => ref
-                                    .read(focusSettingsProvider.notifier)
-                                    .update(
-                                        focusSettings.copyWith(stepSize: step)),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: isSelected
-                                      ? NightshadeDecorations.selectedSurface(
-                                          widget.colors.primary,
-                                          borderRadius: BorderRadius.circular(
-                                              NightshadeTokens.radiusInline4),
-                                          fillAlpha: 0.15,
-                                        )
-                                      : BoxDecoration(
-                                          color: widget.colors.background,
-                                          borderRadius: BorderRadius.circular(
-                                              NightshadeTokens.radiusInline4),
-                                          border: Border.all(
-                                            color: widget.colors.border,
-                                          ),
-                                        ),
-                                  child: Text(
-                                    '$step',
-                                    style: NightshadeTypography.caption
-                                        .copyWith(
-                                            fontWeight: isSelected
-                                                ? FontWeight.w600
-                                                : FontWeight.normal,
-                                            color: isSelected
-                                                ? widget.colors.primary
-                                                : widget.colors.textSecondary),
-                                  ),
-                                ),
+                      child: Wrap(
+                        spacing: _stepChipGap,
+                        runSpacing: _stepChipGap,
+                        children: [10, 50, 100, 500].map((step) {
+                          final isSelected = focusSettings.stepSize == step;
+                          return GestureDetector(
+                            onTap: () => ref
+                                .read(focusSettingsProvider.notifier)
+                                .update(focusSettings.copyWith(stepSize: step)),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: isSelected
+                                  ? NightshadeDecorations.selectedSurface(
+                                      widget.colors.primary,
+                                      borderRadius: BorderRadius.circular(
+                                          NightshadeTokens.radiusInline4),
+                                      fillAlpha: 0.15,
+                                    )
+                                  : BoxDecoration(
+                                      color: widget.colors.background,
+                                      borderRadius: BorderRadius.circular(
+                                          NightshadeTokens.radiusInline4),
+                                      border: Border.all(
+                                        color: widget.colors.border,
+                                      ),
+                                    ),
+                              child: Text(
+                                '$step',
+                                style: NightshadeTypography.caption.copyWith(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    color: isSelected
+                                        ? widget.colors.primary
+                                        : widget.colors.textSecondary),
                               ),
-                            );
-                          }).toList(),
-                        ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ],

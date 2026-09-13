@@ -287,7 +287,7 @@ void main() {
     );
   });
 
-  testWidgets('Warm Up starts the gradual ramp instead of disabling cooling',
+  testWidgets('Warm up starts the gradual ramp instead of disabling cooling',
       (tester) async {
     final backend = mockBackend();
     when(
@@ -327,7 +327,7 @@ void main() {
       ),
     );
     expect(handle.container.read(cameraStateProvider).isWarming, isTrue);
-    expect(find.text('Cancel Warm'), findsOneWidget);
+    expect(find.text('Cancel warm-up'), findsOneWidget);
 
     handle.container.read(deviceServiceProvider).cancelWarmCamera();
     await tester.pump();
@@ -363,18 +363,18 @@ void main() {
       await tester.pump(const Duration(milliseconds: 25));
     }
 
-    await tester.tap(find.text('Cool Down'));
+    await tester.tap(find.text('Cool down'));
     await tester.pump();
     expect(find.text('Setting...'), findsOneWidget);
 
     notifier.switchTo(hostB);
     await tester.pump();
-    expect(find.text('Cool Down'), findsOneWidget);
+    expect(find.text('Cool down'), findsOneWidget);
 
     resultA.complete();
     await tester.pump();
     expect(handle.container.read(coolingSettingsProvider).enabled, isFalse);
     expect(handle.container.read(cameraStateProvider).isCooling, isFalse);
-    expect(find.text('Cool Down'), findsOneWidget);
+    expect(find.text('Cool down'), findsOneWidget);
   });
 }

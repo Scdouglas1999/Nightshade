@@ -405,13 +405,13 @@ class _MountTabState extends ConsumerState<MountTab> {
                 _PulseCross(
                   enabled: pulseControlsEnabled,
                   onPulse: (direction) => ref
-                          .read(mountCommandServiceProvider)
-                          .pulseGuide(direction, durationMs: pulseDurationMs)
-                          .then((result) {
-                        if (context.mounted) {
-                          context.showCommandActionResult(result);
-                        }
-                      }),
+                      .read(mountCommandServiceProvider)
+                      .pulseGuide(direction, durationMs: pulseDurationMs)
+                      .then((result) {
+                    if (context.mounted) {
+                      context.showCommandActionResult(result);
+                    }
+                  }),
                 ),
               ],
             ),
@@ -498,22 +498,34 @@ class _StatusBlock extends StatelessWidget {
         _ReadoutPair(<(String, String?)>[
           // Mount RA is hours (0-24); render sexagesimal so astronomers read
           // HH MM SS rather than raw decimals.
-          ('RA', mountState.ra == null
-              ? null
-              : CoordinateUtils.formatRA(mountState.ra!)),
+          (
+            'RA',
+            mountState.ra == null
+                ? null
+                : CoordinateUtils.formatRA(mountState.ra!)
+          ),
           // Mount Dec is degrees (-90..+90); render signed DMS.
-          ('Dec', mountState.dec == null
-              ? null
-              : CoordinateUtils.formatDec(mountState.dec!)),
+          (
+            'Dec',
+            mountState.dec == null
+                ? null
+                : CoordinateUtils.formatDec(mountState.dec!)
+          ),
         ]),
         const SizedBox(height: NightshadeTokens.spaceSm),
         _ReadoutPair(<(String, String?)>[
-          ('Alt', mountState.altitude == null
-              ? null
-              : '${mountState.altitude!.toStringAsFixed(2)}°'),
-          ('Az', mountState.azimuth == null
-              ? null
-              : '${mountState.azimuth!.toStringAsFixed(2)}°'),
+          (
+            'Alt',
+            mountState.altitude == null
+                ? null
+                : '${mountState.altitude!.toStringAsFixed(2)}°'
+          ),
+          (
+            'Az',
+            mountState.azimuth == null
+                ? null
+                : '${mountState.azimuth!.toStringAsFixed(2)}°'
+          ),
         ]),
         const SizedBox(height: NightshadeTokens.spaceSm),
         _ReadoutPair(<(String, String?)>[
