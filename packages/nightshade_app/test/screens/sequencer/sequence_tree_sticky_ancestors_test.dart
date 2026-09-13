@@ -168,6 +168,10 @@ Future<void> _drain(WidgetTester tester) async {
   // A pin created by the previous frame's post-frame pass takes its first tick
   // in the frame above; this is the one that carries its entrance to the end.
   await tester.pump(const Duration(seconds: 1));
+  // And a pin that STOPPED being pinned leaves rather than vanishing (spec §9):
+  // the frame above starts its exit, this one carries it to the end and the
+  // stack drops it.
+  await tester.pump(const Duration(seconds: 1));
 }
 
 Future<void> _scrollBy(WidgetTester tester, double dy) async {

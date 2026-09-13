@@ -327,8 +327,8 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
 
     Scrollable.ensureVisible(
       key.currentContext!,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+      duration: animationDuration(context, NightshadeTokens.durationSlow),
+      curve: NightshadeTokens.curveStandard,
       alignment: 0.3, // show node ~30% from the top
     );
   }
@@ -345,7 +345,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     if (rowContext == null) return;
     Scrollable.ensureVisible(
       rowContext,
-      duration: _ledgerMotion(context, NightshadeTokens.durationSlow),
+      duration: animationDuration(context, NightshadeTokens.durationSlow),
       curve: NightshadeTokens.curveStandard,
       alignment: 0,
     );
@@ -419,23 +419,37 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     // itself once a frame.
     final occludedTop = viewport.localToGlobal(Offset.zero).dy;
 
-    // The anchor is the first row the operator can still see any of. Rows
-    // above it are already gone, so the walk stops there rather than measuring
-    // the whole tree.
+    // The anchor is the first row the operator can see WHOLE. A row that is
+    // only half out from under the stack is not the row the pins are
+    // explaining — it is itself one of the things that needs explaining — so
+    // the ancestors of the first complete row are the honest set, and the
+    // half-hidden container ends up pinned rather than left unlabelled for the
+    // 28 px it takes to finish leaving. The fallback covers a viewport too
+    // short to hold one whole row: there the first partly visible row anchors,
+    // exactly as it always did.
     String? anchorId;
+    String? partialId;
     for (final row in _visibleOrder) {
       final bounds = _rowBounds(row.id);
       if (bounds == null) continue;
-      if (bounds.bottom > occludedTop) {
+      if (bounds.top >= occludedTop) {
         anchorId = row.id;
         break;
       }
+      partialId ??= bounds.bottom > occludedTop ? row.id : null;
     }
+    anchorId ??= partialId;
     if (anchorId == null) return const <VisibleNode>[];
 
+    // Measured against the viewport's own top edge, which the stack's
+    // reservation has ALREADY moved: the rows and that edge are both inset by
+    // the stack's height, so `row.top - occludedTop` is the scroll offset and
+    // nothing else. That is what keeps the set from feeding back into itself —
+    // a pin grows the stack, which moves the edge and the rows by the same
+    // amount, so it can never push the row that caused it back over the line.
     return pinnedAncestorsOf(sequence, anchorId, (nodeId) {
       final bounds = _rowBounds(nodeId);
-      return bounds != null && bounds.bottom <= occludedTop;
+      return bounds != null && bounds.top < occludedTop;
     });
   }
 
@@ -799,6 +813,10 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                       contentWidth - _gutterMapWidth < _ledgerColumnsMinWidth
                   ? SequencerDensity.compact
                   : density;
+              // Whether the canvas is overruling the preference. A clamp is a
+              // resize, and a resize must not cross-fade: see
+              // [densityCrossfade].
+              final densityClamped = canvasDensity != density;
               // 16 / 20 (06 §Sequencer): the canvas breathes at the sides
               // and packs vertically. The pinned ancestor stack takes the same
               // horizontal padding so a pin sits over the row it stands for.
@@ -843,7 +861,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                               // stack sliding in over them.
                               AnimatedPadding(
                                 padding: EdgeInsets.only(top: reservedTop),
-                                duration: _ledgerMotion(
+                                duration: animationDuration(
                                   context,
                                   NightshadeTokens.durationQuick,
                                 ),
@@ -860,10 +878,19 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                                       // inside the scroll view so they take
                                       // the same horizontal padding the rows
                                       // do and sit over the columns they name.
-                                      if (canvasDensity ==
-                                          SequencerDensity.ledger)
-                                        _LedgerColumnHeader(
-                                            colors: widget.colors),
+                                      // Through the SAME cross-fade the rows
+                                      // take, so the header does not blink out
+                                      // ahead of the tree it labels (spec §9).
+                                      densityCrossfade(
+                                        context: context,
+                                        density: canvasDensity,
+                                        animate: !densityClamped,
+                                        child: canvasDensity ==
+                                                SequencerDensity.ledger
+                                            ? _LedgerColumnHeader(
+                                                colors: widget.colors)
+                                            : const SizedBox.shrink(),
+                                      ),
                                       _NodeTreeView(
                                         colors: widget.colors,
                                         sequence: sequence,
@@ -872,6 +899,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                                         validation: validation,
                                         depth: 0,
                                         density: canvasDensity,
+                                        densityClamped: densityClamped,
                                         isMobile: widget.isMobile,
                                         onNodeTap: widget.onNodeTap,
                                         keyRegistry: _nodeKeyRegistry,
@@ -901,14 +929,21 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                         ),
                         // Ledger's overview is always on and lives beside the
                         // rows it maps (spec §7); the other two densities keep
-                        // the toggled strip below.
-                        if (canvasDensity == SequencerDensity.ledger)
-                          _SequenceGutterMap(
-                            key: sequenceGutterMapKey,
-                            colors: widget.colors,
-                            scrollController: _scrollController,
-                            rowAtContentOffset: _rowAtContentOffset,
-                          ),
+                        // the toggled strip below. It fades with the rows
+                        // rather than snapping away from beside them (spec §9).
+                        densityCrossfade(
+                          context: context,
+                          density: canvasDensity,
+                          animate: !densityClamped,
+                          child: canvasDensity == SequencerDensity.ledger
+                              ? _SequenceGutterMap(
+                                  key: sequenceGutterMapKey,
+                                  colors: widget.colors,
+                                  scrollController: _scrollController,
+                                  rowAtContentOffset: _rowAtContentOffset,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                       ],
                     ),
                   ),

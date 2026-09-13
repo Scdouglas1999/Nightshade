@@ -40,10 +40,15 @@ double pinnedStackHeight(int count) => count * _ledgerRowHeight;
 
 /// The ancestors of [anchorId] that are currently pinned, outermost first.
 ///
-/// [isRowAbove] answers "has this row's own box scrolled clear of the viewport
-/// top?" — the caller owns it because only it can measure the live render
-/// boxes. An ancestor whose row is still on screen is NOT pinned; pinning it
-/// would draw the same row twice.
+/// [hasRowTopPassed] answers "has this row's own TOP edge gone under the
+/// stack?" — the caller owns it because only it can measure the live render
+/// boxes. The looser test (the row is merely partly hidden) is deliberate: the
+/// stricter one, which waited for the row to be GONE, left the operator
+/// looking at a half-cut container name under the stack for the 28 px of
+/// scrolling it took to finish leaving, with nothing at the top of the screen
+/// saying which container the rows below belonged to. The row's remaining
+/// sliver is clipped by the scroll view either way; the only thing the looser
+/// test changes is that its identity is on screen the whole time.
 ///
 /// The returned depth is the row's depth in the tree (the root container is
 /// not drawn, so its children are depth 1), which is what a ledger row needs
@@ -51,12 +56,12 @@ double pinnedStackHeight(int count) => count * _ledgerRowHeight;
 List<VisibleNode> pinnedAncestorsOf(
   Sequence sequence,
   String anchorId,
-  bool Function(String nodeId) isRowAbove,
+  bool Function(String nodeId) hasRowTopPassed,
 ) {
   final chain = sequenceAncestorIds(sequence, anchorId);
   final pinned = <VisibleNode>[
     for (var i = 0; i < chain.length; i++)
-      if (isRowAbove(chain[i])) (id: chain[i], depth: i + 1),
+      if (hasRowTopPassed(chain[i])) (id: chain[i], depth: i + 1),
   ];
   if (pinned.length <= _maxPinnedAncestors) return pinned;
   // Keep the NEAREST ancestors: "which loop am I in" is a more pressing
@@ -66,7 +71,14 @@ List<VisibleNode> pinnedAncestorsOf(
 }
 
 /// The pinned ancestor rows, stacked in depth order over the tree's viewport.
-class _StickyAncestorStack extends StatelessWidget {
+///
+/// Stateful only so a row that stops being pinned can leave rather than
+/// disappear: it keeps departing entries in place, collapsing and fading them
+/// over [NightshadeTokens.durationFast], and drops them when that is done.
+/// Un-pinning is far more common than pinning — it happens on every upward
+/// scroll — and a stack that loses a row between two frames reads as a glitch
+/// at the top of the canvas.
+class _StickyAncestorStack extends StatefulWidget {
   final NightshadeColors colors;
   final Sequence sequence;
   final SequenceProgress progress;
@@ -91,12 +103,58 @@ class _StickyAncestorStack extends StatelessWidget {
   });
 
   @override
+  State<_StickyAncestorStack> createState() => _StickyAncestorStackState();
+}
+
+class _StickyAncestorStackState extends State<_StickyAncestorStack> {
+  /// Rows that have stopped being pinned and are still on their way out, in
+  /// the position they held when they left.
+  final List<VisibleNode> _departing = <VisibleNode>[];
+
+  @override
+  void didUpdateWidget(_StickyAncestorStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final ids = {for (final entry in widget.pinned) entry.id};
+    // A row that pinned again while it was still leaving goes straight back to
+    // the live list; its `_PinTransition` is keyed by id, so the same widget
+    // simply turns around.
+    _departing.removeWhere((entry) => ids.contains(entry.id));
+    for (final entry in oldWidget.pinned) {
+      if (!ids.contains(entry.id) &&
+          !_departing.any((other) => other.id == entry.id)) {
+        _departing.add(entry);
+      }
+    }
+  }
+
+  void _dropDeparted(String nodeId) {
+    if (!mounted) return;
+    if (_departing.any((entry) => entry.id == nodeId)) {
+      setState(() => _departing.removeWhere((entry) => entry.id == nodeId));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final sequence = widget.sequence;
+    final progress = widget.progress;
+    final density = widget.density;
+    final onTap = widget.onTap;
+    // Departing rows keep their place in the stack: a leaving row that jumped
+    // to the bottom would travel across the pins that outlive it.
+    final entries = <({VisibleNode row, bool visible})>[
+      for (final entry in widget.pinned) (row: entry, visible: true),
+      for (final entry in _departing) (row: entry, visible: false),
+    ]..sort((a, b) => a.row.depth.compareTo(b.row.depth));
+
     final rows = <Widget>[
-      for (final entry in pinned)
-        if (sequence.nodes[entry.id] case final node?)
-          _PinEntrance(
-            key: ValueKey<String>(entry.id),
+      for (final (:row, :visible) in entries)
+        if (sequence.nodes[row.id] case final node?)
+          _PinTransition(
+            key: ValueKey<String>(row.id),
+            visible: visible,
+            onExited: () => _dropDeparted(row.id),
             child: GestureDetector(
               // Translucent, not opaque: the stack floats over the scroll
               // view, and an opaque hit box would kill the wheel and the drag
@@ -108,7 +166,7 @@ class _StickyAncestorStack extends StatelessWidget {
               // anonymous tappable node per pin — three unlabelled "buttons"
               // ahead of the whole tree.
               excludeFromSemantics: true,
-              onTap: () => onTap(entry.id),
+              onTap: () => onTap(row.id),
               // The row itself takes no pointer: the chevron, the kebab and
               // the drag handle belong to the real row, and a drag started
               // here must reach the scroll view under it.
@@ -118,7 +176,7 @@ class _StickyAncestorStack extends StatelessWidget {
                         colors: colors,
                         sequence: sequence,
                         node: node,
-                        depth: entry.depth,
+                        depth: row.depth,
                         isSelected: false,
                         isContainer: isSequenceContainer(node),
                         isCollapsed: false,
@@ -129,7 +187,7 @@ class _StickyAncestorStack extends StatelessWidget {
                     : _PinnedCompactRow(
                         colors: colors,
                         node: node,
-                        depth: entry.depth,
+                        depth: row.depth,
                       ),
               ),
             ),
@@ -138,7 +196,8 @@ class _StickyAncestorStack extends StatelessWidget {
     if (rows.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: EdgeInsets.only(left: padding.left, right: padding.right),
+      padding: EdgeInsets.only(
+          left: widget.padding.left, right: widget.padding.right),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.surfaceElevated,
@@ -164,26 +223,119 @@ class _StickyAncestorStack extends StatelessWidget {
   }
 }
 
-/// Slides a newly pinned row down into the stack as it fades in (spec §9).
-class _PinEntrance extends StatelessWidget {
+/// A pinned row's arrival and departure (spec §9).
+///
+/// Arriving, it slides down [_pinSlideDistance] and fades in over
+/// [NightshadeTokens.durationQuick]; leaving, it fades and collapses out over
+/// the shorter [NightshadeTokens.durationFast] — an exit that dawdles is an
+/// exit the operator has to wait for, and this one happens on every upward
+/// scroll. The HEIGHT is part of the exit so the stack shrinks with the
+/// viewport inset that is opening back up underneath it, instead of hanging
+/// over the first row of the tree while it fades.
+///
+/// [onExited] tells the stack the row has finished leaving and can be dropped.
+class _PinTransition extends StatefulWidget {
+  final bool visible;
+  final VoidCallback onExited;
   final Widget child;
 
-  const _PinEntrance({super.key, required this.child});
+  const _PinTransition({
+    super.key,
+    required this.visible,
+    required this.onExited,
+    required this.child,
+  });
+
+  @override
+  State<_PinTransition> createState() => _PinTransitionState();
+}
+
+class _PinTransitionState extends State<_PinTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  bool _entered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this);
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The entrance starts HERE and not in `initState`, because its duration
+    // depends on `MediaQuery.disableAnimations` and an inherited widget cannot
+    // be read before `initState` returns. A pin always arrives by animating
+    // in: it is mounted the moment it pins.
+    if (_entered) return;
+    _entered = true;
+    _syncDuration(entering: true);
+    _controller.forward();
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && !widget.visible) {
+      widget.onExited();
+    }
+  }
+
+  void _syncDuration({required bool entering}) {
+    _controller.duration = animationDuration(
+      context,
+      entering ? NightshadeTokens.durationQuick : NightshadeTokens.durationFast,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_PinTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visible == widget.visible) return;
+    _syncDuration(entering: widget.visible);
+    if (widget.visible) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeStatusListener(_onStatusChanged);
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: _ledgerMotion(context, NightshadeTokens.durationQuick),
-      curve: NightshadeTokens.curveStandard,
-      builder: (context, t, child) => Opacity(
-        opacity: t,
-        child: Transform.translate(
-          offset: Offset(0, -_pinSlideDistance * (1 - t)),
-          child: child,
+    _syncDuration(entering: widget.visible);
+    return SizeTransition(
+      sizeFactor: _controller,
+      alignment: Alignment.topCenter,
+      // An aligned child is laid out loose; without this a pinned row would
+      // shrink-wrap to its own content instead of spanning the stack the way
+      // the column's `stretch` hands it, and stop lining up with the row it
+      // stands for.
+      child: SizedBox(
+        width: double.infinity,
+        child: AnimatedBuilder(
+          animation: _controller,
+          child: widget.child,
+          builder: (context, child) {
+            final t =
+                NightshadeTokens.curveStandard.transform(_controller.value);
+            return Opacity(
+              opacity: t,
+              child: Transform.translate(
+                offset: Offset(0, -_pinSlideDistance * (1 - t)),
+                child: child,
+              ),
+            );
+          },
         ),
       ),
-      child: child,
     );
   }
 }

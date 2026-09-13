@@ -16,6 +16,11 @@ class _NodeTreeView extends ConsumerWidget {
   /// below a row (they move to the node inspector).
   final SequencerDensity density;
 
+  /// True when [density] is the canvas's fallback rather than the operator's
+  /// preference — a canvas too narrow for the ledger's columns draws compact
+  /// rows. It suppresses the density cross-fade: see [densityCrossfade].
+  final bool densityClamped;
+
   /// Lifecycle-scoped key registry handed down from [_SequenceTreeState].
   /// Treat as read-write: this view inserts new keys for nodes it draws,
   /// and the state-level pruner removes keys for nodes that disappear.
@@ -29,6 +34,7 @@ class _NodeTreeView extends ConsumerWidget {
     required this.validation,
     required this.depth,
     required this.density,
+    required this.densityClamped,
     required this.keyRegistry,
     this.isMobile = false,
     this.onNodeTap,
@@ -351,7 +357,11 @@ class _NodeTreeView extends ConsumerWidget {
         builder: (context, candidateData, rejectedData) {
           final isOver = candidateData.isNotEmpty;
           return AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            duration: animationDuration(
+              context,
+              NightshadeTokens.durationFast,
+            ),
+            curve: NightshadeTokens.curveStandard,
             decoration: isOver
                 ? BoxDecoration(
                     borderRadius:
@@ -413,166 +423,176 @@ class _NodeTreeView extends ConsumerWidget {
             child: ExposureNodeThumbnailStrip(nodeId: nodeId),
           ),
 
-        // Children area
-        if ((hasChildren || isContainer) && !isCollapsed)
-          Padding(
-            // Ledger indents with the 18 px guide column each row draws for
-            // its own depth, so the children area adds nothing: padding here
-            // as well would double the indent and push the drop zones out of
-            // line with the rows they sit between.
-            padding: EdgeInsets.only(
-              left: isRoot || isLedger ? 0 : (isMobile ? 16 : 24),
-            ),
-            child: DragTarget<Object>(
-              onWillAcceptWithDetails: (data) =>
-                  data.data is String ||
-                  data.data is FoldDragPayload ||
-                  data.data is NodePaletteItem ||
-                  data.data is TemplateSnippet ||
-                  data.data is TargetQueueDragPayload,
-              onAcceptWithDetails: (details) {
-                final data = details.data;
-                if (data is TemplateSnippet) {
-                  // Snippet inserts route through the guarded helper so a
-                  // locked-state / unknown-node-type failure surfaces a
-                  // snackbar instead of an uncaught throw.
-                  insertSnippetGuarded(context, ref, data, parentId: nodeId);
-                  return;
-                }
-                if (data is String) {
-                  ref.read(currentSequenceProvider.notifier).moveNode(
-                        data,
-                        nodeId,
-                        children.length,
-                      );
-                } else if (data is FoldDragPayload) {
-                  moveFoldGroup(
-                    context,
-                    ref,
-                    memberIds: data.memberIds,
-                    parentId: nodeId,
-                    index: children.length,
-                  );
-                } else if (data is NodePaletteItem) {
-                  final newNode = data.createNode();
-                  final notifier = ref.read(currentSequenceProvider.notifier);
-                  notifier.addNode(
-                    newNode,
-                    parentId: nodeId,
-                    // No index = append
-                  );
-                  final children = data.createChildren?.call();
-                  if (children != null) {
-                    for (final child in children) {
-                      notifier.addNode(child, parentId: newNode.id);
-                    }
+        // Children area. The block opens and closes with the chevron
+        // (spec §9); the builder is only called while it is on screen, so a
+        // collapsed container still builds nothing.
+        if (hasChildren || isContainer)
+          _ChildrenReveal(
+            isCollapsed: isCollapsed,
+            builder: (context) => Padding(
+              // Ledger indents with the 18 px guide column each row draws for
+              // its own depth, so the children area adds nothing: padding here
+              // as well would double the indent and push the drop zones out of
+              // line with the rows they sit between.
+              padding: EdgeInsets.only(
+                left: isRoot || isLedger ? 0 : (isMobile ? 16 : 24),
+              ),
+              child: DragTarget<Object>(
+                onWillAcceptWithDetails: (data) =>
+                    data.data is String ||
+                    data.data is FoldDragPayload ||
+                    data.data is NodePaletteItem ||
+                    data.data is TemplateSnippet ||
+                    data.data is TargetQueueDragPayload,
+                onAcceptWithDetails: (details) {
+                  final data = details.data;
+                  if (data is TemplateSnippet) {
+                    // Snippet inserts route through the guarded helper so a
+                    // locked-state / unknown-node-type failure surfaces a
+                    // snackbar instead of an uncaught throw.
+                    insertSnippetGuarded(context, ref, data, parentId: nodeId);
+                    return;
                   }
-                  ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
-                } else if (data is TargetQueueDragPayload) {
-                  // Drop a queued target into a container — appends
-                  // a fresh TargetHeaderNode at the end. Targets are
-                  // top-level by convention, but the tree allows
-                  // nesting under InstructionSet/RootContainer too.
-                  final notifier = ref.read(currentSequenceProvider.notifier);
-                  notifier.addNode(data.node, parentId: nodeId);
-                  ref.read(selectedNodeIdProvider.notifier).state =
-                      data.node.id;
-                }
-              },
-              builder: (context, candidateData, rejectedData) {
-                final isContainerHovered = candidateData.isNotEmpty;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  decoration: isContainerHovered
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline8),
-                          border: Border.all(
-                            color: colors.primary.withValues(alpha: 0.4),
-                            width: 1.5,
-                          ),
-                          color: colors.primary.withValues(alpha: 0.04),
-                        )
-                      : const BoxDecoration(),
-                  padding: isContainerHovered
-                      ? const EdgeInsets.all(4)
-                      : EdgeInsets.zero,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (int e = 0; e < entries.length; e++) ...[
+                  if (data is String) {
+                    ref.read(currentSequenceProvider.notifier).moveNode(
+                          data,
+                          nodeId,
+                          children.length,
+                        );
+                  } else if (data is FoldDragPayload) {
+                    moveFoldGroup(
+                      context,
+                      ref,
+                      memberIds: data.memberIds,
+                      parentId: nodeId,
+                      index: children.length,
+                    );
+                  } else if (data is NodePaletteItem) {
+                    final newNode = data.createNode();
+                    final notifier = ref.read(currentSequenceProvider.notifier);
+                    notifier.addNode(
+                      newNode,
+                      parentId: nodeId,
+                      // No index = append
+                    );
+                    final children = data.createChildren?.call();
+                    if (children != null) {
+                      for (final child in children) {
+                        notifier.addNode(child, parentId: newNode.id);
+                      }
+                    }
+                    ref.read(selectedNodeIdProvider.notifier).state =
+                        newNode.id;
+                  } else if (data is TargetQueueDragPayload) {
+                    // Drop a queued target into a container — appends
+                    // a fresh TargetHeaderNode at the end. Targets are
+                    // top-level by convention, but the tree allows
+                    // nesting under InstructionSet/RootContainer too.
+                    final notifier = ref.read(currentSequenceProvider.notifier);
+                    notifier.addNode(data.node, parentId: nodeId);
+                    ref.read(selectedNodeIdProvider.notifier).state =
+                        data.node.id;
+                  }
+                },
+                builder: (context, candidateData, rejectedData) {
+                  final isContainerHovered = candidateData.isNotEmpty;
+                  return AnimatedContainer(
+                    duration: animationDuration(
+                      context,
+                      NightshadeTokens.durationFast,
+                    ),
+                    curve: NightshadeTokens.curveStandard,
+                    decoration: isContainerHovered
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline8),
+                            border: Border.all(
+                              color: colors.primary.withValues(alpha: 0.4),
+                              width: 1.5,
+                            ),
+                            color: colors.primary.withValues(alpha: 0.04),
+                          )
+                        : const BoxDecoration(),
+                    padding: isContainerHovered
+                        ? const EdgeInsets.all(4)
+                        : EdgeInsets.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (int e = 0; e < entries.length; e++) ...[
+                          if (!isMobile)
+                            _DropZone(
+                              colors: colors,
+                              parentId: nodeId,
+                              index: entryIndices[e],
+                              isActive: candidateData.isNotEmpty,
+                            ),
+                          switch (entries[e]) {
+                            FoldedEntry(group: final group) => _buildFoldEntry(
+                                context,
+                                ref,
+                                group: group,
+                                siblingCount: children.length,
+                              ),
+                            SingleEntry(node: final child) => _buildSingleEntry(
+                                context,
+                                ref,
+                                child: child,
+                                isLedger: isLedger,
+                              ),
+                          },
+                        ],
+                        // Always show a drop zone at the end on desktop, even if empty
                         if (!isMobile)
                           _DropZone(
                             colors: colors,
                             parentId: nodeId,
-                            index: entryIndices[e],
+                            index: children.length,
                             isActive: candidateData.isNotEmpty,
                           ),
-                        switch (entries[e]) {
-                          FoldedEntry(group: final group) => _buildFoldEntry(
-                              context,
-                              ref,
-                              group: group,
-                              siblingCount: children.length,
-                            ),
-                          SingleEntry(node: final child) => _buildSingleEntry(
-                              context,
-                              ref,
-                              child: child,
-                              isLedger: isLedger,
-                            ),
-                        },
-                      ],
-                      // Always show a drop zone at the end on desktop, even if empty
-                      if (!isMobile)
-                        _DropZone(
-                          colors: colors,
-                          parentId: nodeId,
-                          index: children.length,
-                          isActive: candidateData.isNotEmpty,
-                        ),
 
-                      // The canvas always ends on the line that says what to
-                      // do next (06 §Sequencer: "Last row: muted '+ Drop a
-                      // node here, or double-click one in the palette'").
-                      // Inside a container it names the container's contents
-                      // instead, and only while that container is empty.
-                      if (isRoot || (!hasChildren && isContainer))
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: NightshadeTokens.spaceMd,
-                            left: NightshadeTokens.spaceXs + 2,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                LucideIcons.plus,
-                                size: 14,
-                                color: colors.textMuted,
-                              ),
-                              const SizedBox(width: NightshadeTokens.spaceSm),
-                              Flexible(
-                                child: Text(
-                                  isMobile
-                                      ? 'Tap + to add a node'
-                                      : isRoot
-                                          ? 'Drop a node here, or '
-                                              'double-click one in the palette'
-                                          : 'Drop a node here',
-                                  style: NightshadeTypography.bodySm.copyWith(
-                                    color: colors.textMuted,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                        // The canvas always ends on the line that says what to
+                        // do next (06 §Sequencer: "Last row: muted '+ Drop a
+                        // node here, or double-click one in the palette'").
+                        // Inside a container it names the container's contents
+                        // instead, and only while that container is empty.
+                        if (isRoot || (!hasChildren && isContainer))
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: NightshadeTokens.spaceMd,
+                              left: NightshadeTokens.spaceXs + 2,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  LucideIcons.plus,
+                                  size: 14,
+                                  color: colors.textMuted,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: NightshadeTokens.spaceSm),
+                                Flexible(
+                                  child: Text(
+                                    isMobile
+                                        ? 'Tap + to add a node'
+                                        : isRoot
+                                            ? 'Drop a node here, or '
+                                                'double-click one in the palette'
+                                            : 'Drop a node here',
+                                    style: NightshadeTypography.bodySm.copyWith(
+                                      color: colors.textMuted,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
       ],
@@ -598,6 +618,7 @@ class _NodeTreeView extends ConsumerWidget {
       validation: validation,
       depth: depth + 1,
       density: density,
+      densityClamped: densityClamped,
       isMobile: isMobile,
       onNodeTap: onNodeTap,
       keyRegistry: keyRegistry,
@@ -665,24 +686,14 @@ class _NodeTreeView extends ConsumerWidget {
     );
   }
 
-  /// Crossfade between the old and the new row set when the density changes
-  /// (spec §9).
-  ///
-  /// The switcher sits INSIDE the scroll key and the tutorial anchor so the
-  /// outgoing row, which stays mounted for the length of the fade, can never
-  /// hold a GlobalKey the incoming row also wants — two live holders of one
-  /// GlobalKey is a hard framework error.
-  Widget _densityCrossfade(BuildContext context, Widget row) {
-    return AnimatedSwitcher(
-      duration: _ledgerMotion(context, NightshadeTokens.durationSmooth),
-      switchInCurve: NightshadeTokens.curveStandard,
-      switchOutCurve: NightshadeTokens.curveStandard,
-      child: KeyedSubtree(
-        key: ValueKey<SequencerDensity>(density),
+  /// The shared density cross-fade, applied to one row.
+  Widget _densityCrossfade(BuildContext context, Widget row) =>
+      densityCrossfade(
+        context: context,
+        density: density,
+        animate: !densityClamped,
         child: row,
-      ),
-    );
-  }
+      );
 
   /// One folded run: the [_LedgerFoldRow] plus everything an ordinary row
   /// carries — the context menu, the validation badge, the scroll-key anchor

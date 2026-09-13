@@ -196,7 +196,13 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
         SizedBox(
           width: _ledgerRunningMarkerWidth,
           height: _ledgerRowHeight,
-          child: state.isRunning ? ColoredBox(color: colors.primary) : null,
+          child: state.isRunning
+              ? (widget.isDragging
+                  ? ColoredBox(color: colors.primary)
+                  : _RunningMarkerBreath(
+                      child: ColoredBox(color: colors.primary),
+                    ))
+              : null,
         ),
         ..._ledgerDepthGuides(widget.depth - 1, colors),
         _LedgerChevron(

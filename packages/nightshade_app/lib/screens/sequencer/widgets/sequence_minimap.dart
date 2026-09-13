@@ -105,6 +105,7 @@ Rect? sequenceMapViewportRect({
 /// Falls back to proportional scroll while the registry or the key is not
 /// mounted yet.
 void navigateToSequenceMapRow(
+  BuildContext context,
   WidgetRef ref,
   List<SequenceMapEntry> entries,
   int index,
@@ -116,12 +117,17 @@ void navigateToSequenceMapRow(
   ref.read(multiSelectedNodeIdsProvider.notifier).clear();
   ref.read(selectedNodeIdProvider.notifier).state = row.node.id;
 
+  // The map's jump and the tree's own follow-execution scroll travel on the
+  // same token (spec §9): they are the same movement, started by two different
+  // hands, and a map that scrolled at a different speed from the run would
+  // read as a different kind of navigation.
+  final duration = animationDuration(context, _navigateDuration);
   final key = ref.read(treeNodeKeyRegistryProvider)?[row.node.id];
   if (key?.currentContext != null) {
     Scrollable.ensureVisible(
       key!.currentContext!,
-      duration: _navigateDuration,
-      curve: Curves.easeInOut,
+      duration: duration,
+      curve: NightshadeTokens.curveStandard,
       alignment: _navigateAlignment,
     );
     return;
@@ -131,15 +137,15 @@ void navigateToSequenceMapRow(
     final maxScroll = scrollController.position.maxScrollExtent;
     scrollController.animateTo(
       maxScroll * (index / entries.length),
-      duration: _navigateDuration,
-      curve: Curves.easeInOut,
+      duration: duration,
+      curve: NightshadeTokens.curveStandard,
     );
   }
 }
 
 /// Shortest readable jump for a navigation the user asked for by clicking a
 /// position, matching the tree's own auto-follow scroll.
-const Duration _navigateDuration = Duration(milliseconds: 300);
+const Duration _navigateDuration = NightshadeTokens.durationSlow;
 
 /// Land the row ~30 % from the top so its children are visible under it.
 const double _navigateAlignment = 0.3;
@@ -186,6 +192,7 @@ class SequenceMinimap extends ConsumerWidget {
         builder: (context, constraints) {
           return GestureDetector(
             onTapDown: (details) => navigateToSequenceMapRow(
+              context,
               ref,
               entries,
               sequenceMapRowAt(

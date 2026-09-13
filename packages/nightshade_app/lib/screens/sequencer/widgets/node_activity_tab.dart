@@ -668,7 +668,6 @@ class _ActivityFrameGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final animationsOff = MediaQuery.disableAnimationsOf(context);
     final frameSize = totalFrames > 10 ? 14.0 : 18.0;
     final overflow = totalFrames > _maxCells;
     final individualCells = overflow ? _maxCells - 1 : totalFrames;
@@ -703,8 +702,7 @@ class _ActivityFrameGrid extends StatelessWidget {
         return TweenAnimationBuilder<double>(
           key: ValueKey('frame-landed-$index-$landedStamp'),
           tween: Tween(begin: 0.6, end: 1.0),
-          duration:
-              animationsOff ? Duration.zero : NightshadeTokens.durationQuick,
+          duration: animationDuration(context, NightshadeTokens.durationQuick),
           curve: NightshadeTokens.curveStandard,
           builder: (context, scale, child) =>
               Transform.scale(scale: scale, child: child),
@@ -860,8 +858,10 @@ class _SubtreeActivitySection extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           NightshadeProgressBar(
             value: fraction,
+            // Null keeps the progress bar's own default; zero is the
+            // only override the accessibility setting asks for.
             animationDuration:
-                MediaQuery.disableAnimationsOf(context) ? Duration.zero : null,
+                animationsDisabled(context) ? Duration.zero : null,
           ),
         ],
       ),

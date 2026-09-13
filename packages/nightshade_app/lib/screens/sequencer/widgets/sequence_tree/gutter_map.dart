@@ -60,6 +60,11 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
 
     return SizedBox(
       width: _gutterMapWidth,
+      // Explicit rather than inherited from the Row's `stretch`: the density
+      // cross-fade puts the gutter inside a loosely-fitted Stack while it
+      // fades, and a gutter that shrink-wrapped its painter there would
+      // collapse to nothing for the length of the fade.
+      height: double.infinity,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: widget.colors.surface,
@@ -77,6 +82,7 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
                   onTapUp: (details) {
                     if (_dragAnchorY != null) return;
                     navigateToSequenceMapRow(
+                      context,
                       ref,
                       entries,
                       _rowAtGutterY(
@@ -174,7 +180,7 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
     widget.scrollController.animateTo(
       (metrics.offset + direction * metrics.viewportDimension)
           .clamp(0.0, metrics.maxScrollExtent),
-      duration: _ledgerMotion(context, NightshadeTokens.durationSlow),
+      duration: animationDuration(context, NightshadeTokens.durationSlow),
       curve: NightshadeTokens.curveStandard,
     );
   }
