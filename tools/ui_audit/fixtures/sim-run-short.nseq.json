@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "version": "2.0",
+  "name": "Sim run \u00b7 short",
+  "description": "short simulator run for live verification",
+  "rootNodeId": "mini-root",
+  "isTemplate": false,
+  "createdAt": "2026-09-13T00:00:00.000Z",
+  "modifiedAt": "2026-09-13T00:00:00.000Z",
+  "nodes": {
+    "mini-root": {
+      "id": "mini-root",
+      "nodeType": "InstructionSet",
+      "name": "Sim run \u00b7 short",
+      "parentId": null,
+      "childIds": [
+        "mini-setup",
+        "mini-target",
+        "mini-shutdown"
+      ],
+      "orderIndex": 0,
+      "isEnabled": true
+    },
+    "mini-setup": {
+      "id": "mini-setup",
+      "nodeType": "InstructionSet",
+      "name": "Setup",
+      "parentId": "mini-root",
+      "childIds": [
+        "mini-unpark"
+      ],
+      "orderIndex": 0,
+      "isEnabled": true
+    },
+    "mini-unpark": {
+      "id": "mini-unpark",
+      "nodeType": "Unpark",
+      "name": "Unpark mount",
+      "parentId": "mini-setup",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true
+    },
+    "mini-target": {
+      "id": "mini-target",
+      "nodeType": "TargetHeader",
+      "name": "Zenith test",
+      "parentId": "mini-root",
+      "childIds": [
+        "mini-slew",
+        "mini-loop"
+      ],
+      "orderIndex": 1,
+      "isEnabled": true,
+      "targetName": "Zenith test field",
+      "raHours": 22.6,
+      "decDegrees": 40.0,
+      "rotation": null,
+      "priority": 0,
+      "minAltitude": 30.0,
+      "maxAltitude": null,
+      "startAfter": null,
+      "endBefore": null,
+      "mosaicPanel": null
+    },
+    "mini-slew": {
+      "id": "mini-slew",
+      "nodeType": "SlewToTarget",
+      "name": "Slew to target",
+      "parentId": "mini-target",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true,
+      "useTargetCoords": true,
+      "customRa": null,
+      "customDec": null
+    },
+    "mini-loop": {
+      "id": "mini-loop",
+      "nodeType": "Loop",
+      "name": "Repeat LRG",
+      "parentId": "mini-target",
+      "childIds": [
+        "mini-exp-l",
+        "mini-exp-r",
+        "mini-exp-g"
+      ],
+      "orderIndex": 1,
+      "isEnabled": true,
+      "conditionType": "count",
+      "repeatCount": 2,
+      "repeatUntil": null,
+      "repeatUntilAltitude": null,
+      "integrationTimeTarget": null,
+      "maxSafetyIterations": null
+    },
+    "mini-exp-l": {
+      "id": "mini-exp-l",
+      "nodeType": "TakeExposure",
+      "name": "L",
+      "parentId": "mini-loop",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true,
+      "durationSecs": 2.0,
+      "count": 1,
+      "frameType": "light",
+      "filter": "L",
+      "filterIndex": null,
+      "gain": 100,
+      "offset": 50,
+      "binning": "one",
+      "ditherEvery": 0
+    },
+    "mini-exp-r": {
+      "id": "mini-exp-r",
+      "nodeType": "TakeExposure",
+      "name": "R",
+      "parentId": "mini-loop",
+      "childIds": [],
+      "orderIndex": 1,
+      "isEnabled": true,
+      "durationSecs": 2.0,
+      "count": 1,
+      "frameType": "light",
+      "filter": "R",
+      "filterIndex": null,
+      "gain": 100,
+      "offset": 50,
+      "binning": "one",
+      "ditherEvery": 0
+    },
+    "mini-exp-g": {
+      "id": "mini-exp-g",
+      "nodeType": "TakeExposure",
+      "name": "G",
+      "parentId": "mini-loop",
+      "childIds": [],
+      "orderIndex": 2,
+      "isEnabled": true,
+      "durationSecs": 2.0,
+      "count": 1,
+      "frameType": "light",
+      "filter": "G",
+      "filterIndex": null,
+      "gain": 100,
+      "offset": 50,
+      "binning": "one",
+      "ditherEvery": 0
+    },
+    "mini-shutdown": {
+      "id": "mini-shutdown",
+      "nodeType": "InstructionSet",
+      "name": "Shutdown",
+      "parentId": "mini-root",
+      "childIds": [
+        "mini-park"
+      ],
+      "orderIndex": 2,
+      "isEnabled": true
+    },
+    "mini-park": {
+      "id": "mini-park",
+      "nodeType": "Park",
+      "name": "Park mount",
+      "parentId": "mini-shutdown",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true
+    }
+  }
+}
