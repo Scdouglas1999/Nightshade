@@ -651,19 +651,29 @@ class _RunningMarkerBreath extends StatefulWidget {
 
 class _RunningMarkerBreathState extends State<_RunningMarkerBreath>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: NightshadeTokens.durationPulse,
-  );
+  // Eagerly, not `late`: with animations disabled the build below never
+  // touches the controller, and a lazy field would then be CONSTRUCTED by
+  // `dispose` — which reads `TickerMode` off an element that is already
+  // deactivated, and throws.
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
 
-  // `Curves.easeInOut` rather than the design system's one curve: a breath
-  // reverses, and `curveStandard` decelerates into its end only, so a reversing
-  // loop on it would snap at one extreme and drift at the other. The
-  // one-curve rule governs state transitions, which this is not.
-  late final Animation<double> _opacity = Tween<double>(
-    begin: _runningBreathLowOpacity,
-    end: 1.0,
-  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: NightshadeTokens.durationPulse,
+    );
+    // `Curves.easeInOut` rather than the design system's one curve: a breath
+    // reverses, and `curveStandard` decelerates into its end only, so a
+    // reversing loop on it would snap at one extreme and drift at the other.
+    // The one-curve rule governs state transitions, which this is not.
+    _opacity = Tween<double>(
+      begin: _runningBreathLowOpacity,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
 
   @override
   void dispose() {

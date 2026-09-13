@@ -91,6 +91,10 @@ class _StickyAncestorStack extends StatefulWidget {
 
   final void Function(String nodeId) onTap;
 
+  /// Called once the stack has nothing left to draw — its last pin has
+  /// finished leaving — so the tree can stop building it.
+  final VoidCallback onEmptied;
+
   const _StickyAncestorStack({
     super.key,
     required this.colors,
@@ -100,6 +104,7 @@ class _StickyAncestorStack extends StatefulWidget {
     required this.density,
     required this.padding,
     required this.onTap,
+    required this.onEmptied,
   });
 
   @override
@@ -129,9 +134,12 @@ class _StickyAncestorStackState extends State<_StickyAncestorStack> {
 
   void _dropDeparted(String nodeId) {
     if (!mounted) return;
-    if (_departing.any((entry) => entry.id == nodeId)) {
-      setState(() => _departing.removeWhere((entry) => entry.id == nodeId));
-    }
+    if (!_departing.any((entry) => entry.id == nodeId)) return;
+    setState(() => _departing.removeWhere((entry) => entry.id == nodeId));
+    // The LAST pin cannot fade out on its own: the tree stops building the
+    // stack the moment nothing is pinned, so it has to be told when the stack
+    // is finally empty rather than inferring it from the same set.
+    if (_departing.isEmpty && widget.pinned.isEmpty) widget.onEmptied();
   }
 
   @override

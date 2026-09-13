@@ -184,6 +184,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   List<VisibleNode> _pinnedAncestors = const <VisibleNode>[];
   bool _stickyPassScheduled = false;
 
+  /// True while the stack has rows still fading out after the last of them
+  /// stopped being pinned. Without it the final pin would vanish between two
+  /// frames — the tree stops building the stack the moment [_pinnedAncestors]
+  /// empties, and an exit needs something to run inside.
+  bool _pinStackDraining = false;
+
   /// The density the canvas resolved on the last layout pass — the preference
   /// clamped by what the canvas can actually host. Reconciled AFTER the frame
   /// that computed it (never during build), and the one thing that says
@@ -392,7 +398,11 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
       final next =
           _stickyEnabled ? _computePinnedAncestors() : const <VisibleNode>[];
       if (listEquals(next, _pinnedAncestors)) return;
-      setState(() => _pinnedAncestors = next);
+      final draining = next.isEmpty && _pinnedAncestors.isNotEmpty;
+      setState(() {
+        _pinnedAncestors = next;
+        if (draining) _pinStackDraining = true;
+      });
     });
   }
 
@@ -916,7 +926,9 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                                   ),
                                 ),
                               ),
-                              if (_stickyEnabled && _pinnedAncestors.isNotEmpty)
+                              if (_stickyEnabled &&
+                                  (_pinnedAncestors.isNotEmpty ||
+                                      _pinStackDraining))
                                 Positioned(
                                   top: 0,
                                   left: 0,
@@ -930,6 +942,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                                     density: canvasDensity,
                                     padding: scrollPadding,
                                     onTap: _scrollToPinnedRow,
+                                    onEmptied: () {
+                                      if (!mounted || !_pinStackDraining) {
+                                        return;
+                                      }
+                                      setState(() => _pinStackDraining = false);
+                                    },
                                   ),
                                 ),
                             ],

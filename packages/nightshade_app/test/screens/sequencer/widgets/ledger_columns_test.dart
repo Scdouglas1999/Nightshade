@@ -545,5 +545,133 @@ void main() {
         isEmpty,
       );
     });
+
+    // Anchoring the whole remaining plan on the run's START is what made a
+    // night that was running late report the same ETAs it reported at
+    // sunset — all of them, all night. The pending tail hangs off the
+    // executing node's predicted start OR the clock, whichever is later.
+    group('a run behind schedule', () {
+      /// a (22:00) -> b (22:05) -> c (22:10), run started exactly on plan,
+      /// `b` executing.
+      ({
+        Sequence sequence,
+        InstructionSetNode container,
+        List<SequenceNode> children
+      }) late() {
+        return _containerOf([
+          DelayNode(name: 'a', seconds: 60),
+          DelayNode(name: 'b', seconds: 60),
+          DelayNode(name: 'c', seconds: 60),
+        ]);
+      }
+
+      test('pushes the pending tail by how late the executing node is', () {
+        final built = late();
+        final simulation = simFor(built);
+        // `b` was predicted to start at 22:05 and the run started on plan, so
+        // the clock at 22:45 says the night is 40 minutes behind.
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          now: t0.add(const Duration(minutes: 45)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+          actualStarts: {
+            built.children[1].id: t0.add(const Duration(minutes: 7))
+          },
+        );
+
+        // The executing node keeps its OBSERVED start — it really began then.
+        expect(
+          etas[built.children[1].id],
+          LedgerEta(t0.add(const Duration(minutes: 7)), isActual: true),
+        );
+        // The step after it was predicted for 22:10 and is now 22:50: the
+        // 40 minutes the run is behind, added to the plan's own spacing.
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 50)), isActual: false),
+        );
+      });
+
+      test('leaves a run that is ON plan exactly where the plan put it', () {
+        final built = late();
+        final simulation = simFor(built);
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          // `b` was predicted for 22:05 and it is 22:05: nothing to push.
+          now: t0.add(const Duration(minutes: 5)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 10)), isActual: false),
+        );
+      });
+
+      test('never talks a run that is AHEAD of plan back down to it', () {
+        final built = late();
+        final simulation = simFor(built);
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          // The run reached `b` three minutes early.
+          now: t0.add(const Duration(minutes: 2)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 10)), isActual: false),
+          reason: 'the estimator, not the clock, says how long the rest takes',
+        );
+      });
+
+      test('an unbilled executing node leaves the tail on the run anchor', () {
+        final built = late();
+        final simulation = simFor(built);
+        // Containers carry no segment of their own, so there is no predicted
+        // start to measure lateness against; the honest answer is to leave the
+        // plan where the run's start put it rather than invent a delay.
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          now: t0.add(const Duration(hours: 6)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: 'a-node-the-estimator-never-billed',
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 10)), isActual: false),
+        );
+      });
+
+      test('does not apply before a run, where `now` is already the anchor',
+          () {
+        final built = late();
+        final simulation = simFor(built);
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          now: t0.add(const Duration(hours: 1)),
+          runActive: false,
+          currentNodeId: built.children[1].id,
+        );
+
+        expect(
+          etas[built.children[0].id],
+          LedgerEta(t0.add(const Duration(hours: 1)), isActual: false),
+        );
+      });
+    });
   });
 }
