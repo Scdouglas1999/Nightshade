@@ -75,22 +75,32 @@ class _MountSiteReconciliationCardState
     return '${value.abs().toStringAsFixed(4)}° $hemisphere';
   }
 
+  static String _stamp(DateTime value) =>
+      value.toIso8601String().substring(0, 19).replaceFirst('T', ' ');
+
+  /// A clock in the offset its source reported. `mountUtcOffsetHours` is
+  /// nullable independently of `mountUtcSeconds`: a driver can hand back the
+  /// instant without the zone it believes it is in. This row only renders when
+  /// the two clocks already disagree, so the offset is never assumed — an
+  /// unreported one reads as UTC and says so, because a printed `UTC+00:00`
+  /// would be the card claiming an agreement nothing measured.
   String _formatClock(int? utcSeconds, double? offsetHours) {
     if (utcSeconds == null) return '—';
     final utc = DateTime.fromMillisecondsSinceEpoch(
       utcSeconds * 1000,
       isUtc: true,
     );
-    final offset = offsetHours ?? 0;
-    final local = utc.add(Duration(minutes: (offset * 60).round()));
-    final sign = offset < 0 ? '-' : '+';
-    final hours = offset.abs().floor().toString().padLeft(2, '0');
-    final minutes = ((offset.abs() - offset.abs().floor()) * 60)
+    if (offsetHours == null) {
+      return '${_stamp(utc)} UTC (offset not reported)';
+    }
+    final local = utc.add(Duration(minutes: (offsetHours * 60).round()));
+    final sign = offsetHours < 0 ? '-' : '+';
+    final hours = offsetHours.abs().floor().toString().padLeft(2, '0');
+    final minutes = ((offsetHours.abs() - offsetHours.abs().floor()) * 60)
         .round()
         .toString()
         .padLeft(2, '0');
-    return '${local.toIso8601String().substring(0, 19).replaceFirst('T', ' ')} '
-        'UTC$sign$hours:$minutes';
+    return '${_stamp(local)} UTC$sign$hours:$minutes';
   }
 
   Future<void> _apply(MountSiteSyncDirection direction) async {
