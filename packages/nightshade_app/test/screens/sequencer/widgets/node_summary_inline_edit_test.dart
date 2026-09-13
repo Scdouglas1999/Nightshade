@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
@@ -39,6 +40,10 @@ ProviderContainer _container() {
     overrides: [
       inMemoryDatabaseOverride(),
       activeEquipmentProfileProvider.overrideWithValue(_profile),
+      // The editable summary chips live on the comfortable card's summary
+      // line; the ledger row has fixed readout columns, not chips.
+      sequencerDensityProvider
+          .overrideWith((ref) => SequencerDensity.comfortable),
     ],
   );
   addTearDown(container.dispose);

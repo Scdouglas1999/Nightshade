@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -79,8 +80,13 @@ void main() {
   testWidgets(
     'the card keeps its frame count after the run clears the progress maps',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // These tests assert the comfortable card's inline content (frame
+        // counters, filter line); the ledger row intentionally omits it.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       final node = _exposure();
@@ -108,8 +114,13 @@ void main() {
   testWidgets(
     'the card names the filter the run used when the node names none',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // These tests assert the comfortable card's inline content (frame
+        // counters, filter line); the ledger row intentionally omits it.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       final node = _exposure();
@@ -127,8 +138,13 @@ void main() {
   testWidgets(
     'with no filter anywhere the card says the node has none set',
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // These tests assert the comfortable card's inline content (frame
+        // counters, filter line); the ledger row intentionally omits it.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       final node = _exposure();
@@ -150,8 +166,13 @@ void main() {
   testWidgets(
     "a node's own filter still wins over the run's",
     (tester) async {
-      final container =
-          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
+      final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
+        // These tests assert the comfortable card's inline content (frame
+        // counters, filter line); the ledger row intentionally omits it.
+        sequencerDensityProvider
+            .overrideWith((ref) => SequencerDensity.comfortable),
+      ]);
       addTearDown(container.dispose);
 
       final node = ExposureNode(durationSecs: 15, count: 4, filter: 'Ha');
