@@ -15,6 +15,7 @@ part 'node_progress_panels/stat_box.dart';
 part 'node_progress_panels/exposure_progress_panel.dart';
 part 'node_progress_panels/other_progress_panels.dart';
 part 'node_progress_panels/animated_progress_bar.dart';
+part 'node_progress_panels/last_known_node_progress.dart';
 
 /// Factory that returns the appropriate progress panel widget for a node type
 Widget? getProgressPanelForNode({
