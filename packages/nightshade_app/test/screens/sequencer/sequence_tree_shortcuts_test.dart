@@ -13,10 +13,16 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
+/// Three plain sibling rows.
+///
+/// Delays, not exposures: three exposures with an identical capture spec are a
+/// run, and in the default (Ledger) density a run is ONE row in the visible
+/// order (spec §6) — which is what `sequence_tree_fold_rows_test.dart` covers.
+/// This file is about walking rows, so its fixture must be three rows.
 ({Sequence sequence, List<String> visibleIds}) _threeNodeTree() {
-  final a = ExposureNode(name: 'a', durationSecs: 1, count: 1);
-  final b = ExposureNode(name: 'b', durationSecs: 1, count: 1);
-  final c = ExposureNode(name: 'c', durationSecs: 1, count: 1);
+  final a = DelayNode(name: 'a', seconds: 1);
+  final b = DelayNode(name: 'b', seconds: 1);
+  final c = DelayNode(name: 'c', seconds: 1);
   final root = InstructionSetNode(name: 'Root');
   final tree = <String, SequenceNode>{
     a.id: a.copyWith(parentId: root.id, orderIndex: 0),

@@ -402,21 +402,7 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
           height: _ledgerRowHeight,
           child: isRunning ? ColoredBox(color: colors.primary) : null,
         ),
-        for (var i = 0; i < guides; i++)
-          ExcludeSemantics(
-            child: SizedBox(
-              width: _ledgerGuideWidth,
-              height: _ledgerRowHeight,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
-                  width: _ledgerGuideLineWidth,
-                  height: _ledgerRowHeight,
-                  child: ColoredBox(color: colors.border),
-                ),
-              ),
-            ),
-          ),
+        ..._ledgerDepthGuides(guides, colors),
         _buildChevron(context),
         ExcludeSemantics(
           child: Icon(
@@ -487,28 +473,12 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
           ),
         ),
         _buildActions(context),
-        ExcludeSemantics(
-          child: Row(
-            children: [
-              for (var i = 0; i < _ledgerColumnWidths.length; i++)
-                SizedBox(
-                  width: _ledgerColumnWidths[i],
-                  child: Text(
-                    columns.values[i],
-                    style: NightshadeTypography.readoutXs.copyWith(
-                      // The ETA cell mutes when it is still quoting the
-                      // prediction for a node the run already passed.
-                      color: i == _ledgerColumnLabels.length - 1 && etaMuted
-                          ? colors.textMuted
-                          : columnColor,
-                    ),
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-          ),
+        _LedgerColumnCells(
+          values: columns.values,
+          color: columnColor,
+          // The ETA cell mutes when it is still quoting the prediction for a
+          // node the run already passed.
+          etaColor: etaMuted ? colors.textMuted : null,
         ),
         const SizedBox(width: _ledgerBadgeGutter),
       ],
@@ -519,39 +489,11 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
     if (!widget.isContainer) {
       return const SizedBox(width: _ledgerChevronWidth);
     }
-    final label = widget.isCollapsed ? 'Expand' : 'Collapse';
-    return Semantics(
-      button: true,
-      enabled: true,
-      label: label,
-      child: NightshadeTooltip(
-        message: label,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => ref
-              .read(collapsedNodeIdsProvider.notifier)
-              .toggle(widget.node.id),
-          child: SizedBox(
-            width: _ledgerChevronWidth,
-            height: _ledgerRowHeight,
-            child: Center(
-              child: AnimatedRotation(
-                turns: widget.isCollapsed ? -0.25 : 0,
-                duration: _ledgerMotion(
-                  context,
-                  NightshadeTokens.durationQuick,
-                ),
-                curve: NightshadeTokens.curveStandard,
-                child: Icon(
-                  LucideIcons.chevronDown,
-                  size: _ledgerChevronGlyph,
-                  color: widget.colors.textMuted,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return _LedgerChevron(
+      colors: widget.colors,
+      isCollapsed: widget.isCollapsed,
+      onToggle: () =>
+          ref.read(collapsedNodeIdsProvider.notifier).toggle(widget.node.id),
     );
   }
 
@@ -774,6 +716,139 @@ class _LedgerChip extends StatelessWidget {
         style: NightshadeTypography.overline.copyWith(
           color: tone ?? colors.textSecondary,
         ),
+      ),
+    );
+  }
+}
+
+/// The depth guides a row draws to its left: one 18 px column per ancestor
+/// level, each with a hairline down its leading edge.
+///
+/// Shared by [_LedgerRow] and [_LedgerFoldRow] so a folded run sits on exactly
+/// the same indent grid as the rows around it — a run that indented by even a
+/// pixel more would read as nested inside its own siblings.
+List<Widget> _ledgerDepthGuides(int count, NightshadeColors colors) {
+  return <Widget>[
+    for (var i = 0; i < count; i++)
+      ExcludeSemantics(
+        child: SizedBox(
+          width: _ledgerGuideWidth,
+          height: _ledgerRowHeight,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: _ledgerGuideLineWidth,
+              height: _ledgerRowHeight,
+              child: ColoredBox(color: colors.border),
+            ),
+          ),
+        ),
+      ),
+  ];
+}
+
+/// The row's chevron: a full-height hit box around a 12 px glyph that rotates
+/// a quarter turn between the two states.
+///
+/// One widget for both callers because the two states have to look identical
+/// whether they belong to a container or to a folded run — the chevron IS the
+/// tree's only "there is more under this line" affordance. [_LedgerFoldRow]
+/// only ever mounts it collapsed (an expanded run is its member rows, with no
+/// header of its own), so the rotation tween is exercised by containers.
+class _LedgerChevron extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isCollapsed;
+  final VoidCallback onToggle;
+
+  /// Announced name and tooltip for the collapsed state. Defaults to the
+  /// container wording; a folded run says what it expands into instead.
+  final String? expandLabel;
+
+  const _LedgerChevron({
+    required this.colors,
+    required this.isCollapsed,
+    required this.onToggle,
+    this.expandLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isCollapsed ? (expandLabel ?? 'Expand') : 'Collapse';
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: label,
+      child: NightshadeTooltip(
+        message: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onToggle,
+          child: SizedBox(
+            width: _ledgerChevronWidth,
+            height: _ledgerRowHeight,
+            child: Center(
+              child: AnimatedRotation(
+                turns: isCollapsed ? -0.25 : 0,
+                duration: _ledgerMotion(
+                  context,
+                  NightshadeTokens.durationQuick,
+                ),
+                curve: NightshadeTokens.curveStandard,
+                child: Icon(
+                  LucideIcons.chevronDown,
+                  size: _ledgerChevronGlyph,
+                  color: colors.textMuted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The four right-aligned readout cells, in column order.
+///
+/// Shared so the folded row's cells sit on the same 70 / 60 / 74 / 62 grid as
+/// every other row's — the ledger's whole promise is that a column means the
+/// same thing all the way down, which requires the cells to be laid out by one
+/// piece of code.
+class _LedgerColumnCells extends StatelessWidget {
+  final List<String> values;
+  final Color color;
+
+  /// Overrides [color] for the ETA cell only, for the case where the row is
+  /// still quoting a prediction the run has already overtaken.
+  final Color? etaColor;
+
+  const _LedgerColumnCells({
+    required this.values,
+    required this.color,
+    this.etaColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Row(
+        children: [
+          for (var i = 0; i < _ledgerColumnWidths.length; i++)
+            SizedBox(
+              width: _ledgerColumnWidths[i],
+              child: Text(
+                values[i],
+                style: NightshadeTypography.readoutXs.copyWith(
+                  color: i == _ledgerColumnWidths.length - 1
+                      ? (etaColor ?? color)
+                      : color,
+                ),
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
       ),
     );
   }

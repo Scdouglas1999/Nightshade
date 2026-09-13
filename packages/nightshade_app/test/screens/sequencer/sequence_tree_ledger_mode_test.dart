@@ -189,6 +189,11 @@ void main() {
     ]);
     final handle = await _pumpTree(tester, built.sequence);
 
+    // The two exposures share a capture spec, so the loop's one child row is
+    // the folded run 'L · R' (spec §6) — that row is what collapsing the loop
+    // has to hide.
+    expect(find.text('L · R'), findsOneWidget);
+
     // Collapse 'Broadband' via its chevron (carries the 'Collapse' semantic).
     final setRow = _rowShellOf(find.text('Broadband')).first;
     final chevron = find.descendant(
@@ -199,7 +204,7 @@ void main() {
     expect(handle.container.read(collapsedNodeIdsProvider),
         contains(built.loopId));
     // Children are hidden and the rollup summary rides on the row.
-    expect(find.text('L subs'), findsNothing);
+    expect(find.text('L · R'), findsNothing);
     expect(find.text('L · R 60 s ×10 each'), findsOneWidget);
 
     // Expand again restores the children and drops the summary.
@@ -208,7 +213,7 @@ void main() {
         matching: find.bySemanticsLabel('Expand'));
     await tester.tap(expandChevron);
     await tester.pumpAndSettle();
-    expect(find.text('L subs'), findsOneWidget);
+    expect(find.text('L · R'), findsOneWidget);
     expect(find.text('L · R 60 s ×10 each'), findsNothing);
     await _drainValidationDebounce(tester);
   });
@@ -223,8 +228,11 @@ void main() {
     );
     final e1 =
         ExposureNode(name: 'L subs', filter: 'L', durationSecs: 60, count: 10);
+    // A different frame count, so the pair is not a run: a run folds into one
+    // row (spec §6) and this test needs two rows to select and reorder
+    // between.
     final e2 =
-        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 10);
+        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 6);
     final root = InstructionSetNode(name: 'Root');
     final sequence = Sequence.create(
       name: 'T',
@@ -570,8 +578,11 @@ void main() {
     );
     final e1 =
         ExposureNode(name: 'L subs', filter: 'L', durationSecs: 60, count: 10);
+    // A different frame count, so the pair is not a run: a run folds into one
+    // row (spec §6) and this test needs two rows to select and reorder
+    // between.
     final e2 =
-        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 10);
+        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 6);
     final root = InstructionSetNode(name: 'Root');
     final sequence = Sequence.create(
       name: 'T',
@@ -617,11 +628,14 @@ void main() {
         durationSecs: 60,
         count: 10,
       ),
+      // Different frame count so the two exposures are not a run: a run is one
+      // row with one zone on each side, and this test counts the zones
+      // between two rows.
       ExposureNode(
         name: 'R subs',
         filter: 'R',
         durationSecs: 60,
-        count: 10,
+        count: 6,
       ),
     ]);
     final handle = await _pumpTree(tester, built.sequence);

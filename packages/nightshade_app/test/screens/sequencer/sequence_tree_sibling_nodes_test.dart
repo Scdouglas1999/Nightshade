@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/tutorial_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -46,6 +47,14 @@ Future<({ProviderContainer container, void Function() dispose})> _pumpTree(
       // The ledger ETA clock is a real periodic stream; in the fake-async
       // zone its timer outlives every pump and fails teardown.
       ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+      // Comfortable, because the collision this file guards is a per-NODE row
+      // holding a static GlobalKey: in Ledger two identically-specced sibling
+      // exposures are one folded row (spec §6), so the two-holder situation
+      // cannot arise there. The folded form of the same fixture — including
+      // the anchor moving onto the fold row — is asserted in
+      // `sequence_tree_fold_rows_test.dart`.
+      sequencerDensityProvider
+          .overrideWith((ref) => SequencerDensity.comfortable),
     ],
   );
   var disposed = false;

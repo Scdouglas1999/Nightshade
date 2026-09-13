@@ -286,16 +286,9 @@ class _NodeOverflowMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final canEdit = ref.watch(canEditSequenceProvider);
-    return Theme(
-      data: Theme.of(context).copyWith(
-        popupMenuTheme: PopupMenuThemeData(
-          color: colors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            side: BorderSide(color: colors.border),
-          ),
-        ),
-      ),
+    return _treeMenuSurface(
+      context,
+      colors,
       child: PopupMenuButton<String>(
         icon: Icon(LucideIcons.moreVertical, size: 14, color: colors.textMuted),
         tooltip: 'More Actions',
@@ -401,6 +394,31 @@ class _NodeOverflowMenu extends ConsumerWidget {
   }
 }
 
+/// The popup-menu surface every tree kebab opens on.
+///
+/// One helper rather than a copy per menu: the node row's kebab and the folded
+/// row's sit a few pixels apart on the same line, so a menu that differed in
+/// fill or border would read as two different controls.
+Widget _treeMenuSurface(
+  BuildContext context,
+  NightshadeColors colors, {
+  required Widget child,
+}) {
+  return Theme(
+    data: Theme.of(context).copyWith(
+      popupMenuTheme: PopupMenuThemeData(
+        // ignore: deprecated_member_use
+        color: colors.surfaceAlt,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          side: BorderSide(color: colors.border),
+        ),
+      ),
+    ),
+    child: child,
+  );
+}
+
 class _DropZone extends ConsumerWidget {
   final NightshadeColors colors;
   final String parentId;
@@ -424,6 +442,7 @@ class _DropZone extends ConsumerWidget {
     return DragTarget<Object>(
       onWillAcceptWithDetails: (data) =>
           data.data is String ||
+          data.data is FoldDragPayload ||
           data.data is NodePaletteItem ||
           data.data is TemplateSnippet ||
           data.data is TargetQueueDragPayload,
@@ -435,6 +454,17 @@ class _DropZone extends ConsumerWidget {
                 parentId,
                 index,
               );
+        } else if (data is FoldDragPayload) {
+          // A folded run lands here as one contiguous block, in one undo step
+          // — see [moveFoldGroup] for why the members chase each other rather
+          // than take index + k.
+          moveFoldGroup(
+            context,
+            ref,
+            memberIds: data.memberIds,
+            parentId: parentId,
+            index: index,
+          );
         } else if (data is NodePaletteItem) {
           final node = data.createNode();
           final notifier = ref.read(currentSequenceProvider.notifier);

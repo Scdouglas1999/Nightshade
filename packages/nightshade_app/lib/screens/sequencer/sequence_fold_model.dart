@@ -184,6 +184,59 @@ class FoldGroup extends Equatable {
       ];
 }
 
+/// What a folded row carries in a drag.
+///
+/// A distinct payload type — rather than the `String` node id an ordinary row
+/// drags — because every [DragTarget] in the tree has to be able to tell "one
+/// node" from "this whole run": the run moves as a contiguous block, in one
+/// undo step, and a target that mistook it for a `String` would move only the
+/// row under the pointer.
+class FoldDragPayload extends Equatable {
+  /// The dragged group's [FoldGroup.id], so a target can refuse a drop that
+  /// would land the run inside itself.
+  final String groupId;
+
+  /// Member ids in tree order. The block is re-inserted in this order.
+  final List<String> memberIds;
+
+  /// The parent the run currently sits under.
+  final String parentId;
+
+  FoldDragPayload({
+    required this.groupId,
+    required List<String> memberIds,
+    required this.parentId,
+  }) : memberIds = List.unmodifiable(memberIds);
+
+  @override
+  List<Object?> get props => [groupId, memberIds, parentId];
+}
+
+/// The [FoldGroup] that [nodeId] belongs to, or null when the node is not part
+/// of a run at all.
+///
+/// Deliberately computed with an EMPTY unfolded set: the caller (the Left /
+/// Right arrow actions) needs the group whether or not it is currently
+/// expanded, and [foldChildren] only constructs a [FoldGroup] for the runs it
+/// folds. Compare the returned [FoldGroup.id] against `unfoldedGroupIds` to
+/// learn which of the two states the run is in.
+///
+/// O(siblings): one fold pass over the node's own parent, never the tree.
+FoldGroup? foldGroupForNode(Sequence sequence, String nodeId) {
+  final parentId = sequence.nodes[nodeId]?.parentId;
+  if (parentId == null) return null;
+  for (final entry in foldChildren(
+    sequence,
+    parentId,
+    unfoldedGroupIds: const <String>{},
+  )) {
+    if (entry is FoldedEntry && entry.group.memberIds.contains(nodeId)) {
+      return entry.group;
+    }
+  }
+  return null;
+}
+
 /// Walk [parentId]'s children in order and fold the contiguous runs §6
 /// describes, returning one [TreeEntry] per resulting row.
 ///

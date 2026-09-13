@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../sequence_fold_model.dart';
+import '../sequence_fold_state.dart';
+import 'sequencer_density.dart';
+
 /// Keyboard shortcut wiring for the sequencer tree (Builder tab).
 ///
 /// All bindings derive from [kSequenceTreeShortcuts] so they read like a
@@ -152,8 +156,36 @@ final visibleNodeOrderProvider = Provider.autoDispose<List<VisibleNode>>((ref) {
   }
 
   recurse(root.id, 0);
-  return out;
+
+  // Ledger folds contiguous runs into one row (spec §6), and a folded run is
+  // ONE row to the arrow keys, the minimap and the step finder — the members
+  // behind it are as unreachable as the children of a collapsed container,
+  // and for the same reason: they are not drawn. The other densities draw
+  // every child, so they get the unfolded order.
+  if (ref.watch(sequencerDensityProvider) != SequencerDensity.ledger) {
+    return out;
+  }
+  return applyFoldsToVisibleOrder(
+    out,
+    sequence,
+    ref.watch(unfoldedGroupIdsProvider),
+  );
 });
+
+/// The [FoldGroup] the tree would draw [nodeId] inside, or null when folding
+/// is not the active rendering or the node is not part of a run.
+///
+/// Gated on the density preference because the Left / Right arrows must not
+/// quietly toggle fold state the user cannot see: in Comfortable and Compact
+/// there are no folded rows, so the arrows keep their container meaning.
+FoldGroup? _foldGroupForSelection(WidgetRef ref, String nodeId) {
+  if (ref.read(sequencerDensityProvider) != SequencerDensity.ledger) {
+    return null;
+  }
+  final sequence = ref.read(currentSequenceProvider);
+  if (sequence == null) return null;
+  return foldGroupForNode(sequence, nodeId);
+}
 
 // Action implementations
 
@@ -177,6 +209,17 @@ Map<Type, Action<Intent>> buildSequenceTreeActions(WidgetRef ref) {
       onInvoke: (_) {
         final id = ref.read(selectedNodeIdProvider);
         if (id == null) return null;
+        final group = _foldGroupForSelection(ref, id);
+        if (group != null &&
+            ref.read(unfoldedGroupIdsProvider).contains(group.id)) {
+          ref.read(unfoldedGroupIdsProvider.notifier).fold(group.id);
+          // Folding hides every member but the first; a selection left on one
+          // of the hidden ones points at a row that is no longer drawn, and
+          // the next Down-arrow would have no index to move from.
+          ref.read(selectedNodeIdProvider.notifier).state =
+              group.memberIds.first;
+          return null;
+        }
         ref.read(collapsedNodeIdsProvider.notifier).collapse(id);
         return null;
       },
@@ -185,6 +228,15 @@ Map<Type, Action<Intent>> buildSequenceTreeActions(WidgetRef ref) {
       onInvoke: (_) {
         final id = ref.read(selectedNodeIdProvider);
         if (id == null) return null;
+        // Right on a folded run's stand-in expands the run into its members,
+        // which is what Right means everywhere else in the tree. Run members
+        // are leaves, so this can never shadow a container expand.
+        final group = _foldGroupForSelection(ref, id);
+        if (group != null &&
+            !ref.read(unfoldedGroupIdsProvider).contains(group.id)) {
+          ref.read(unfoldedGroupIdsProvider.notifier).unfold(group.id);
+          return null;
+        }
         ref.read(collapsedNodeIdsProvider.notifier).expand(id);
         return null;
       },
