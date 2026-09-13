@@ -21,7 +21,6 @@
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/capture_settings_panel.dart';
@@ -97,6 +96,17 @@ Future<_RecordingDeviceService> _pumpPanel(
       as _RecordingDeviceService;
 }
 
+/// The panel's Filter selector, identified by the slot label it currently
+/// shows.
+///
+/// The Filter control is the only [NightshadeDropdown] whose closed trigger
+/// shows a filter slot label (Binning shows '1x1', Frame shows 'Light'), so
+/// scoping to the dropdown ancestor of that label picks it out of the three.
+Finder _filterDropdown(String currentLabel) => find.ancestor(
+      of: find.text(currentLabel),
+      matching: find.byType(NightshadeDropdown),
+    );
+
 /// Open the filter dropdown (identified by the slot label it currently shows)
 /// and tap the menu entry labelled [filter], draining the resulting state
 /// frames. The recording service completes synchronously.
@@ -105,19 +115,15 @@ Future<void> _selectFilter(
   required String currentLabel,
   required String filter,
 }) async {
-  // The Filter dropdown is the only String dropdown whose closed trigger shows
-  // a filter slot label (Binning shows '1x1', Frame shows 'Light'), so scope
-  // the open tap to the dropdown ancestor of that label.
-  final filterDropdown = find.ancestor(
-    of: find.text(currentLabel),
-    matching: find.byType(DropdownButton<String>),
-  );
-  await tester.tap(filterDropdown);
+  await tester.tap(_filterDropdown(currentLabel));
   await tester.pumpAndSettle();
-  // The open menu shows entries; tap the last match (the menu overlay copy).
+  // NightshadeDropdown opens its menu as a route, so the entries are not
+  // descendants of the trigger; tap the last match (the menu copy).
   await tester.tap(find.text(filter).last);
-  for (var i = 0; i < 3; i++) {
-    await tester.pump(const Duration(milliseconds: 20));
+  // Drain the menu route's pop and the resulting state frames by hand rather
+  // than settling: a gated wheel move leaves work pending on purpose.
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
   }
 }
 
@@ -147,14 +153,7 @@ void main() {
 
     expect(service.positions, [2]);
     expect(
-      tester
-          .widget<DropdownButton<String>>(
-            find.ancestor(
-              of: find.text('L'),
-              matching: find.byType(DropdownButton<String>),
-            ),
-          )
-          .onChanged,
+      tester.widget<NightshadeDropdown>(_filterDropdown('L')).onChanged,
       isNull,
       reason: 'The filter cannot be changed again before hardware settles.',
     );
@@ -176,8 +175,7 @@ void main() {
 
     expect(
       tester
-          .widgetList<DropdownButton<String>>(
-              find.byType(DropdownButton<String>))
+          .widgetList<NightshadeDropdown>(find.byType(NightshadeDropdown))
           .where((dropdown) => dropdown.value == 'G'),
       hasLength(1),
       reason: 'Exposure metadata changes only after the move completes.',
