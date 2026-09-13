@@ -477,11 +477,10 @@ InMemoryDepthLockGoals stubDepthLockGoals(
       x1: any(named: 'x1'),
       y1: any(named: 'y1'),
     ),
-  ).thenAnswer(
-    (_) async => depthLockDefinitionFixture().measurement.region,
-  );
-  when(() => backend.checkDepthLockMeasurement(any()))
-      .thenAnswer((_) async => 2400);
+  ).thenAnswer((_) async => depthLockDefinitionFixture().measurement.region);
+  when(
+    () => backend.checkDepthLockMeasurement(any()),
+  ).thenAnswer((_) async => 2400);
   when(
     () => backend.suggestDepthLockFloor(
       referencePath: any(named: 'referencePath'),
@@ -494,12 +493,14 @@ InMemoryDepthLockGoals stubDepthLockGoals(
   when(
     () => backend.depthLockGoalCurve(any(), maxPoints: any(named: 'maxPoints')),
   ).thenAnswer(
-    (invocation) async =>
-        depthLockCurveFixture(store.read(invocation.positionalArguments.first as String)),
+    (invocation) async => depthLockCurveFixture(
+      store.read(invocation.positionalArguments.first as String),
+    ),
   );
 
   return store;
 }
+
 /// A short curve for [goal]: a few measured points climbing toward the
 /// threshold, then a few projected ones crossing it. Enough shape for a chart
 /// to render something honest without pretending to be the real estimator.
@@ -534,4 +535,3 @@ DepthLockFloorSuggestion depthLockFloorSuggestionFixture({
   aperturePixels: 69.4,
   source: 'measured from the reference light and its masters',
 );
-

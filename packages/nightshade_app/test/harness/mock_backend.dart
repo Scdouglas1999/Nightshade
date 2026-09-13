@@ -238,19 +238,20 @@ DepthLockGoal depthLockGoalFixture({
   DepthLockGoalDefinition? definition,
   DepthLockReport? report,
   int evidenceFrames = 0,
-}) => DepthLockGoal(
-  id: id,
-  revision: revision,
-  definition: definition ?? depthLockDefinitionFixture(),
-  selectedAtMs: 1757000000000,
-  evidenceFrames: evidenceFrames,
-  evidenceRevision: revision,
-  analysisCurrent: true,
-  report: report,
-  candidateFrames: 0,
-  archivedRevisions: revision - 1,
-  estimatorVersion: 1,
-);
+}) =>
+    DepthLockGoal(
+      id: id,
+      revision: revision,
+      definition: definition ?? depthLockDefinitionFixture(),
+      selectedAtMs: 1757000000000,
+      evidenceFrames: evidenceFrames,
+      evidenceRevision: revision,
+      analysisCurrent: true,
+      report: report,
+      candidateFrames: 0,
+      archivedRevisions: revision - 1,
+      estimatorVersion: 1,
+    );
 
 /// A complete goal definition; [filterName] and [threshold] are the two a
 /// test usually cares about.
@@ -260,63 +261,64 @@ DepthLockGoalDefinition depthLockDefinitionFixture({
   double threshold = 12,
   bool enabled = true,
   bool automaticCompletion = true,
-}) => DepthLockGoalDefinition(
-  label: label,
-  projectId: 'project-1',
-  targetId: 'target-1',
-  profileId: 'profile-1',
-  filterName: filterName,
-  filterIndex: 0,
-  referencePath: '/data/reference.fits',
-  reference: const ReferenceGeometry(
-    width: 4144,
-    height: 2822,
-    crval1: 83.82,
-    crval2: -5.39,
-    crpix1: 2072,
-    crpix2: 1411,
-    cd1_1: -0.0002,
-    cd1_2: 0,
-    cd2_1: 0,
-    cd2_2: 0.0002,
-  ),
-  acquisition: AcquisitionSettings(
-    instrument: 'Test Camera',
-    filter: filterName,
-    exposureSecs: 300,
-    gain: 100,
-    offset: 50,
-    binX: 1,
-    binY: 1,
-    ccdTempC: -10,
-  ),
-  temperatureToleranceC: 1,
-  darkPath: '/data/masters/dark.fits',
-  flatPath: '/data/masters/flat.fits',
-  measurement: DepthLockMeasurement(
-    region: const SkyRectangle(
-      raDeg: 83.82,
-      decDeg: -5.39,
-      widthArcsec: 600,
-      heightArcsec: 400,
-      rotationDeg: 0,
-    ),
-    background: const SkyRectangle(
-      raDeg: 83.9,
-      decDeg: -5.5,
-      widthArcsec: 600,
-      heightArcsec: 400,
-      rotationDeg: 0,
-    ),
-    scaleArcsec: 6,
-    threshold: threshold,
-    minCoverage: 0.95,
-    systematicFloorAdu: 0.4,
-    systematicFloorSource: 'flat master residual',
-  ),
-  enabled: enabled,
-  automaticCompletion: automaticCompletion,
-);
+}) =>
+    DepthLockGoalDefinition(
+      label: label,
+      projectId: 'project-1',
+      targetId: 'target-1',
+      profileId: 'profile-1',
+      filterName: filterName,
+      filterIndex: 0,
+      referencePath: '/data/reference.fits',
+      reference: const ReferenceGeometry(
+        width: 4144,
+        height: 2822,
+        crval1: 83.82,
+        crval2: -5.39,
+        crpix1: 2072,
+        crpix2: 1411,
+        cd1_1: -0.0002,
+        cd1_2: 0,
+        cd2_1: 0,
+        cd2_2: 0.0002,
+      ),
+      acquisition: AcquisitionSettings(
+        instrument: 'Test Camera',
+        filter: filterName,
+        exposureSecs: 300,
+        gain: 100,
+        offset: 50,
+        binX: 1,
+        binY: 1,
+        ccdTempC: -10,
+      ),
+      temperatureToleranceC: 1,
+      darkPath: '/data/masters/dark.fits',
+      flatPath: '/data/masters/flat.fits',
+      measurement: DepthLockMeasurement(
+        region: const SkyRectangle(
+          raDeg: 83.82,
+          decDeg: -5.39,
+          widthArcsec: 600,
+          heightArcsec: 400,
+          rotationDeg: 0,
+        ),
+        background: const SkyRectangle(
+          raDeg: 83.9,
+          decDeg: -5.5,
+          widthArcsec: 600,
+          heightArcsec: 400,
+          rotationDeg: 0,
+        ),
+        scaleArcsec: 6,
+        threshold: threshold,
+        minCoverage: 0.95,
+        systematicFloorAdu: 0.4,
+        systematicFloorSource: 'flat master residual',
+      ),
+      enabled: enabled,
+      automaticCompletion: automaticCompletion,
+    );
 
 /// Wire [backend]'s DepthLock role onto an in-memory store and return it, so
 /// a test can seed goals and then assert on what the UI did to them.
@@ -453,12 +455,13 @@ InMemoryDepthLockGoals stubDepthLockGoals(
   when(
     () => backend.depthLockGoalCurve(any(), maxPoints: any(named: 'maxPoints')),
   ).thenAnswer(
-    (invocation) async =>
-        depthLockCurveFixture(store.read(invocation.positionalArguments.first as String)),
+    (invocation) async => depthLockCurveFixture(
+        store.read(invocation.positionalArguments.first as String)),
   );
 
   return store;
 }
+
 /// A short curve for [goal]: a few measured points climbing toward the
 /// threshold, then a few projected ones crossing it. Enough shape for a chart
 /// to render something honest without pretending to be the real estimator.
@@ -485,12 +488,12 @@ List<DepthLockCurvePoint> depthLockCurveFixture(DepthLockGoal goal) {
 /// A measured systematic floor, as the native estimator reports one.
 DepthLockFloorSuggestion depthLockFloorSuggestionFixture({
   double floorAdu = 0.42,
-}) => DepthLockFloorSuggestion(
-  floorAdu: floorAdu,
-  darkNoiseAdu: 0.31,
-  flatRelativeNoise: 0.0018,
-  skyAdu: 1240,
-  aperturePixels: 69.4,
-  source: 'measured from the reference light and its masters',
-);
-
+}) =>
+    DepthLockFloorSuggestion(
+      floorAdu: floorAdu,
+      darkNoiseAdu: 0.31,
+      flatRelativeNoise: 0.0018,
+      skyAdu: 1240,
+      aperturePixels: 69.4,
+      source: 'measured from the reference light and its masters',
+    );

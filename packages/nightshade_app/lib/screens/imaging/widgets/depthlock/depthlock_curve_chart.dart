@@ -184,8 +184,8 @@ class _DepthLockCurveChartState extends ConsumerState<DepthLockCurveChart> {
     double exposure,
     double? ceiling,
   ) {
-    final Size size = (context.findRenderObject() as RenderBox?)?.size ??
-        Size.zero;
+    final Size size =
+        (context.findRenderObject() as RenderBox?)?.size ?? Size.zero;
     if (size.width <= 0) return;
     final geometry = DepthLockCurvePainter.geometryFor(
       size: Size(size.width, DepthLockCurveChart.plotHeight),
@@ -378,10 +378,12 @@ class _CurveTable extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
           child: Row(
             children: <Widget>[
-              Expanded(flex: 3, child: _cell(context, 'Integration', header: true)),
+              Expanded(
+                  flex: 3, child: _cell(context, 'Integration', header: true)),
               Expanded(flex: 2, child: _cell(context, 'Frames', header: true)),
               Expanded(flex: 2, child: _cell(context, 'S/N', header: true)),
-              Expanded(flex: 3, child: _cell(context, 'Conservative', header: true)),
+              Expanded(
+                  flex: 3, child: _cell(context, 'Conservative', header: true)),
             ],
           ),
         ),
@@ -538,14 +540,11 @@ class DepthLockCurvePainter extends CustomPainter {
       for (final point in points)
         depthLockHours(frames: point.frames, exposureSecs: exposureSecs),
     ];
-    final double maxHours = hours.isEmpty
-        ? 0
-        : hours.reduce((a, b) => a > b ? a : b);
+    final double maxHours =
+        hours.isEmpty ? 0 : hours.reduce((a, b) => a > b ? a : b);
     final double maxScore = points.isEmpty
         ? 1
-        : points
-              .map((p) => p.score)
-              .reduce((a, b) => a > b ? a : b);
+        : points.map((p) => p.score).reduce((a, b) => a > b ? a : b);
     return DepthLockCurveGeometry(
       plot: Rect.fromLTRB(
         _gutterLeft,
@@ -784,9 +783,8 @@ class DepthLockCurvePainter extends CustomPainter {
 
     // Flip the plate to the other side of the crosshair near the right edge
     // rather than let it run off the chart.
-    final double left = x + 8 + painter.width > size.width
-        ? x - 8 - painter.width
-        : x + 8;
+    final double left =
+        x + 8 + painter.width > size.width ? x - 8 - painter.width : x + 8;
     final Rect plate = Rect.fromLTWH(
       left - 4,
       geometry.plot.top,

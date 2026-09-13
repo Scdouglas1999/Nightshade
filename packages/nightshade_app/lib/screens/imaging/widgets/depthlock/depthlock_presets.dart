@@ -26,23 +26,23 @@ enum DepthLockPreset {
   /// The aperture side this preset asks for, in arcseconds, before the
   /// sampler's pixel limits are applied.
   double get scaleArcsec => switch (this) {
-    DepthLockPreset.faint => 10,
-    DepthLockPreset.veryFaint => 20,
-    DepthLockPreset.extreme => 40,
-  };
+        DepthLockPreset.faint => 10,
+        DepthLockPreset.veryFaint => 20,
+        DepthLockPreset.extreme => 40,
+      };
 
   /// The depth score this preset asks the region to reach.
   double get threshold => switch (this) {
-    DepthLockPreset.faint => 5,
-    DepthLockPreset.veryFaint => 4,
-    DepthLockPreset.extreme => 3,
-  };
+        DepthLockPreset.faint => 5,
+        DepthLockPreset.veryFaint => 4,
+        DepthLockPreset.extreme => 3,
+      };
 
   String get label => switch (this) {
-    DepthLockPreset.faint => 'Faint',
-    DepthLockPreset.veryFaint => 'Very faint',
-    DepthLockPreset.extreme => 'Extreme',
-  };
+        DepthLockPreset.faint => 'Faint',
+        DepthLockPreset.veryFaint => 'Very faint',
+        DepthLockPreset.extreme => 'Extreme',
+      };
 
   /// One line saying what this preset is for, in observing terms and with its
   /// two numbers stated — a preset that hides what it set is a preset nobody
@@ -50,18 +50,18 @@ enum DepthLockPreset {
   /// above the local sky divided by the noise in that measurement, per
   /// square, for the *weakest quarter* of the marked area.
   String get description => switch (this) {
-    DepthLockPreset.faint =>
-      'Faint: 10″ squares, signal-to-noise 5 — the weakest quarter of the '
-          'area reaches five times its noise. Wisps you can already glimpse '
-          'in a stretched sub become clearly present.',
-    DepthLockPreset.veryFaint =>
-      'Very faint: 20″ squares, signal-to-noise 4 — bigger squares gather '
-          'more light. Structure that is only hinted at becomes believable.',
-    DepthLockPreset.extreme =>
-      'Extreme: 40″ squares, signal-to-noise 3 — the coarsest look, for '
-          'integrated light that takes many nights. Three is "there is '
-          'something there", not a finished picture.',
-  };
+        DepthLockPreset.faint =>
+          'Faint: 10″ squares, signal-to-noise 5 — the weakest quarter of the '
+              'area reaches five times its noise. Wisps you can already glimpse '
+              'in a stretched sub become clearly present.',
+        DepthLockPreset.veryFaint =>
+          'Very faint: 20″ squares, signal-to-noise 4 — bigger squares gather '
+              'more light. Structure that is only hinted at becomes believable.',
+        DepthLockPreset.extreme =>
+          'Extreme: 40″ squares, signal-to-noise 3 — the coarsest look, for '
+              'integrated light that takes many nights. Three is "there is '
+              'something there", not a finished picture.',
+      };
 
   /// How the number scales, so a custom target is not a guess.
   static const String scalingNote =
@@ -121,10 +121,12 @@ DepthLockMeasurement depthLockApplyPreset(
   DepthLockMeasurement measurement,
   DepthLockPreset preset, {
   required double pixelScaleArcsec,
-}) => measurement.copyWith(
-  scaleArcsec: depthLockPresetScale(preset, pixelScaleArcsec: pixelScaleArcsec),
-  threshold: preset.threshold,
-);
+}) =>
+    measurement.copyWith(
+      scaleArcsec:
+          depthLockPresetScale(preset, pixelScaleArcsec: pixelScaleArcsec),
+      threshold: preset.threshold,
+    );
 
 /// The error floor a freshly built definition carries until the editor has
 /// derived one from the operator's masters.

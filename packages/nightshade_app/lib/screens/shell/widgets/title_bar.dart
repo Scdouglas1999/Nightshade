@@ -306,7 +306,7 @@ class _Actions extends StatelessWidget {
         // Settings — keyed for the onboarding overlay so the first-launch
         // tour can spotlight where Plate Solving lives.
         Builder(
-          builder: (context) =>           NightshadeIconButton(
+          builder: (context) => NightshadeIconButton(
             key: TutorialKeys.navSettings,
             icon: LucideIcons.settings,
             tooltip: l10n.text('settingsTitle'),

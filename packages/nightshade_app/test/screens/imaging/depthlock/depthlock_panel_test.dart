@@ -159,7 +159,8 @@ void main() {
     await _openDetail(tester, 'Outer shell');
     expect(find.text('Tidal tail'), findsNothing);
     expect(find.widgetWithText(NightshadeButton, 'Re-measure'), findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'Edit region'), findsOneWidget);
+    expect(
+        find.widgetWithText(NightshadeButton, 'Edit region'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(NightshadeButton, 'All goals'));
     await tester.pumpAndSettle();

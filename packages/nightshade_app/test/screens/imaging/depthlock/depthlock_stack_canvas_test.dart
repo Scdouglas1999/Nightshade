@@ -42,47 +42,50 @@ Uint8List _flatStretch({
   required int height,
   required List<int> data,
   required int channels,
-}) => Uint8List(width * height * 4);
+}) =>
+    Uint8List(width * height * 4);
 
 LiveStackingState _running({
   String? referencePath = _referencePath,
   int width = _stackWidth,
   int height = _stackHeight,
   bool withPreview = true,
-}) => LiveStackingState(
-  status: LiveStackingStatus.running,
-  referenceImagePath: referencePath,
-  previewData: withPreview ? Uint16List(width * height) : null,
-  previewWidth: withPreview ? width : 0,
-  previewHeight: withPreview ? height : 0,
-);
+}) =>
+    LiveStackingState(
+      status: LiveStackingStatus.running,
+      referenceImagePath: referencePath,
+      previewData: withPreview ? Uint16List(width * height) : null,
+      previewWidth: withPreview ? width : 0,
+      previewHeight: withPreview ? height : 0,
+    );
 
 DepthLockReferenceInfo _referenceInfo({
   int width = _stackWidth,
   int height = _stackHeight,
   bool monochrome = true,
   bool headerSolution = false,
-}) => DepthLockReferenceInfo(
-  width: width,
-  height: height,
-  pixelType: 'U16',
-  monochrome: monochrome,
-  acquisition: depthLockAcquisitionFixture,
-  geometry: headerSolution
-      ? ReferenceGeometry(
-          width: width,
-          height: height,
-          crval1: 90.0,
-          crval2: 30.0,
-          crpix1: width / 2.0 + 0.5,
-          crpix2: height / 2.0 + 0.5,
-          cd1_1: -2.0 / 3600.0,
-          cd1_2: 0.0,
-          cd2_1: 0.0,
-          cd2_2: 2.0 / 3600.0,
-        )
-      : null,
-);
+}) =>
+    DepthLockReferenceInfo(
+      width: width,
+      height: height,
+      pixelType: 'U16',
+      monochrome: monochrome,
+      acquisition: depthLockAcquisitionFixture,
+      geometry: headerSolution
+          ? ReferenceGeometry(
+              width: width,
+              height: height,
+              crval1: 90.0,
+              crval2: 30.0,
+              crpix1: width / 2.0 + 0.5,
+              crpix2: height / 2.0 + 0.5,
+              cd1_1: -2.0 / 3600.0,
+              cd1_2: 0.0,
+              cd2_1: 0.0,
+              cd2_2: 2.0 / 3600.0,
+            )
+          : null,
+    );
 
 Future<ProviderContainer> _pumpCanvas(
   WidgetTester tester, {

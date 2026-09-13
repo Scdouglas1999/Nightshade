@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// assert on the exact arguments each control sends.
 class FakeDepthLockBackend implements DepthLockBackend {
   FakeDepthLockBackend({List<DepthLockGoal>? goals})
-    : goals = goals ?? <DepthLockGoal>[];
+      : goals = goals ?? <DepthLockGoal>[];
 
   List<DepthLockGoal> goals;
 
@@ -187,17 +187,17 @@ class FakeDepthLockBackend implements DepthLockBackend {
 
   @override
   Future<DepthLockStatus> depthLockStatus() async => const DepthLockStatus(
-    available: true,
-    goals: 0,
-    queueCapacity: 32,
-    queued: 0,
-    processed: 0,
-    dropped: 0,
-    evidenceAdded: 0,
-    evidenceRejected: 0,
-    lastFrameMs: 0,
-    maxFrameMs: 0,
-  );
+        available: true,
+        goals: 0,
+        queueCapacity: 32,
+        queued: 0,
+        processed: 0,
+        dropped: 0,
+        evidenceAdded: 0,
+        evidenceRejected: 0,
+        lastFrameMs: 0,
+        maxFrameMs: 0,
+      );
 
   @override
   Future<DepthLockReferenceInfo> inspectDepthLockReference(String path) async {
@@ -216,7 +216,8 @@ class FakeDepthLockBackend implements DepthLockBackend {
     required double y0,
     required double x1,
     required double y1,
-  }) async => throw UnimplementedError();
+  }) async =>
+      throw UnimplementedError();
 }
 
 const SkyRectangle depthLockRegionFixture = SkyRectangle(
@@ -266,31 +267,32 @@ DepthLockGoalDefinition depthLockDefinitionFixture({
   double threshold = 5,
   bool enabled = true,
   bool automaticCompletion = false,
-}) => DepthLockGoalDefinition(
-  label: label,
-  projectId: 'project-1',
-  targetId: 'target-1',
-  profileId: 'profile-1',
-  filterName: filterName,
-  filterIndex: 0,
-  referencePath: '/data/M51/L_0001.fits',
-  reference: depthLockGeometryFixture,
-  acquisition: depthLockAcquisitionFixture,
-  temperatureToleranceC: 1,
-  darkPath: '/data/masters/dark.fits',
-  flatPath: '/data/masters/flat.fits',
-  measurement: DepthLockMeasurement(
-    region: depthLockRegionFixture,
-    background: depthLockBackgroundFixture,
-    scaleArcsec: scaleArcsec,
-    threshold: threshold,
-    minCoverage: 0.9,
-    systematicFloorAdu: 0.5,
-    systematicFloorSource: 'Master residuals, 2026-09-01',
-  ),
-  enabled: enabled,
-  automaticCompletion: automaticCompletion,
-);
+}) =>
+    DepthLockGoalDefinition(
+      label: label,
+      projectId: 'project-1',
+      targetId: 'target-1',
+      profileId: 'profile-1',
+      filterName: filterName,
+      filterIndex: 0,
+      referencePath: '/data/M51/L_0001.fits',
+      reference: depthLockGeometryFixture,
+      acquisition: depthLockAcquisitionFixture,
+      temperatureToleranceC: 1,
+      darkPath: '/data/masters/dark.fits',
+      flatPath: '/data/masters/flat.fits',
+      measurement: DepthLockMeasurement(
+        region: depthLockRegionFixture,
+        background: depthLockBackgroundFixture,
+        scaleArcsec: scaleArcsec,
+        threshold: threshold,
+        minCoverage: 0.9,
+        systematicFloorAdu: 0.5,
+        systematicFloorSource: 'Master residuals, 2026-09-01',
+      ),
+      enabled: enabled,
+      automaticCompletion: automaticCompletion,
+    );
 
 DepthLockForecast depthLockForecastFixture({
   int framesToThreshold = 18,
@@ -300,15 +302,16 @@ DepthLockForecast depthLockForecastFixture({
   double perFrameNoiseAdu = 2.4,
   double recentFrameNoiseAdu = 2.4,
   double bestFrameNoiseAdu = 2.4,
-}) => DepthLockForecast(
-  framesToThreshold: framesToThreshold,
-  framesToConfirm: framesToConfirm,
-  reachable: reachable,
-  ceilingScore: ceilingScore,
-  perFrameNoiseAdu: perFrameNoiseAdu,
-  recentFrameNoiseAdu: recentFrameNoiseAdu,
-  bestFrameNoiseAdu: bestFrameNoiseAdu,
-);
+}) =>
+    DepthLockForecast(
+      framesToThreshold: framesToThreshold,
+      framesToConfirm: framesToConfirm,
+      reachable: reachable,
+      ceilingScore: ceilingScore,
+      perFrameNoiseAdu: perFrameNoiseAdu,
+      recentFrameNoiseAdu: recentFrameNoiseAdu,
+      bestFrameNoiseAdu: bestFrameNoiseAdu,
+    );
 
 DepthLockReport depthLockReportFixture({
   DepthLockState state = DepthLockState.collecting,
@@ -320,17 +323,18 @@ DepthLockReport depthLockReportFixture({
   int confirmationFrames = 0,
   String reason = 'Measuring.',
   DepthLockForecast? forecast,
-}) => DepthLockReport(
-  state: state,
-  score: score,
-  conservativeScore: conservativeScore,
-  uncertaintyAdu: uncertaintyAdu,
-  coverage: coverage,
-  evidenceFrames: evidenceFrames,
-  confirmationFrames: confirmationFrames,
-  reason: reason,
-  forecast: forecast,
-);
+}) =>
+    DepthLockReport(
+      state: state,
+      score: score,
+      conservativeScore: conservativeScore,
+      uncertaintyAdu: uncertaintyAdu,
+      coverage: coverage,
+      evidenceFrames: evidenceFrames,
+      confirmationFrames: confirmationFrames,
+      reason: reason,
+      forecast: forecast,
+    );
 
 DepthLockGoal depthLockGoalFixture({
   String id = 'goal-1',
@@ -340,20 +344,21 @@ DepthLockGoal depthLockGoalFixture({
   String? lastIssue,
   bool analysisCurrent = true,
   int candidateFrames = 0,
-}) => DepthLockGoal(
-  id: id,
-  revision: revision,
-  definition: definition ?? depthLockDefinitionFixture(),
-  // Local time on purpose: the panel renders the selection stamp in the
-  // operator's own clock, so a UTC fixture would assert a different string on
-  // every machine.
-  selectedAtMs: DateTime(2026, 9, 1, 21, 40).millisecondsSinceEpoch,
-  evidenceFrames: report?.evidenceFrames ?? 0,
-  evidenceRevision: revision,
-  analysisCurrent: analysisCurrent,
-  report: report,
-  candidateFrames: candidateFrames,
-  lastIssue: lastIssue,
-  archivedRevisions: 0,
-  estimatorVersion: 1,
-);
+}) =>
+    DepthLockGoal(
+      id: id,
+      revision: revision,
+      definition: definition ?? depthLockDefinitionFixture(),
+      // Local time on purpose: the panel renders the selection stamp in the
+      // operator's own clock, so a UTC fixture would assert a different string on
+      // every machine.
+      selectedAtMs: DateTime(2026, 9, 1, 21, 40).millisecondsSinceEpoch,
+      evidenceFrames: report?.evidenceFrames ?? 0,
+      evidenceRevision: revision,
+      analysisCurrent: analysisCurrent,
+      report: report,
+      candidateFrames: candidateFrames,
+      lastIssue: lastIssue,
+      archivedRevisions: 0,
+      estimatorVersion: 1,
+    );

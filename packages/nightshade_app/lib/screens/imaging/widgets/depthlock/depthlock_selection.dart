@@ -70,8 +70,7 @@ class DepthLockSelection {
 final depthLockSelectionProvider = Provider<DepthLockSelection>((ref) {
   final image = ref.watch(currentImageProvider);
   final stack = ref.watch(liveStackingProvider);
-  final String? stackReference =
-      stack.status == LiveStackingStatus.running &&
+  final String? stackReference = stack.status == LiveStackingStatus.running &&
           (stack.referenceImagePath?.trim().isNotEmpty ?? false)
       ? stack.referenceImagePath!.trim()
       : null;
@@ -80,13 +79,13 @@ final depthLockSelectionProvider = Provider<DepthLockSelection>((ref) {
     return DepthLockSelection(
       blocker: stackReference == null
           ? 'No frame is on screen. Capture or open a sub, then mark the '
-                'region on it.'
+              'region on it.'
           // The stack is a registered composite with no header and no
           // calibration of its own, so it can never be a goal's reference.
           // Its reference sub can, and that is a file the operator can open.
           : 'A live stack is running on ${p.basename(stackReference)}. Open '
-                'that sub in the viewer to mark a region on it — the stack '
-                'itself is not a calibrated light and cannot anchor a goal.',
+              'that sub in the viewer to mark a region on it — the stack '
+              'itself is not a calibrated light and cannot anchor a goal.',
     );
   }
   final Size size = Size(image.width.toDouble(), image.height.toDouble());
@@ -118,8 +117,7 @@ final depthLockSelectionProvider = Provider<DepthLockSelection>((ref) {
           ref.watch(capturedImageWcsProvider(imageId)).valueOrNull,
           size,
         );
-  final bool isStackReference =
-      stackReference != null &&
+  final bool isStackReference = stackReference != null &&
       _normalisePath(stackReference) == _normalisePath(path);
 
   return DepthLockSelection(
@@ -131,18 +129,18 @@ final depthLockSelectionProvider = Provider<DepthLockSelection>((ref) {
     isLiveStackReference: isStackReference,
     advisory: wcs != null
         ? (isStackReference
-              ? 'This is the sub the live stack is aligned to, so a region '
-                    'marked here is the one the stack is accumulating.'
-              : null)
+            ? 'This is the sub the live stack is aligned to, so a region '
+                'marked here is the one the stack is accumulating.'
+            : null)
         : isStackReference
-        // The exact frame the stack is registered to, and the exact remedy.
-        ? 'The live stack\'s reference sub ${p.basename(path)} has no plate '
-              'solve; solve it or open a solved sub. DepthLock will still use '
-              'the WCS in the file\'s own header if it carries one.'
-        : 'Nightshade has no plate solve on record for this frame. DepthLock '
-              'will use the WCS in the file\'s own header if it has one; '
-              'otherwise plate-solve the sub first. Saved goals are only drawn '
-              'over a solved frame.',
+            // The exact frame the stack is registered to, and the exact remedy.
+            ? 'The live stack\'s reference sub ${p.basename(path)} has no plate '
+                'solve; solve it or open a solved sub. DepthLock will still use '
+                'the WCS in the file\'s own header if it carries one.'
+            : 'Nightshade has no plate solve on record for this frame. DepthLock '
+                'will use the WCS in the file\'s own header if it has one; '
+                'otherwise plate-solve the sub first. Saved goals are only drawn '
+                'over a solved frame.',
   );
 });
 
@@ -170,8 +168,11 @@ int? _capturedImageIdForPath(List<CapturedImage> frames, String path) {
   return null;
 }
 
-String _normalisePath(String value) =>
-    value.trim().replaceAll('\\', '/').replaceAll(RegExp(r'/+'), '/').toLowerCase();
+String _normalisePath(String value) => value
+    .trim()
+    .replaceAll('\\', '/')
+    .replaceAll(RegExp(r'/+'), '/')
+    .toLowerCase();
 
 SolvedWcs? _solvedWcs(CapturedImageWcsData? data, Size size) {
   if (data == null || !data.isPlateSolved) return null;
@@ -262,8 +263,8 @@ Future<DepthLockGoalDefinition> buildDepthLockGoalDefinition({
   double temperatureToleranceC = 1.0,
   Size? drawnOnSize,
 }) async {
-  final DepthLockReferenceInfo info = await backend
-      .inspectDepthLockReference(referencePath);
+  final DepthLockReferenceInfo info =
+      await backend.inspectDepthLockReference(referencePath);
   // The rectangles are in the pixels of whatever was on screen. If that is not
   // the same grid as the reference frame — a stack that does not match the sub
   // it claims to be registered to — the region would land somewhere else
@@ -284,8 +285,7 @@ Future<DepthLockGoalDefinition> buildDepthLockGoalDefinition({
       'sub, so it cannot anchor a goal.',
     );
   }
-  final ReferenceGeometry? geometry =
-      info.geometry ??
+  final ReferenceGeometry? geometry = info.geometry ??
       (fallbackWcs == null
           ? null
           : depthLockReferenceFromSolvedWcs(fallbackWcs));
@@ -328,8 +328,7 @@ Future<DepthLockGoalDefinition> buildDepthLockGoalDefinition({
     DepthLockPreset.faint,
     pixelScaleArcsec: geometry.pixelScaleArcsec,
   );
-  final int presetCells =
-      (region.widthArcsec / presetScale).floor() *
+  final int presetCells = (region.widthArcsec / presetScale).floor() *
       (region.heightArcsec / presetScale).floor();
   final double scale = presetCells >= 16
       ? presetScale
@@ -384,26 +383,27 @@ Future<DepthLockGoalDefinition> buildDepthLockGoalDefinition({
 DepthLockGoalDefinition depthLockDefinitionWithNewRegion({
   required DepthLockGoalDefinition previous,
   required DepthLockGoalDefinition fresh,
-}) => DepthLockGoalDefinition(
-  label: previous.label,
-  projectId: previous.projectId,
-  targetId: previous.targetId,
-  profileId: previous.profileId,
-  filterName: previous.filterName,
-  filterIndex: previous.filterIndex,
-  referencePath: fresh.referencePath,
-  reference: fresh.reference,
-  acquisition: fresh.acquisition,
-  temperatureToleranceC: previous.temperatureToleranceC,
-  darkPath: previous.darkPath,
-  flatPath: previous.flatPath,
-  measurement: previous.measurement.copyWith(
-    region: fresh.measurement.region,
-    background: fresh.measurement.background,
-  ),
-  enabled: previous.enabled,
-  automaticCompletion: previous.automaticCompletion,
-);
+}) =>
+    DepthLockGoalDefinition(
+      label: previous.label,
+      projectId: previous.projectId,
+      targetId: previous.targetId,
+      profileId: previous.profileId,
+      filterName: previous.filterName,
+      filterIndex: previous.filterIndex,
+      referencePath: fresh.referencePath,
+      reference: fresh.reference,
+      acquisition: fresh.acquisition,
+      temperatureToleranceC: previous.temperatureToleranceC,
+      darkPath: previous.darkPath,
+      flatPath: previous.flatPath,
+      measurement: previous.measurement.copyWith(
+        region: fresh.measurement.region,
+        background: fresh.measurement.background,
+      ),
+      enabled: previous.enabled,
+      automaticCompletion: previous.automaticCompletion,
+    );
 
 /// Which canvas the region tool is working on.
 ///
@@ -425,23 +425,23 @@ final depthLockCanvasProvider = StateProvider<DepthLockCanvas>(
 /// when there is one — comes from the sub the stack is registered to.
 final depthLockStackReferenceProvider =
     FutureProvider<DepthLockReferenceInfo?>((ref) async {
-      // Selected down to the two fields that matter, NOT the whole stacking
-      // state: that state carries the preview buffer and changes on every
-      // stacked frame, and re-reading the reference file from disk once a
-      // frame would be a header read per exposure for an answer that cannot
-      // change while the stack runs.
-      final path = ref.watch(
-        liveStackingProvider.select(
-          (state) => state.status == LiveStackingStatus.running
-              ? state.referenceImagePath?.trim()
-              : null,
-        ),
-      );
-      if (path == null || path.isEmpty) return null;
-      return ref.watch(depthLockBackendProvider).inspectDepthLockReference(
+  // Selected down to the two fields that matter, NOT the whole stacking
+  // state: that state carries the preview buffer and changes on every
+  // stacked frame, and re-reading the reference file from disk once a
+  // frame would be a header read per exposure for an answer that cannot
+  // change while the stack runs.
+  final path = ref.watch(
+    liveStackingProvider.select(
+      (state) => state.status == LiveStackingStatus.running
+          ? state.referenceImagePath?.trim()
+          : null,
+    ),
+  );
+  if (path == null || path.isEmpty) return null;
+  return ref.watch(depthLockBackendProvider).inspectDepthLockReference(
         path,
       );
-    });
+});
 
 /// What the live stack canvas can offer DepthLock.
 ///
@@ -527,9 +527,8 @@ final depthLockStackSelectionProvider = Provider<DepthLockSelection>((ref) {
           ref.watch(capturedImageWcsProvider(imageId)).valueOrNull,
           stackSize,
         );
-  final ReferenceGeometry? geometry = wcs != null
-      ? depthLockReferenceFromSolvedWcs(wcs)
-      : reference.geometry;
+  final ReferenceGeometry? geometry =
+      wcs != null ? depthLockReferenceFromSolvedWcs(wcs) : reference.geometry;
 
   return DepthLockSelection(
     referencePath: referencePath,
@@ -540,11 +539,11 @@ final depthLockStackSelectionProvider = Provider<DepthLockSelection>((ref) {
     isLiveStackReference: true,
     advisory: geometry != null
         ? 'Marking on the stacked image. The goal is anchored to '
-              '${p.basename(referencePath)}, the sub the stack is aligned to'
-              '${wcs == null ? ', through its own header solution' : ''}.'
+            '${p.basename(referencePath)}, the sub the stack is aligned to'
+            '${wcs == null ? ', through its own header solution' : ''}.'
         : 'Neither Nightshade nor the file\'s header has a plate solve for '
-              'the stack\'s reference sub ${p.basename(referencePath)}, so '
-              'a region cannot be anchored yet. Solve that sub.',
+            'the stack\'s reference sub ${p.basename(referencePath)}, so '
+            'a region cannot be anchored yet. Solve that sub.',
   );
 });
 

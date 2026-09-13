@@ -543,7 +543,8 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                         imageOffset: imageOffset,
                         imageSize: Size(currentImage.width.toDouble(),
                             currentImage.height.toDouble()),
-                        geometry: ref.watch(depthLockSelectionProvider).geometry,
+                        geometry:
+                            ref.watch(depthLockSelectionProvider).geometry,
                       ),
                     ),
 

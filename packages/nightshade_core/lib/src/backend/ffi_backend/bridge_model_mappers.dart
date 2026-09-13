@@ -515,20 +515,21 @@ extension _FfiBackendDepthLockMappers on _FfiBackendBase {
             : _fromBridgeDepthForecast(r.forecast!),
       );
 
-  DepthLockGoal _fromBridgeDepthGoal(bridge_api.ApiDepthGoal g) => DepthLockGoal(
-    id: g.id,
-    revision: g.revision.toInt(),
-    definition: _fromBridgeDepthGoalDefinition(g.definition),
-    selectedAtMs: g.selectedAtMs.toInt(),
-    evidenceFrames: g.evidenceFrames,
-    evidenceRevision: g.evidenceRevision.toInt(),
-    analysisCurrent: g.analysisCurrent,
-    report: g.report == null ? null : _fromBridgeDepthReport(g.report!),
-    candidateFrames: g.candidateFrames,
-    lastIssue: g.lastIssue,
-    archivedRevisions: g.archivedRevisions,
-    estimatorVersion: g.estimatorVersion,
-  );
+  DepthLockGoal _fromBridgeDepthGoal(bridge_api.ApiDepthGoal g) =>
+      DepthLockGoal(
+        id: g.id,
+        revision: g.revision.toInt(),
+        definition: _fromBridgeDepthGoalDefinition(g.definition),
+        selectedAtMs: g.selectedAtMs.toInt(),
+        evidenceFrames: g.evidenceFrames,
+        evidenceRevision: g.evidenceRevision.toInt(),
+        analysisCurrent: g.analysisCurrent,
+        report: g.report == null ? null : _fromBridgeDepthReport(g.report!),
+        candidateFrames: g.candidateFrames,
+        lastIssue: g.lastIssue,
+        archivedRevisions: g.archivedRevisions,
+        estimatorVersion: g.estimatorVersion,
+      );
 
   DepthLockReferenceInfo _fromBridgeDepthReferenceInfo(
     bridge_api.ApiDepthReferenceInfo i,

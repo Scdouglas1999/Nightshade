@@ -24,13 +24,13 @@ enum DepthLockState {
   unreliable;
 
   static DepthLockState fromWire(String value) => switch (value) {
-        'insufficientEvidence' => DepthLockState.insufficientEvidence,
-        'collecting' => DepthLockState.collecting,
-        'confirmationPending' => DepthLockState.confirmationPending,
-        'achieved' => DepthLockState.achieved,
-        'unreliable' => DepthLockState.unreliable,
-        _ => throw FormatException('Unknown DepthLock state: $value'),
-      };
+    'insufficientEvidence' => DepthLockState.insufficientEvidence,
+    'collecting' => DepthLockState.collecting,
+    'confirmationPending' => DepthLockState.confirmationPending,
+    'achieved' => DepthLockState.achieved,
+    'unreliable' => DepthLockState.unreliable,
+    _ => throw FormatException('Unknown DepthLock state: $value'),
+  };
 
   String get wire => name;
 }
@@ -48,12 +48,12 @@ class SkyRectangle {
   });
 
   factory SkyRectangle.fromJson(Map<String, dynamic> json) => SkyRectangle(
-        raDeg: (json['raDeg'] as num).toDouble(),
-        decDeg: (json['decDeg'] as num).toDouble(),
-        widthArcsec: (json['widthArcsec'] as num).toDouble(),
-        heightArcsec: (json['heightArcsec'] as num).toDouble(),
-        rotationDeg: (json['rotationDeg'] as num).toDouble(),
-      );
+    raDeg: (json['raDeg'] as num).toDouble(),
+    decDeg: (json['decDeg'] as num).toDouble(),
+    widthArcsec: (json['widthArcsec'] as num).toDouble(),
+    heightArcsec: (json['heightArcsec'] as num).toDouble(),
+    rotationDeg: (json['rotationDeg'] as num).toDouble(),
+  );
 
   final double raDeg;
   final double decDeg;
@@ -62,12 +62,12 @@ class SkyRectangle {
   final double rotationDeg;
 
   Map<String, dynamic> toJson() => {
-        'raDeg': raDeg,
-        'decDeg': decDeg,
-        'widthArcsec': widthArcsec,
-        'heightArcsec': heightArcsec,
-        'rotationDeg': rotationDeg,
-      };
+    'raDeg': raDeg,
+    'decDeg': decDeg,
+    'widthArcsec': widthArcsec,
+    'heightArcsec': heightArcsec,
+    'rotationDeg': rotationDeg,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -105,8 +105,9 @@ class DepthLockMeasurement {
   factory DepthLockMeasurement.fromJson(Map<String, dynamic> json) =>
       DepthLockMeasurement(
         region: SkyRectangle.fromJson(json['region'] as Map<String, dynamic>),
-        background:
-            SkyRectangle.fromJson(json['background'] as Map<String, dynamic>),
+        background: SkyRectangle.fromJson(
+          json['background'] as Map<String, dynamic>,
+        ),
         scaleArcsec: (json['scaleArcsec'] as num).toDouble(),
         threshold: (json['threshold'] as num).toDouble(),
         minCoverage: (json['minCoverage'] as num).toDouble(),
@@ -130,27 +131,25 @@ class DepthLockMeasurement {
     double? minCoverage,
     double? systematicFloorAdu,
     String? systematicFloorSource,
-  }) =>
-      DepthLockMeasurement(
-        region: region ?? this.region,
-        background: background ?? this.background,
-        scaleArcsec: scaleArcsec ?? this.scaleArcsec,
-        threshold: threshold ?? this.threshold,
-        minCoverage: minCoverage ?? this.minCoverage,
-        systematicFloorAdu: systematicFloorAdu ?? this.systematicFloorAdu,
-        systematicFloorSource:
-            systematicFloorSource ?? this.systematicFloorSource,
-      );
+  }) => DepthLockMeasurement(
+    region: region ?? this.region,
+    background: background ?? this.background,
+    scaleArcsec: scaleArcsec ?? this.scaleArcsec,
+    threshold: threshold ?? this.threshold,
+    minCoverage: minCoverage ?? this.minCoverage,
+    systematicFloorAdu: systematicFloorAdu ?? this.systematicFloorAdu,
+    systematicFloorSource: systematicFloorSource ?? this.systematicFloorSource,
+  );
 
   Map<String, dynamic> toJson() => {
-        'region': region.toJson(),
-        'background': background.toJson(),
-        'scaleArcsec': scaleArcsec,
-        'threshold': threshold,
-        'minCoverage': minCoverage,
-        'systematicFloorAdu': systematicFloorAdu,
-        'systematicFloorSource': systematicFloorSource,
-      };
+    'region': region.toJson(),
+    'background': background.toJson(),
+    'scaleArcsec': scaleArcsec,
+    'threshold': threshold,
+    'minCoverage': minCoverage,
+    'systematicFloorAdu': systematicFloorAdu,
+    'systematicFloorSource': systematicFloorSource,
+  };
 }
 
 /// A reference frame's frozen TAN geometry: FITS 1-based CRPIX, CD matrix
@@ -215,21 +214,30 @@ class ReferenceGeometry {
 
   @override
   int get hashCode => Object.hash(
-        width, height, crval1, crval2, crpix1, crpix2, cd1_1, cd1_2, cd2_1, cd2_2,
-      );
+    width,
+    height,
+    crval1,
+    crval2,
+    crpix1,
+    crpix2,
+    cd1_1,
+    cd1_2,
+    cd2_1,
+    cd2_2,
+  );
 
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'crval1': crval1,
-        'crval2': crval2,
-        'crpix1': crpix1,
-        'crpix2': crpix2,
-        'cd1_1': cd1_1,
-        'cd1_2': cd1_2,
-        'cd2_1': cd2_1,
-        'cd2_2': cd2_2,
-      };
+    'width': width,
+    'height': height,
+    'crval1': crval1,
+    'crval2': crval2,
+    'crpix1': crpix1,
+    'crpix2': crpix2,
+    'cd1_1': cd1_1,
+    'cd1_2': cd1_2,
+    'cd2_1': cd2_1,
+    'cd2_2': cd2_2,
+  };
 }
 
 /// The acquisition every contributing light must match.
@@ -268,15 +276,15 @@ class AcquisitionSettings {
   final double? ccdTempC;
 
   Map<String, dynamic> toJson() => {
-        'instrument': instrument,
-        'filter': filter,
-        'exposureSecs': exposureSecs,
-        'gain': gain,
-        'offset': offset,
-        'binX': binX,
-        'binY': binY,
-        'ccdTempC': ccdTempC,
-      };
+    'instrument': instrument,
+    'filter': filter,
+    'exposureSecs': exposureSecs,
+    'gain': gain,
+    'offset': offset,
+    'binX': binX,
+    'binY': binY,
+    'ccdTempC': ccdTempC,
+  };
 }
 
 /// What a goal is, independent of any evidence gathered for it. Changing
@@ -310,16 +318,19 @@ class DepthLockGoalDefinition {
         filterName: json['filterName'] as String,
         filterIndex: json['filterIndex'] as int?,
         referencePath: json['referencePath'] as String,
-        reference:
-            ReferenceGeometry.fromJson(json['reference'] as Map<String, dynamic>),
+        reference: ReferenceGeometry.fromJson(
+          json['reference'] as Map<String, dynamic>,
+        ),
         acquisition: AcquisitionSettings.fromJson(
-            json['acquisition'] as Map<String, dynamic>),
-        temperatureToleranceC:
-            (json['temperatureToleranceC'] as num).toDouble(),
+          json['acquisition'] as Map<String, dynamic>,
+        ),
+        temperatureToleranceC: (json['temperatureToleranceC'] as num)
+            .toDouble(),
         darkPath: json['darkPath'] as String,
         flatPath: json['flatPath'] as String,
         measurement: DepthLockMeasurement.fromJson(
-            json['measurement'] as Map<String, dynamic>),
+          json['measurement'] as Map<String, dynamic>,
+        ),
         enabled: json['enabled'] as bool,
         automaticCompletion: json['automaticCompletion'] as bool,
       );
@@ -354,43 +365,41 @@ class DepthLockGoalDefinition {
     String? darkPath,
     String? flatPath,
     double? temperatureToleranceC,
-  }) =>
-      DepthLockGoalDefinition(
-        label: label ?? this.label,
-        projectId: projectId,
-        targetId: targetId,
-        profileId: profileId,
-        filterName: filterName ?? this.filterName,
-        filterIndex: filterIndex ?? this.filterIndex,
-        referencePath: referencePath,
-        reference: reference,
-        acquisition: acquisition,
-        temperatureToleranceC:
-            temperatureToleranceC ?? this.temperatureToleranceC,
-        darkPath: darkPath ?? this.darkPath,
-        flatPath: flatPath ?? this.flatPath,
-        measurement: measurement ?? this.measurement,
-        enabled: enabled ?? this.enabled,
-        automaticCompletion: automaticCompletion ?? this.automaticCompletion,
-      );
+  }) => DepthLockGoalDefinition(
+    label: label ?? this.label,
+    projectId: projectId,
+    targetId: targetId,
+    profileId: profileId,
+    filterName: filterName ?? this.filterName,
+    filterIndex: filterIndex ?? this.filterIndex,
+    referencePath: referencePath,
+    reference: reference,
+    acquisition: acquisition,
+    temperatureToleranceC: temperatureToleranceC ?? this.temperatureToleranceC,
+    darkPath: darkPath ?? this.darkPath,
+    flatPath: flatPath ?? this.flatPath,
+    measurement: measurement ?? this.measurement,
+    enabled: enabled ?? this.enabled,
+    automaticCompletion: automaticCompletion ?? this.automaticCompletion,
+  );
 
   Map<String, dynamic> toJson() => {
-        'label': label,
-        'projectId': projectId,
-        'targetId': targetId,
-        'profileId': profileId,
-        'filterName': filterName,
-        'filterIndex': filterIndex,
-        'referencePath': referencePath,
-        'reference': reference.toJson(),
-        'acquisition': acquisition.toJson(),
-        'temperatureToleranceC': temperatureToleranceC,
-        'darkPath': darkPath,
-        'flatPath': flatPath,
-        'measurement': measurement.toJson(),
-        'enabled': enabled,
-        'automaticCompletion': automaticCompletion,
-      };
+    'label': label,
+    'projectId': projectId,
+    'targetId': targetId,
+    'profileId': profileId,
+    'filterName': filterName,
+    'filterIndex': filterIndex,
+    'referencePath': referencePath,
+    'reference': reference.toJson(),
+    'acquisition': acquisition.toJson(),
+    'temperatureToleranceC': temperatureToleranceC,
+    'darkPath': darkPath,
+    'flatPath': flatPath,
+    'measurement': measurement.toJson(),
+    'enabled': enabled,
+    'automaticCompletion': automaticCompletion,
+  };
 }
 
 /// What reaching the goal is expected to cost, projected from the same noise
@@ -452,14 +461,14 @@ class DepthLockForecast {
   }
 
   Map<String, dynamic> toJson() => {
-        'framesToThreshold': framesToThreshold,
-        'framesToConfirm': framesToConfirm,
-        'reachable': reachable,
-        'ceilingScore': ceilingScore,
-        'perFrameNoiseAdu': perFrameNoiseAdu,
-        'recentFrameNoiseAdu': recentFrameNoiseAdu,
-        'bestFrameNoiseAdu': bestFrameNoiseAdu,
-      };
+    'framesToThreshold': framesToThreshold,
+    'framesToConfirm': framesToConfirm,
+    'reachable': reachable,
+    'ceilingScore': ceilingScore,
+    'perFrameNoiseAdu': perFrameNoiseAdu,
+    'recentFrameNoiseAdu': recentFrameNoiseAdu,
+    'bestFrameNoiseAdu': bestFrameNoiseAdu,
+  };
 }
 
 /// One point of a goal's score history, or of its projection.
@@ -486,11 +495,11 @@ class DepthLockCurvePoint {
   final bool projected;
 
   Map<String, dynamic> toJson() => {
-        'frames': frames,
-        'score': score,
-        'conservativeScore': conservativeScore,
-        'projected': projected,
-      };
+    'frames': frames,
+    'score': score,
+    'conservativeScore': conservativeScore,
+    'projected': projected,
+  };
 }
 
 /// One committed evaluation. [score] is the lower-quartile depth score,
@@ -524,7 +533,8 @@ class DepthLockReport {
         forecast: json['forecast'] == null
             ? null
             : DepthLockForecast.fromJson(
-                json['forecast'] as Map<String, dynamic>),
+                json['forecast'] as Map<String, dynamic>,
+              ),
       );
 
   final DepthLockState state;
@@ -538,16 +548,16 @@ class DepthLockReport {
   final DepthLockForecast? forecast;
 
   Map<String, dynamic> toJson() => {
-        'state': state.wire,
-        'score': score,
-        'conservativeScore': conservativeScore,
-        'uncertaintyAdu': uncertaintyAdu,
-        'coverage': coverage,
-        'evidenceFrames': evidenceFrames,
-        'confirmationFrames': confirmationFrames,
-        'reason': reason,
-        'forecast': forecast?.toJson(),
-      };
+    'state': state.wire,
+    'score': score,
+    'conservativeScore': conservativeScore,
+    'uncertaintyAdu': uncertaintyAdu,
+    'coverage': coverage,
+    'evidenceFrames': evidenceFrames,
+    'confirmationFrames': confirmationFrames,
+    'reason': reason,
+    'forecast': forecast?.toJson(),
+  };
 }
 
 /// A persistent goal as the store holds it.
@@ -569,22 +579,23 @@ class DepthLockGoal {
   });
 
   factory DepthLockGoal.fromJson(Map<String, dynamic> json) => DepthLockGoal(
-        id: json['id'] as String,
-        revision: json['revision'] as int,
-        definition: DepthLockGoalDefinition.fromJson(
-            json['definition'] as Map<String, dynamic>),
-        selectedAtMs: json['selectedAtMs'] as int,
-        evidenceFrames: json['evidenceFrames'] as int,
-        evidenceRevision: json['evidenceRevision'] as int,
-        analysisCurrent: json['analysisCurrent'] as bool,
-        report: json['report'] == null
-            ? null
-            : DepthLockReport.fromJson(json['report'] as Map<String, dynamic>),
-        candidateFrames: json['candidateFrames'] as int,
-        lastIssue: json['lastIssue'] as String?,
-        archivedRevisions: json['archivedRevisions'] as int,
-        estimatorVersion: json['estimatorVersion'] as int,
-      );
+    id: json['id'] as String,
+    revision: json['revision'] as int,
+    definition: DepthLockGoalDefinition.fromJson(
+      json['definition'] as Map<String, dynamic>,
+    ),
+    selectedAtMs: json['selectedAtMs'] as int,
+    evidenceFrames: json['evidenceFrames'] as int,
+    evidenceRevision: json['evidenceRevision'] as int,
+    analysisCurrent: json['analysisCurrent'] as bool,
+    report: json['report'] == null
+        ? null
+        : DepthLockReport.fromJson(json['report'] as Map<String, dynamic>),
+    candidateFrames: json['candidateFrames'] as int,
+    lastIssue: json['lastIssue'] as String?,
+    archivedRevisions: json['archivedRevisions'] as int,
+    estimatorVersion: json['estimatorVersion'] as int,
+  );
 
   final String id;
   final int revision;
@@ -609,19 +620,19 @@ class DepthLockGoal {
       report?.state ?? DepthLockState.insufficientEvidence;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'revision': revision,
-        'definition': definition.toJson(),
-        'selectedAtMs': selectedAtMs,
-        'evidenceFrames': evidenceFrames,
-        'evidenceRevision': evidenceRevision,
-        'analysisCurrent': analysisCurrent,
-        'report': report?.toJson(),
-        'candidateFrames': candidateFrames,
-        'lastIssue': lastIssue,
-        'archivedRevisions': archivedRevisions,
-        'estimatorVersion': estimatorVersion,
-      };
+    'id': id,
+    'revision': revision,
+    'definition': definition.toJson(),
+    'selectedAtMs': selectedAtMs,
+    'evidenceFrames': evidenceFrames,
+    'evidenceRevision': evidenceRevision,
+    'analysisCurrent': analysisCurrent,
+    'report': report?.toJson(),
+    'candidateFrames': candidateFrames,
+    'lastIssue': lastIssue,
+    'archivedRevisions': archivedRevisions,
+    'estimatorVersion': estimatorVersion,
+  };
 }
 
 /// What a candidate reference file offers; geometry and acquisition each
@@ -649,13 +660,15 @@ class DepthLockReferenceInfo {
         geometry: json['geometry'] == null
             ? null
             : ReferenceGeometry.fromJson(
-                json['geometry'] as Map<String, dynamic>),
+                json['geometry'] as Map<String, dynamic>,
+              ),
         geometryIssue: json['geometryIssue'] as String?,
         pixelScaleArcsec: (json['pixelScaleArcsec'] as num?)?.toDouble(),
         acquisition: json['acquisition'] == null
             ? null
             : AcquisitionSettings.fromJson(
-                json['acquisition'] as Map<String, dynamic>),
+                json['acquisition'] as Map<String, dynamic>,
+              ),
         acquisitionIssue: json['acquisitionIssue'] as String?,
       );
 
@@ -670,16 +683,16 @@ class DepthLockReferenceInfo {
   final String? acquisitionIssue;
 
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'pixelType': pixelType,
-        'monochrome': monochrome,
-        'geometry': geometry?.toJson(),
-        'geometryIssue': geometryIssue,
-        'pixelScaleArcsec': pixelScaleArcsec,
-        'acquisition': acquisition?.toJson(),
-        'acquisitionIssue': acquisitionIssue,
-      };
+    'width': width,
+    'height': height,
+    'pixelType': pixelType,
+    'monochrome': monochrome,
+    'geometry': geometry?.toJson(),
+    'geometryIssue': geometryIssue,
+    'pixelScaleArcsec': pixelScaleArcsec,
+    'acquisition': acquisition?.toJson(),
+    'acquisitionIssue': acquisitionIssue,
+  };
 }
 
 /// Analysis-queue health for the status surface.
@@ -724,17 +737,17 @@ class DepthLockStatus {
   final int maxFrameMs;
 
   Map<String, dynamic> toJson() => {
-        'available': available,
-        'goals': goals,
-        'queueCapacity': queueCapacity,
-        'queued': queued,
-        'processed': processed,
-        'dropped': dropped,
-        'evidenceAdded': evidenceAdded,
-        'evidenceRejected': evidenceRejected,
-        'lastFrameMs': lastFrameMs,
-        'maxFrameMs': maxFrameMs,
-      };
+    'available': available,
+    'goals': goals,
+    'queueCapacity': queueCapacity,
+    'queued': queued,
+    'processed': processed,
+    'dropped': dropped,
+    'evidenceAdded': evidenceAdded,
+    'evidenceRejected': evidenceRejected,
+    'lastFrameMs': lastFrameMs,
+    'maxFrameMs': maxFrameMs,
+  };
 }
 
 /// What became of one frame offered to one goal. [outcome] is one of
@@ -761,10 +774,10 @@ class DepthLockIngestOutcome {
   final String? reason;
 
   Map<String, dynamic> toJson() => {
-        'outcome': outcome,
-        'state': state?.wire,
-        'reason': reason,
-      };
+    'outcome': outcome,
+    'state': state?.wire,
+    'reason': reason,
+  };
 }
 
 /// A calibration error floor derived from the goal's own master frames: the
@@ -799,11 +812,11 @@ class DepthLockFloorSuggestion {
   final String source;
 
   Map<String, dynamic> toJson() => {
-        'floorAdu': floorAdu,
-        'darkNoiseAdu': darkNoiseAdu,
-        'flatRelativeNoise': flatRelativeNoise,
-        'skyAdu': skyAdu,
-        'aperturePixels': aperturePixels,
-        'source': source,
-      };
+    'floorAdu': floorAdu,
+    'darkNoiseAdu': darkNoiseAdu,
+    'flatRelativeNoise': flatRelativeNoise,
+    'skyAdu': skyAdu,
+    'aperturePixels': aperturePixels,
+    'source': source,
+  };
 }

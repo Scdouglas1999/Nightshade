@@ -11,16 +11,20 @@ void main() {
 
   setUp(() {
     backend = MockBackend();
-    store = stubDepthLockGoals(backend, seed: [
-      depthLockGoalFixture(id: 'seeded', revision: 4),
-    ]);
+    store = stubDepthLockGoals(
+      backend,
+      seed: [depthLockGoalFixture(id: 'seeded', revision: 4)],
+    );
   });
 
-  test('a seeded goal is readable at the revision it was seeded with', () async {
-    final goal = await backend.getDepthLockGoal('seeded');
-    expect(goal.revision, 4);
-    expect((await backend.listDepthLockGoals()).single.id, 'seeded');
-  });
+  test(
+    'a seeded goal is readable at the revision it was seeded with',
+    () async {
+      final goal = await backend.getDepthLockGoal('seeded');
+      expect(goal.revision, 4);
+      expect((await backend.listDepthLockGoals()).single.id, 'seeded');
+    },
+  );
 
   test('creating and revising advances the revision', () async {
     final created = await backend.createDepthLockGoal(

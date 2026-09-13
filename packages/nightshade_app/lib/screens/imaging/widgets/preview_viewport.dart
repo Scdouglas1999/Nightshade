@@ -39,8 +39,8 @@ class PreviewViewportGeometry {
 }
 
 /// Builds one overlay for a laid-out preview.
-typedef PreviewOverlayBuilder =
-    Widget Function(BuildContext context, PreviewViewportGeometry geometry);
+typedef PreviewOverlayBuilder = Widget Function(
+    BuildContext context, PreviewViewportGeometry geometry);
 
 /// A pan-and-zoom viewport for one already-decoded image, with overlays that
 /// are handed the geometry they need.
@@ -139,8 +139,7 @@ class PreviewViewport extends StatelessWidget {
               // The canvas is a photo backdrop, so it stays on the dark ladder
               // in every theme EXCEPT red night, where the wavelength rule
               // outranks the image-anchoring one.
-              color:
-                  background ??
+              color: background ??
                   (colors.isRedNight
                       ? colors.background
                       : NightshadeColors.dark.background),

@@ -147,7 +147,8 @@ void main() {
     expect(draft.background!.left, closeTo(300, 0.5));
   });
 
-  testWidgets('the same structure marked zoomed and panned gives the same '
+  testWidgets(
+      'the same structure marked zoomed and panned gives the same '
       'image rectangle', (tester) async {
     const Offset from = Offset(60, 180);
     const Offset to = Offset(180, 260);
@@ -518,8 +519,7 @@ void _editingTests() {
       zoomLevel: 1.0,
       imageOffset: Offset.zero,
     );
-    container.read(depthLockRegionEditTargetProvider.notifier).state =
-        'goal-1';
+    container.read(depthLockRegionEditTargetProvider.notifier).state = 'goal-1';
     container.read(depthLockRegionDraftProvider.notifier).load(
           structure: const Rect.fromLTRB(100, 200, 200, 280),
           background: const Rect.fromLTRB(300, 200, 400, 280),

@@ -26,17 +26,19 @@ CapturedImageData _frame({
   bool isColor = false,
   int width = 4144,
   int height = 2822,
-}) => CapturedImageData(
-  width: width,
-  height: height,
-  displayData: Uint8List(0),
-  histogram: const <int>[],
-  stats: const ImageStats(),
-  capturedAt: DateTime(2026, 9, 12, 22),
-  settings: const ExposureSettings(exposureTime: 300, gain: 100, offset: 50),
-  filePath: path,
-  isColor: isColor,
-);
+}) =>
+    CapturedImageData(
+      width: width,
+      height: height,
+      displayData: Uint8List(0),
+      histogram: const <int>[],
+      stats: const ImageStats(),
+      capturedAt: DateTime(2026, 9, 12, 22),
+      settings:
+          const ExposureSettings(exposureTime: 300, gain: 100, offset: 50),
+      filePath: path,
+      isColor: isColor,
+    );
 
 ProviderContainer _container({
   CapturedImageData? frame,

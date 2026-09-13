@@ -163,10 +163,7 @@ extension _NativeBridgeDepthLockOperations on _NativeBridgeImplementation {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiDepthlockGoalCurve');
     }
-    return gen_api.apiDepthlockGoalCurve(
-      goalId: goalId,
-      maxPoints: maxPoints,
-    );
+    return gen_api.apiDepthlockGoalCurve(goalId: goalId, maxPoints: maxPoints);
   }
 
   Future<gen_api.ApiDepthGoal> apiDepthlockReplayGoal({

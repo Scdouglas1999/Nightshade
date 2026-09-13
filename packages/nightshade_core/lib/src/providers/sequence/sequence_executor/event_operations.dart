@@ -592,7 +592,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final filterName = event.data['filter_name'] as String? ?? '';
     final score = (event.data['score'] as num?)?.toDouble() ?? 0;
     final threshold = (event.data['threshold'] as num?)?.toDouble() ?? 0;
-    final evidenceFrames = (event.data['evidence_frames'] as num?)?.toInt() ?? 0;
+    final evidenceFrames =
+        (event.data['evidence_frames'] as num?)?.toInt() ?? 0;
     final confirmationFrames =
         (event.data['confirmation_frames'] as num?)?.toInt() ?? 0;
     final summary = depthGoalCompletedDetail(

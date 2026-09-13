@@ -52,8 +52,8 @@ class DepthLockRegionDraft {
 
   DepthLockRegionDraft withRect(DepthLockRectKind kind, Rect rect) =>
       kind == DepthLockRectKind.structure
-      ? DepthLockRegionDraft(structure: rect, background: background)
-      : DepthLockRegionDraft(structure: structure, background: rect);
+          ? DepthLockRegionDraft(structure: rect, background: background)
+          : DepthLockRegionDraft(structure: structure, background: rect);
 
   @override
   bool operator ==(Object other) =>
@@ -106,8 +106,8 @@ final depthLockRegionToolActiveProvider = StateProvider<bool>((ref) => false);
 /// The rectangles drawn so far.
 final depthLockRegionDraftProvider =
     StateNotifierProvider<DepthLockRegionDraftNotifier, DepthLockRegionDraft>(
-      (ref) => DepthLockRegionDraftNotifier(),
-    );
+  (ref) => DepthLockRegionDraftNotifier(),
+);
 
 /// Whether saved goals are drawn over the frame. Defaults on: a goal the
 /// operator cannot see is a goal they will draw twice.
@@ -200,10 +200,10 @@ class _DepthLockRegionLayerState extends ConsumerState<DepthLockRegionLayer> {
   Rect? _originRect;
 
   Offset _toImage(Offset viewportPoint) => viewportToImage(
-    viewportPoint: viewportPoint,
-    imageOffset: widget.imageOffset,
-    zoomLevel: widget.zoomLevel,
-  );
+        viewportPoint: viewportPoint,
+        imageOffset: widget.imageOffset,
+        zoomLevel: widget.zoomLevel,
+      );
 
   double get _handleTolerance =>
       DepthLockRegionLayer.handleTouchScreenPixels /
@@ -307,9 +307,7 @@ class _DepthLockRegionLayerState extends ConsumerState<DepthLockRegionLayer> {
       // the rectangle back rather than leave one the validator will refuse.
       final rect = ref.read(depthLockRegionDraftProvider)[kind!];
       if (rect == null || !_isBigEnough(rect)) {
-        ref
-            .read(depthLockRegionDraftProvider.notifier)
-            .replace(kind, origin!);
+        ref.read(depthLockRegionDraftProvider.notifier).replace(kind, origin!);
       }
       return;
     }
@@ -335,13 +333,13 @@ class _DepthLockRegionLayerState extends ConsumerState<DepthLockRegionLayer> {
     final bool overlayVisible = ref.watch(depthLockGoalOverlayVisibleProvider);
     final goals = overlayVisible
         ? ref.watch(depthLockGoalsProvider).valueOrNull ??
-              const <DepthLockGoal>[]
+            const <DepthLockGoal>[]
         : const <DepthLockGoal>[];
 
     final Rect? active =
         _mode == _DragMode.create && _dragStart != null && _dragCurrent != null
-        ? depthLockNormalizedRect(_dragStart!, _dragCurrent!)
-        : null;
+            ? depthLockNormalizedRect(_dragStart!, _dragCurrent!)
+            : null;
 
     final painter = DepthLockRegionPainter(
       draft: draft,
@@ -459,10 +457,10 @@ class _RegionToolInstructions extends ConsumerWidget {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 360),
                     child: Builder(
-                    // Built through a Builder so the ink resolves under the
-                    // palette [Glass] installs for its contents — over a
-                    // photograph that is the dark ladder, whatever the app
-                    // theme is.
+                      // Built through a Builder so the ink resolves under the
+                      // palette [Glass] installs for its contents — over a
+                      // photograph that is the dark ladder, whatever the app
+                      // theme is.
                       builder: (BuildContext inner) => Text(
                         message,
                         style: NightshadeTypography.bodySm.copyWith(
@@ -631,10 +629,10 @@ class DepthLockRegionPainter extends CustomPainter {
   }
 
   Offset _toScreen(Offset imagePoint) => imageToViewport(
-    imagePoint: imagePoint,
-    imageOffset: imageOffset,
-    zoomLevel: zoomLevel,
-  );
+        imagePoint: imagePoint,
+        imageOffset: imageOffset,
+        zoomLevel: zoomLevel,
+      );
 
   void _paintRect(
     Canvas canvas,
