@@ -15,6 +15,7 @@ import 'package:nightshade_app/screens/sequencer/sequence_fold_model.dart';
 import 'package:nightshade_app/screens/sequencer/sequence_fold_state.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/batch_operations_toolbar.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/ledger_seconds.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/visual_timeline.dart';

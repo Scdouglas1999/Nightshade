@@ -366,31 +366,31 @@ class _LedgerActionsSlot extends StatelessWidget {
     final slotWidth = _ledgerActionsSlotWidth(context);
     if (reservedOnly) return SizedBox(width: slotWidth);
 
-    final actions = isTouch
-        // OverflowBox lets the kebab's 48x48 hit area spill the row's 28 px
-        // height symmetrically instead of clipping the slot down to the
-        // visual. This is the padding `NightshadeTouchTarget` prescribes,
-        // applied where a fixed-height row cannot grow to fit it.
-        ? OverflowBox(
-            minWidth: slotWidth,
-            maxWidth: slotWidth,
-            minHeight: slotWidth,
-            maxHeight: slotWidth,
+    // The kebab stays mounted; the trio does not.
+    //
+    // The trio is three stateful buttons, three tooltips, three mouse regions
+    // and a `canEditSequence` watcher, on every row, held all night for
+    // controls that are on screen for a moment — so it is built only while the
+    // pointer is in the row. The kebab is ONE widget and it cannot be treated
+    // the same way: `PopupMenuButton` drops the selection if its button has
+    // been unmounted by the time the menu closes, and the menu's own modal
+    // barrier takes the pointer off the row the instant it opens. Unmounting
+    // it on hover-out therefore makes every entry in it a no-op.
+    final Widget kebab = isTouch
+        // Wide, NOT tall. The kebab's interactive minimum is 48 px in both
+        // axes, and letting it spill vertically out of a 28 px row made
+        // adjacent rows' kebabs overlap by ~20 px — a tap near a row boundary
+        // opened the neighbour's menu. The slot is already the touch minimum
+        // WIDE, so the hit area reaches the platform floor across the row
+        // instead of through it.
+        ? SizedBox(width: slotWidth, height: _ledgerRowHeight, child: menu)
+        // PopupMenuButton's IconButton enforces a 48 px interactive minimum of
+        // its own; the tight slot clamps it back to the dense footprint the
+        // reservation was sized for.
+        : SizedBox(
+            width: _ledgerKebabWidth,
+            height: _ledgerRowHeight,
             child: menu,
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              chips,
-              // PopupMenuButton's IconButton enforces a 48 px interactive
-              // minimum of its own; the tight slot clamps it back to the dense
-              // footprint the reservation was sized for.
-              SizedBox(
-                width: _ledgerKebabWidth,
-                height: _ledgerRowHeight,
-                child: menu,
-              ),
-            ],
           );
 
     return SizedBox(
@@ -398,8 +398,8 @@ class _LedgerActionsSlot extends StatelessWidget {
       height: _ledgerRowHeight,
       child: ValueListenableBuilder<bool>(
         valueListenable: hovered,
-        child: actions,
-        builder: (context, isHovered, child) {
+        child: kebab,
+        builder: (context, isHovered, kebabChild) {
           final visible = isTouch || isHovered;
           return IgnorePointer(
             ignoring: !visible,
@@ -412,7 +412,20 @@ class _LedgerActionsSlot extends StatelessWidget {
                 duration:
                     animationDuration(context, NightshadeTokens.durationFast),
                 curve: NightshadeTokens.curveStandard,
-                child: child,
+                child: isTouch
+                    ? kebabChild
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (visible)
+                            chips
+                          else
+                            const SizedBox(
+                              width: 3 * _ledgerActionChipWidth,
+                            ),
+                          kebabChild!,
+                        ],
+                      ),
               ),
             ),
           );

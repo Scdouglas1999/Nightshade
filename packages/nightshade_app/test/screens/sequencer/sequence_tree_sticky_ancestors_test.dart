@@ -83,12 +83,12 @@ Sequence _foldedRunSequence() {
   final root = InstructionSetNode(name: 'Root');
   final padding = <ExposureNode>[
     for (var i = 0; i < 20; i++)
-      ExposureNode(name: 'Sub \$i', durationSecs: 60.0 + i, count: 1),
+      ExposureNode(name: 'Sub $i', durationSecs: 60.0 + i, count: 1),
   ];
   final run = <ExposureNode>[
     for (final filter in ['Ha', 'OIII', 'SII'])
       ExposureNode(
-        name: '\$filter subs',
+        name: '$filter subs',
         filter: filter,
         durationSecs: 300,
         count: 12,

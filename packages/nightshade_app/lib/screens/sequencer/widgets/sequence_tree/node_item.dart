@@ -339,11 +339,15 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   /// 48 adds 72dp to a row that then overflows a 360dp phone by 30 — measured,
   /// not guessed. Moving them behind the kebab gives the same three actions a
   /// single already-compliant 48dp target and hands 84dp back to the row.
-  Widget _buildActionCluster(BuildContext context) {
+  Widget _buildActionCluster(BuildContext context, {required bool chips}) {
+    final showChips = chips && !NightshadeTouchTarget.isTouch(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        if (!NightshadeTouchTarget.isTouch(context))
+        if (!NightshadeTouchTarget.isTouch(context) && !chips)
+          const SizedBox(width: 3 * _ledgerActionChipWidth),
+        if (showChips)
           _NodeActionChips(
             colors: widget.colors,
             node: widget.node,
@@ -629,37 +633,35 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
           ValueListenableBuilder<bool>(
             valueListenable: _isHovered,
             builder: (context, hovered, _) {
-              final visible = (isMobile || hovered) && !widget.isDragging;
-              final slotWidth = isMobile || widget.isDragging
-                  ? null
-                  : (NightshadeTouchTarget.isTouch(context)
-                      ? _cardKebabWidth
-                      : _cardActionsWidth);
-              // Built only while visible. Four interactive widgets per row on
-              // every row of a full night is a cost the tree pays all night for
-              // a control that is on screen for a moment; the cross-fade keeps
-              // the reveal from being a pop.
-              final actions = visible
-                  ? _buildActionCluster(context)
-                  : const SizedBox.shrink();
-              final revealed = IgnorePointer(
-                ignoring: !visible,
-                child: ExcludeSemantics(
-                  excluding: !visible,
-                  child: AnimatedSwitcher(
-                    duration: animationDuration(
-                      context,
-                      NightshadeTokens.durationFast,
+              if (widget.isDragging) return const SizedBox.shrink();
+              if (isMobile) return _buildActionCluster(context, chips: true);
+              final visible = hovered;
+              final slotWidth = NightshadeTouchTarget.isTouch(context)
+                  ? _cardKebabWidth
+                  : _cardActionsWidth;
+              return SizedBox(
+                width: slotWidth,
+                child: IgnorePointer(
+                  ignoring: !visible,
+                  // A hidden button must not be announced or focusable, or a
+                  // screen-reader user lands on a control they cannot operate.
+                  child: ExcludeSemantics(
+                    excluding: !visible,
+                    child: AnimatedOpacity(
+                      opacity: visible ? 1 : 0,
+                      duration: animationDuration(
+                        context,
+                        NightshadeTokens.durationFast,
+                      ),
+                      curve: NightshadeTokens.curveStandard,
+                      // The trio is built only while the pointer is in the
+                      // row; the kebab is not, for the same reason the ledger
+                      // row keeps its own mounted — see [_LedgerActionsSlot].
+                      child: _buildActionCluster(context, chips: visible),
                     ),
-                    switchInCurve: NightshadeTokens.curveStandard,
-                    switchOutCurve: NightshadeTokens.curveStandard,
-                    child: actions,
                   ),
                 ),
               );
-              return slotWidth == null
-                  ? revealed
-                  : SizedBox(width: slotWidth, child: revealed);
             },
           ),
 

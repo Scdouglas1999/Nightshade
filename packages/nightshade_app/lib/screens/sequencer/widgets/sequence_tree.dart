@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../widgets/tutorial_keys/sequencer_keys.dart';
 import '../../accessible_dropdown.dart';
+import '../ledger_seconds.dart';
 import '../sequence_fold_model.dart';
 import '../sequence_fold_state.dart';
 import 'delete_node_confirmation.dart';
@@ -471,15 +472,22 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
         viewport.localToGlobal(Offset.zero).dy - _scrollController.offset;
 
     int? found;
+    int? first;
     for (var i = 0; i < _visibleOrder.length; i++) {
       final bounds = _rowBounds(_visibleOrder[i].id);
       if (bounds == null) continue;
+      first ??= i;
       // Rows are walked in draw order, so the first one that starts below the
       // target ends the search — everything after it starts lower still.
       if (bounds.top - contentTop > contentOffset) break;
       found = i;
     }
-    return found;
+    // An offset ABOVE the first row is still a place in the tree: the ledger's
+    // column header and the scroll view's top padding take content pixels that
+    // no row starts in, and a gutter tap in that band is unmistakably a tap at
+    // the top of the night. Returning null there sent it to the block-grid
+    // estimate instead, which names a different row.
+    return found ?? first;
   }
 
   /// A row's global top and bottom edge, or null while its box is not mounted.

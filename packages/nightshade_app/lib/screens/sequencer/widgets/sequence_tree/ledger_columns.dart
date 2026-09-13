@@ -19,6 +19,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 // run dashboard providers already follow.
 import 'package:nightshade_core/nightshade_core_events.dart' as ns_events;
 
+import '../../ledger_seconds.dart';
 import '../../plan_math.dart';
 import '../visual_timeline.dart';
 
@@ -171,24 +172,6 @@ String _frameCount(PlannedCapture planned) {
   return floor ? '${planned.frames}+' : '${planned.frames}';
 }
 
-/// The digits the ledger prints for a number of seconds: `300` not `300.0`,
-/// `1.5` not `1.50`.
-///
-/// One function because the same exposure length is printed in three places on
-/// the same screen — the Filter / exp cell of a row, the chip on a folded run
-/// and the rollup summary under a collapsed container — and a run whose chip
-/// said `1.5 s` next to a cell saying `2s` would be reporting two different
-/// exposures.
-///
-/// The UNIT is spelled differently by design, and the spec fixes both: the
-/// fixed-width column packs it (`Ha 300s`, spec §2) because the space is dead
-/// pixels in a 70 px cell, while the chip and the rollup read as prose
-/// (`300 s ×12 each`, spec §3 and §6). Only the digits are shared.
-String formatLedgerSeconds(double value) {
-  if (value == value.roundToDouble()) return value.toStringAsFixed(0);
-  return value.toStringAsFixed(1);
-}
-
 /// Format [time] as a local 24-hour `HH:mm` wall clock.
 ///
 /// Hand-formatted rather than via `DateFormat` so the ETA column is the same
@@ -312,6 +295,7 @@ Map<String, LedgerEta> ledgerEtasFor(
   required DateTime now,
   required bool runActive,
   DateTime? runStart,
+  String? currentNodeId,
   Map<String, DateTime> actualStarts = const <String, DateTime>{},
 }) {
   if (actualStarts.isEmpty &&
@@ -325,10 +309,31 @@ Map<String, LedgerEta> ledgerEtasFor(
   // driving, the remaining plan hangs off the run's recorded start (falling
   // back to the simulation's own anchor while `startSession` is still
   // resolving).
-  final shift = simulation == null
+  final runShift = simulation == null
       ? Duration.zero
       : (runActive ? (runStart ?? simulation.start) : now)
           .difference(simulation.start);
+
+  // …but the RUN's start is the wrong anchor for the part of the plan that has
+  // not happened yet. A night that is forty minutes behind at 01:00 still had
+  // the same start time, so anchoring on it alone printed every remaining ETA
+  // forty minutes optimistic — all night, and by more as the night went on.
+  //
+  // The executing node is the join between what happened and what is still
+  // predicted: its predicted start under the run anchor is where the plan
+  // THOUGHT it would be now, and the clock says where it actually is. The tail
+  // is pushed by the difference whenever the clock is the later of the two, so
+  // a run that is ahead of plan is never talked back down to it.
+  var pendingShift = runShift;
+  if (runActive && currentNodeId != null) {
+    final predictedCurrent = predicted[currentNodeId];
+    if (predictedCurrent != null) {
+      final anchored = predictedCurrent.add(runShift);
+      if (now.isAfter(anchored)) {
+        pendingShift = runShift + now.difference(anchored);
+      }
+    }
+  }
 
   final etas = <String, LedgerEta>{};
   for (final id in sequence.nodes.keys) {
@@ -338,24 +343,32 @@ Map<String, LedgerEta> ledgerEtasFor(
       continue;
     }
     final start = predicted[id];
-    if (start != null) etas[id] = LedgerEta(start.add(shift), isActual: false);
+    if (start != null) {
+      etas[id] = LedgerEta(start.add(pendingShift), isActual: false);
+    }
   }
   return Map<String, LedgerEta>.unmodifiable(etas);
 }
 
-/// The wall clock the pre-run ETA anchor ticks against.
+/// The wall clock the ETA column anchors against.
 ///
 /// A stream rather than a `Timer` held by a notifier: Riverpod cancels the
 /// subscription on rebuild and dispose, which kills the periodic timer with
-/// it. `autoDispose` so the subscription — and the timer inside it — dies
-/// with the last listener instead of outliving a widget test's tree. The
-/// stream only ticks while the executor is settled ([canStart]) — once a run
-/// is live the anchor moves to the run's recorded start and a clock tick
-/// would just rebuild identical predictions.
+/// it. `autoDispose` so the subscription — and the timer inside it — dies with
+/// the last listener instead of outliving a widget test's tree.
+///
+/// It ticks DURING a run as well as before one. It used to stop while the
+/// executor was driving, on the reasoning that the anchor had moved to the
+/// run's recorded start and a tick would only rebuild identical predictions.
+/// That was true of the predictions and wrong about the night: the pending
+/// tail is anchored on `max(now, the executing node's predicted start)`
+/// ([ledgerEtasFor]), so a run falling behind only shows in the ETA column
+/// when the clock moves. One minute is also the column's own resolution — it
+/// prints `HH:mm` — so this is the slowest tick that can still be right.
+///
+/// Nothing but [ledgerEtaProvider] reads it, which is what keeps a timer
+/// running through a night from costing anything else a rebuild.
 final ledgerClockProvider = StreamProvider.autoDispose<DateTime>((ref) {
-  if (!ref.watch(sequenceExecutionStateProvider).canStart) {
-    return const Stream<DateTime>.empty();
-  }
   Stream<DateTime> tick() async* {
     yield DateTime.now();
     yield* Stream.periodic(const Duration(minutes: 1), (_) => DateTime.now());
@@ -371,13 +384,34 @@ final ledgerClockProvider = StreamProvider.autoDispose<DateTime>((ref) {
 /// `Started` clears the map so a rerun does not show last night's times. The
 /// same `ref.listen` fold `eventHistoryProvider` uses — kept as a map provider
 /// rather than read inside the row so every event does not rebuild the tree.
-final ledgerActualStartsProvider =
-    StateNotifierProvider<_LedgerActualStartsNotifier, Map<String, DateTime>>(
-        (ref) {
+///
+/// `autoDispose`, held alive only while a run is: the fold subscribes to
+/// `nightshadeEventsProvider`, and a non-disposing provider kept that
+/// subscription — and the observed starts of whatever ran last — for the
+/// lifetime of the process, sequencer on screen or not. The keep-alive is what
+/// stops the opposite mistake: closing the sequencer mid-run would otherwise
+/// throw away the run's observed start times, and reopening it would show
+/// predictions for nodes that have demonstrably already started.
+final ledgerActualStartsProvider = StateNotifierProvider.autoDispose<
+    _LedgerActualStartsNotifier, Map<String, DateTime>>((ref) {
   final notifier = _LedgerActualStartsNotifier();
   ref.listen(nightshadeEventsProvider, (previous, next) {
     next.whenData(notifier._onEvent);
   });
+  KeepAliveLink? runLink;
+  ref.listen<SequenceExecutionState>(
+    sequenceExecutionStateProvider,
+    (previous, next) {
+      if (next.canStart) {
+        runLink?.close();
+        runLink = null;
+      } else {
+        runLink ??= ref.keepAlive();
+      }
+    },
+    fireImmediately: true,
+  );
+  ref.onDispose(() => runLink?.close());
   return notifier;
 });
 
@@ -423,6 +457,12 @@ final ledgerEtaProvider = Provider.autoDispose<Map<String, LedgerEta>>((ref) {
     now: ref.watch(ledgerClockProvider).valueOrNull ?? DateTime.now(),
     runActive: runActive,
     runStart: ref.watch(sessionStateProvider).startTime,
+    // The join between what has happened and what is still predicted. Watched
+    // as a slice so a progress tick that does not move the run to a new node
+    // leaves the whole ETA map alone.
+    currentNodeId: ref.watch(
+      sequenceProgressProvider.select((progress) => progress.currentNodeId),
+    ),
     actualStarts: ref.watch(ledgerActualStartsProvider),
   );
 });

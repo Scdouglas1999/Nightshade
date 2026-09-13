@@ -28,6 +28,8 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import 'ledger_seconds.dart';
+
 /// Which kind of contiguous sibling run a [FoldGroup] collapses into one row.
 enum FoldKind {
   /// ≥2 enabled [ExposureNode]s that differ only by filter.
@@ -513,7 +515,8 @@ FoldGroup _filterRunGroup(
     parentId: parentId,
     firstIndex: start,
     label: memberLabels.join(' · '),
-    chipText: '${_fmtSecs(first.durationSecs)} s ×${first.count} each',
+    chipText:
+        '${formatLedgerSeconds(first.durationSecs)} s ×${first.count} each',
     durationSecs: first.durationSecs,
     count: first.count,
     gain: first.gain,
@@ -633,13 +636,4 @@ String _foldGroupId(List<String> memberIds) {
     hash = ((hash ^ 0x1f) * 0x100000001b3) & 0x7fffffffffffffff;
   }
   return 'fold-${hash.toRadixString(16).padLeft(15, '0')}';
-}
-
-/// `60` not `60.0`, `1.5` not `1.50` — the same compact-second convention
-/// `node_summary.dart` prints chips with.
-String _fmtSecs(double value) {
-  if (value == value.roundToDouble()) {
-    return value.toStringAsFixed(0);
-  }
-  return value.toStringAsFixed(1);
 }
