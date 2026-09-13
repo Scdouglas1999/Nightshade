@@ -119,7 +119,7 @@ described the cry-wolf as accepted; that behaviour is now fixed.
 | `dart format --output=none --set-exit-if-changed <4 edited dart files>` | **0** (0 changed) |
 | `flutter test test/screens/sequencer --concurrency=3` (nightshade_app) | **0** — **+711**, unchanged from base |
 | `flutter test test/screens/dashboard --concurrency=3` (nightshade_app) | **0** — +182 |
-| `flutter test test/widgets --concurrency=3` (nightshade_app) | **1** — +299 **-4**, all pre-existing (see below) |
+| `flutter test test/widgets --concurrency=3` (nightshade_app) | **0** — **+303**, green after the follow-up below |
 
 `analyzer_rollup.dart` writes `docs/production-readiness/analyzer-rollup.json`.
 That file is untracked and was absent on this branch, so the artifact it
@@ -128,17 +128,38 @@ produced was deleted after the run; it is not in the diff.
 Only `nightshade_app` production code changed, so no `nightshade_core` or
 `nightshade_ui` test directories were in scope.
 
-## Not resolved (pre-existing, outside this brief's file scope)
+## Follow-up: the four pre-existing failures, now fixed
 
 `packages/nightshade_app/test/widgets/capture_settings_panel_filter_test.dart`
-fails 4 tests. The cause is stale-test debt, not a regression: the test taps a
-Material `DropdownButton<String>`, while `packages/nightshade_app/lib/widgets/
-capture_settings_panel.dart` was migrated to the design system's
-`NightshadeDropdown` (lines 194, 218, 342). Neither file is in this branch's
-diff, the behavioral gate does not name either, and the brief forbids changing
-test behaviour — so this is routed on rather than touched. Failing cases:
+failed 4 tests on arrival. The cause was stale-test debt, not a regression: the
+test drove a Material `DropdownButton<String>`, while
+`packages/nightshade_app/lib/widgets/capture_settings_panel.dart` had been
+migrated to the design system's `NightshadeDropdown`. On the coordinator's
+instruction (owner rule: zero failing tests before a final build) the TEST was
+updated to the current product, which is the side that is right.
 
-- `failed wheel move retains the previous exposure filter`
-- `no_wheel_falls_back_to_static_list: selection never commands a wheel`
-- `pending wheel move keeps old metadata and disables capture controls`
-- `selecting_position_commands_wheel: choosing G dispatches position 2`
+The three `DropdownButton<String>` references were repointed at
+`NightshadeDropdown` using the interaction pattern already established in
+`test/screens/settings/settings_dropdown_test.dart` (tap the trigger,
+`pumpAndSettle`, tap `find.text(value).last`). No Material dropdown was added
+back. Every assertion's intent is unchanged — which filter is selected, that
+selecting G dispatches wheel position 2, that a pending move nulls `onChanged`
+and the Capture button, that metadata flips to G only after the move completes,
+and that a failed move retains L. Two supporting changes:
+
+- the dropdown lookup was lifted into a `_filterDropdown(currentLabel)` finder,
+  since the same scoping (the Filter control is the only dropdown whose closed
+  trigger shows a slot label) is now needed in two places;
+- the post-selection drain went from 3x20 ms to 8x50 ms, because
+  `NightshadeDropdown` returns its choice by popping a route and the pop
+  animation has to run. It is still a hand-drained pump loop rather than
+  `pumpAndSettle`, because the gated-move test leaves work pending on purpose.
+
+`package:flutter/material.dart` became an unused import once the last
+`DropdownButton` reference went, and was removed; `dart analyze` on the file
+reports no issues.
+
+Result: `flutter test test/widgets --concurrency=3` -> **EXIT 0, +303**, fully
+green. No production code was touched for this follow-up, so the behavioral,
+placeholder and analyzer gates are unaffected (the audit tools exclude `test/`
+directories from their scan roots).
