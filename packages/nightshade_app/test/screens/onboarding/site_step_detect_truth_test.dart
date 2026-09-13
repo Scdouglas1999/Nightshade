@@ -20,29 +20,65 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// The fix a desktop with no GPS receiver lands: the internet lookup's answer
-/// to seven raw decimals, tagged with the host that supplied it.
-const _philadelphia = GeolocationFix(
-  latitude: 39.9527237,
-  longitude: -75.1635262,
-  source: GeolocationSource.internet,
-  providerHost: 'ipinfo.io',
+/// What a desktop with no GPS receiver and a switched-off radio lands: the
+/// IP estimate, to seven raw decimals, tagged with the host that supplied it,
+/// and the note that the precise tier never ran.
+const _philadelphia = PositioningAttempt(
+  fix: PositioningResult(
+    latitude: 39.9527237,
+    longitude: -75.1635262,
+    source: PositioningSource.ipAddress,
+    provider: 'ipinfo.io',
+  ),
+  outcomes: [
+    TierOutcome(
+      tier: PositioningTier.wifiScan,
+      succeeded: false,
+      detail: 'Wi-Fi is switched off on this machine.',
+    ),
+  ],
+  wifiRadioOff: true,
+  wifiRadioCanBeEnabled: true,
 );
 
-/// The fix a machine that does have a receiver lands: same button, the
-/// device path, with the platform's metres attached.
-const _deviceFix = GeolocationFix(
-  latitude: 39.9527237,
-  longitude: -75.1635262,
-  locationName: 'GPS: 39.9527, -75.1635',
-  source: GeolocationSource.device,
-  accuracyMeters: 14,
+/// What the Wi-Fi tier lands where a positioning service has coverage: the
+/// same button, tens of metres, from the radios within earshot.
+const _wifiFix = PositioningAttempt(
+  fix: PositioningResult(
+    latitude: 39.9527237,
+    longitude: -75.1635262,
+    accuracyMetres: 42,
+    source: PositioningSource.wifiScan,
+    provider: 'beaconDB',
+    accessPointsUsed: 11,
+  ),
+  outcomes: [],
 );
+
+/// And what a machine that does have a receiver lands.
+const _deviceFix = PositioningAttempt(
+  fix: PositioningResult(
+    latitude: 39.9527237,
+    longitude: -75.1635262,
+    accuracyMetres: 14,
+    source: PositioningSource.platformService,
+    provider: 'Windows Location Services',
+  ),
+  outcomes: [],
+);
+
+SiteLocator _answering(PositioningAttempt attempt) => ({
+      required bool allowWifiScan,
+      required bool allowIp,
+      bool mayEnableWifiRadio = false,
+      String? googleApiKey,
+    }) async =>
+        attempt;
 
 Future<ProviderContainer> _pumpSiteStep(
   WidgetTester tester,
   NightshadeDatabase db, {
-  DeviceLocationLookup? deviceLocation,
+  SiteLocator? locator,
 }) async {
   late ProviderContainer container;
   tester.view.devicePixelRatio = 1.0;
@@ -58,8 +94,12 @@ Future<ProviderContainer> _pumpSiteStep(
         databaseProvider.overrideWithValue(db),
         onboardingApproximateLocationProvider
             .overrideWithValue(() async => null),
-        onboardingDeviceLocationProvider
-            .overrideWithValue(deviceLocation ?? () async => null),
+        onboardingSiteLocatorProvider.overrideWithValue(
+          locator ??
+              _answering(
+                const PositioningAttempt(fix: null, outcomes: []),
+              ),
+        ),
       ],
       child: Consumer(builder: (ctx, ref, _) {
         container = ProviderScope.containerOf(ctx);
@@ -94,7 +134,7 @@ void main() {
     final container = await _pumpSiteStep(
       tester,
       db,
-      deviceLocation: () async => _philadelphia,
+      locator: _answering(_philadelphia),
     );
 
     expect(find.textContaining('No site on record yet'), findsOneWidget);
@@ -114,7 +154,7 @@ void main() {
     await _pumpSiteStep(
       tester,
       db,
-      deviceLocation: () async => _philadelphia,
+      locator: _answering(_philadelphia),
     );
 
     await tester.tap(find.text('Use my current location'));
@@ -156,7 +196,7 @@ void main() {
           .first,
     );
     final body = tester.getRect(
-      find.textContaining('Nightshade asks this device'),
+      find.textContaining('Nightshade will try these in order'),
     );
 
     expect(
@@ -171,23 +211,55 @@ void main() {
     );
   });
 
-  // The consent dialog must say what leaves the machine — the public IP to
-  // the named services — because on a desktop that request is what Detect
-  // actually does.
-  testWidgets('the consent dialog names the IP lookup', (tester) async {
+  // The consent dialog must say what leaves the machine at EACH tier — the
+  // names of the networks around the house, and the public IP — because those
+  // are two different disclosures and the Wi-Fi one is new.
+  testWidgets('the consent dialog names both outbound tiers', (tester) async {
     await _pumpSiteStep(tester, db);
 
     await tester.tap(find.text('Use my current location'));
     await tester.pumpAndSettle();
 
     // The banner's "public IP" offer text is also on screen, so assert the
-    // sentence only the dialog carries.
+    // sentences only the dialog carries.
     expect(
-      find.textContaining('sends an HTTPS request to a third-party '
-          'geolocation service (ipinfo.io'),
+      find.textContaining(
+        'The names and signal strengths of nearby Wi-Fi networks, sent to '
+        'beaconDB (an open positioning service)',
+      ),
       findsOneWidget,
     );
-    expect(find.textContaining('ipwho.is'), findsOneWidget);
+    expect(
+      find.textContaining('Your public IP address, sent to ipinfo.io over '
+          'HTTPS (falling back to ipwho.is)'),
+      findsOneWidget,
+    );
+  });
+
+  // The Estimate-from-IP offer sends only the public IP. Consenting to it must
+  // not carry over as permission to scan for Wi-Fi and put the names of the
+  // networks around the house on the wire.
+  testWidgets('the IP-estimate offer does not ask for the Wi-Fi tier',
+      (tester) async {
+    await _pumpSiteStep(tester, db);
+
+    await tester.tap(find.text('Estimate from IP'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Detect this site’s location?'), findsOneWidget);
+    expect(find.textContaining('nearby Wi-Fi networks'), findsNothing);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Detect location'));
+    await tester.pumpAndSettle();
+
+    // The narrower consent must not satisfy the wider one.
+    await tester.tap(find.text('Use my current location'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('nearby Wi-Fi networks'),
+      findsOneWidget,
+      reason: 'IP consent was reused to authorise a Wi-Fi scan',
+    );
   });
 
   // A desktop with no GPS still lands a site in one click — and the
@@ -198,7 +270,7 @@ void main() {
     final container = await _pumpSiteStep(
       tester,
       db,
-      deviceLocation: () async => _philadelphia,
+      locator: _answering(_philadelphia),
     );
 
     await tester.tap(find.text('Use my current location'));
@@ -211,18 +283,86 @@ void main() {
       39.9527,
     );
     expect(
-      find.textContaining('approximate: from your internet connection'),
+      find.textContaining(
+        'Approximate only: from your internet address (ipinfo.io). City '
+        'level — typically tens of kilometres.',
+      ),
       findsOneWidget,
     );
-    expect(find.textContaining('ipinfo.io'), findsOneWidget);
+    expect(
+      find.textContaining('Turn Wi-Fi on for a precise fix.'),
+      findsWidgets,
+    );
   });
 
-  testWidgets('a device fix names the device path and its metres',
+  // The whole point of the feature: where a positioning service has coverage,
+  // one click puts the rig in its own yard and says by how much.
+  testWidgets('a Wi-Fi fix names its radius and the networks that placed it',
+      (tester) async {
+    await _pumpSiteStep(tester, db, locator: _answering(_wifiFix));
+
+    await tester.tap(find.text('Use my current location'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detect location'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining(
+        'Located to within 42 m using 11 nearby Wi-Fi networks (beaconDB).',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Correct the coordinates below'),
+      findsNothing,
+      reason: 'a 42 m fix does not need correcting by hand',
+    );
+  });
+
+  testWidgets(
+      'a switched-off radio is offered as a one-click fix, and the '
+      'retry asks for it', (tester) async {
+    var sawRetryFlag = false;
+    await _pumpSiteStep(
+      tester,
+      db,
+      locator: ({
+        required bool allowWifiScan,
+        required bool allowIp,
+        bool mayEnableWifiRadio = false,
+        String? googleApiKey,
+      }) async {
+        if (mayEnableWifiRadio) {
+          sawRetryFlag = true;
+          return _wifiFix;
+        }
+        return _philadelphia;
+      },
+    );
+
+    const bannerBody = 'will switch it on, scan for nearby networks';
+    expect(find.textContaining(bannerBody), findsNothing);
+
+    await tester.tap(find.text('Use my current location'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detect location'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining(bannerBody), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Scan'));
+    await tester.pumpAndSettle();
+
+    expect(sawRetryFlag, isTrue);
+    expect(find.textContaining(bannerBody), findsNothing);
+  });
+
+  testWidgets('a platform-service fix names the service and its metres',
       (tester) async {
     final container = await _pumpSiteStep(
       tester,
       db,
-      deviceLocation: () async => _deviceFix,
+      locator: _answering(_deviceFix),
     );
 
     await tester.tap(find.text('Use my current location'));
@@ -234,7 +374,12 @@ void main() {
       container.read(appSettingsProvider).valueOrNull?.latitude,
       39.9527,
     );
-    expect(find.textContaining('GPS fix, ±14 m'), findsOneWidget);
-    expect(find.textContaining('approximate:'), findsNothing);
+    expect(
+      find.textContaining(
+        'Located to within 14 m by Windows Location Services.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Approximate only'), findsNothing);
   });
 }

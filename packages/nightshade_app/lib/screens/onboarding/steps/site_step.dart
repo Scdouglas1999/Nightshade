@@ -32,16 +32,21 @@ final onboardingApproximateLocationProvider =
   (ref) => GeolocationService.fetchLocation,
 );
 
-/// The device-position lookup behind "Use my current location": this
-/// machine's GPS where the platform has one, the internet IP lookup
-/// everywhere else — one click covers a desktop with no receiver. Returns
-/// the provenance-carrying fix so the confirmation can say which path
-/// answered. Injected so the consent + elevation rules can be driven in
-/// tests without a network or a GPS.
-typedef DeviceLocationLookup = Future<GeolocationFix?> Function();
+/// The lookup behind "Use my current location": the three positioning tiers
+/// — the platform's location service, a Wi-Fi scan resolved by a positioning
+/// service, then the public-IP estimate — with what each one did, so the
+/// confirmation can say how precise the answer is and the step can offer the
+/// one failure the operator can fix. Injected so the consent, radio-power and
+/// elevation rules can be driven in tests without a network or a GPS.
+typedef SiteLocator = Future<PositioningAttempt> Function({
+  required bool allowWifiScan,
+  required bool allowIp,
+  bool mayEnableWifiRadio,
+  String? googleApiKey,
+});
 
-final onboardingDeviceLocationProvider = Provider<DeviceLocationLookup>(
-  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: true),
+final onboardingSiteLocatorProvider = Provider<SiteLocator>(
+  (ref) => GeolocationService.locate,
 );
 
 /// Observing-site step.
@@ -103,6 +108,11 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
   bool _ipLookupStarted = false;
   bool _ipLookupRunning = false;
 
+  /// Set when a lookup ran and the precise Wi-Fi tier was skipped because the
+  /// radio is off — the one failure the operator can fix from here, so the
+  /// offer only appears once we know it applies.
+  bool _wifiRadioOffersPrecision = false;
+
   @override
   void dispose() {
     _latController.dispose();
@@ -158,9 +168,14 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
   /// network must show manual entry, not an error the user cannot act on.
   Future<void> _lookUpIpEstimate() async {
     if (_ipLookupRunning) return;
-    final consented = await confirmGeolocationLookup(
+    final consented = await ensureGeolocationConsent(
       context,
+      ref,
       outcome: kGeolocationOffersEstimateOutcome,
+      // This offer is the IP tier alone: it never scans for Wi-Fi, so it must
+      // not ask for — or silently inherit — consent to send the networks
+      // around the house anywhere.
+      includeWifiScan: false,
     );
     if (!consented || !mounted) return;
     setState(() {
@@ -308,41 +323,53 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
       double.parse(value.toStringAsFixed(4));
 
   /// Resolve this machine's position and write the coordinates, mirroring
-  /// Settings → Location's "Detect Location" affordance — including its two
-  /// rules. It asks before the request leaves the machine (the underlying
-  /// service falls back to a third-party IP lookup
-  /// on every desktop), and it refuses to leave a stored elevation attached to
-  /// a position it does not belong to. Guards the async gap with a
+  /// Settings → Location's "Detect location" affordance — including its three
+  /// rules. It asks before anything leaves the machine, naming each tier that
+  /// will run (once per session, shared with Settings). It refuses to leave a
+  /// stored elevation attached to a position it does not belong to. And it
+  /// changes nothing about the machine unasked: [mayEnableWifiRadio] is set
+  /// only by the explicit "Turn Wi-Fi on for a precise fix" offer, and the
+  /// radio goes back off afterwards. Guards the async gap with a
   /// backend-authority check so a host switch mid-read never applies the
   /// reading to the replacement host.
-  Future<void> _useDeviceLocation(AppSettingsState settings) async {
+  Future<void> _useDeviceLocation(
+    AppSettingsState settings, {
+    bool mayEnableWifiRadio = false,
+  }) async {
     if (_locating) return;
-    final consented = await confirmGeolocationLookup(
+    final googleKey = ref.read(googleGeolocationKeyProvider).value ?? '';
+    final consented = await ensureGeolocationConsent(
       context,
+      ref,
       outcome: kGeolocationWritesSiteOutcome,
-      includeIpFallback: true,
+      googleKeyPresent: googleKey.isNotEmpty,
     );
     if (!consented || !mounted) return;
     final authority = ref.read(backendProvider);
     setState(() => _locating = true);
     try {
-      final location = await ref.read(onboardingDeviceLocationProvider)();
+      final attempt = await ref.read(onboardingSiteLocatorProvider)(
+        allowWifiScan: true,
+        allowIp: true,
+        mayEnableWifiRadio: mayEnableWifiRadio,
+        googleApiKey: googleKey.isEmpty ? null : googleKey,
+      );
       if (!mounted || !identical(ref.read(backendProvider), authority)) {
         return;
       }
+      setState(() => _wifiRadioOffersPrecision = attempt.canRetryWithWifi);
+      final location = attempt.fix;
       if (location == null) {
         context.showWarningSnackBar(
-          'No fix from this machine or the internet lookup. Enter your '
-          'coordinates below, or skip and set the site later in Settings → '
-          'Location.',
+          'No position from Wi-Fi, this machine, or the internet lookup. '
+          '${attempt.failureDetail} Enter your coordinates below, or skip and '
+          'set the site later in Settings → Location.',
         );
         return;
       }
-      final rawLat = location.latitude;
-      final rawLon = location.longitude;
       final name = location.locationName;
-      final lat = _roundLookup(rawLat);
-      final lon = _roundLookup(rawLon);
+      final lat = _roundLookup(location.latitude);
+      final lon = _roundLookup(location.longitude);
       // Only a site already on record can lend a stale elevation; on a first
       // run the field holds whatever the operator has just typed, which is
       // theirs to keep.
@@ -367,10 +394,13 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
       _publishBlockingReason();
       final where = name ?? '${_trimNumber(lat)}°, ${_trimNumber(lon)}°';
       context.showSuccessSnackBar(
-        keepElevation
-            ? 'Coordinates set to $where — ${location.describeSource()}.'
-            : 'Coordinates set to $where — ${location.describeSource()}. '
-                'Elevation cleared — enter the elevation for this site.',
+        'Coordinates set to $where. ${location.explanation}'
+        '${keepElevation ? '' : ' Elevation cleared — enter the elevation '
+            'for this site.'}'
+        // The wizard has no map and no place search, so the nudge points at
+        // the fields directly below instead of an affordance that is not
+        // here yet.
+        '${location.isPrecise ? '' : attempt.canRetryWithWifi ? ' Turn Wi-Fi on for a precise fix.' : ' Correct the coordinates below if it is off.'}',
       );
     } catch (error) {
       if (mounted && identical(ref.read(backendProvider), authority)) {
@@ -507,6 +537,31 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
                   ),
                 ],
               ),
+              if (_wifiRadioOffersPrecision) ...[
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                NightshadeBanner(
+                  icon: LucideIcons.wifi,
+                  title: 'Turn Wi-Fi on for a precise fix.',
+                  message: 'Wi-Fi is switched off, so the scan that places '
+                      'you to within about 100 m was skipped. Nightshade '
+                      'will switch it on, scan for nearby networks, and '
+                      'switch it back off.',
+                  action: NightshadeButton(
+                    label: 'Scan',
+                    variant: ButtonVariant.secondary,
+                    size: ButtonSize.small,
+                    isLoading: _locating,
+                    onPressed: _locating
+                        ? null
+                        : () => unawaited(
+                              _useDeviceLocation(
+                                settings,
+                                mayEnableWifiRadio: true,
+                              ),
+                            ),
+                  ),
+                ),
+              ],
               if (!_siteEntered || _ipLookupRunning || _ipEstimate != null) ...[
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _buildIpEstimate(),

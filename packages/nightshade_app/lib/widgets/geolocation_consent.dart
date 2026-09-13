@@ -1,24 +1,117 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Ask before a location lookup is allowed to leave the machine.
+/// What the operator has already agreed may leave the machine.
+///
+/// Consent is per TIER, not a single flag, because the tiers send different
+/// things: agreeing that a public IP may go to ipinfo.io is not agreeing that
+/// the names of the networks around the house may go to a positioning
+/// service. A remembered "yes" only covers a later lookup that asks for the
+/// same tiers or fewer.
+class GeolocationConsent {
+  const GeolocationConsent({required this.wifiScan, required this.ip});
+
+  final bool wifiScan;
+  final bool ip;
+
+  bool covers({required bool wifiScan, required bool ip}) =>
+      (!wifiScan || this.wifiScan) && (!ip || this.ip);
+}
+
+/// Consent given during this run. Deliberately not persisted: an operator who
+/// agreed once on a laptop at home has not agreed for the observatory network
+/// they plug into next week.
+final geolocationConsentProvider = StateProvider<GeolocationConsent?>(
+  (ref) => null,
+);
+
+/// The Google Geolocation API key, when the operator has entered one under
+/// Settings → Location → Advanced.
+///
+/// Lives beside the consent dialog because it is the only file both Settings
+/// and the first-run wizard already import, and both need the key to pass it
+/// to the same lookup. An empty string means "no key" — the key-free beaconDB
+/// tier is what runs.
+final googleGeolocationKeyProvider =
+    AsyncNotifierProvider<GoogleGeolocationKeyNotifier, String>(
+  GoogleGeolocationKeyNotifier.new,
+);
+
+const String _googleGeolocationKeySetting = 'location_google_geolocation_key';
+
+class GoogleGeolocationKeyNotifier extends AsyncNotifier<String> {
+  @override
+  Future<String> build() async {
+    final dao = ref.read(settingsDaoProvider);
+    return (await dao.getSetting(_googleGeolocationKeySetting))?.trim() ?? '';
+  }
+
+  Future<void> setKey(String key) async {
+    final trimmed = key.trim();
+    await ref.read(settingsDaoProvider).setSetting(
+          _googleGeolocationKeySetting,
+          trimmed,
+        );
+    state = AsyncData(trimmed);
+  }
+}
+
+/// Ask before a location lookup is allowed to leave the machine, then
+/// remember the answer for the rest of the session.
 ///
 /// Every "find my location" affordance in the app funnels through
-/// `GeolocationService`, which tries the device GPS and — on the desktops that
-/// have no GPS receiver, i.e. all of them — silently falls back to a
-/// third-party HTTPS lookup that resolves the machine's *public IP address*.
-/// Nightshade is routinely run on isolated observatory networks, so that
-/// request is exactly the kind of thing an operator expects to be asked about
-/// first. One shared dialog so Settings and the first-run wizard cannot
-/// disagree about what is being sent, or fail to ask at all.
+/// `GeolocationService.locate`, which walks three tiers and sends something
+/// different at each one. Nightshade is routinely run on isolated observatory
+/// networks, so an operator expects to be asked, and to be told which of the
+/// three is about to happen. One shared entry point so Settings and the
+/// first-run wizard cannot disagree about what is being sent, or fail to ask
+/// at all.
 ///
 /// [outcome] closes the dialog with what the caller will do with the answer,
 /// because "replaces your saved site" and "shows you a suggestion" deserve
 /// different consent.
+Future<bool> ensureGeolocationConsent(
+  BuildContext context,
+  WidgetRef ref, {
+  required String outcome,
+  bool includeWifiScan = true,
+  bool includeIpFallback = true,
+  bool googleKeyPresent = false,
+}) async {
+  final granted = ref.read(geolocationConsentProvider);
+  if (granted != null &&
+      granted.covers(wifiScan: includeWifiScan, ip: includeIpFallback)) {
+    return true;
+  }
+
+  final consented = await confirmGeolocationLookup(
+    context,
+    outcome: outcome,
+    includeWifiScan: includeWifiScan,
+    includeIpFallback: includeIpFallback,
+    googleKeyPresent: googleKeyPresent,
+  );
+  if (!consented) return false;
+
+  final previous = ref.read(geolocationConsentProvider);
+  ref.read(geolocationConsentProvider.notifier).state = GeolocationConsent(
+    wifiScan: includeWifiScan || (previous?.wifiScan ?? false),
+    ip: includeIpFallback || (previous?.ip ?? false),
+  );
+  return true;
+}
+
+/// The dialog itself. Use [ensureGeolocationConsent] from app code; this is
+/// separate so its copy can be pinned by a test without a provider scope.
+@visibleForTesting
 Future<bool> confirmGeolocationLookup(
   BuildContext context, {
   required String outcome,
+  bool includeWifiScan = true,
   bool includeIpFallback = true,
+  bool googleKeyPresent = false,
 }) async {
   final consented = await showDialog<bool>(
     context: context,
@@ -47,18 +140,15 @@ Future<bool> confirmGeolocationLookup(
             dialogContext,
             designMaxWidth: 480,
           ),
-          child: Text(
-            includeIpFallback
-                ? 'Nightshade asks this device for a GPS fix. Desktop computers have '
-                    'no GPS receiver, so on those it instead sends an HTTPS request to a '
-                    'third-party geolocation service (ipinfo.io, falling back to '
-                    'ipwho.is) which estimates your position from your public IP '
-                    'address to roughly ZIP or city level — about 10 km.\n\n'
-                    '$outcome'
-                : 'Nightshade asks this device for a GPS fix. Desktop computers '
-                    'usually have no GPS receiver, so Detect may not return a '
-                    'position — search for a place by name instead.\n\n'
-                    '$outcome',
+          child: SingleChildScrollView(
+            child: Text(
+              geolocationConsentBody(
+                outcome: outcome,
+                includeWifiScan: includeWifiScan,
+                includeIpFallback: includeIpFallback,
+                googleKeyPresent: googleKeyPresent,
+              ),
+            ),
           ),
         ),
       ),
@@ -79,6 +169,48 @@ Future<bool> confirmGeolocationLookup(
     ),
   );
   return consented == true;
+}
+
+/// The dialog's body: one line per tier that is actually allowed, naming what
+/// that tier sends and to whom, in the order they will be tried.
+///
+/// Pure so the copy is assertable without pumping a dialog, and so a tier
+/// that is switched off can never leave its disclosure on screen.
+String geolocationConsentBody({
+  required String outcome,
+  required bool includeWifiScan,
+  required bool includeIpFallback,
+  bool googleKeyPresent = false,
+}) {
+  final steps = <String>[
+    'This device’s own location service, if it has one. Nothing leaves the '
+        'machine.',
+    if (includeWifiScan)
+      googleKeyPresent
+          ? 'The names and signal strengths of nearby Wi-Fi networks, sent to '
+              'Google (your Geolocation API key), and to beaconDB (an open '
+              'positioning service) if Google cannot place them. This is '
+              'the step that finds your yard rather than your town. The '
+              'networks are used for this one request and never saved.'
+          : 'The names and signal strengths of nearby Wi-Fi networks, sent to '
+              'beaconDB (an open positioning service). This is the step '
+              'that finds your yard rather than your town. The networks are '
+              'used for this one request and never saved.',
+    if (includeIpFallback)
+      'Your public IP address, sent to ipinfo.io over HTTPS (falling back to '
+          'ipwho.is). That only locates your internet provider — city level, '
+          'tens of kilometres.',
+  ];
+
+  final buffer = StringBuffer(
+    'Nightshade will try these in order and stop as soon as one of them '
+    'places you precisely:\n',
+  );
+  for (final step in steps) {
+    buffer.write('\n• $step\n');
+  }
+  buffer.write('\n$outcome');
+  return buffer.toString();
 }
 
 /// Closing paragraph for a lookup that writes straight to the observing site.
