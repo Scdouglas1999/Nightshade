@@ -101,7 +101,74 @@ the cause.
 
 ## 4. Proven after the fix
 
-(see §6 for the post-fix live numbers and exit codes)
+Rebuilt the release bundle in this worktree (`flutter build linux --release`,
+then the campaign-hash `libnightshade_bridge.so` copied back over it —
+`rustContentHash => -1858542796`), relaunched the harness on the same profile,
+and repeated the identical sequence: load the night, select **Cool camera**,
+click **Activity**, then **Notes**.
+
+Same 25 fps `x11grab` recording, same per-frame cross-correlation:
+
+| | before the fix | after the fix |
+|---|---|---|
+| peak shift of palette + canvas on the Activity click | **-29 px**, recovering over ~400 ms | **0 px on every one of 100 frames** |
+| palette + canvas band, whole 4 s recording | 29 / 10 / 1 / 0 px | shift `+0`, corr >= 0.9991 throughout |
+| pixels left of the inspector (x < 1300) during the Notes click | — | mean abs diff **0.0000** (nothing outside the inspector changed at all) |
+| pixels inside the inspector during the Notes click | — | mean abs diff 1.21 (the tab body really did swap) |
+
+Settled landmarks, post-fix, Settings vs Activity (root x):
+
+| landmark | Settings | Activity |
+|---|---|---|
+| nav rail / palette border | 379/380 | 379/380 |
+| palette right edge | 633/634 | 633/634 |
+| inspector left border | 1470 | 1470 |
+| inspector width | 290 | 290 |
+| measured shift of palette+tree | — | **+0 px** (corr 1.0000) |
+
+Tabs still behave: the Activity body shows "Nothing has run for this node yet.",
+the Notes body shows the Comment editor, and all three labels stay visible and
+unclipped in the 290 px column.
+
+Evidence: `/tmp/ns-audit/frames` (before), `/tmp/ns-audit/frames2`,
+`/tmp/ns-audit/frames3` (after), `/tmp/ns-audit/shots/raw-*.png`.
+
+### Tests
+
+- `packages/nightshade_app/test/screens/sequencer/inspector_tab_switch_layout_test.dart`
+  (new, 3 cases) lays out `SequencerScreen` at 1400x900, selects an exposure
+  node and switches tabs, asserting on EVERY frame of the transition that the
+  `SequenceTree` Rect, the `NodePropertiesPanel` Rect and the screen pager's
+  scroll offset are unchanged. Against the unfixed `AdaptiveTabBar` all three
+  fail with the tree at `Rect.fromLTRB(117.6, 102.0, 953.6, 900.0)` instead of
+  `Rect.fromLTRB(264.0, 102.0, 1100.0, 900.0)` — a 146.4 px lurch (larger than
+  the live 29 px because the test font makes the strip overflow further and
+  fake-async runs the pager animation to completion).
+  - Activity is switched by a real `tap`. Notes and the return to Settings go
+    through `inspectorTabProvider` (the exact state the tab button writes):
+    under the test font every glyph is a square em, so the three labels measure
+    ~390 px in the fixed 300 px column and the last tab's centre lands outside
+    the window, where a `tap` would hit nothing and assert about a switch that
+    never happened. With the real font all three fit, as the live shots show.
+- `packages/nightshade_ui/test/adaptive_tab_bar_test.dart` gains
+  "selecting a clipped tab does not scroll the host" — the cause-level guard:
+  a bar inside a horizontally scrollable host, tap a clipped tab, host offset
+  must stay 0.
+
+### Commands (unpiped, exit codes as recorded)
+
+```
+flutter test test/screens/sequencer --concurrency=3     EXIT=0   724 passed (721 base + 3 new)
+flutter test (packages/nightshade_ui, full)             EXIT=0   520 passed (519 base + 1 new)
+dart analyze (packages/nightshade_app)                  EXIT=2   890 issues - the documented baseline, zero from this change
+dart analyze (packages/nightshade_ui)                   EXIT=0   57 infos, zero from this change
+dart format --output=none --set-exit-if-changed
+  packages/nightshade_app nightshade_core nightshade_ui EXIT=0
+flutter build linux --release                           EXIT=0
+```
+
+`dart analyze` exits 2 on the app package because the 890-issue baseline
+contains infos; no issue in the log names either file this change touched.
 
 ## 5. Not fixed here (same defect class, other owners' files)
 
