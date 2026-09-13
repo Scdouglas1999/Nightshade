@@ -245,3 +245,95 @@ baseline entry. → **EXIT 0**.
   HiPS network fetch, a real sshd, two POSIX-permission cases guarded on
   Windows), not silenced failures.
 
+## One more: a flaky test the full suite hid
+
+`nightshade_core`'s `device_service_connect_all_test.dart` passed in BOTH
+baselines and then failed in the final full run — a different case each time
+(`every device-type connect rejects malformed ids`, then `malformed device id
+surfaces as a per-device failed event`). Run six times in parallel it failed
+3/6 with `SqliteException(14): while opening the database, unable to open
+database file`.
+
+Cause: the container was built with only `backendProvider` overridden, so the
+camera connect path's `_ref.read(activeEquipmentProfileProvider)`
+(`imaging_chain.dart:35`) pulled in the real `databaseProvider` and opened the
+on-disk SQLite file. `test/harness/in_memory_database.dart` documents this
+exact failure — "it needs a loaded machine (a full-suite run) to reproduce and
+passes every time the file is run on its own" — and exists for it; this suite
+was simply not using it. Added; 0/5 failures after (the sixth stress run was a
+`flutter test` tool crash over a shared `build/unit_test_assets`, not the
+test).
+
+## Verification (exit codes unpiped)
+
+### Tests, per package, before → after
+
+| package | before | after |
+|---|---|---|
+| `nightshade_app` | +4318 **-40** | **+4358, 0 failing**, EXIT 0 |
+| `nightshade_core` | +6508 ~4 **-1** | **+6512 ~4, 0 failing**, EXIT 0 |
+| `nightshade_ui` | +524 | +524, EXIT 0 |
+| `nightshade_planetarium` | +588 | +588, EXIT 0 |
+| `nightshade_bridge` | +63 | +63, EXIT 0 |
+| `apps/desktop` | +1274 | +1274, EXIT 0 |
+
+All with `flutter test --exclude-tags golden --concurrency=3`, the CI command
+(`melos run test` = `dart run melos exec --concurrency=1 --flutter -- flutter
+test --exclude-tags golden`, melos.yaml:318).
+
+The rest of the `melos` set, run for completeness: `nightshade_plugins` +60,
+`nightshade_remote_protocol` +200, `nightshade_updater` +95, `apps/mobile`
++233 — all EXIT 0.
+
+The four `~` in `nightshade_core` are environment opt-ins (live HiPS fetch,
+real sshd, two POSIX-permission cases skipped on Windows), not silenced
+failures.
+
+### Every test file touched, run on its own
+
+| file | result |
+|---|---|
+| `nightshade_app/test/widgets/go_to_position_dialog_test.dart` | +10 |
+| `…/sequencer/session_handoff_dialog_test.dart`, `…/widgets/mosaic_wizard_resume_test.dart`, `…/settings/backup_restore_notice_test.dart` | +12 together |
+| `…/settings/pairing_observatory_kit_test.dart` | +3 |
+| `…/settings/settings_search_query_test.dart` | +7 |
+| `…/shell/checkpoint_recovery_dialog_test.dart` | +9 |
+| `…/equipment/profile_editor_dialog_validation_test.dart` + `…/profile_editor_reducer_round_trip_test.dart` | +10 together |
+| `…/planner/planner_screen_test.dart` | +25 |
+| `…/screens/planetarium` (whole dir, after the copy change) | +156 |
+| `nightshade_ui/test/nightshade_text_field_test.dart` | +5, `lowercase ink offset: 0.00 px` |
+| `nightshade_core/test/models/sequence/sequence_data_classes_serde_test.dart` | +94 |
+| `nightshade_core/test/services/mount_site_reconciler_test.dart` | +12 (was +10) |
+| `nightshade_core/test/services/device_service_connect_all_test.dart` | +11, 5/5 under contention |
+| the six unused-import files | +40 together |
+
+### Format, analyzer, gates
+
+| command | exit |
+|---|---|
+| `dart format --output=none --set-exit-if-changed packages lib` | **0** (0 changed) |
+| `dart analyze packages apps --format machine` (WARNING/ERROR rows) | **0 of each** (was 11 warnings) |
+| `dart run tools/production/behavioral_audit.dart --register … --fail-on-unregistered --fail-on-open --min-files 796` | **0** (3201 files, 0 unregistered, 0 open) |
+| `dart run tools/production/placeholder_audit.dart --fail-on-new-highrisk --compare-highrisk-baseline … --min-files 797` | **0** (3202 files, no new high-risk markers) |
+| `dart run tools/production/analyzer_rollup.dart --policy … --critical-codes …` | **0** (all: errors=0 warnings=0; production: errors=0 warnings=0; critical warnings: 0) |
+
+`analyzer_rollup.dart` writes an untracked
+`docs/production-readiness/analyzer-rollup.json`; deleted after the run, as
+w5 did.
+
+**No golden PNG is in the diff.** The `nightshade_ui` suite rewrites the six
+`docs/design/goldens/gallery-*.png` review captures on every run and a
+`git add -A` had swept them into the first commit; they are restored to their
+committed (Windows-captured) bytes and `git diff --name-only 94f13cd6d HEAD`
+contains no `.png`.
+
+## Commits
+
+| sha | what |
+|---|---|
+| `b01bb57d6` | `FieldWidthBox` + the button's greedy alignment; the Recover Sequence? modal scrolls; GLADE+ sentence case on the download path |
+| `46d22ed97` | the three stale finders (optics ×2, planner search) |
+| `3eac83a72` | `dart format`, 43 files |
+| `ad6d7f7b6` | `FilterPlan` `explicitToJson`; behavioral register (21 remaps + 25 new rows); high-risk baseline; analyzer warnings to zero incl. the two missing reconciler cases |
+| `8a95507e2` | target-card animation + icon size, viewport-rectangle contrast, sentence-case copy |
+| `e509c07f7` | the connect-all flake; gallery goldens restored |
