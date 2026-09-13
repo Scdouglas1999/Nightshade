@@ -228,11 +228,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
 
                 // Target temperature slider
                 SliderRowInteractive(
-                  // "Target temperature" is wider than the row's label column
-                  // at the side panel's 216px, and broke mid-word as
-                  // "temperatur / e". Inside a card headed Cooling, under
-                  // Current and Power, one word says it.
-                  label: 'Target',
+                  label: 'Target temperature',
                   value: targetTemp.clamp(coolerMinTempC, coolerMaxTempC),
                   min: coolerMinTempC,
                   max: coolerMaxTempC,

@@ -164,7 +164,11 @@ class _DefectMapBuildButtonState extends ConsumerState<DefectMapBuildButton> {
           ? 'Selecting dark frames...'
           : isBuilding
               ? 'Building defect map...'
-              : 'Build defect map from current darks',
+              // "…from current darks" needs 230px and the side panel's
+              // card is 216, so the button read "Build defect map from cur…".
+              // The trailing ellipsis is the real story anyway: this opens a
+              // picker for the darks before it builds anything.
+              : 'Build defect map...',
       icon: _picking || isBuilding ? NightshadeIcons.loading : LucideIcons.cog,
       colors: widget.colors,
       isEnabled: buttonEnabled,
