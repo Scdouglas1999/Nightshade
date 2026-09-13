@@ -10,7 +10,15 @@ class _TempCompIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final focuserState = ref.watch(focuserStateProvider);
+    // Connection and temperature only: a focuser that is stepping publishes a
+    // new position on every move, and this chip is mounted on every screen, so
+    // a whole-object watch made each step dirty the shell — and on Flutter's
+    // Linux embedder a dirty frame is a full-window repaint.
+    final focuserState = ref.watch(
+      focuserStateProvider.select(
+        (s) => (connectionState: s.connectionState, temperature: s.temperature),
+      ),
+    );
     final focuserConnected =
         focuserState.connectionState == DeviceConnectionState.connected;
 

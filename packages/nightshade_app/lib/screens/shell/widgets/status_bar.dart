@@ -277,11 +277,57 @@ class _StatusBarState extends ConsumerState<StatusBar> {
       l10n,
     );
 
-    final cameraState = ref.watch(cameraStateProvider);
-    final mountState = ref.watch(mountStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final focuserState = ref.watch(focuserStateProvider);
-    final filterWheelState = ref.watch(filterWheelStateProvider);
+    // A device publishes far more than this bar shows. A tracking mount emits a
+    // fresh position every 2 s (`_normalPollInterval` in `mount_state_provider`),
+    // and a whole-object watch turned each one into a rebuild of the entire bar
+    // — which on Flutter's Linux embedder is a full-window frame, because that
+    // embedder has no damage region and repaints everything for any dirty frame.
+    // The bar is on every screen, so that was an idle frame every 2 s in the
+    // whole app, on screens that show no mount at all.
+    //
+    // Select only the fields rendered below. Records compare structurally, so
+    // the bar now rebuilds when one of THESE changes and not before; the field
+    // names are kept identical so the render code reads the same either way.
+    final cameraState = ref.watch(
+      cameraStateProvider.select(
+        (s) => (
+          connectionState: s.connectionState,
+          deviceName: s.deviceName,
+          deviceId: s.deviceId,
+          temperature: s.temperature,
+        ),
+      ),
+    );
+    final mountState = ref.watch(
+      mountStateProvider.select(
+        (s) => (
+          connectionState: s.connectionState,
+          deviceName: s.deviceName,
+          deviceId: s.deviceId,
+        ),
+      ),
+    );
+    final guiderState = ref.watch(
+      guiderStateProvider.select(
+        (s) => (connectionState: s.connectionState, isGuiding: s.isGuiding),
+      ),
+    );
+    final focuserState = ref.watch(
+      focuserStateProvider.select(
+        (s) => (connectionState: s.connectionState, position: s.position),
+      ),
+    );
+    // The name is resolved inside the selector rather than selected alongside
+    // `filterNames`: a record holding that list would compare by identity and
+    // defeat the whole point of selecting.
+    final filterWheelState = ref.watch(
+      filterWheelStateProvider.select(
+        (s) => (
+          connectionState: s.connectionState,
+          filterName: _currentFilterName(s),
+        ),
+      ),
+    );
 
     final cameraConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
@@ -401,8 +447,8 @@ class _StatusBarState extends ConsumerState<StatusBar> {
       if (filterWheelConnected)
         Builder(
           builder: (context) {
-            final filter = _currentFilterName(filterWheelState) ??
-                l10n.text('statusReady');
+            final filter =
+                filterWheelState.filterName ?? l10n.text('statusReady');
             return InstrumentPill(
               icon: LucideIcons.disc,
               dotTone: InstrumentTone.success,
