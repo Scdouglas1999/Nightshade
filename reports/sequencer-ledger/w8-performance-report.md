@@ -691,3 +691,158 @@ widget change in this report, and it costs nothing to try first. After that, the
 actually pays is what section 5 started: `RepaintBoundary` coverage on the heavy
 screens, because with no damage region in the Linux embedder every idle tick
 repaints the whole window, and the cheapest frame is the one that repaints least.
+
+---
+
+# Addendum 2 — where the idle CPU actually goes
+
+The owner: *"Idle CPU seems really high for an app doing nothing though right?
+I have a high-end 12-core CPU."* He is right, and the reason is not the app.
+
+**`perf` and `strace` are not installed on this box** (`which perf` / `which
+strace` → not found), and `perf_event_paranoid=2` / `kptr_restrict=2` would
+restrict them anyway. Everything below is measured from `/proc` instead —
+`/proc/<pid>/task/<tid>/{stat,status,wchan,comm}` for per-thread CPU, context
+switches and blocking point (`/tmp/ns-audit/attr/threads.py`,
+`categories.py`). That turned out to be enough; it identified the cause on the
+first sample.
+
+All runs: release bundle (what the owner runs), `:0`, **passive only** — no
+synthetic input, no screenshots, no window ops, one instance at a time, killed
+by pid with `/proc` verification.
+
+## The attribution table
+
+Idle on Tonight, Sim Rig connected, 90 s window, release bundle:
+
+| category | % of one core | threads | what it is |
+|---|---|---|---|
+| **Mesa llvmpipe** | **34.72** | 24 | **software rasterisation of the UI** |
+| GTK platform/main thread | 3.10 | — | GL present / event loop |
+| Flutter raster thread | 2.18 | 1 | building the layer tree to raster |
+| Rust tokio workers | **0.08** | 52 | the entire bridge + device layer |
+| Dart VM / isolates | **0.02** | 3 | all Dart timers and streams |
+| Flutter io/worker | 0.01 | 1 | |
+| other | 0.02 | 19 | |
+| **TOTAL** | **40.13** | 149 | |
+
+**99.7% of idle CPU is drawing. 0.13% is everything the application does.**
+
+### The app is being software-rendered, on all 24 hardware threads
+
+The app's own log says why:
+
+```
+MESA-EGL: warning: pci id for fd 19: 10de:2704, driver (null)
+MESA-EGL: warning: egl: failed to create dri2 screen
+```
+
+`10de:2704` is the RTX 4080. Mesa finds the card, has **no driver** for it,
+fails to create a DRI2 screen, and falls back to **llvmpipe** — Mesa's CPU
+rasteriser — which spawns one worker per hardware thread. `nproc` is 24 on a
+Ryzen 9 7900X, hence exactly 24 `llvmpipe-*` threads. The owner's twelve cores
+are not idle *despite* being high-end; they are busy *because* they are
+high-end — llvmpipe scales its worker pool to them, and it is drawing his
+7.37 Mpx window in software.
+
+This is the same root cause as addendum 1's host finding: `nvidia-utils 615.71`
+against a loaded `610.57` kernel module. The NVIDIA EGL userspace is even mapped
+into the process (`libEGL_nvidia.so.615.71.09`, `libnvidia-eglcore.so.615.71.09`)
+but `libGLX_nvidia` never loads and the DRI2 screen creation fails, so Mesa
+takes over in software. Both the X11 (`GDK_BACKEND=x11`) and native Wayland
+(`GDK_BACKEND=wayland`) paths fall back identically — 24 llvmpipe threads and
+the same MESA-EGL warnings in both.
+
+### Every suspect on the list is cleared, with a number
+
+Simulated device loops, the guider's multi-star loop, device heartbeat health,
+the mount 2 s poll's FFI/JSON crossing, weather/forecast retries, the log
+writer, SQLite settings polling, `tickerProvider` cadences, planetarium and
+twilight recomputation, headless API server threads — **all of them live inside
+the 0.08% tokio + 0.02% Dart figures above.** There is nothing there to fix.
+
+Confirmed independently by running a **fresh profile with no equipment at all**
+against the same build:
+
+| | rig connected | no rig (fresh profile) |
+|---|---|---|
+| Rust tokio workers | 0.08% | **0.09%** |
+| Dart VM / isolates | 0.02% | 0.01% |
+| TOTAL | 40.13% | **0.12%** |
+
+The device layer costs the **same** whether or not a rig is connected — the
+simulators are not generating work at idle. (The total collapses to 0.12%
+because a fresh profile sits on onboarding, which draws almost nothing; that
+half of the comparison is about screen content, not devices. The tokio row is
+the apples-to-apples one, and it does not move.)
+
+## What sets the floor, and what one frame costs
+
+Because every frame is rasterised in software, **idle frame count converts
+almost directly into CPU**. Measured by removing the one 1 Hz source — the
+status bar's seconds digit — from the same build, same screen, same profile,
+same backend:
+
+| | with `HH:mm:ss` | with `HH:mm` | delta |
+|---|---|---|---|
+| Mesa llvmpipe | 34.72% | **8.81%** | −25.9 |
+| GTK platform thread | 3.10% | 0.69% | −2.4 |
+| Flutter raster thread | 2.18% | 0.32% | −1.9 |
+| Rust tokio | 0.08% | 0.07% | — |
+| **TOTAL** | **40.13%** | **9.90%** | **−30.2 points of a core** |
+
+**On this machine the seconds digit in the status bar costs about 30% of a
+core, three quarters of the app's entire idle CPU.** On a working GPU it costs
+a few milliseconds of GPU time an hour and nobody would ever notice. That is the
+whole story of this report in one row: the app's idle behaviour is unremarkable
+until a software rasteriser multiplies every frame by ~20x.
+
+The remaining **9.90%** floor is the 0.5 Hz mount-position frame and the 10 s
+disk-space frame, still drawn in software.
+
+**Caveat on absolute numbers:** idle CPU for the same build varied between
+~10% and ~40% across runs depending on whether the window was actually
+presenting — a Wayland compositor throttles frame callbacks for an occluded
+surface, which is correct behaviour and cheap. I could not control window
+visibility on `:0` because window operations are forbidden there, so the
+*paired* comparisons above (same conditions, one variable) are the trustworthy
+ones; treat the absolute figures as a range.
+
+## Fixes
+
+**None warranted in the device or Dart layers** — 0.13% of a core does not
+support a change, and I am not going to invent one. The two app-side changes
+that do matter were already made and are already committed:
+
+* `30bb65e5a` — status bar `.select`s device state; dashboard tiles get a
+  `RepaintBoundary`.
+* `e8db8c4f7` — the LST chip and run pill watch what they display.
+
+Honest limit on `e8db8c4f7`: while the seconds digit is on screen,
+`_TimeDisplay` still `setState`s once a second for its own display, so the LST
+fix does **not** reduce the idle frame rate today. What it does is remove the
+second, redundant 1 Hz path into that chip — which is exactly why the `HH:mm`
+experiment above now actually works. Before it, dropping the seconds changed
+nothing at all (addendum 1, measurement (c)).
+
+## Answer to the owner
+
+Two things are true at once, and only one of them is about Nightshade.
+
+Your idle CPU is high because your GPU driver is broken, not because the app is
+busy: Mesa cannot find a driver for the RTX 4080 (`10de:2704, driver (null)`),
+so it falls back to llvmpipe and paints the entire window on your CPU, using one
+worker per hardware thread — 24 of them, precisely because the 7900X has 24.
+Everything the application itself does at idle, across 52 Rust threads and every
+Dart timer in the process, measures **0.13% of one core**. Fix the driver stack
+(reboot into the matching NVIDIA module for the kernel you are running) and
+re-measure; that is the single change worth making first.
+
+The app-side thing worth deciding, and it is now a real number rather than a
+nicety: while software rendering is in play, the seconds digit in the status bar
+costs **~30% of a core**. If you want it, keep it — on a working GPU it is
+free. If you would rather not pay for it on a machine where rendering is on the
+CPU, dropping it to `HH:mm` takes idle from 40% to 10% of a core. That remains
+your call; the code change is one line in
+`status_bar/temperature_and_time.dart` and the LST fix already landed so it will
+actually take effect.
