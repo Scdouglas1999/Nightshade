@@ -412,7 +412,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     icon: LucideIcons.crosshair,
                     tooltip: 'Detect this location',
                     color: NightshadeColors.of(context).primary,
-                    onPressed: _detecting ? null : () => _detectLocation(),
+                    onPressed:
+                        _detecting ? null : () => _detectLocation(settings),
                   ),
                   isLast: !_wifiRadioOffersPrecision,
                   isMobile: widget.isMobile,
@@ -431,7 +432,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                       isLoading: _detecting,
                       onPressed: _detecting
                           ? null
-                          : () => _detectLocation(mayEnableWifiRadio: true),
+                          : () => _detectLocation(
+                                settings,
+                                mayEnableWifiRadio: true,
+                              ),
                     ),
                     isLast: true,
                     isMobile: widget.isMobile,
@@ -763,7 +767,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// machine unasked — [mayEnableWifiRadio] is set only by the explicit "Turn
   /// Wi-Fi on for a precise fix" row, and the radio is switched back off
   /// afterwards.
-  Future<void> _detectLocation({bool mayEnableWifiRadio = false}) async {
+  Future<void> _detectLocation(
+    AppSettingsState rendered, {
+    bool mayEnableWifiRadio = false,
+  }) async {
     if (_detecting) return;
     final googleKey = ref.read(googleGeolocationKeyProvider).value ?? '';
     // Shared with the first-run wizard's site step, which fires the same
@@ -780,7 +787,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     setState(() => _detecting = true);
     try {
       final actionAuthority = ref.read(backendProvider);
-      final settings = ref.read(appSettingsProvider).value;
+      // Re-read rather than trust the value this row was built with: the
+      // operator can edit the elevation while the consent dialog is up, and
+      // the same-site comparison below has to be against what is stored now.
+      final settings = ref.read(appSettingsProvider).value ?? rendered;
       final attempt = await ref.read(siteLocatorProvider)(
         allowWifiScan: true,
         allowIp: true,
@@ -799,7 +809,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       setState(() => _wifiRadioOffersPrecision = attempt.canRetryWithWifi);
 
       final location = attempt.fix;
-      if (location == null || settings == null) {
+      if (location == null) {
         context.showWarningSnackBar(
           'No position from Wi-Fi, this machine, or the internet lookup. '
           '${attempt.failureDetail} Search for a place by name, or enter '
