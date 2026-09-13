@@ -188,6 +188,65 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
   }
 }
 
+/// The eye / duplicate / delete chip trio, shared by the comfortable card row
+/// (hover) and the ledger row's hover-revealed actions block.
+///
+/// Extracted for the same reason as [_NodeOverflowMenu]: two row densities
+/// offering the same three mutations must not keep two hand-maintained copies
+/// in step. Callers gate placement — the comfortable row hides the trio on
+/// touch (the kebab carries the entries there), and the ledger row reserves
+/// the block's width so the chips cannot shift the columns.
+class _NodeActionChips extends ConsumerWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+  final VoidCallback? onToggleEnabled;
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onDelete;
+
+  const _NodeActionChips({
+    required this.colors,
+    required this.node,
+    required this.onToggleEnabled,
+    required this.onDuplicate,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Per-row action icons mutate the tree (toggle enabled, duplicate, delete)
+    // and must be disabled when a sequence is running. The kebab gates
+    // move_up/move_down; this is the matching gate for the inline chips.
+    final canEdit = ref.watch(canEditSequenceProvider);
+    const lockedSuffix = ' (locked while sequence is running)';
+    final lockedTail = canEdit ? '' : lockedSuffix;
+    final toggleLabel = node.isEnabled ? 'Disable' : 'Enable';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _NodeActionButton(
+          icon: node.isEnabled ? LucideIcons.eye : LucideIcons.eyeOff,
+          tooltip: '$toggleLabel$lockedTail',
+          colors: colors,
+          onPressed: canEdit ? onToggleEnabled : null,
+        ),
+        _NodeActionButton(
+          icon: LucideIcons.copy,
+          tooltip: 'Duplicate$lockedTail',
+          colors: colors,
+          onPressed: canEdit ? onDuplicate : null,
+        ),
+        _NodeActionButton(
+          icon: LucideIcons.trash2,
+          tooltip: 'Delete$lockedTail',
+          colors: colors,
+          color: colors.error,
+          onPressed: canEdit ? onDelete : null,
+        ),
+      ],
+    );
+  }
+}
+
 /// The row's inline "more actions" kebab, shared by every density.
 ///
 /// Reconciliation with the other action surfaces: the right-click /

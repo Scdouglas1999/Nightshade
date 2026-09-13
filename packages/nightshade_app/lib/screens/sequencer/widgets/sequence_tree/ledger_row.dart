@@ -37,10 +37,20 @@ const double _ledgerIconSize = 13.0;
 /// The progress bar along the row's bottom edge.
 const double _ledgerProgressHeight = 2.0;
 
-/// Width reserved for the hover-revealed kebab. Reserved rather than inserted
+/// The kebab's footprint on a pointer platform.
+const double _ledgerKebabWidth = 24.0;
+
+/// One hover chip's footprint: `_NodeActionButton`'s 24 px box plus its 4 px
+/// leading margin.
+const double _ledgerActionChipWidth = 28.0;
+
+/// Width permanently reserved for the actions block on a pointer platform —
+/// the eye/duplicate/delete trio plus the kebab. Reserved rather than inserted
 /// on hover: appearing actions that push the columns sideways make a ledger
-/// unreadable exactly when the pointer is in it.
-const double _ledgerActionsWidth = 24.0;
+/// unreadable exactly when the pointer is in it. On touch the trio folds into
+/// the kebab and the reservation becomes the touch-target floor.
+const double _ledgerActionsWidth =
+    3 * _ledgerActionChipWidth + _ledgerKebabWidth;
 
 /// Trailing gutter. `_NodeValidationWrapper` positions its 18 px badge at the
 /// row's top-right, so without this the badge would sit on top of the ETA
@@ -49,11 +59,11 @@ const double _ledgerBadgeGutter = 22.0;
 
 /// Width of the row a drag carries in the feedback layer.
 ///
-/// The columns (266), the badge gutter, the reserved kebab and the running
-/// marker account for 314 of it, which leaves the name the same ~146 px it has
-/// in a canvas of ordinary width — a narrower feedback row would ellipsise a
-/// name that is perfectly readable in the tree it came from.
-const double _ledgerDragFeedbackWidth = 460.0;
+/// The columns (266), the badge gutter (22), the reserved actions (108) and
+/// the running marker (2) account for 398 of it, which leaves the name ~146 px
+/// — what it has in a canvas of ordinary width. A narrower feedback row would
+/// ellipsise a name that is perfectly readable in the tree it came from.
+const double _ledgerDragFeedbackWidth = 544.0;
 
 /// The four column widths, in order (spec §2).
 const List<double> _ledgerColumnWidths = <double>[70.0, 60.0, 74.0, 62.0];
@@ -68,13 +78,14 @@ const List<String> _ledgerColumnLabels = <String>[
 
 /// The narrowest canvas that can hold the four columns AND a usable name.
 ///
-/// Marker + guides + chevron + icon + the reserved kebab + the columns
-/// themselves + the badge gutter already cost ~350 px at depth 1 and grow 18
-/// px a level, so below this the readout block would leave no room for the
-/// step's own name. Past it the rows degrade to the same line minus the
-/// columns — a narrow pane hides data but must never overflow — and the
-/// header drops its labels to match.
-const double _ledgerColumnsMinWidth = 420.0;
+/// Marker (2) + chevron (18) + icon (13) + the icon gap (8) + the reserved
+/// actions (108) + the columns (266) + the badge gutter (22) already cost
+/// 437 px at depth 1 and grow 18 px a level, so this leaves the name ~63 px
+/// there and proportionally less deeper in. `SequenceTree` reads it once —
+/// below it the whole tree falls back to compact rows rather than shipping a
+/// ledger with its columns stripped, so a ledger row itself never has to
+/// decide whether it can afford them.
+const double _ledgerColumnsMinWidth = 500.0;
 
 /// Zero when the platform asks for no animation, so every ledger animation is
 /// gated in one place.
@@ -82,10 +93,20 @@ Duration _ledgerMotion(BuildContext context, Duration duration) {
   return MediaQuery.disableAnimationsOf(context) ? Duration.zero : duration;
 }
 
+/// The width every ledger row — and the header above it — reserves for its
+/// actions block: the trio + kebab on a pointer platform, the touch-target
+/// floor on touch (where the trio folds into the kebab).
+double _ledgerActionsSlotWidth(BuildContext context) =>
+    NightshadeTouchTarget.isTouch(context)
+        ? NightshadeTouchTarget.minExtent(context)
+        : _ledgerActionsWidth;
+
 /// The column header, rendered once above the tree in Ledger mode.
 ///
 /// Lives INSIDE the tree's scroll view so it takes the same horizontal padding
-/// the rows do and its labels sit over the columns they name.
+/// the rows do and its labels sit over the columns they name. It only exists
+/// at or above [_ledgerColumnsMinWidth] — the tree falls back to compact rows
+/// below it, header and all.
 class _LedgerColumnHeader extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -96,42 +117,34 @@ class _LedgerColumnHeader extends StatelessWidget {
     final style =
         NightshadeTypography.eyebrow.copyWith(color: colors.textMuted);
     return ExcludeSemantics(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Same all-or-nothing tier as the rows: labels for columns that
-          // are not drawn would be noise.
-          final showColumns = constraints.maxWidth >= _ledgerColumnsMinWidth;
-          return SizedBox(
-            height: _ledgerHeaderHeight,
-            child: Row(
-              children: [
-                const SizedBox(width: _ledgerRunningMarkerWidth),
-                Expanded(
-                  child: Text(
-                    'Step',
-                    style: style,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: _ledgerActionsWidth),
-                if (showColumns)
-                  for (var i = 0; i < _ledgerColumnLabels.length; i++)
-                    SizedBox(
-                      width: _ledgerColumnWidths[i],
-                      child: Text(
-                        _ledgerColumnLabels[i],
-                        style: style,
-                        textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                const SizedBox(width: _ledgerBadgeGutter),
-              ],
+      child: SizedBox(
+        height: _ledgerHeaderHeight,
+        child: Row(
+          children: [
+            const SizedBox(width: _ledgerRunningMarkerWidth),
+            Expanded(
+              child: Text(
+                'Step',
+                style: style,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          );
-        },
+            SizedBox(width: _ledgerActionsSlotWidth(context)),
+            for (var i = 0; i < _ledgerColumnLabels.length; i++)
+              SizedBox(
+                width: _ledgerColumnWidths[i],
+                child: Text(
+                  _ledgerColumnLabels[i],
+                  style: style,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            const SizedBox(width: _ledgerBadgeGutter),
+          ],
+        ),
       ),
     );
   }
@@ -212,37 +225,42 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The column block is all-or-nothing: a row that kept Duration but
-        // dropped ETA would read as misaligned, and rows disagreeing about
-        // whether the columns exist would break the ledger's one promise.
-        final showColumns = constraints.maxWidth >= _ledgerColumnsMinWidth;
-        return _buildRow(context, showColumns: showColumns);
-      },
-    );
-  }
-
-  Widget _buildRow(BuildContext context, {required bool showColumns}) {
     final colors = widget.colors;
     final node = widget.node;
 
-    final rollup = ref.watch(nodeRollupDurationProvider(node.id));
+    // Columns and the collapsed summary come from the sequence-keyed maps
+    // rather than being computed here: `ledgerColumnsFor` walks the node's
+    // subtree via `plannedCaptureUnder`, and a row rebuilds on every progress
+    // tick, so per-row computation pays O(N·depth) per tick for values that
+    // only move when the sequence does.
+    final base = ref.watch(
+            ledgerColumnsMapProvider.select((columns) => columns[node.id])) ??
+        LedgerColumns.empty;
     final eta =
         ref.watch(ledgerEtaProvider.select((starts) => starts[node.id]));
-    final columns = ledgerColumnsFor(
-      node,
-      widget.sequence,
-      rollup: rollup,
-      eta: eta,
+    final columns = LedgerColumns(
+      filterExp: base.filterExp,
+      count: base.count,
+      duration: base.duration,
+      eta: eta == null ? '' : formatLedgerClock(eta.start),
     );
+    // A projected ETA for a node the run has already passed is stale — once
+    // the run's NodeStarted events arrive they replace the projection, but
+    // before they do the column shows the prediction muted rather than as
+    // fact.
+    final status = widget.nodeStatus;
+    final etaMuted = eta != null &&
+        !eta.isActual &&
+        status != null &&
+        status != NodeStatus.pending;
     // A collapsed container has to say what it is standing in for; an expanded
     // one has its children on screen and needs no summary.
     final summary = widget.isCollapsed && widget.isContainer
-        ? rollupSummary(node, widget.sequence)
+        ? ref.watch(rollupSummaryMapProvider
+                .select((summaries) => summaries[node.id])) ??
+            ''
         : '';
 
-    final status = widget.nodeStatus;
     final isRunning = status == NodeStatus.running;
     final isSuccess = status == NodeStatus.success;
     final isFailed = status == NodeStatus.failure;
@@ -259,7 +277,7 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       context: context,
       columns: columns,
       summary: summary,
-      showColumns: showColumns,
+      etaMuted: etaMuted,
       isRunning: isRunning,
       isFailed: isFailed,
       isMuted: isMuted,
@@ -360,7 +378,7 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
     required BuildContext context,
     required LedgerColumns columns,
     required String summary,
-    required bool showColumns,
+    required bool etaMuted,
     required bool isRunning,
     required bool isFailed,
     required bool isMuted,
@@ -469,26 +487,29 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
           ),
         ),
         _buildActions(context),
-        if (showColumns)
-          ExcludeSemantics(
-            child: Row(
-              children: [
-                for (var i = 0; i < _ledgerColumnWidths.length; i++)
-                  SizedBox(
-                    width: _ledgerColumnWidths[i],
-                    child: Text(
-                      columns.values[i],
-                      style: NightshadeTypography.readoutXs.copyWith(
-                        color: columnColor,
-                      ),
-                      textAlign: TextAlign.right,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+        ExcludeSemantics(
+          child: Row(
+            children: [
+              for (var i = 0; i < _ledgerColumnWidths.length; i++)
+                SizedBox(
+                  width: _ledgerColumnWidths[i],
+                  child: Text(
+                    columns.values[i],
+                    style: NightshadeTypography.readoutXs.copyWith(
+                      // The ETA cell mutes when it is still quoting the
+                      // prediction for a node the run already passed.
+                      color: i == _ledgerColumnLabels.length - 1 && etaMuted
+                          ? colors.textMuted
+                          : columnColor,
                     ),
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
+        ),
         const SizedBox(width: _ledgerBadgeGutter),
       ],
     );
@@ -534,15 +555,19 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
     );
   }
 
-  /// The hover-revealed kebab, in permanently reserved width.
+  /// The hover-revealed actions block, in permanently reserved width.
   ///
-  /// A touch pointer has no hover, so on a touch screen the kebab is simply
-  /// always there — an invisible menu is not an affordance.
+  /// On a pointer platform it is the eye / duplicate / delete trio plus the
+  /// kebab — the same three mutations the comfortable row shows on hover.
+  /// A touch pointer has no hover, so there the block is simply the always-on
+  /// kebab (the trio's entries live inside it), padded out to the platform's
+  /// minimum tap target — a 24 × 28 hit box is not a legal touch target.
   Widget _buildActions(BuildContext context) {
+    final isTouch = NightshadeTouchTarget.isTouch(context);
+    final slotWidth = _ledgerActionsSlotWidth(context);
     if (widget.isDragging) {
-      return const SizedBox(width: _ledgerActionsWidth);
+      return SizedBox(width: slotWidth);
     }
-    final alwaysVisible = NightshadeTouchTarget.isTouch(context);
     final menu = _NodeOverflowMenu(
       colors: widget.colors,
       node: widget.node,
@@ -552,14 +577,46 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       onMoveUp: widget.onMoveUp,
       onMoveDown: widget.onMoveDown,
     );
+    final actions = isTouch
+        // OverflowBox lets the kebab's 48×48 hit area spill the row's 28 px
+        // height symmetrically instead of clipping the slot down to the
+        // visual. This is the padding `NightshadeTouchTarget` prescribes,
+        // applied where a fixed-height row cannot grow to fit it.
+        ? OverflowBox(
+            minWidth: slotWidth,
+            maxWidth: slotWidth,
+            minHeight: slotWidth,
+            maxHeight: slotWidth,
+            child: menu,
+          )
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _NodeActionChips(
+                colors: widget.colors,
+                node: widget.node,
+                onToggleEnabled: widget.onToggleEnabled,
+                onDuplicate: widget.onDuplicate,
+                onDelete: widget.onDelete,
+              ),
+              // PopupMenuButton's IconButton enforces a 48 px interactive
+              // minimum of its own; the tight slot clamps it back to the
+              // dense footprint the reservation was sized for.
+              SizedBox(
+                width: _ledgerKebabWidth,
+                height: _ledgerRowHeight,
+                child: menu,
+              ),
+            ],
+          );
     return SizedBox(
-      width: _ledgerActionsWidth,
+      width: slotWidth,
       height: _ledgerRowHeight,
       child: ValueListenableBuilder<bool>(
         valueListenable: _isHovered,
-        child: menu,
+        child: actions,
         builder: (context, hovered, child) {
-          final visible = alwaysVisible || hovered;
+          final visible = isTouch || hovered;
           return IgnorePointer(
             ignoring: !visible,
             // A hidden button must not be announced or focusable, or a
@@ -614,8 +671,11 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       child: Stack(
         children: [
           // The track only exists while a run is in flight; a finished row is
-          // a solid line, not a line inside a groove.
-          if (isRunning) ColoredBox(color: colors.surfaceHover),
+          // a solid line, not a line inside a groove. It must be POSITIONED —
+          // a bare ColoredBox in a loose Stack lays out at 0×0 and the groove
+          // never paints.
+          if (isRunning)
+            Positioned.fill(child: ColoredBox(color: colors.surfaceHover)),
           Align(
             alignment: Alignment.centerLeft,
             child: FractionallySizedBox(

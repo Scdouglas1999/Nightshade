@@ -404,4 +404,146 @@ void main() {
       );
     });
   });
+
+  group('ledgerEtasFor', () {
+    final t0 = DateTime(2026, 9, 13, 22, 0);
+
+    PreSessionSimulationResult simFor(
+      ({
+        Sequence sequence,
+        InstructionSetNode container,
+        List<SequenceNode> children
+      }) built, {
+      List<Duration>? offsets,
+    }) {
+      final starts = offsets ??
+          List<Duration>.generate(
+              built.children.length, (i) => Duration(minutes: 5 * i));
+      return PreSessionSimulationResult(
+        start: t0,
+        end: t0.add(const Duration(hours: 1)),
+        duration: const Duration(hours: 1),
+        segments: [
+          for (var i = 0; i < built.children.length; i++)
+            _segment(built.children[i].id, t0.add(starts[i])),
+        ],
+        targetWindows: const {},
+        issues: const [],
+      );
+    }
+
+    test('before a run the whole plan re-anchors at now', () {
+      final built = _containerOf([
+        DelayNode(name: 'a', seconds: 60),
+        DelayNode(name: 'b', seconds: 60),
+      ]);
+      final simulation = simFor(built);
+
+      final etas = ledgerEtasFor(
+        built.sequence,
+        simulation,
+        // The simulation was built at 22:00; the wall clock is now 23:00.
+        now: t0.add(const Duration(hours: 1)),
+        runActive: false,
+      );
+
+      expect(etas[built.children[0].id],
+          LedgerEta(t0.add(const Duration(hours: 1)), isActual: false));
+      expect(
+          etas[built.children[1].id],
+          LedgerEta(t0.add(const Duration(hours: 1, minutes: 5)),
+              isActual: false));
+      // The container folds the earliest shifted start.
+      expect(etas[built.container.id],
+          LedgerEta(t0.add(const Duration(hours: 1)), isActual: false));
+    });
+
+    test('during a run the remaining plan anchors at the recorded start', () {
+      final built = _containerOf([DelayNode(name: 'a', seconds: 60)]);
+      final simulation = simFor(built);
+      final runStart = DateTime(2026, 9, 13, 23, 30);
+
+      final etas = ledgerEtasFor(
+        built.sequence,
+        simulation,
+        // `now` is deliberately far from both anchors: if it leaked into the
+        // anchor the assertion would catch it.
+        now: DateTime(2026, 9, 14, 4, 0),
+        runActive: true,
+        runStart: runStart,
+      );
+
+      // The plan is projected from the run's recorded start, not `now` and
+      // not the simulation's own anchor.
+      expect(etas[built.children[0].id], LedgerEta(runStart, isActual: false));
+    });
+
+    test('a run with no recorded start yet keeps the simulation anchor', () {
+      final built = _containerOf([DelayNode(name: 'a', seconds: 60)]);
+      final simulation = simFor(built);
+
+      final etas = ledgerEtasFor(
+        built.sequence,
+        simulation,
+        now: DateTime(2026, 9, 14, 4, 0),
+        runActive: true,
+      );
+
+      expect(etas[built.children[0].id], LedgerEta(t0, isActual: false));
+    });
+
+    test('an observed start beats the prediction and folds into the parent',
+        () {
+      final built = _containerOf([
+        DelayNode(name: 'a', seconds: 60),
+        DelayNode(name: 'b', seconds: 60),
+      ]);
+      final simulation = simFor(built);
+      // The first child really began 2 minutes after the run's plan said —
+      // an observed time replaces the projection rather than averaging it.
+      final observed = t0.add(const Duration(minutes: 32));
+
+      final etas = ledgerEtasFor(
+        built.sequence,
+        simulation,
+        now: DateTime(2026, 9, 14, 4, 0),
+        runActive: true,
+        runStart: DateTime(2026, 9, 13, 23, 0),
+        actualStarts: {built.children[0].id: observed},
+      );
+
+      expect(etas[built.children[0].id], LedgerEta(observed, isActual: true));
+      // The container's subtree start is the earliest thing under it — the
+      // observed start, not the earlier (wrong) prediction.
+      expect(etas[built.container.id], LedgerEta(observed, isActual: true));
+      // The sibling still projects.
+      expect(etas[built.children[1].id]!.isActual, isFalse);
+    });
+
+    test('actual starts alone still produce a map when there is no simulation',
+        () {
+      final built = _containerOf([DelayNode(name: 'a', seconds: 60)]);
+      final observed = DateTime(2026, 9, 13, 23, 41);
+
+      final etas = ledgerEtasFor(
+        built.sequence,
+        null,
+        now: t0,
+        runActive: true,
+        runStart: t0,
+        actualStarts: {built.children[0].id: observed},
+      );
+
+      expect(etas[built.children[0].id], LedgerEta(observed, isActual: true));
+      expect(etas[built.container.id], LedgerEta(observed, isActual: true));
+    });
+
+    test('empty when nothing can be placed', () {
+      final built = _containerOf([DelayNode(name: 'a', seconds: 60)]);
+      expect(
+        ledgerEtasFor(built.sequence, null, now: t0, runActive: false),
+        isEmpty,
+      );
+    });
+  });
 }

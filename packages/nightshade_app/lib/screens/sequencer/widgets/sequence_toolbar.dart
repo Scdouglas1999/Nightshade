@@ -720,11 +720,20 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           final showTimeline = ref.watch(timelineVisibleProvider);
           final showMinimap = ref.watch(minimapVisibleProvider);
           final density = ref.watch(sequencerDensityProvider);
-          // The phone builder forces comfortable rows
+          // The mobile builder forces comfortable rows
           // (`effectiveSequencerDensity`), so a density control there would
-          // sell a mode the canvas refuses to draw. The preference itself is
-          // still honoured on the desktop.
-          final showDensity = !isPhone;
+          // sell a mode the canvas refuses to draw. The gate mirrors the same
+          // signal the layout applies to the tree: `builder_layout.dart`
+          // picks `_MobileBuilderLayout` on the region's SHORT side
+          // (`BreakpointTokens.isPhone(min(w, h))`), so a narrow-but-tall
+          // desktop window keeps the switch while the tree keeps drawing
+          // ledger rows. The window's short side is the closest measurement
+          // this widget can take of that region's — they differ only by the
+          // shell chrome between them.
+          final mediaSize = MediaQuery.sizeOf(context);
+          final showDensity = !BreakpointTokens.isPhone(
+            math.min(mediaSize.width, mediaSize.height),
+          );
           // Without the toggles the bar carries undo/redo and save/more.
           final barToolbarWidth = _toolbarWidth(4, 2, glyphExtent);
           // With them, three groups of two — plus the three density glyphs

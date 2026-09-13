@@ -13,6 +13,11 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// The typed `NightshadeEvent` union collides by name with the wire/JSON event
+// model the barrel above keeps canonical, so it is imported from the core's
+// dedicated typed-event seam under the `ns_events` prefix — the convention the
+// run dashboard providers already follow.
+import 'package:nightshade_core/nightshade_core_events.dart' as ns_events;
 
 import '../../plan_math.dart';
 import '../visual_timeline.dart';
@@ -186,6 +191,28 @@ String formatLedgerClock(DateTime time) {
   return '$hour:$minute';
 }
 
+/// One ETA cell's provenance: [start] is the clock the column prints and
+/// [isActual] marks whether that time was observed (the node really began
+/// then) or projected (the estimator's plan shifted onto the current anchor).
+/// The row needs the distinction — a projected time for a node that already
+/// started is stale, and the column mutes it rather than present it as fact.
+class LedgerEta {
+  final DateTime start;
+  final bool isActual;
+
+  const LedgerEta(this.start, {required this.isActual});
+
+  @override
+  bool operator ==(Object other) =>
+      other is LedgerEta && other.start == start && other.isActual == isActual;
+
+  @override
+  int get hashCode => Object.hash(start, isActual);
+
+  @override
+  String toString() => 'LedgerEta($start, actual: $isActual)';
+}
+
 /// Predicted start time per node id, derived from the pre-session simulation.
 ///
 /// [PreSessionSimulationResult.segments] only carries the nodes the estimator
@@ -212,7 +239,17 @@ Map<String, DateTime> ledgerNodeStarts(
       starts[segment.nodeId] = segment.start;
     }
   }
+  return _foldStarts(sequence, starts);
+}
 
+/// Fold any seed map of per-node start times into subtree-earliest times: the
+/// same post-order walk [ledgerNodeStarts] uses, reused so the predicted and
+/// the observed-start maps cannot disagree about how containers inherit.
+Map<String, DateTime> _foldStarts(
+  Sequence sequence,
+  Map<String, DateTime> seeds,
+) {
+  final starts = Map<String, DateTime>.of(seeds);
   final visited = <String>{};
   final rootId = sequence.rootNodeId;
   if (rootId != null) {
@@ -250,15 +287,156 @@ DateTime? _foldSubtreeStart(
   return earliest;
 }
 
-/// Predicted start clock time for every node the pre-session simulation can
-/// place, keyed by node id.
+/// The ETA map's pure core, parameterised on the clocks so tests drive it with
+/// fake times.
 ///
-/// A single map rather than a family: the simulation is one walk over the
-/// whole sequence, so computing it per node would re-run it per row. Rows read
-/// their own entry with `.select`, which keeps a row out of the rebuild when
-/// another row's ETA is the only thing that moved.
-final ledgerEtaProvider = Provider<Map<String, DateTime>>((ref) {
+/// The simulation is anchored once at [PreSessionSimulationResult.start] —
+/// whenever the estimator last ran — and the column re-anchors it rather than
+/// re-simulating, so a plan opened at 21:00 and run at 23:00 reads correctly
+/// at both. [actualStarts] (observed `NodeStarted` events, folded to
+/// subtree-earliest) always wins over a projection — a node that demonstrably
+/// began at 22:41 is not "predicted" for anything.
+Map<String, LedgerEta> ledgerEtasFor(
+  Sequence sequence,
+  PreSessionSimulationResult? simulation, {
+  required DateTime now,
+  required bool runActive,
+  DateTime? runStart,
+  Map<String, DateTime> actualStarts = const <String, DateTime>{},
+}) {
+  if (actualStarts.isEmpty &&
+      (simulation == null || simulation.segments.isEmpty)) {
+    return const <String, LedgerEta>{};
+  }
+
+  final actuals = _foldStarts(sequence, actualStarts);
+  final predicted = ledgerNodeStarts(sequence, simulation);
+  // Before a run the plan is projected from `now`; once the executor is
+  // driving, the remaining plan hangs off the run's recorded start (falling
+  // back to the simulation's own anchor while `startSession` is still
+  // resolving).
+  final shift = simulation == null
+      ? Duration.zero
+      : (runActive ? (runStart ?? simulation.start) : now)
+          .difference(simulation.start);
+
+  final etas = <String, LedgerEta>{};
+  for (final id in sequence.nodes.keys) {
+    final actual = actuals[id];
+    if (actual != null) {
+      etas[id] = LedgerEta(actual, isActual: true);
+      continue;
+    }
+    final start = predicted[id];
+    if (start != null) etas[id] = LedgerEta(start.add(shift), isActual: false);
+  }
+  return Map<String, LedgerEta>.unmodifiable(etas);
+}
+
+/// The wall clock the pre-run ETA anchor ticks against.
+///
+/// A stream rather than a `Timer` held by a notifier: Riverpod cancels the
+/// subscription on rebuild and dispose, which kills the periodic timer with
+/// it. `autoDispose` so the subscription — and the timer inside it — dies
+/// with the last listener instead of outliving a widget test's tree. The
+/// stream only ticks while the executor is settled ([canStart]) — once a run
+/// is live the anchor moves to the run's recorded start and a clock tick
+/// would just rebuild identical predictions.
+final ledgerClockProvider = StreamProvider.autoDispose<DateTime>((ref) {
+  if (!ref.watch(sequenceExecutionStateProvider).canStart) {
+    return const Stream<DateTime>.empty();
+  }
+  Stream<DateTime> tick() async* {
+    yield DateTime.now();
+    yield* Stream.periodic(const Duration(minutes: 1), (_) => DateTime.now());
+  }
+
+  return tick();
+});
+
+/// Observed node-start times for the current run, folded out of the typed
+/// event stream the executor already publishes (`NodeStarted` carries the
+/// node id; the event envelope carries the timestamp).
+///
+/// `Started` clears the map so a rerun does not show last night's times. The
+/// same `ref.listen` fold `eventHistoryProvider` uses — kept as a map provider
+/// rather than read inside the row so every event does not rebuild the tree.
+final ledgerActualStartsProvider =
+    StateNotifierProvider<_LedgerActualStartsNotifier, Map<String, DateTime>>(
+        (ref) {
+  final notifier = _LedgerActualStartsNotifier();
+  ref.listen(nightshadeEventsProvider, (previous, next) {
+    next.whenData(notifier._onEvent);
+  });
+  return notifier;
+});
+
+class _LedgerActualStartsNotifier extends StateNotifier<Map<String, DateTime>> {
+  _LedgerActualStartsNotifier() : super(const <String, DateTime>{});
+
+  void _onEvent(ns_events.NightshadeEvent event) {
+    if (!mounted) return;
+    final payload = event.payload;
+    if (payload is! ns_events.EventPayload_Sequencer) return;
+    switch (payload.field0) {
+      case ns_events.SequencerEvent_Started():
+        state = const <String, DateTime>{};
+      case ns_events.SequencerEvent_NodeStarted(nodeId: final nodeId):
+        state = <String, DateTime>{
+          ...state,
+          nodeId: DateTime.fromMillisecondsSinceEpoch(event.timestamp.toInt()),
+        };
+      default:
+        break;
+    }
+  }
+}
+
+/// ETA per node id for every node in the open sequence — observed starts where
+/// the run has already produced them, anchored predictions elsewhere.
+///
+/// A single map rather than a family: the fold is one walk over the whole
+/// sequence, so computing it per node would re-run it per row. Rows read their
+/// own entry with `.select`, which keeps a row out of the rebuild when another
+/// row's ETA is the only thing that moved. `autoDispose` so a closed tree
+/// stops the clock watch inside it (see [ledgerClockProvider]).
+final ledgerEtaProvider = Provider.autoDispose<Map<String, LedgerEta>>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
-  if (sequence == null) return const <String, DateTime>{};
-  return ledgerNodeStarts(sequence, ref.watch(sequenceTimelineProvider));
+  if (sequence == null) return const <String, LedgerEta>{};
+  final simulation = ref.watch(sequenceTimelineProvider);
+  final runActive = !ref.watch(sequenceExecutionStateProvider).canStart;
+  return ledgerEtasFor(
+    sequence,
+    simulation,
+    // An empty (run-active) clock stream has no value; `now` is only read when
+    // the run is idle, so falling back to a fresh read is correct.
+    now: ref.watch(ledgerClockProvider).valueOrNull ?? DateTime.now(),
+    runActive: runActive,
+    runStart: ref.watch(sessionStateProvider).startTime,
+    actualStarts: ref.watch(ledgerActualStartsProvider),
+  );
+});
+
+/// The [LedgerColumns] for every node in the open sequence, computed once per
+/// sequence (or rollup) change rather than once per row build: each
+/// `ledgerColumnsFor` call can walk a subtree via `plannedCaptureUnder`, so
+/// running it inside every row's `build` repeats that walk on every progress
+/// tick. Rows read their own entry with `.select`.
+///
+/// ETAs deliberately stay out of this map — they move with the clock and the
+/// event stream, and mixing them in would invalidate every column on every
+/// tick. The row merges its own entry from [ledgerEtaProvider].
+final ledgerColumnsMapProvider =
+    Provider.autoDispose<Map<String, LedgerColumns>>((ref) {
+  final sequence = ref.watch(currentSequenceProvider);
+  if (sequence == null) return const <String, LedgerColumns>{};
+  final columns = <String, LedgerColumns>{};
+  for (final node in sequence.nodes.values) {
+    columns[node.id] = ledgerColumnsFor(
+      node,
+      sequence,
+      rollup: ref.watch(nodeRollupDurationProvider(node.id)),
+    );
+  }
+  return Map<String, LedgerColumns>.unmodifiable(columns);
 });

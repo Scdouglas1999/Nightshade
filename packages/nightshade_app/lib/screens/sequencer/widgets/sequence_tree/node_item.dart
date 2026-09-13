@@ -222,6 +222,16 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     final summaryFragments =
         nodeSummary(node, globalAutofocusMethod: globalAfMethod);
     final summaryA11yText = _summaryA11yText(summaryFragments);
+    // The collapsed-container rollup, shown on the title row only when the
+    // density has stripped the inline extras (compact): an expanded container
+    // has its children on screen and needs no summary, and comfortable mode
+    // already spends the space on them.
+    final rollupText =
+        !widget.showInlineExtras && widget.isCollapsed && widget.hasChildren
+            ? ref.watch(rollupSummaryMapProvider
+                    .select((summaries) => summaries[widget.node.id])) ??
+                ''
+            : '';
     final isDisabled = !widget.node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
     final isSuccess = widget.nodeStatus == NodeStatus.success;
@@ -283,6 +293,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     context: context,
                     statusColor: statusColor,
                     summaryFragments: summaryFragments,
+                    rollupText: rollupText,
                     isDisabled: isDisabled,
                     isRunning: isRunning,
                     isSuccess: isSuccess,
@@ -375,6 +386,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     required BuildContext context,
     required Color statusColor,
     required List<SummaryFragment> summaryFragments,
+    required String rollupText,
     required bool isDisabled,
     required bool isRunning,
     required bool isSuccess,
@@ -498,6 +510,20 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                       const SizedBox(width: NightshadeTokens.spaceSm),
                       _WatchdogBadge(colors: widget.colors),
                     ],
+                    if (rollupText.isNotEmpty) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Flexible(
+                        child: Text(
+                          rollupText,
+                          style: NightshadeTypography.caption.copyWith(
+                            color: widget.colors.textMuted,
+                          ),
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 if (summaryFragments.isNotEmpty)
@@ -581,54 +607,21 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Per-row action icons mutate the tree
-                  // (toggle enabled, duplicate, delete) and must
-                  // be disabled when a sequence is running. The
-                  // kebab below gates move_up/move_down; this is
-                  // the matching gate for the inline icons.
-                  Builder(builder: (context) {
-                    final canEdit = ref.watch(canEditSequenceProvider);
-                    const lockedSuffix = ' (locked while sequence is running)';
-                    final lockedTail = canEdit ? '' : lockedSuffix;
-                    final toggleLabel =
-                        widget.node.isEnabled ? 'Disable' : 'Enable';
-                    // On touch these fold into the kebab instead of sitting
-                    // inline. Three 24dp chips are not legal Android tap
-                    // targets, and padding each one up to 48 adds 72dp to a
-                    // row that then overflows a 360dp phone by 30 — measured,
-                    // not guessed. Moving them behind the kebab gives the same
-                    // three actions a single already-compliant 48dp target and
-                    // hands 84dp back to the row.
-                    if (NightshadeTouchTarget.isTouch(context)) {
-                      return const SizedBox.shrink();
-                    }
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _NodeActionButton(
-                          icon: widget.node.isEnabled
-                              ? LucideIcons.eye
-                              : LucideIcons.eyeOff,
-                          tooltip: '$toggleLabel$lockedTail',
-                          colors: widget.colors,
-                          onPressed: canEdit ? widget.onToggleEnabled : null,
-                        ),
-                        _NodeActionButton(
-                          icon: LucideIcons.copy,
-                          tooltip: 'Duplicate$lockedTail',
-                          colors: widget.colors,
-                          onPressed: canEdit ? widget.onDuplicate : null,
-                        ),
-                        _NodeActionButton(
-                          icon: LucideIcons.trash2,
-                          tooltip: 'Delete$lockedTail',
-                          colors: widget.colors,
-                          color: widget.colors.error,
-                          onPressed: canEdit ? widget.onDelete : null,
-                        ),
-                      ],
-                    );
-                  }),
+                  // On touch the eye/duplicate/delete chips fold into the
+                  // kebab instead of sitting inline. Three 24dp chips are not
+                  // legal Android tap targets, and padding each one up to 48
+                  // adds 72dp to a row that then overflows a 360dp phone by
+                  // 30 — measured, not guessed. Moving them behind the kebab
+                  // gives the same three actions a single already-compliant
+                  // 48dp target and hands 84dp back to the row.
+                  if (!NightshadeTouchTarget.isTouch(context))
+                    _NodeActionChips(
+                      colors: widget.colors,
+                      node: widget.node,
+                      onToggleEnabled: widget.onToggleEnabled,
+                      onDuplicate: widget.onDuplicate,
+                      onDelete: widget.onDelete,
+                    ),
 
                   // Inline more-actions menu, shared with the ledger row.
                   _NodeOverflowMenu(

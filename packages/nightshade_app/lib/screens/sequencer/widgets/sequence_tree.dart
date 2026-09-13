@@ -437,6 +437,21 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               if (constraints.hasBoundedHeight && constraints.maxHeight < 80) {
                 return const SizedBox.expand();
               }
+              // The one width decision the ledger rows rely on: below
+              // `_ledgerColumnsMinWidth` the four columns cannot leave the
+              // step names any room, so the whole tree falls back to compact
+              // rows — the preference says which density is wanted, this says
+              // which the canvas can actually host. Rows read the resolved
+              // density, so a ledger row never has to wonder whether it can
+              // afford its own columns.
+              final contentWidth = constraints.maxWidth -
+                  (widget.isMobile
+                      ? NightshadeTokens.spaceMd * 2
+                      : NightshadeTokens.spaceXl * 2);
+              final canvasDensity = density == SequencerDensity.ledger &&
+                      contentWidth < _ledgerColumnsMinWidth
+                  ? SequencerDensity.compact
+                  : density;
               return Column(
                 children: [
                   // No header row: the canvas bar above the tree carries the
@@ -459,7 +474,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                           // scroll view so they take the same horizontal
                           // padding the rows do and sit over the columns they
                           // name.
-                          if (density == SequencerDensity.ledger)
+                          if (canvasDensity == SequencerDensity.ledger)
                             _LedgerColumnHeader(colors: widget.colors),
                           _NodeTreeView(
                             colors: widget.colors,
@@ -468,7 +483,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                             progress: progress,
                             validation: validation,
                             depth: 0,
-                            density: density,
+                            density: canvasDensity,
                             isMobile: widget.isMobile,
                             onNodeTap: widget.onNodeTap,
                             keyRegistry: _nodeKeyRegistry,

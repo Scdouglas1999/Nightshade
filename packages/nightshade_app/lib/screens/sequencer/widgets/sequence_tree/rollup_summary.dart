@@ -10,6 +10,7 @@
 // the expanded row shows, so a collapsed summary cannot contradict the rows it
 // is standing in for.
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../plan_math.dart';
@@ -181,3 +182,22 @@ String _fmtSecs(double value) {
   if (value == value.roundToDouble()) return value.toStringAsFixed(0);
   return value.toStringAsFixed(1);
 }
+
+/// The collapsed-container summary for every node in the open sequence,
+/// computed once per sequence change rather than once per row build: each
+/// `rollupSummary` call walks the node's children (and, for targets, the whole
+/// subtree via `plannedCaptureUnder`), so running it inside every collapsed
+/// row's `build` repeats that walk on every progress tick. Rows read their own
+/// entry with `.select`. `autoDispose` so the map is freed with the tree.
+final rollupSummaryMapProvider =
+    Provider.autoDispose<Map<String, String>>((ref) {
+  final sequence = ref.watch(currentSequenceProvider);
+  if (sequence == null) return const <String, String>{};
+  final summaries = <String, String>{};
+  for (final node in sequence.nodes.values) {
+    if (node.childIds.isEmpty) continue;
+    final summary = rollupSummary(node, sequence);
+    if (summary.isNotEmpty) summaries[node.id] = summary;
+  }
+  return Map<String, String>.unmodifiable(summaries);
+});

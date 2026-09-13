@@ -19,6 +19,7 @@ import 'package:nightshade_app/screens/sequencer/sequence_counts.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
 import 'package:nightshade_app/screens/sequencer/tabs/templates_tab.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/node_palette_search.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/quick_start_wizard_dialog.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/snippet_palette.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -64,6 +65,9 @@ Future<HarnessHandle> _pumpBuilder(WidgetTester tester) async {
       currentSequenceProvider.overrideWith((_) => notifier),
       sequenceExecutionStateProvider
           .overrideWith((ref) => SequenceExecutionState.idle),
+      // The ledger ETA clock is a real periodic stream; in the fake-async
+      // zone its timer outlives every pump and fails teardown.
+      ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
     ],
     settle: false,
   );
@@ -326,6 +330,11 @@ void main() {
           currentSequenceProvider.overrideWith((_) => notifier),
           sequenceExecutionStateProvider
               .overrideWith((ref) => SequenceExecutionState.idle),
+          // The ledger ETA clock is a real periodic stream; in the
+          // fake-async zone its timer outlives every pump and fails
+          // teardown.
+          ledgerClockProvider
+              .overrideWith((ref) => const Stream<DateTime>.empty()),
         ],
       );
       await tester.pump(const Duration(milliseconds: 400));

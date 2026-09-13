@@ -9,8 +9,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/visual_timeline.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -71,8 +73,12 @@ final _testDensityProvider =
 
 Future<HarnessHandle> _pumpTree(
   WidgetTester tester,
-  Sequence sequence,
-) async {
+  Sequence sequence, {
+  Size size = const Size(1200, 900),
+  SequenceProgressNotifier? progressNotifier,
+  PreSessionSimulationResult? simulation,
+  ThemeData? theme,
+}) async {
   final notifier = CurrentSequenceNotifier();
   // ignore: invalid_use_of_protected_member
   notifier.state = sequence;
@@ -82,13 +88,22 @@ Future<HarnessHandle> _pumpTree(
     Builder(
       builder: (context) => SequenceTree(colors: NightshadeColors.of(context)),
     ),
-    size: const Size(1200, 900),
+    size: size,
+    theme: theme,
     // Live validation debounces 500 ms; drain frames manually instead.
     settle: false,
     extraOverrides: [
       currentSequenceProvider.overrideWith((_) => notifier),
       sequenceExecutionStateProvider
           .overrideWith((ref) => SequenceExecutionState.idle),
+      // The minute clock is a real periodic stream; in the fake-async zone
+      // its timer outlives every pump and fails teardown. ETA anchoring is
+      // exercised through ledgerEtasFor's fake-clock unit tests instead.
+      ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+      if (progressNotifier != null)
+        sequenceProgressProvider.overrideWith((_) => progressNotifier),
+      if (simulation != null)
+        sequenceTimelineProvider.overrideWithValue(simulation),
       sequencerDensityProvider
           .overrideWith((ref) => ref.watch(_testDensityProvider)),
     ],
@@ -395,6 +410,334 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
     expect(find.text('seeing bad'), findsOneWidget);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('hover reveals the action chips; Delete removes the node',
+      (tester) async {
+    // The trio only renders in the pointer branch. NightshadeTheme.dark is a
+    // static final — its platform is baked at first access — so the theme,
+    // not the debug override, is what has to say linux.
+    final pointerTheme =
+        NightshadeTheme.dark.copyWith(platform: TargetPlatform.linux);
+    final built = _threeLevelSequence([
+      ExposureNode(
+        name: 'L subs',
+        filter: 'L',
+        durationSecs: 60,
+        count: 10,
+      ),
+    ]);
+    final handle = await _pumpTree(tester, built.sequence, theme: pointerTheme);
+
+    // Before the pointer arrives the chips are not hit-testable (the actions
+    // block is opacity-0 + IgnorePointer).
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(find.text('L subs')));
+    await tester.pump();
+
+    final deleteChip = find.descendant(
+      of: _rowShellOf(find.text('L subs')).first,
+      matching: find.byTooltip('Delete'),
+    );
+    expect(deleteChip, findsOneWidget);
+    await tester.tap(deleteChip);
+    await tester.pumpAndSettle();
+
+    // The shared confirm path asks before it removes (even for a leaf).
+    expect(find.text('Delete "L subs"?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(
+      handle.container
+          .read(currentSequenceProvider)!
+          .nodes
+          .containsKey(built.exposureIds.single),
+      isFalse,
+    );
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('a running row paints the progress groove under its fill',
+      (tester) async {
+    final exposure = ExposureNode(
+      name: 'L subs',
+      filter: 'L',
+      durationSecs: 60,
+      count: 10,
+    );
+    final built = _threeLevelSequence([exposure]);
+    final progress = SequenceProgressNotifier();
+    final handle = await _pumpTree(
+      tester,
+      built.sequence,
+      progressNotifier: progress,
+    );
+    final colors = NightshadeTheme.dark.extension<NightshadeColors>()!;
+
+    progress.updateNodeStatus(exposure.id, NodeStatus.running);
+    progress.updateNodeProgress(exposure.id, 40, '');
+    await tester.pump();
+
+    // The groove is the surfaceHover track behind the fill — the fix for the
+    // childless ColoredBox that laid out at 0x0.
+    final groove = find.descendant(
+      of: _rowShellOf(find.text('L subs')).first,
+      matching: find.byWidgetPredicate(
+        (w) => w is ColoredBox && w.color == colors.surfaceHover,
+      ),
+    );
+    expect(groove, findsOneWidget);
+    // And the fill inside it is 40% of the row width.
+    final fill = find.descendant(
+      of: _rowShellOf(find.text('L subs')).first,
+      matching: find.byWidgetPredicate(
+        (w) => w is FractionallySizedBox && w.widthFactor == 0.4,
+      ),
+    );
+    expect(fill, findsOneWidget);
+    expect(handle.container, isNotNull);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('compact mode shows the rollup summary on a collapsed container',
+      (tester) async {
+    final built = _threeLevelSequence([
+      ExposureNode(
+        name: 'L subs',
+        filter: 'L',
+        durationSecs: 60,
+        count: 10,
+        ditherEvery: 0,
+      ),
+      ExposureNode(
+        name: 'R subs',
+        filter: 'R',
+        durationSecs: 60,
+        count: 10,
+        ditherEvery: 0,
+      ),
+    ]);
+    final handle = await _pumpTree(tester, built.sequence);
+
+    handle.container.read(_testDensityProvider.notifier).state =
+        SequencerDensity.compact;
+    await tester.pumpAndSettle();
+    handle.container
+        .read(collapsedNodeIdsProvider.notifier)
+        .toggle(built.loopId);
+    await tester.pumpAndSettle();
+
+    // Spec §3: the collapsed line rides the title row in compact too, not
+    // just in ledger.
+    expect(find.text('L subs'), findsNothing);
+    expect(find.text('L · R 60 s ×10 each'), findsOneWidget);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('a canvas below the column floor falls back to compact rows',
+      (tester) async {
+    final built = _threeLevelSequence([
+      ExposureNode(
+        name: 'L subs',
+        filter: 'L',
+        durationSecs: 60,
+        count: 10,
+      ),
+    ]);
+    // 530 - 2x20 padding = 490 < 500: the density preference is still ledger,
+    // but the tree must not draw columns that leave the name no room.
+    await _pumpTree(tester, built.sequence, size: const Size(530, 900));
+
+    expect(find.text('Filter / exp'), findsNothing);
+    expect(find.text('Step'), findsNothing);
+    // The row is a compact card row, not a stripped ledger line.
+    expect(find.text('L subs'), findsOneWidget);
+    expect(_rowShellOf(find.text('L subs')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('long-press drag reorders a ledger row', (tester) async {
+    final target = TargetHeaderNode(
+      name: 'M 42',
+      targetName: 'Orion',
+      raHours: 5.5,
+      decDegrees: -5.4,
+    );
+    final e1 =
+        ExposureNode(name: 'L subs', filter: 'L', durationSecs: 60, count: 10);
+    final e2 =
+        ExposureNode(name: 'R subs', filter: 'R', durationSecs: 60, count: 10);
+    final root = InstructionSetNode(name: 'Root');
+    final sequence = Sequence.create(
+      name: 'T',
+      rootNodeId: root.id,
+      nodes: {
+        e1.id: e1.copyWith(parentId: target.id, orderIndex: 0),
+        e2.id: e2.copyWith(parentId: target.id, orderIndex: 1),
+        target.id: target.copyWith(
+          parentId: root.id,
+          orderIndex: 0,
+          childIds: [e1.id, e2.id],
+        ),
+        root.id: root.copyWith(childIds: [target.id]),
+      },
+    );
+    final handle = await _pumpTree(tester, sequence);
+
+    // LongPressDraggable's 150 ms delay only counts a STATIONARY press —
+    // timedDrag starts moving inside the window and the drag never arms.
+    // The start point is captured BEFORE the press: once the drag arms the
+    // feedback layer draws a second "L subs" and the text finder goes
+    // ambiguous.
+    final start = tester.getCenter(find.text('L subs'));
+    final gesture = await tester.startGesture(start);
+    await tester.pump(const Duration(milliseconds: 300));
+    await gesture.moveTo(start + const Offset(0, 56));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final target2 =
+        handle.container.read(currentSequenceProvider)!.nodes[target.id]!;
+    expect(target2.childIds, <String>[e2.id, e1.id]);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('an inter-row drop zone accepts a palette node at its index',
+      (tester) async {
+    final built = _threeLevelSequence([
+      ExposureNode(
+        name: 'L subs',
+        filter: 'L',
+        durationSecs: 60,
+        count: 10,
+      ),
+      ExposureNode(
+        name: 'R subs',
+        filter: 'R',
+        durationSecs: 60,
+        count: 10,
+      ),
+    ]);
+    final handle = await _pumpTree(tester, built.sequence);
+
+    // The loop's children DragTarget encloses the inter-row zones; the zones
+    // sit between the child rows in child order.
+    final childrenTarget = find
+        .ancestor(
+            of: find.text('L subs'), matching: find.byType(DragTarget<Object>))
+        .first;
+    final zones = find
+        .descendant(
+          of: childrenTarget,
+          matching: find.byWidgetPredicate(
+              (w) => w.runtimeType.toString() == '_DropZone'),
+        )
+        .evaluate()
+        .toList();
+    // zone 0 before 'L subs', zone 1 between them, zone 2 after 'R subs'.
+    expect(zones.length, 3);
+
+    final payload = NodePaletteItem(
+      name: 'Delay',
+      icon: 'timer',
+      description: 'Wait',
+      createNode: () => DelayNode(name: 'Zoned delay', seconds: 5),
+    );
+    final zoneTarget = tester.widget<DragTarget<Object>>(find.descendant(
+      of: find.byWidget(zones[1].widget),
+      matching: find.byType(DragTarget<Object>),
+    ));
+    final details =
+        DragTargetDetails<Object>(data: payload, offset: Offset.zero);
+    expect(zoneTarget.onWillAcceptWithDetails!.call(details), isTrue);
+    zoneTarget.onAcceptWithDetails!.call(details);
+    await tester.pump();
+
+    final updated = handle.container.read(currentSequenceProvider)!;
+    final set = updated.nodes[built.loopId]!;
+    expect(set.childIds.length, 3);
+    // Index 1 — between the two exposures, not appended.
+    expect(updated.nodes[set.childIds[1]], isA<DelayNode>());
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('the row semantics label carries name, columns and state',
+      (tester) async {
+    final built = _threeLevelSequence([
+      ExposureNode(
+        name: 'L subs',
+        filter: 'L',
+        durationSecs: 60,
+        count: 10,
+      ),
+    ]);
+    await _pumpTree(tester, built.sequence);
+
+    // The name text itself is excluded from semantics — the row's own
+    // Semantics is the next ancestor up, and it must carry what the columns
+    // show.
+    final semanticsFinder = find.ancestor(
+      of: find.text('L subs'),
+      matching: find.byType(Semantics),
+    );
+    final semantics = tester.getSemantics(semanticsFinder.first);
+    expect(semantics.label, contains('L subs'));
+    expect(semantics.label, contains('L 60s'));
+    expect(semantics.label, contains('10'));
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('a started-but-unobserved ETA renders muted', (tester) async {
+    final exposure = ExposureNode(
+      name: 'L subs',
+      filter: 'L',
+      durationSecs: 60,
+      count: 10,
+    );
+    final built = _threeLevelSequence([exposure]);
+    final t0 = DateTime.now();
+    final simulation = PreSessionSimulationResult(
+      start: t0,
+      end: t0.add(const Duration(minutes: 10)),
+      duration: const Duration(minutes: 10),
+      segments: [
+        PreSessionSimulationSegment(
+          nodeId: exposure.id,
+          nodeName: exposure.name,
+          nodeType: 'ExposureNode',
+          start: t0,
+          end: t0.add(const Duration(minutes: 10)),
+          duration: const Duration(minutes: 10),
+        ),
+      ],
+      targetWindows: const {},
+      issues: const [],
+    );
+    final progress = SequenceProgressNotifier();
+    await _pumpTree(
+      tester,
+      built.sequence,
+      progressNotifier: progress,
+      simulation: simulation,
+    );
+    final colors = NightshadeTheme.dark.extension<NightshadeColors>()!;
+
+    // The node is running but no NodeStarted event has arrived: the column
+    // still quotes the prediction and must mark it as such.
+    progress.updateNodeStatus(exposure.id, NodeStatus.running);
+    await tester.pump();
+
+    final etaText = tester.widget<Text>(find.descendant(
+      of: _rowShellOf(find.text('L subs')).first,
+      matching: find.text(formatLedgerClock(t0)),
+    ));
+    expect(etaText.style?.color, colors.textMuted);
     await _drainValidationDebounce(tester);
   });
 }
