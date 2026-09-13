@@ -280,6 +280,71 @@ DateTime? _foldSubtreeStart(
   return earliest;
 }
 
+/// How far behind its own plan the run is, measured at the node it is on.
+///
+/// Two quantities, and they are a MAX rather than a sum:
+///
+///  * **Lateness** — how much later the node began than the plan (shifted onto
+///    the run's anchor) said it would. Everything after it inherits that.
+///  * **Overrun** — how long the node has been going past the moment the plan
+///    said it would END. This already contains the lateness once the node is
+///    past its expected finish, which is why adding the two would count the
+///    same minutes twice.
+///
+/// Measuring `now - predictedStart` instead — as this did before review — is
+/// not lateness at all but time ELAPSED IN the node, most of which the plan
+/// asked for. A 30-minute exposure running exactly on plan would have pushed
+/// every pending ETA by a minute every minute for half an hour and then snapped
+/// back when the node ended.
+///
+/// Zero, never negative: a run that is AHEAD of plan is not talked back down to
+/// it, because the estimator and not the clock says how long the rest takes.
+/// Zero as well when the executing node carries no segment of its own (a
+/// container is not billed), where there is nothing to measure against and
+/// inventing a delay would be worse than quoting the plan.
+Duration _behindSchedule(
+  PreSessionSimulationResult? simulation, {
+  required String? currentNodeId,
+  required DateTime? predictedStart,
+  required DateTime? actualStart,
+  required Duration runShift,
+  required DateTime now,
+}) {
+  if (simulation == null || currentNodeId == null || predictedStart == null) {
+    return Duration.zero;
+  }
+  final anchoredStart = predictedStart.add(runShift);
+  final lateness = actualStart == null
+      ? Duration.zero
+      : _atLeastZero(actualStart.difference(anchoredStart));
+
+  final billed = _billedDuration(simulation, currentNodeId);
+  if (billed == null) return lateness;
+  final overrun = _atLeastZero(now.difference(anchoredStart.add(billed)));
+
+  return overrun > lateness ? overrun : lateness;
+}
+
+Duration _atLeastZero(Duration value) =>
+    value.isNegative ? Duration.zero : value;
+
+/// How long the estimator billed [nodeId] for, on the pass whose start
+/// [ledgerNodeStarts] kept — the earliest, so the two agree about which
+/// segment they are talking about.
+Duration? _billedDuration(
+  PreSessionSimulationResult simulation,
+  String nodeId,
+) {
+  PreSessionSimulationSegment? earliest;
+  for (final segment in simulation.segments) {
+    if (segment.nodeId != nodeId) continue;
+    if (earliest == null || segment.start.isBefore(earliest.start)) {
+      earliest = segment;
+    }
+  }
+  return earliest?.duration;
+}
+
 /// The ETA map's pure core, parameterised on the clocks so tests drive it with
 /// fake times.
 ///
@@ -320,20 +385,17 @@ Map<String, LedgerEta> ledgerEtasFor(
   // forty minutes optimistic — all night, and by more as the night went on.
   //
   // The executing node is the join between what happened and what is still
-  // predicted: its predicted start under the run anchor is where the plan
-  // THOUGHT it would be now, and the clock says where it actually is. The tail
-  // is pushed by the difference whenever the clock is the later of the two, so
-  // a run that is ahead of plan is never talked back down to it.
-  var pendingShift = runShift;
-  if (runActive && currentNodeId != null) {
-    final predictedCurrent = predicted[currentNodeId];
-    if (predictedCurrent != null) {
-      final anchored = predictedCurrent.add(runShift);
-      if (now.isAfter(anchored)) {
-        pendingShift = runShift + now.difference(anchored);
-      }
-    }
-  }
+  // predicted, and there are exactly two ways it can put the rest of the night
+  // back: it started late, or it is still going after it should have finished.
+  final pendingShift = runShift +
+      _behindSchedule(
+        simulation,
+        currentNodeId: runActive ? currentNodeId : null,
+        predictedStart: currentNodeId == null ? null : predicted[currentNodeId],
+        actualStart: currentNodeId == null ? null : actualStarts[currentNodeId],
+        runShift: runShift,
+        now: now,
+      );
 
   final etas = <String, LedgerEta>{};
   for (final id in sequence.nodes.keys) {
@@ -385,38 +447,50 @@ final ledgerClockProvider = StreamProvider.autoDispose<DateTime>((ref) {
 /// same `ref.listen` fold `eventHistoryProvider` uses — kept as a map provider
 /// rather than read inside the row so every event does not rebuild the tree.
 ///
-/// `autoDispose`, held alive only while a run is: the fold subscribes to
-/// `nightshadeEventsProvider`, and a non-disposing provider kept that
-/// subscription — and the observed starts of whatever ran last — for the
-/// lifetime of the process, sequencer on screen or not. The keep-alive is what
-/// stops the opposite mistake: closing the sequencer mid-run would otherwise
-/// throw away the run's observed start times, and reopening it would show
-/// predictions for nodes that have demonstrably already started.
+/// `autoDispose`, and held alive from the moment a run starts.
+///
+/// The fold subscribes to `nightshadeEventsProvider`, and as a plain provider
+/// it kept that subscription — and the observed starts of whatever ran last —
+/// for the lifetime of the process whether or not a sequencer had ever been
+/// opened. `autoDispose` means an app that never runs a sequence never
+/// subscribes.
+///
+/// The keep-alive is NOT released when the run settles, which is the mistake
+/// the first version of this made. A finished run's observed starts are the
+/// record of the night: spec §2 has finished nodes showing the time they
+/// really began, so disposing the map when the executor went idle meant an
+/// operator who left the sequencer and came back after the run found every row
+/// re-anchored on `now` — finished nodes claiming a fresh start time. The only
+/// thing that should erase the record is the next run, and that arrives as
+/// `SequencerEvent_Started`, which clears the map in place.
 final ledgerActualStartsProvider = StateNotifierProvider.autoDispose<
     _LedgerActualStartsNotifier, Map<String, DateTime>>((ref) {
   final notifier = _LedgerActualStartsNotifier();
   ref.listen(nightshadeEventsProvider, (previous, next) {
     next.whenData(notifier._onEvent);
   });
-  KeepAliveLink? runLink;
+  KeepAliveLink? sessionLink;
+  void holdForTheSession() => sessionLink ??= ref.keepAlive();
+  notifier._onRunObserved = holdForTheSession;
+  // The execution state covers the case where the tree is opened onto a run
+  // that is already going and whose `Started` event has long been delivered.
   ref.listen<SequenceExecutionState>(
     sequenceExecutionStateProvider,
     (previous, next) {
-      if (next.canStart) {
-        runLink?.close();
-        runLink = null;
-      } else {
-        runLink ??= ref.keepAlive();
-      }
+      if (!next.canStart) holdForTheSession();
     },
     fireImmediately: true,
   );
-  ref.onDispose(() => runLink?.close());
+  ref.onDispose(() => sessionLink?.close());
   return notifier;
 });
 
 class _LedgerActualStartsNotifier extends StateNotifier<Map<String, DateTime>> {
   _LedgerActualStartsNotifier() : super(const <String, DateTime>{});
+
+  /// Told the provider that this session has a run in it, so the record must
+  /// outlive the sequencer screen being closed.
+  void Function()? _onRunObserved;
 
   void _onEvent(ns_events.NightshadeEvent event) {
     if (!mounted) return;
@@ -424,8 +498,10 @@ class _LedgerActualStartsNotifier extends StateNotifier<Map<String, DateTime>> {
     if (payload is! ns_events.EventPayload_Sequencer) return;
     switch (payload.field0) {
       case ns_events.SequencerEvent_Started():
+        _onRunObserved?.call();
         state = const <String, DateTime>{};
       case ns_events.SequencerEvent_NodeStarted(nodeId: final nodeId):
+        _onRunObserved?.call();
         state = <String, DateTime>{
           ...state,
           nodeId: DateTime.fromMillisecondsSinceEpoch(event.timestamp.toInt()),

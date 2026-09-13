@@ -55,13 +55,26 @@ PreSessionSimulationResult _simulation(List<SequenceNode> steps) {
           nodeId: steps[i].id,
           nodeName: steps[i].name,
           nodeType: 'Delay',
+          // Back to back, five minutes each: `b` runs 22:05 -> 22:10.
           start: _t0.add(Duration(minutes: 5 * i)),
-          end: _t0.add(Duration(minutes: 5 * i + 1)),
-          duration: const Duration(minutes: 1),
+          end: _t0.add(Duration(minutes: 5 * (i + 1))),
+          duration: const Duration(minutes: 5),
         ),
     ],
     targetWindows: const {},
     issues: const [],
+  );
+}
+
+bridge.NightshadeEvent _runStarted() {
+  return bridge.NightshadeEvent(
+    eventId: BigInt.from(2),
+    timestamp: _t0.millisecondsSinceEpoch,
+    severity: bridge.EventSeverity.info,
+    category: bridge.EventCategory.sequencer,
+    payload: const bridge.EventPayload.sequencer(
+      bridge.SequencerEvent.started(sequenceName: 'Night'),
+    ),
   );
 }
 
@@ -123,14 +136,53 @@ void main() {
         _t0.add(const Duration(minutes: 10)),
       );
 
-      // 22:45, still on `b`: the night is forty minutes behind and the column
-      // has to say so. Before this provider ticked during a run, it did not.
+      // 22:45 and `b` is STILL going, thirty-five minutes past the moment the
+      // plan had it finished. The column has to say so, and it only can if the
+      // clock reaches it. Before this provider ticked during a run, it did not.
       clock.add(_t0.add(const Duration(minutes: 45)));
       await _settleDisposal();
       expect(
         container.read(ledgerEtaProvider)[built.steps[2].id]!.start,
-        _t0.add(const Duration(minutes: 50)),
-        reason: 'a run 40 minutes behind must not quote its sunset ETAs',
+        _t0.add(const Duration(minutes: 45)),
+        reason: 'a run well past its own plan must not quote sunset ETAs',
+      );
+    });
+
+    test('a minute tick during an on-plan run changes no row', () async {
+      final built = _threeSteps();
+      final clock = StreamController<DateTime>.broadcast();
+      addTearDown(clock.close);
+      final sequence = CurrentSequenceNotifier();
+      // ignore: invalid_use_of_protected_member
+      sequence.state = built.sequence;
+
+      final container = ProviderContainer(overrides: [
+        currentSequenceProvider.overrideWith((_) => sequence),
+        sequenceTimelineProvider.overrideWithValue(_simulation(built.steps)),
+        ledgerClockProvider.overrideWith((ref) => clock.stream),
+      ]);
+      addTearDown(container.dispose);
+
+      container.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+      container
+          .read(sequenceProgressProvider.notifier)
+          .updateProgress(currentNodeId: built.steps[1].id);
+      container.listen(ledgerEtaProvider, (_, __) {});
+
+      // `b` is billed 22:05 -> 22:10 and began on time.
+      clock.add(_t0.add(const Duration(minutes: 5)));
+      await _settleDisposal();
+      final atFive = container.read(ledgerEtaProvider);
+
+      clock.add(_t0.add(const Duration(minutes: 6)));
+      await _settleDisposal();
+
+      expect(
+        container.read(ledgerEtaProvider),
+        atFive,
+        reason: 'a clock that moved a row every minute would rebuild the whole '
+            'ledger every minute, all night, for a run that is on plan',
       );
     });
 
@@ -200,7 +252,31 @@ void main() {
       );
     });
 
-    test('lets go once the run settles', () async {
+    test('keeps a finished run\'s observed starts after the tree is gone',
+        () async {
+      container.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+      final subscription =
+          container.listen(ledgerActualStartsProvider, (_, __) {});
+
+      final at = _t0.add(const Duration(minutes: 7));
+      events.add(_nodeStarted('node-b', at));
+      await _settleDisposal();
+
+      // The run finishes and the operator leaves the sequencer.
+      container.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.completed;
+      subscription.close();
+      await _settleDisposal();
+
+      // Spec §2: a finished node shows the time it really began. Disposing the
+      // record when the executor went idle made every row re-anchor on `now`
+      // the next time the tree was built, and finished nodes claimed a fresh
+      // start time.
+      expect(container.read(ledgerActualStartsProvider)['node-b'], at);
+    });
+
+    test('a NEW run is what clears the record', () async {
       container.read(sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.running;
       final subscription =
@@ -211,13 +287,12 @@ void main() {
       expect(container.read(ledgerActualStartsProvider), isNotEmpty);
 
       subscription.close();
-      container.read(sequenceExecutionStateProvider.notifier).state =
-          SequenceExecutionState.completed;
       await _settleDisposal();
 
-      // Read again: the fold was disposed with the run, so this is a fresh
-      // notifier with nothing in it — and, the point of the exercise, nothing
-      // is still subscribed to the typed event stream.
+      // The next run's `Started` is the only thing that should erase last
+      // night's times, and it does it in place.
+      events.add(_runStarted());
+      await _settleDisposal();
       expect(container.read(ledgerActualStartsProvider), isEmpty);
     });
   });

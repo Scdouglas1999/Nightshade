@@ -9,6 +9,9 @@
 // watching whether its child PAINTS — so a `RepaintBoundary` on the wrong side
 // of it stops the animation two ticks in and nothing says so.
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,20 +94,38 @@ Future<HarnessHandle> _pumpTree(
   Size size = const Size(1200, 900),
   SequenceProgressNotifier? progress,
   SequenceExecutionState executionState = SequenceExecutionState.idle,
+  SequencerDensity density = SequencerDensity.ledger,
+  double textScale = 1.0,
+  Stream<DateTime> clock = const Stream<DateTime>.empty(),
+  ValueListenable<bool>? mountTree,
 }) async {
   final notifier = CurrentSequenceNotifier();
   // ignore: invalid_use_of_protected_member
   notifier.state = sequence;
 
+  Widget wrap(BuildContext context, Widget tree) {
+    if (!disableAnimations && textScale == 1.0) return tree;
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        disableAnimations: disableAnimations ? true : null,
+        textScaler: textScale == 1.0 ? null : TextScaler.linear(textScale),
+      ),
+      child: tree,
+    );
+  }
+
   final handle = await pumpAppScreen(
     tester,
     Builder(
       builder: (context) {
-        final tree = SequenceTree(colors: NightshadeColors.of(context));
-        if (!disableAnimations) return tree;
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(disableAnimations: true),
-          child: tree,
+        Widget build() =>
+            wrap(context, SequenceTree(colors: NightshadeColors.of(context)));
+        final gate = mountTree;
+        if (gate == null) return build();
+        return ValueListenableBuilder<bool>(
+          valueListenable: gate,
+          builder: (context, visible, _) =>
+              visible ? build() : const SizedBox.shrink(),
         );
       },
     ),
@@ -116,9 +137,13 @@ Future<HarnessHandle> _pumpTree(
       sequenceExecutionStateProvider.overrideWith((ref) => executionState),
       // The minute clock is a real periodic stream; in the fake-async zone its
       // timer outlives every pump and fails teardown.
-      ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+      ledgerClockProvider.overrideWith((ref) {
+        _clockBodies += 1;
+        return clock;
+      }),
       if (progress != null)
         sequenceProgressProvider.overrideWith((_) => progress),
+      _testDensityProvider.overrideWith((ref) => density),
       sequencerDensityProvider
           .overrideWith((ref) => ref.watch(_testDensityProvider)),
     ],
@@ -161,6 +186,19 @@ Future<void> _toggleCollapse(WidgetTester tester, String rowName) async {
 /// happily against an animation that is merely very fast.
 int _runningAnimations(WidgetTester tester) =>
     tester.binding.transientCallbackCount;
+
+int _clockBodies = 0;
+
+/// The same shape the real `ledgerClockProvider` builds: a leading reading and
+/// then a periodic timer. Built here rather than reached for through the
+/// provider so the test owns the timer it is making claims about.
+Stream<DateTime> _realClock() async* {
+  yield DateTime.now();
+  yield* Stream<DateTime>.periodic(
+    const Duration(minutes: 1),
+    (_) => DateTime.now(),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -443,6 +481,105 @@ void main() {
         reason: 'the fill and the selection ring are one animation, and it is '
             'the shortest token there is',
       );
+      await _drainValidationDebounce(tester);
+    });
+  });
+
+  group('lifetimes', () {
+    // The card row keeps a reserved slot for its hover actions, and the kebab
+    // inside it sits at Material's 48 px interactive minimum. A tight box round
+    // it would overflow every comfortable row at once the moment a theme or a
+    // text scale made the real button wider, so the reservation is a MINIMUM.
+    testWidgets(
+        'a card row reserves its actions without overflowing at a '
+        'large text scale', (tester) async {
+      final built = _tree();
+      await _pumpTree(
+        tester,
+        sequence: built.sequence,
+        density: SequencerDensity.comfortable,
+        textScale: 1.3,
+      );
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.text('Sub 0')));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      await _drainValidationDebounce(tester);
+    });
+
+    // Every other test in the sequencer suite stubs the minute clock with an
+    // empty stream, so nothing exercises the timer that now runs all night.
+    testWidgets('the minute clock is subscribed only while the tree is up',
+        (tester) async {
+      final ticks = StreamController<DateTime>.broadcast();
+      addTearDown(ticks.close);
+      final mounted = ValueNotifier<bool>(true);
+      addTearDown(mounted.dispose);
+      final built = _tree();
+      _clockBodies = 0;
+
+      await _pumpTree(
+        tester,
+        sequence: built.sequence,
+        clock: ticks.stream,
+        mountTree: mounted,
+      );
+      expect(
+        ticks.hasListener,
+        isTrue,
+        reason: 'the ledger reads the clock for its ETA column',
+      );
+      expect(_clockBodies, 1);
+
+      mounted.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      // The provider is gone with the tree — a fresh body on the way back in
+      // is what says so, and a fresh body means a fresh subscription, which
+      // means the old one was released. (`hasListener` on a stream handed to
+      // `overrideWith` is not the probe: Riverpod's override path hands the
+      // stream straight through and does not cancel a listener the test
+      // created, so it stays true whether or not the provider was disposed.
+      // The real body builds its own `Stream.periodic`, which the next case
+      // holds to the stricter standard.)
+      mounted.value = true;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        _clockBodies,
+        2,
+        reason: 'the tree coming back re-subscribed, so the first one had gone',
+      );
+      await _drainValidationDebounce(tester);
+    });
+
+    // The strict half, with the REAL provider and its real `Stream.periodic`:
+    // the assertion is the teardown. A one-minute timer that outlived the tree
+    // is a pending timer, and the test binding fails the test for it — which is
+    // exactly the failure mode that matters, since a timer nothing cancels
+    // keeps the application from ever idling for as long as it is open.
+    testWidgets('the real minute timer does not outlive the tree',
+        (tester) async {
+      final mounted = ValueNotifier<bool>(true);
+      addTearDown(mounted.dispose);
+      final built = _tree();
+
+      await _pumpTree(
+        tester,
+        sequence: built.sequence,
+        clock: _realClock(),
+        mountTree: mounted,
+      );
+
+      mounted.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(SequenceTree), findsNothing);
       await _drainValidationDebounce(tester);
     });
   });
