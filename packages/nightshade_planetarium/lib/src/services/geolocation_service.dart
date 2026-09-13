@@ -1,8 +1,18 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io' show Platform;
+
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:geolocator/geolocator.dart';
+
+import 'positioning/positioning_result.dart';
+import 'positioning/wifi_positioning.dart';
+import 'positioning/wifi_scan.dart';
+
+export 'positioning/positioning_result.dart';
+export 'positioning/wifi_positioning.dart';
+export 'positioning/wifi_scan.dart';
 
 /// A named place from the geocoding lookup. Town-accurate, with elevation
 /// when the service has a DEM sample — unlike an IP estimate, which is a
@@ -19,75 +29,6 @@ class PlaceSearchHit {
   final double longitude;
   final double? elevation;
   final String label;
-}
-
-/// Which path produced a [GeolocationFix].
-enum GeolocationSource {
-  /// This machine's own location services — a GPS receiver, GeoClue, or the
-  /// platform's fused provider; whatever `Geolocator` answered with.
-  device,
-
-  /// A third-party service estimated the position from the machine's public
-  /// IP address over HTTPS.
-  internet,
-}
-
-/// A resolved position, the path that produced it, and the accuracy the
-/// provider reported.
-///
-/// The path matters because the two answers are not interchangeable: a device
-/// fix is accurate to metres, while an internet lookup resolves the ISP's
-/// egress to roughly ZIP or city level. Callers that write a fix to settings
-/// name the source so the operator knows which one they got.
-class GeolocationFix {
-  const GeolocationFix({
-    required this.latitude,
-    required this.longitude,
-    required this.source,
-    this.locationName,
-    this.providerHost,
-    this.accuracyMeters,
-  });
-
-  final double latitude;
-  final double longitude;
-
-  /// City/region label the service supplied, or the `GPS: lat, lon` tag the
-  /// device path composes. Null when the provider reported none.
-  final String? locationName;
-
-  /// Which lookup produced this fix.
-  final GeolocationSource source;
-
-  /// Host that answered an internet lookup, e.g. `ipinfo.io`. Null for a
-  /// device fix — the platform's location stack does not name itself.
-  final String? providerHost;
-
-  /// Provider-reported horizontal accuracy in metres. A device fix carries
-  /// the platform's estimate; neither IP service reports one, so an internet
-  /// fix leaves this null.
-  final double? accuracyMeters;
-
-  /// Short clause naming where the fix came from and how precise it claims
-  /// to be, appended to the confirmation shown after the fix is written.
-  ///
-  /// The internet services report no accuracy at all, so the honest
-  /// statement is the mechanism plus the host that was asked; a device fix
-  /// carries the platform's metres. An accuracy of 0 claims a perfect fix,
-  /// so it is reported as none.
-  String describeSource() {
-    final metres = accuracyMeters;
-    final host = providerHost;
-    return switch (source) {
-      GeolocationSource.device =>
-        metres != null && metres > 0
-            ? 'this machine’s GPS fix, ±${metres.round()} m'
-            : 'this machine’s GPS fix',
-      GeolocationSource.internet =>
-        'approximate: from your internet connection'
-            '${host != null ? ' ($host)' : ''}',
-    };
-  }
 }
 
 class GeolocationService {
@@ -131,9 +72,9 @@ class GeolocationService {
       _tupleOf(await _fetchIp(ipFallbackEndpoint));
 
   /// The internet lookup with its provenance attached: which host answered
-  /// rides along so the caller can say "from your internet connection
+  /// rides along so the caller can say "from your internet address
   /// (ipwho.is)" instead of presenting an estimate as a fix.
-  static Future<GeolocationFix?> _fetchIp(Uri uri) async {
+  static Future<PositioningResult?> _fetchIp(Uri uri) async {
     final client = clientFactory();
     try {
       final response = await client
@@ -142,12 +83,15 @@ class GeolocationService {
       if (response.statusCode != 200) return null;
       final parsed = _parseIpBody(response.body);
       if (parsed == null) return null;
-      return GeolocationFix(
+      return PositioningResult(
         latitude: parsed.$1,
         longitude: parsed.$2,
         locationName: parsed.$3,
-        source: GeolocationSource.internet,
-        providerHost: uri.host,
+        source: PositioningSource.ipAddress,
+        provider: uri.host,
+        // Neither IP service reports a radius. Left null rather than filled
+        // with a plausible number: the explanation then says "city level",
+        // which is true, instead of a metre figure nobody measured.
       );
     } catch (e) {
       developer.log(
@@ -163,13 +107,13 @@ class GeolocationService {
   }
 
   /// Primary internet lookup, then the fallback when it refuses.
-  static Future<GeolocationFix?> _internetFix() async {
+  static Future<PositioningResult?> _internetFix() async {
     final fix = await _fetchIp(ipPrimaryEndpoint);
     if (fix != null) return fix;
     return _fetchIp(ipFallbackEndpoint);
   }
 
-  static (double, double, String?)? _tupleOf(GeolocationFix? fix) =>
+  static (double, double, String?)? _tupleOf(PositioningResult? fix) =>
       fix == null ? null : (fix.latitude, fix.longitude, fix.locationName);
 
   /// ipinfo.io uses `loc` ("lat,lon"); ipwho.is / ipapi.co use
@@ -297,104 +241,241 @@ class GeolocationService {
     return hits;
   }
 
-  /// Resolve this machine's position: the device's own location services
-  /// first, then — when [fallbackToIp] — the internet lookup, all in the one
-  /// call.
+  /// Scanner used for the Wi-Fi tier. Injectable so the tier ordering, the
+  /// radio-power flow and the honest-failure paths are all driven in tests
+  /// without a wireless card.
+  @visibleForTesting
+  static WifiScanner Function() scannerFactory = WifiScanner.new;
+
+  /// Resolve this machine's position as precisely as the machine allows.
   ///
-  /// Most observatory desktops have no GPS receiver, so the device attempt
-  /// fails and the IP estimate is what answers; that is what makes Detect
-  /// location work on those machines at all. Both Settings and the first-run
-  /// wizard pass `fallbackToIp: true` and show the shared consent dialog
-  /// first, since the fallback sends the machine's public IP to ipinfo.io /
-  /// ipwho.is over HTTPS.
+  /// Three tiers, tried in order, stopping at the first fix inside
+  /// [PositioningResult.preciseMetres]:
   ///
-  /// The returned [GeolocationFix] says which path answered and the accuracy
-  /// the provider reported (metres for a device fix, none for the internet
-  /// services), so the confirmation can name what it just wrote.
-  static Future<GeolocationFix?> fetchLocationFromGPS({
-    bool fallbackToIp = true,
+  ///  1. **The platform's own location service.** Free and offline where it
+  ///     works: Windows Location Services fuses Wi-Fi and IP and reports a
+  ///     radius in metres. It is also absent on most observatory desktops —
+  ///     GeoClue is not installed on a typical Linux box — and when it does
+  ///     answer it may answer with the same IP-derived kilometres as tier 3.
+  ///  2. **A Wi-Fi scan resolved by a positioning service.** This is the tier
+  ///     that puts the rig in its own yard: the BSSIDs of the radios within
+  ///     earshot, with how loud each one is, trilaterate to tens of metres
+  ///     where the service has coverage. Google first when the operator has
+  ///     supplied a key (much larger map), then key-free beaconDB.
+  ///  3. **The public-IP estimate.** Always available, never precise: it
+  ///     resolves the internet provider's hand-off, which is a town over.
+  ///
+  /// A coarse answer from an earlier tier does not stop the search, and the
+  /// smallest radius wins, so a 25 km platform answer can never beat a 40 m
+  /// Wi-Fi one. Every tier's outcome is reported whether or not it answered,
+  /// so a total failure names its causes.
+  ///
+  /// [mayEnableWifiRadio] is the only thing here that changes the machine's
+  /// state: with it set, a switched-off radio is switched on for the scan and
+  /// switched back off afterwards. It is false on the first attempt and set
+  /// only by an explicit "Turn Wi-Fi on for a precise fix" click.
+  static Future<PositioningAttempt> locate({
+    required bool allowWifiScan,
+    required bool allowIp,
+    bool mayEnableWifiRadio = false,
+    String? googleApiKey,
   }) async {
+    final outcomes = <TierOutcome>[];
+    PositioningResult? best;
+    var wifiRadioOff = false;
+    var wifiRadioCanBeEnabled = false;
+
+    void consider(PositioningResult? candidate) {
+      if (candidate == null) return;
+      if (best == null || candidate.accuracyRank < best!.accuracyRank) {
+        best = candidate;
+      }
+    }
+
+    bool done() => best?.isPrecise ?? false;
+
+    final platform = await _platformServiceFix();
+    outcomes.add(platform.$2);
+    consider(platform.$1);
+
+    if (!done() && allowWifiScan) {
+      final scanner = scannerFactory();
+      var enabledHere = false;
+      try {
+        if (mayEnableWifiRadio && await scanner.radioIsOff()) {
+          enabledHere = await scanner.enableRadio();
+        }
+        final outcome = await scanner.scan();
+        switch (outcome) {
+          case WifiScanOk(:final accessPoints):
+            final fix = await _wifiFix(accessPoints, googleApiKey);
+            consider(fix);
+            outcomes.add(
+              TierOutcome(
+                tier: PositioningTier.wifiScan,
+                succeeded: fix != null,
+                detail: fix != null
+                    ? outcome.detail
+                    : '${outcome.detail} No positioning service has mapped '
+                          'them, so they give no fix here.',
+              ),
+            );
+          case WifiScanRadioOff():
+            wifiRadioOff = true;
+            wifiRadioCanBeEnabled = scanner.canToggleRadio;
+            outcomes.add(
+              TierOutcome(
+                tier: PositioningTier.wifiScan,
+                succeeded: false,
+                detail: outcome.detail,
+              ),
+            );
+          case WifiScanNoAdapter():
+          case WifiScanNoNetworks():
+          case WifiScanUnsupportedPlatform():
+            outcomes.add(
+              TierOutcome(
+                tier: PositioningTier.wifiScan,
+                succeeded: false,
+                detail: outcome.detail,
+              ),
+            );
+        }
+      } finally {
+        // Restore the radio the operator left off, whatever happened above.
+        if (enabledHere) await scanner.disableRadio();
+      }
+    }
+
+    if (!done() && allowIp) {
+      final fix = await _internetFix();
+      consider(fix);
+      outcomes.add(
+        TierOutcome(
+          tier: PositioningTier.ipAddress,
+          succeeded: fix != null,
+          detail: fix != null
+              ? 'Your internet provider places you near '
+                    '${fix.locationName ?? 'the coordinates shown'}.'
+              : 'Neither ${ipPrimaryEndpoint.host} nor '
+                    '${ipFallbackEndpoint.host} answered.',
+        ),
+      );
+    }
+
+    return PositioningAttempt(
+      fix: best,
+      outcomes: outcomes,
+      wifiRadioOff: wifiRadioOff,
+      wifiRadioCanBeEnabled: wifiRadioCanBeEnabled,
+    );
+  }
+
+  /// Google when the operator supplied a key, then beaconDB.
+  ///
+  /// Google first because coverage is the whole reason a key is worth
+  /// entering: beaconDB is volunteer-mapped and has none in plenty of
+  /// suburbs. beaconDB still runs after a Google refusal — a mistyped or
+  /// expired key must not cost the tier entirely.
+  static Future<PositioningResult?> _wifiFix(
+    List<WifiAccessPoint> accessPoints,
+    String? googleApiKey,
+  ) async {
+    final key = googleApiKey?.trim();
+    if (key != null && key.isNotEmpty) {
+      final google = await WifiPositioningProvider.locate(
+        accessPoints: accessPoints,
+        endpoint: WifiPositioningProvider.googleEndpoint(key),
+        provider: WifiPositioningProvider.googleName,
+        clientFactory: clientFactory,
+      );
+      if (google != null) return google;
+    }
+    return WifiPositioningProvider.locate(
+      accessPoints: accessPoints,
+      endpoint: WifiPositioningProvider.beaconDbEndpoint,
+      provider: WifiPositioningProvider.beaconDbName,
+      clientFactory: clientFactory,
+    );
+  }
+
+  /// What the platform's location stack calls itself, so the confirmation can
+  /// name it rather than saying "the device".
+  static String get _platformServiceName => switch (Platform.operatingSystem) {
+    'windows' => 'Windows Location Services',
+    'macos' => 'macOS Location Services',
+    'linux' => 'GeoClue',
+    final other => other,
+  };
+
+  /// Tier 1: the operating system's own location service, via `geolocator`.
+  ///
+  /// Returns the fix and the line describing what happened, because "there is
+  /// no location service on this machine" and "you denied it" are different
+  /// things to tell the operator and neither is visible from a null.
+  static Future<(PositioningResult?, TierOutcome)> _platformServiceFix() async {
+    TierOutcome failed(String detail) => TierOutcome(
+      tier: PositioningTier.platformService,
+      succeeded: false,
+      detail: detail,
+    );
+
     try {
-      // Check if location services are enabled on the device
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        developer.log(
-          '[Geolocation] Location services are disabled on device',
-          name: 'GeolocationService',
-          level: 900,
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return (
+          null,
+          failed('This machine’s location service is switched off.'),
         );
-        return fallbackToIp ? await _internetFix() : null;
       }
 
-      // Check and request permission
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          developer.log(
-            '[Geolocation] Location permission denied by user',
-            name: 'GeolocationService',
-            level: 900,
-          );
-          return fallbackToIp ? await _internetFix() : null;
-        }
       }
-
-      if (permission == LocationPermission.deniedForever) {
-        developer.log(
-          '[Geolocation] Location permissions are permanently denied',
-          name: 'GeolocationService',
-          level: 900,
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return (
+          null,
+          failed('Nightshade is not permitted to use this machine’s '
+              'location service.'),
         );
-        return fallbackToIp ? await _internetFix() : null;
       }
 
-      // Get current position
-      // Use best accuracy for precise astronomical positioning
-      final Position position = await Geolocator.getCurrentPosition(
+      final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
           timeLimit: Duration(seconds: 10),
         ),
       );
 
-      // Get location name from reverse geocoding if available
-      String? locationName;
-      try {
-        // Note: Reverse geocoding requires platform-specific setup
-        // Use coordinates only. Integrate reverse geocoding when platform support is enabled
-        // geocoding package or use a reverse geocoding API
-        locationName =
-            'GPS: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-      } catch (e) {
-        // Geocoding failed, use simple coordinates
-        locationName = 'GPS Location';
-      }
-
-      return GeolocationFix(
+      // geolocator reports 0.0 when the platform measured no accuracy at all.
+      // Carried through as a real radius it would claim a surveyed fix and
+      // stop the search at tier 1; as null it ranks below every tier that
+      // does report one.
+      final accuracy = position.accuracy > 0 ? position.accuracy : null;
+      final fix = PositioningResult(
         latitude: position.latitude,
         longitude: position.longitude,
-        locationName: locationName,
-        source: GeolocationSource.device,
-        // The platform reports 0.0 when it measured no accuracy;
-        // describeSource treats that as "none" rather than claiming a
-        // perfect fix.
-        accuracyMeters: position.accuracy,
+        source: PositioningSource.platformService,
+        provider: _platformServiceName,
+        accuracyMetres: accuracy,
+      );
+      return (
+        fix,
+        TierOutcome(
+          tier: PositioningTier.platformService,
+          succeeded: true,
+          detail: fix.explanation,
+        ),
       );
     } catch (e) {
-      // GPS failed (timeout, no GPS hardware, etc.)
       developer.log(
-        '[Geolocation] GPS location fetch failed: $e',
+        '[Geolocation] Platform location service failed: $e',
         name: 'GeolocationService',
         level: 900,
         error: e,
       );
-
-      return fallbackToIp ? await _internetFix() : null;
+      return (null, failed('This machine has no working location service.'));
     }
   }
-
-  /// Get the best available location: the device first, then the internet
-  /// lookup. This is the recommended method for most use cases.
-  static Future<GeolocationFix?> getBestLocation() => fetchLocationFromGPS();
 }

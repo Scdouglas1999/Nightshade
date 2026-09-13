@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -26,14 +27,21 @@ typedef HorizonImportReader = Future<String> Function(
   file_selector.XFile file,
 );
 
-/// Resolves this machine's position: the device GPS when the machine has
-/// one, the HTTPS IP lookup (ipinfo.io, falling back to ipwho.is) when it
-/// does not — one click covers a desktop with no receiver. Injected so the
-/// consent + write flow can be driven in tests without a network or a GPS.
-typedef DeviceLocationFetcher = Future<GeolocationFix?> Function();
+/// Resolves this machine's position through the three positioning tiers —
+/// the platform's location service, a Wi-Fi scan resolved by a positioning
+/// service, then the public-IP estimate — and reports what each one did.
+/// Injected so the consent, radio-power and write flows can be driven in
+/// tests without a network, a GPS or a wireless card.
+typedef SiteLocator =
+    Future<PositioningAttempt> Function({
+      required bool allowWifiScan,
+      required bool allowIp,
+      bool mayEnableWifiRadio,
+      String? googleApiKey,
+    });
 
-final deviceLocationFetcherProvider = Provider<DeviceLocationFetcher>(
-  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: true),
+final siteLocatorProvider = Provider<SiteLocator>(
+  (ref) => GeolocationService.locate,
 );
 
 typedef PlaceSearcher = Future<List<PlaceSearchHit>> Function(String query);
@@ -80,6 +88,17 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   bool _legacyTimezoneMigrated = false;
   bool _placeSearching = false;
   List<PlaceSearchHit> _placeHits = const [];
+  bool _detecting = false;
+
+  /// Set when a detect ran and the precise Wi-Fi tier was skipped because the
+  /// radio is off. It is the one failure the operator can fix from this page,
+  /// so the offer to fix it only appears once we know it applies — a row
+  /// advertising Wi-Fi on a machine with no wireless card would be noise.
+  bool _wifiRadioOffersPrecision = false;
+
+  final _googleKeyController = TextEditingController();
+  final _googleKeyFocus = FocusNode();
+  bool _googleKeySeeded = false;
 
   @override
   void initState() {
@@ -87,6 +106,14 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     for (final dir in horizonDirections) {
       _horizonControllers[dir] = TextEditingController();
     }
+    // Commit on blur as well as on Enter: a pasted key followed by a click
+    // elsewhere is the normal way this field gets filled, and losing it there
+    // would look like the key was rejected.
+    _googleKeyFocus.addListener(() {
+      if (!_googleKeyFocus.hasFocus) {
+        unawaited(_saveGoogleKey(_googleKeyController.text));
+      }
+    });
   }
 
   @override
@@ -95,6 +122,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     _lonController.dispose();
     _elevController.dispose();
     _placeSearchController.dispose();
+    _googleKeyController.dispose();
+    _googleKeyFocus.dispose();
     for (final c in _horizonControllers.values) {
       c.dispose();
     }
@@ -127,6 +156,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       data: (settings) {
         final authority = ref.watch(backendProvider);
         final isRemoteMode = ref.watch(isRemoteModeProvider);
+        final storedGoogleKey = ref.watch(googleGeolocationKeyProvider).value;
+        if (storedGoogleKey != null) _seedGoogleKey(storedGoogleKey);
         final horizonProfile =
             LegacyHorizonProfile.fromJson(settings.horizonProfileJson);
         _migrateLegacyTimezone(settings);
@@ -372,17 +403,68 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   ),
                 SettingRow(
                   icon: LucideIcons.locate,
-                  // Not "GPS": the same click tries the machine's GPS first
-                  // and then the internet lookup, and the subtitle says both.
+                  // Not "GPS": the same click walks all three tiers, and the
+                  // subtitle names the one that actually gets you a yard.
                   title: 'Detect location',
-                  subtitle: 'Uses this machine’s GPS if it has one, '
-                      'otherwise your internet connection.',
+                  subtitle: 'Nearby Wi-Fi networks place you to within '
+                      'about 100 m. Falls back to this machine’s GPS or '
+                      'your internet address.',
                   trailing: NightshadeIconButton(
                     icon: LucideIcons.crosshair,
                     tooltip: 'Detect this location',
                     color: NightshadeColors.of(context).primary,
-                    onPressed: () => _detectLocation(settings),
+                    onPressed: _detecting ? null : () => _detectLocation(),
                   ),
+                  isLast: !_wifiRadioOffersPrecision,
+                  isMobile: widget.isMobile,
+                ),
+                if (_wifiRadioOffersPrecision)
+                  SettingRow(
+                    icon: LucideIcons.wifi,
+                    title: 'Turn Wi-Fi on for a precise fix',
+                    subtitle: 'Wi-Fi is switched off, so the precise scan was '
+                        'skipped. Nightshade will switch it on, scan for '
+                        'nearby networks, and switch it back off.',
+                    trailing: NightshadeButton(
+                      label: 'Scan',
+                      variant: ButtonVariant.secondary,
+                      size: ButtonSize.small,
+                      isLoading: _detecting,
+                      onPressed: _detecting
+                          ? null
+                          : () => _detectLocation(mayEnableWifiRadio: true),
+                    ),
+                    isLast: true,
+                    isMobile: widget.isMobile,
+                  ),
+              ],
+            ),
+            SettingsSection(
+              title: 'Advanced',
+              isMobile: widget.isMobile,
+              children: [
+                SettingRow(
+                  icon: LucideIcons.key,
+                  title: 'Google Geolocation API key',
+                  subtitle: 'Optional. beaconDB, the key-free service Detect '
+                      'location uses, is mapped by volunteers and has no '
+                      'coverage in plenty of places; with a key from Google '
+                      'Cloud’s Geolocation API the same list of nearby '
+                      'networks goes to a far larger map first. The key is '
+                      'stored on this machine and sent only to Google.',
+                  trailing: SizedBox(
+                    width: widget.isMobile ? 180 : 240,
+                    child: NightshadeTextField(
+                      controller: _googleKeyController,
+                      focusNode: _googleKeyFocus,
+                      hint: 'Paste a key, or leave empty',
+                      obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      onSubmitted: (value) => unawaited(_saveGoogleKey(value)),
+                    ),
+                  ),
+                  controlFlex: 2,
                   isLast: true,
                   isMobile: widget.isMobile,
                 ),
@@ -649,28 +731,63 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     );
   }
 
+  /// Seed the Google key field from storage once, and keep it in step with
+  /// whatever the store holds. The field is the operator's text while they
+  /// are typing, so it is seeded rather than rebuilt from the provider.
+  void _seedGoogleKey(String stored) {
+    if (_googleKeySeeded) return;
+    _googleKeySeeded = true;
+    _googleKeyController.text = stored;
+  }
+
+  Future<void> _saveGoogleKey(String value) async {
+    final notifier = ref.read(googleGeolocationKeyProvider.notifier);
+    if (ref.read(googleGeolocationKeyProvider).value == value.trim()) return;
+    await notifier.setKey(value);
+    if (!mounted) return;
+    context.showSuccessSnackBar(
+      value.trim().isEmpty
+          ? 'Google key cleared. Detect location will use beaconDB only.'
+          : 'Google key saved. Detect location will ask Google first.',
+    );
+  }
+
   /// Resolve this machine's position, with consent, and never leave the
   /// site in a state that does not exist.
   ///
-  /// Two rules. ASK before the lookup: on a desktop with no GPS the service
-  /// falls back to a third-party IP lookup, and this app is often run on an
-  /// isolated observatory network. And never mix a new fix with a stale
+  /// Three rules. ASK before the lookup, once per session, naming each tier
+  /// that will run: the Wi-Fi tier sends the names of the networks around the
+  /// house and the IP tier sends a public address, and this app is often run
+  /// on an isolated observatory network. NEVER mix a new fix with a stale
   /// elevation: carrying the old value through gives a site that does not
-  /// exist, feeding refraction and horizon maths.
-  Future<void> _detectLocation(AppSettingsState settings) async {
+  /// exist, feeding refraction and horizon maths. And never CHANGE the
+  /// machine unasked — [mayEnableWifiRadio] is set only by the explicit "Turn
+  /// Wi-Fi on for a precise fix" row, and the radio is switched back off
+  /// afterwards.
+  Future<void> _detectLocation({bool mayEnableWifiRadio = false}) async {
+    if (_detecting) return;
+    final googleKey = ref.read(googleGeolocationKeyProvider).value ?? '';
     // Shared with the first-run wizard's site step, which fires the same
     // service: one dialog means the two surfaces cannot describe the outbound
     // request differently, or one of them forget to ask.
-    final consented = await confirmGeolocationLookup(
+    final consented = await ensureGeolocationConsent(
       context,
+      ref,
       outcome: kGeolocationWritesSiteOutcome,
-      includeIpFallback: true,
+      googleKeyPresent: googleKey.isNotEmpty,
     );
     if (!consented || !mounted) return;
 
+    setState(() => _detecting = true);
     try {
       final actionAuthority = ref.read(backendProvider);
-      final location = await ref.read(deviceLocationFetcherProvider)();
+      final settings = ref.read(appSettingsProvider).value;
+      final attempt = await ref.read(siteLocatorProvider)(
+        allowWifiScan: true,
+        allowIp: true,
+        mayEnableWifiRadio: mayEnableWifiRadio,
+        googleApiKey: googleKey.isEmpty ? null : googleKey,
+      );
       if (!mounted || !identical(ref.read(backendProvider), actionAuthority)) {
         if (mounted) {
           context.showWarningSnackBar(
@@ -680,10 +797,14 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
         }
         return;
       }
-      if (location == null) {
+      setState(() => _wifiRadioOffersPrecision = attempt.canRetryWithWifi);
+
+      final location = attempt.fix;
+      if (location == null || settings == null) {
         context.showWarningSnackBar(
-          'No fix from this machine or the internet lookup. Search for a '
-          'place by name, or enter coordinates.',
+          'No position from Wi-Fi, this machine, or the internet lookup. '
+          '${attempt.failureDetail} Search for a place by name, or enter '
+          'coordinates.',
         );
         return;
       }
@@ -705,26 +826,31 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       final where = location.locationName ??
           '${lat.toStringAsFixed(4)}, '
               '${lon.toStringAsFixed(4)}';
-      // An internet fix is an ISP-level estimate; the operator is pointed at
-      // the accurate paths in case it landed a town over.
-      final refine = location.source == GeolocationSource.internet
-          ? ' Refine with Search place or the map if it is off.'
-          : '';
       context.showSuccessSnackBar(
-        keepElevation
-            ? 'Coordinates set to $where — ${location.describeSource()}. '
-                'Elevation kept at '
-                '${settings.elevation.toStringAsFixed(0)} m.$refine'
-            : 'Coordinates set to $where — ${location.describeSource()}. '
-                'Elevation cleared to 0 m — enter the elevation for this '
-                'site.$refine',
+        'Coordinates set to $where. ${location.explanation} '
+        '${keepElevation ? 'Elevation kept at '
+            '${settings.elevation.toStringAsFixed(0)} m.' : 'Elevation '
+            'cleared to 0 m — enter the elevation for this site.'} '
+        '${_refinementNudge(attempt)}',
       );
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Could not detect a location: $e');
       }
+    } finally {
+      if (mounted) setState(() => _detecting = false);
     }
   }
+
+  /// What to do about a fix that may be wrong.
+  ///
+  /// A switched-off radio is the one cause the operator can remove, so it
+  /// takes priority over the generic nudge — pointing someone at the map when
+  /// a precise fix is one click away is the worse advice.
+  static String _refinementNudge(PositioningAttempt attempt) =>
+      attempt.canRetryWithWifi
+          ? 'Turn Wi-Fi on for a precise fix.'
+          : 'Refine on the map if it is off.';
 
   /// Import a horizon obstruction profile from a Stellarium-style `.hor` file
   /// or a CSV of `azimuth,altitude` pairs. Every sample is persisted, and the
