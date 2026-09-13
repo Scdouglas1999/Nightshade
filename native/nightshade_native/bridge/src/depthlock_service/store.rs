@@ -290,7 +290,7 @@ impl GoalStore {
             let id = path
                 .file_stem()
                 .and_then(|s| s.to_str())
-                .unwrap_or_default()
+                .unwrap_or_default() // Why: a non-UTF-8 file stem yields "", which valid_goal_id below rejects
                 .to_string();
             if !valid_goal_id(&id) {
                 return Err(format!(

@@ -1039,8 +1039,7 @@ class DepthGoalSelector extends ConsumerWidget {
               ),
               const SizedBox(width: NightshadeTokens.spaceXs),
               Tooltip(
-                message:
-                    'Finish this filter early once the goal is reliably '
+                message: 'Finish this filter early once the goal is reliably '
                     'achieved. Count, time, visibility and safety limits '
                     'still apply.',
                 triggerMode: TooltipTriggerMode.tap,
@@ -1083,29 +1082,27 @@ class DepthGoalSelector extends ConsumerWidget {
         if (binding != null && bound == null)
           _DepthGoalNote(
             colors: colors,
-            text:
-                'This plan is bound to a goal that is no longer on the host. '
+            text: 'This plan is bound to a goal that is no longer on the host. '
                 'It runs to its count.',
             tone: ChipTone.warning,
           ),
         if (staleRevision)
           _DepthGoalNote(
             colors: colors,
-            text:
-                'Goal was edited; rebind. The plan is bound to revision '
+            text: 'Goal was edited; rebind. The plan is bound to revision '
                 '${binding.revision} and the goal is now on '
                 '${bound.revision}, so it runs to its count.',
             tone: ChipTone.warning,
             action: (
               'Rebind',
               () => onChanged(
-                plan.copyWith(
-                  depthGoal: DepthGoalBinding(
-                    goalId: bound.id,
-                    revision: bound.revision,
+                    plan.copyWith(
+                      depthGoal: DepthGoalBinding(
+                        goalId: bound.id,
+                        revision: bound.revision,
+                      ),
+                    ),
                   ),
-                ),
-              ),
             ),
           ),
         if (bound != null &&
@@ -1113,16 +1110,14 @@ class DepthGoalSelector extends ConsumerWidget {
             !bound.definition.automaticCompletion)
           _DepthGoalNote(
             colors: colors,
-            text:
-                'Advisory only — enable automatic completion on the goal to '
+            text: 'Advisory only — enable automatic completion on the goal to '
                 'let this plan finish early.',
             tone: ChipTone.neutral,
           ),
         if (bound != null && !staleRevision && loopMode)
           _DepthGoalNote(
             colors: colors,
-            text:
-                'Looping until stopped: this filter keeps going until the '
+            text: 'Looping until stopped: this filter keeps going until the '
                 'goal is reached or the target\'s window closes.',
             tone: ChipTone.neutral,
           ),
@@ -1214,8 +1209,7 @@ class _PlanCountsFromGoalsButtonState
 
   @override
   Widget build(BuildContext context) {
-    final goals =
-        ref.watch(depthLockGoalsProvider).valueOrNull ??
+    final goals = ref.watch(depthLockGoalsProvider).valueOrNull ??
         const <DepthLockGoal>[];
 
     DepthLockGoal? boundGoal(FilterPlan plan) {
@@ -1243,7 +1237,7 @@ class _PlanCountsFromGoalsButtonState
           variant: ButtonVariant.secondary,
           semanticsHint: enabled
               ? 'Set each bound filter\'s count to the exposures its goal '
-                    'still expects'
+                  'still expects'
               : 'Needs a filter bound to a goal that has a reachable forecast',
           onPressed: enabled ? () => _apply(boundGoal) : null,
         ),

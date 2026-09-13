@@ -26,10 +26,18 @@ baselines.
 
    These are **host-specific**: the GPU rasteriser and font hinting differ
    across operating systems, so a baseline captured on one host produces a
-   small but real diff on another (observed ~1.0–1.5% for `matchesGoldenFile`,
-   ~0.3% changed-fraction for the planetarium gate — both above their
-   tolerances). The committed baselines were captured on a Windows host; they
-   do not match a Linux renderer.
+   small but real diff on another (observed ~1.0–1.5% for `matchesGoldenFile`
+   — above its tolerance). The committed baselines were captured on a Windows
+   host; they do not match a Linux renderer.
+
+   The planetarium baselines additionally predate their subject: they were
+   frozen at `bd062b659` (before 6.0.0) and every intended render change since
+   — DSO sizes, the catalog tiers, HYG depth, pointer-anchored zoom — is still
+   uncaptured. Measured on Linux at `94f13cd6d` the five checkpoints report
+   1.9–4.4% changed pixels against the 0.2% limit, so a large number there is
+   the accumulated backlog plus host drift, NOT evidence of a regression. They
+   owe a Windows re-capture; do not read the figure as a fresh break without
+   one.
 
 ## The strategy
 

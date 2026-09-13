@@ -263,7 +263,18 @@ class TargetSchedulerNode extends SequenceNode {
 abstract class FilterPlan with _$FilterPlan {
   const FilterPlan._();
 
-  @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+  // `explicitToJson` because [depthGoal] is itself a model: without it
+  // `toJson()` leaves a `DepthGoalBinding` OBJECT under `depth_goal` instead
+  // of its map, so the returned map is only JSON by accident — `jsonEncode`
+  // recovers it through `toEncodable`, and every other consumer of the map
+  // gets a Dart instance where the Rust side's `Option<DepthGoalBinding>`
+  // expects an object. `AdaptiveSwapSnapshot` already sets it for the same
+  // reason.
+  @JsonSerializable(
+    fieldRename: FieldRename.snake,
+    includeIfNull: true,
+    explicitToJson: true,
+  )
   const factory FilterPlan({
     /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
     /// connected filter wheel's name list when [filterIndex] is null.

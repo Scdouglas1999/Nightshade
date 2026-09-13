@@ -532,8 +532,8 @@ class _TooltipOverlay extends StatelessWidget {
       ),
     );
     return switch (pos) {
-      NightshadeTooltipPosition.top || NightshadeTooltipPosition.bottom =>
-        painted,
+      NightshadeTooltipPosition.top ||
+      NightshadeTooltipPosition.bottom => painted,
       NightshadeTooltipPosition.left => RotatedBox(
         quarterTurns: 3,
         child: painted,

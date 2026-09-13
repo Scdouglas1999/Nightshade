@@ -17,7 +17,7 @@ import 'depthlock_test_doubles.dart';
 /// asserted without a database.
 class _RecordingSettingsDao implements SettingsDao {
   _RecordingSettingsDao([Map<String, String>? seed])
-    : store = <String, String>{...?seed} {
+      : store = <String, String>{...?seed} {
     _controller.add(store[kDepthLockHintDismissedKey]);
   }
 
@@ -41,8 +41,7 @@ class _RecordingSettingsDao implements SettingsDao {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLiveStacking extends LiveStackingNotifier {
@@ -50,15 +49,16 @@ class _FakeLiveStacking extends LiveStackingNotifier {
 }
 
 CapturedImageData _solvedFrame() => CapturedImageData(
-  width: 4144,
-  height: 2822,
-  displayData: Uint8List(0),
-  histogram: const <int>[],
-  stats: const ImageStats(),
-  capturedAt: DateTime(2026, 9, 12, 22),
-  settings: const ExposureSettings(exposureTime: 300, gain: 100, offset: 50),
-  filePath: '/data/M51/L_0001.fits',
-);
+      width: 4144,
+      height: 2822,
+      displayData: Uint8List(0),
+      histogram: const <int>[],
+      stats: const ImageStats(),
+      capturedAt: DateTime(2026, 9, 12, 22),
+      settings:
+          const ExposureSettings(exposureTime: 300, gain: 100, offset: 50),
+      filePath: '/data/M51/L_0001.fits',
+    );
 
 Future<_RecordingSettingsDao> _pumpHint(
   WidgetTester tester, {

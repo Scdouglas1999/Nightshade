@@ -148,7 +148,7 @@ class _ObservationLogSettingsState
                         const SizedBox(height: 16),
                         Text(
                           logs.isEmpty
-                              ? 'No observations logged yet.\nTap an object in the planetarium and use "Log Observation".'
+                              ? 'No observations logged yet.\nTap an object in the planetarium and use "Log observation".'
                               : 'No observations match your search.',
                           textAlign: TextAlign.center,
                           style: NightshadeTypography.body.copyWith(

@@ -125,8 +125,7 @@ class _GoalList extends ConsumerWidget {
           ],
           if (status != null && status.available && status.dropped > 0) ...[
             NightshadeInlineBanner(
-              message:
-                  '${status.dropped} frames were not analysed because the '
+              message: '${status.dropped} frames were not analysed because the '
                   'analysis queue was full. They are still on disk — offer '
                   'them to a goal with "Add frames".',
               severity: NightshadeAlertSeverity.warning,
@@ -142,9 +141,7 @@ class _GoalList extends ConsumerWidget {
             ),
             const SizedBox(height: SidePanel.sectionGap),
           ],
-
           _SelectionCard(building: building),
-
           const SizedBox(height: SidePanel.sectionGap),
           SectionTitle(
             icon: NightshadeIcons.list,
@@ -159,9 +156,8 @@ class _GoalList extends ConsumerWidget {
               size: IconButtonSize.sm,
               selected: overlayVisible,
               onPressed: () => ref
-                      .read(depthLockGoalOverlayVisibleProvider.notifier)
-                      .state =
-                  !overlayVisible,
+                  .read(depthLockGoalOverlayVisibleProvider.notifier)
+                  .state = !overlayVisible,
             ),
           ),
           if (allocation != null) ...<Widget>[
@@ -202,12 +198,10 @@ class _GoalList extends ConsumerWidget {
                           : selection.blocker,
                       onPressed: selection.canSelect
                           ? () => ref
-                                    .read(
-                                      depthLockRegionToolActiveProvider
-                                          .notifier,
-                                    )
-                                    .state =
-                                true
+                              .read(
+                                depthLockRegionToolActiveProvider.notifier,
+                              )
+                              .state = true
                           : null,
                     ),
                   )
@@ -225,7 +219,6 @@ class _GoalList extends ConsumerWidget {
                     ],
                   ),
           ),
-
           const SizedBox(height: NightshadeTokens.spaceMd),
           Text(
             'Depth can only end a filter early. If the plan\'s count, time or '
@@ -260,8 +253,8 @@ class DepthLockGoalRow extends StatelessWidget {
     final String status = goal.lastIssue?.isNotEmpty == true
         ? goal.lastIssue!
         : (report?.reason.isNotEmpty == true
-              ? report!.reason
-              : depthLockStateCaption(goal.state));
+            ? report!.reason
+            : depthLockStateCaption(goal.state));
 
     return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.panelSectionPadding),
@@ -269,8 +262,7 @@ class DepthLockGoalRow extends StatelessWidget {
       enableHover: true,
       child: Semantics(
         button: true,
-        label:
-            '${goal.definition.label}, ${goal.definition.filterName}, '
+        label: '${goal.definition.label}, ${goal.definition.filterName}, '
             '${depthLockStateLabel(goal.state)}',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -381,20 +373,19 @@ class _SelectionCard extends ConsumerWidget {
                 semanticsHint: toolActive
                     ? 'Leave the region tool and discard the boxes'
                     : (selection.canSelect
-                          ? 'Drag two boxes on the frame to define a depth '
-                                'goal'
-                          : selection.blocker),
+                        ? 'Drag two boxes on the frame to define a depth '
+                            'goal'
+                        : selection.blocker),
                 onPressed: selection.canSelect && !building
                     ? () {
                         if (toolActive) {
                           cancelDepthLockRegionTool(ref);
                         } else {
                           ref
-                                  .read(
-                                    depthLockRegionToolActiveProvider.notifier,
-                                  )
-                                  .state =
-                              true;
+                              .read(
+                                depthLockRegionToolActiveProvider.notifier,
+                              )
+                              .state = true;
                         }
                       }
                     : null,
@@ -405,9 +396,7 @@ class _SelectionCard extends ConsumerWidget {
                   icon: NightshadeIcons.check,
                   size: ButtonSize.small,
                   semanticsHint: 'Open the goal editor for the two boxes',
-                  onPressed: building
-                      ? null
-                      : () => commitDepthLockRegion(ref),
+                  onPressed: building ? null : () => commitDepthLockRegion(ref),
                 ),
               if (!draft.isEmpty)
                 NightshadeButton(
@@ -471,8 +460,7 @@ class _DepthLockGoalDetailState extends ConsumerState<DepthLockGoalDetail> {
         goalId: goal.id,
         expectedRevision: goal.revision,
         enabled: enabled ?? goal.definition.enabled,
-        automaticCompletion:
-            automatic ?? goal.definition.automaticCompletion,
+        automaticCompletion: automatic ?? goal.definition.automaticCompletion,
       ),
     );
   }
@@ -483,8 +471,7 @@ class _DepthLockGoalDetailState extends ConsumerState<DepthLockGoalDetail> {
       context,
       initialDefinition: goal.definition,
       existing: goal,
-      filterChoices:
-          ref.read(activeEquipmentProfileProvider)?.filterNames ??
+      filterChoices: ref.read(activeEquipmentProfileProvider)?.filterNames ??
           const <String>[],
       dark: DepthLockMasterChoice(path: goal.definition.darkPath),
       flat: DepthLockMasterChoice(path: goal.definition.flatPath),
@@ -711,9 +698,8 @@ class _DepthLockGoalDetailState extends ConsumerState<DepthLockGoalDetail> {
             label: 'Collect evidence',
             compact: true,
             value: definition.enabled,
-            onChanged: _busy
-                ? null
-                : (value) => _setPreferences(enabled: value),
+            onChanged:
+                _busy ? null : (value) => _setPreferences(enabled: value),
           ),
           NightshadeSwitchRow(
             label: 'Automatic completion',
@@ -722,9 +708,8 @@ class _DepthLockGoalDetailState extends ConsumerState<DepthLockGoalDetail> {
                 'once the goal is reliably achieved.',
             compact: true,
             value: definition.automaticCompletion,
-            onChanged: _busy
-                ? null
-                : (value) => _setPreferences(automatic: value),
+            onChanged:
+                _busy ? null : (value) => _setPreferences(automatic: value),
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Wrap(
@@ -757,9 +742,8 @@ class _DepthLockGoalDetailState extends ConsumerState<DepthLockGoalDetail> {
                 variant: ButtonVariant.ghost,
                 semanticsHint:
                     'Re-evaluate the goal over the evidence it already holds',
-                onPressed: _busy
-                    ? null
-                    : () => _run(() => _goals.replayGoal(goal.id)),
+                onPressed:
+                    _busy ? null : () => _run(() => _goals.replayGoal(goal.id)),
               ),
               NightshadeButton(
                 label: 'Add frames',

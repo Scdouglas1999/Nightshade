@@ -63,7 +63,9 @@ class _FakeLocalStackingService extends LiveStackingService {
   }
 }
 
-ProviderContainer _localContainer(_FakeLocalStackingService Function(Ref) build) {
+ProviderContainer _localContainer(
+  _FakeLocalStackingService Function(Ref) build,
+) {
   final container = ProviderContainer(
     overrides: [
       inMemoryDatabaseOverride(),
@@ -118,17 +120,20 @@ void main() {
     expect(container.read(liveStackingProvider).referenceImagePath, isNull);
   });
 
-  test('a reset starts the evidence over and drops the old reference', () async {
-    final container = _localContainer(_FakeLocalStackingService.new);
-    final notifier = container.read(liveStackingProvider.notifier);
+  test(
+    'a reset starts the evidence over and drops the old reference',
+    () async {
+      final container = _localContainer(_FakeLocalStackingService.new);
+      final notifier = container.read(liveStackingProvider.notifier);
 
-    await notifier.startFromFile('/data/m42/light_0001.fits');
-    await notifier.reset();
+      await notifier.startFromFile('/data/m42/light_0001.fits');
+      await notifier.reset();
 
-    // Reset rebuilds the session from scratch; the frames it had were
-    // registered onto a reference the new stack no longer holds.
-    expect(container.read(liveStackingProvider).referenceImagePath, isNull);
-  });
+      // Reset rebuilds the session from scratch; the frames it had were
+      // registered onto a reference the new stack no longer holds.
+      expect(container.read(liveStackingProvider).referenceImagePath, isNull);
+    },
+  );
 
   test('a second session replaces the first session\'s reference', () async {
     final container = _localContainer(_FakeLocalStackingService.new);
@@ -177,7 +182,10 @@ void main() {
 
     // A path on a stack that does not exist would be a claim about geometry
     // nothing is aligned to.
-    expect(container.read(liveStackingProvider).status, LiveStackingStatus.error);
+    expect(
+      container.read(liveStackingProvider).status,
+      LiveStackingStatus.error,
+    );
     expect(container.read(liveStackingProvider).referenceImagePath, isNull);
   });
 
@@ -187,20 +195,21 @@ void main() {
       () => backend.stackingStart(config: any(named: 'config')),
     ).thenAnswer((_) async => const LiveStackingStats());
     when(backend.stackingGetResult).thenAnswer(
-      (_) async =>
-          const LiveStackingResult(
-            width: 1,
-            height: 1,
-            data: [1],
-            stats: LiveStackingStats(stackedFrameCount: 1),
-          ),
+      (_) async => const LiveStackingResult(
+        width: 1,
+        height: 1,
+        data: [1],
+        stats: LiveStackingStats(stackedFrameCount: 1),
+      ),
     );
     when(backend.stackingStop).thenAnswer((_) async {});
 
     final container = ProviderContainer(
       overrides: [
         inMemoryDatabaseOverride(),
-        backendProvider.overrideWith((ref) => _RemoteBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _RemoteBackendNotifier(ref, backend),
+        ),
         loggingServiceProvider.overrideWithValue(LoggingService()),
       ],
     );

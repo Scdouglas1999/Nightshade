@@ -5,9 +5,7 @@
 // dump as `panel: Ha [DISABLED]` / `button: Light [DISABLED]` while clicking
 // them drives the wheel. These pin both surfaces.
 
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/capture_settings_panel.dart';
 import 'package:nightshade_app/widgets/filter_wheel_selector.dart';

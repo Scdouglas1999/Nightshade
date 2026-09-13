@@ -11,37 +11,37 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'depthlock_test_doubles.dart';
 
 List<DepthLockCurvePoint> _curve() => <DepthLockCurvePoint>[
-  const DepthLockCurvePoint(
-    frames: 32,
-    score: 3.0,
-    conservativeScore: 2.1,
-    projected: false,
-  ),
-  const DepthLockCurvePoint(
-    frames: 44,
-    score: 3.6,
-    conservativeScore: 2.8,
-    projected: false,
-  ),
-  const DepthLockCurvePoint(
-    frames: 60,
-    score: 4.4,
-    conservativeScore: 3.6,
-    projected: false,
-  ),
-  const DepthLockCurvePoint(
-    frames: 78,
-    score: 5.2,
-    conservativeScore: 4.4,
-    projected: true,
-  ),
-  const DepthLockCurvePoint(
-    frames: 96,
-    score: 5.9,
-    conservativeScore: 5.1,
-    projected: true,
-  ),
-];
+      const DepthLockCurvePoint(
+        frames: 32,
+        score: 3.0,
+        conservativeScore: 2.1,
+        projected: false,
+      ),
+      const DepthLockCurvePoint(
+        frames: 44,
+        score: 3.6,
+        conservativeScore: 2.8,
+        projected: false,
+      ),
+      const DepthLockCurvePoint(
+        frames: 60,
+        score: 4.4,
+        conservativeScore: 3.6,
+        projected: false,
+      ),
+      const DepthLockCurvePoint(
+        frames: 78,
+        score: 5.2,
+        conservativeScore: 4.4,
+        projected: true,
+      ),
+      const DepthLockCurvePoint(
+        frames: 96,
+        score: 5.9,
+        conservativeScore: 5.1,
+        projected: true,
+      ),
+    ];
 
 Future<void> _pumpChart(
   WidgetTester tester, {

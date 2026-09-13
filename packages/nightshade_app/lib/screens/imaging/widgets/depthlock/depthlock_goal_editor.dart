@@ -123,21 +123,17 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
     text: widget.initialDefinition.measurement.systematicFloorSource,
   );
 
-  late DepthLockMeasurement _measurement =
-      widget.initialDefinition.measurement;
+  late DepthLockMeasurement _measurement = widget.initialDefinition.measurement;
   late String _filterName = widget.initialDefinition.filterName;
   late int? _filterIndex = widget.initialDefinition.filterIndex;
-  late DepthLockMasterChoice _dark =
-      widget.dark ??
+  late DepthLockMasterChoice _dark = widget.dark ??
       DepthLockMasterChoice(path: widget.initialDefinition.darkPath);
-  late DepthLockMasterChoice _flat =
-      widget.flat ??
+  late DepthLockMasterChoice _flat = widget.flat ??
       DepthLockMasterChoice(path: widget.initialDefinition.flatPath);
   late double _temperatureTolerance =
       widget.initialDefinition.temperatureToleranceC;
   late bool _enabled = widget.initialDefinition.enabled;
-  late bool _automaticCompletion =
-      widget.initialDefinition.automaticCompletion;
+  late bool _automaticCompletion = widget.initialDefinition.automaticCompletion;
 
   bool _overrideFilter = false;
   bool _advancedOpen = false;
@@ -172,7 +168,8 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
     super.initState();
     // A revision reopened with a floor the operator typed keeps it as theirs;
     // a fresh goal (seed defaults) and a derived floor defer to the masters.
-    final storedSource = widget.initialDefinition.measurement.systematicFloorSource;
+    final storedSource =
+        widget.initialDefinition.measurement.systematicFloorSource;
     _manualFloor = widget.isRevision &&
         storedSource.trim().isNotEmpty &&
         !storedSource.startsWith(_derivedSourcePrefix);
@@ -291,18 +288,18 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
   }
 
   DepthLockGoalDefinition _definition() => widget.initialDefinition.copyWith(
-    label: _label.text.trim(),
-    filterName: _filterName,
-    filterIndex: _filterIndex,
-    darkPath: _dark.path,
-    flatPath: _flat.path,
-    temperatureToleranceC: _temperatureTolerance,
-    measurement: _measurement.copyWith(
-      systematicFloorSource: _floorSource.text.trim(),
-    ),
-    enabled: _enabled,
-    automaticCompletion: _automaticCompletion,
-  );
+        label: _label.text.trim(),
+        filterName: _filterName,
+        filterIndex: _filterIndex,
+        darkPath: _dark.path,
+        flatPath: _flat.path,
+        temperatureToleranceC: _temperatureTolerance,
+        measurement: _measurement.copyWith(
+          systematicFloorSource: _floorSource.text.trim(),
+        ),
+        enabled: _enabled,
+        automaticCompletion: _automaticCompletion,
+      );
 
   Future<void> _save() async {
     setState(() {
@@ -358,10 +355,9 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
     );
     final bool floorReady = _manualFloor
         ? _measurement.systematicFloorAdu > 0 &&
-              _floorSource.text.trim().isNotEmpty
+            _floorSource.text.trim().isNotEmpty
         : _floor != null;
-    final bool ready =
-        _measurementIssue == null &&
+    final bool ready = _measurementIssue == null &&
         _apertureCount != null &&
         _label.text.trim().isNotEmpty &&
         _dark.isSet &&
@@ -405,7 +401,6 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
             ),
             const SizedBox(height: SidePanel.sectionGap),
           ],
-
           const SectionTitle(icon: NightshadeIcons.tag, title: 'Goal'),
           FormRow(
             label: 'Name',
@@ -481,7 +476,6 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
               ),
             ),
           ],
-
           const SizedBox(height: SidePanel.sectionGap),
           const SectionTitle(
             icon: NightshadeIcons.target,
@@ -516,7 +510,6 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
             apertureCount: _apertureCount,
             issue: _measurementIssue,
           ),
-
           const SizedBox(height: SidePanel.sectionGap),
           const SectionTitle(
             icon: NightshadeIcons.layers,
@@ -553,7 +546,6 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
               color: colors.textMuted,
             ),
           ),
-
           const SizedBox(height: SidePanel.sectionGap),
           const SectionTitle(
             icon: NightshadeIcons.settings,
@@ -574,10 +566,8 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
                 'the goal is reliably achieved; count, time, visibility and '
                 'safety limits still apply.',
             value: _automaticCompletion,
-            onChanged: (value) =>
-                setState(() => _automaticCompletion = value),
+            onChanged: (value) => setState(() => _automaticCompletion = value),
           ),
-
           const SizedBox(height: SidePanel.sectionGap),
           Align(
             alignment: Alignment.centerLeft,
@@ -593,8 +583,7 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
                 semanticsHint:
                     'Aperture, threshold, coverage, error floor and the '
                     'reference frame this goal is anchored to',
-                onPressed: () =>
-                    setState(() => _advancedOpen = !_advancedOpen),
+                onPressed: () => setState(() => _advancedOpen = !_advancedOpen),
               ),
             ),
           ),
@@ -604,7 +593,7 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
               label: 'Aperture',
               help: _pixelScale > 0
                   ? '${(_measurement.scaleArcsec / _pixelScale).toStringAsFixed(1)} '
-                        'native pixels across (the sampler accepts 4 to 64)'
+                      'native pixels across (the sampler accepts 4 to 64)'
                   : null,
               child: InlineNumberField(
                 value: _measurement.scaleArcsec.toStringAsFixed(1),
@@ -623,8 +612,7 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
             const SizedBox(height: FormRow.rowGap),
             FormRow(
               label: 'Signal-to-noise',
-              help:
-                  'The ratio the weakest quarter of the area must reach: its '
+              help: 'The ratio the weakest quarter of the area must reach: its '
                   'light above the sky divided by the noise in that '
                   'measurement, per square. 3 is "something is there", 5 is '
                   'clearly present, 10 is clean. 3 to 100. '
@@ -778,7 +766,6 @@ class _DepthLockGoalEditorState extends ConsumerState<DepthLockGoalEditor> {
               ],
             ),
           ],
-
           if (_saveError != null) ...<Widget>[
             const SizedBox(height: SidePanel.sectionGap),
             NightshadeBanner(
@@ -886,10 +873,10 @@ class _FloorLine extends StatelessWidget {
               child: Text(
                 manual
                     ? 'Error floor ${manualAdu.toStringAsFixed(2)} ADU — '
-                          'yours (masters suggest '
-                          '${value.floorAdu.toStringAsFixed(2)})'
+                        'yours (masters suggest '
+                        '${value.floorAdu.toStringAsFixed(2)})'
                     : 'Error floor ${value.floorAdu.toStringAsFixed(2)} ADU — '
-                          'from your masters',
+                        'from your masters',
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textPrimary,
                 ),

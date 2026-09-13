@@ -180,7 +180,7 @@ class ObjectInfoTooltip extends ConsumerWidget {
               Expanded(
                 child: _TooltipActionButton(
                   icon: Icons.playlist_add,
-                  label: 'Add to List',
+                  label: 'Add to list',
                   onTap: () => _addToObservingList(ref, context),
                 ),
               ),

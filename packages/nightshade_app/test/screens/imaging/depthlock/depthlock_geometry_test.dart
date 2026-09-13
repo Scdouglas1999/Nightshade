@@ -48,8 +48,7 @@ const SolvedWcs _wcs = SolvedWcs(
   final double dec = math.asin(
     cosC * math.sin(dec0) + etaRad * sinC * math.cos(dec0) / rho,
   );
-  final double ra =
-      ra0 +
+  final double ra = ra0 +
       math.atan2(
         xiRad * sinC,
         rho * math.cos(dec0) * cosC - etaRad * math.sin(dec0) * sinC,
@@ -133,8 +132,7 @@ void main() {
       // The native converter reports the position angle of image +y as
       // `atan2(cd1_2, cd2_2)`, which for this geometry is the frame rotation
       // turned through half a circle because image +y points south.
-      rotationDeg:
-          math.atan2(geometry.cd1_2, geometry.cd2_2) * 180.0 / math.pi,
+      rotationDeg: math.atan2(geometry.cd1_2, geometry.cd2_2) * 180.0 / math.pi,
     );
 
     final corners = depthLockRectangleCorners(

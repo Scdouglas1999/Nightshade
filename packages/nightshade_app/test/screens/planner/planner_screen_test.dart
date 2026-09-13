@@ -105,18 +105,6 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
 int _selectedTabIndex(WidgetTester tester) =>
     tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar)).selectedIndex;
 
-Future<void> _tapCandidateAction(
-  WidgetTester tester,
-  String label, {
-  bool first = false,
-}) async {
-  final matches = find.widgetWithText(NightshadeButton, label);
-  final button = first ? matches.first : matches;
-  await tester.ensureVisible(button);
-  await tester.pump();
-  await tester.tap(button);
-}
-
 /// Opens the observing-list dialog.
 ///
 /// A candidate row carries ONE button (05 §9) and the SELECTED row spends it on
@@ -240,7 +228,20 @@ void main() {
     expect(search.hitTestable(), findsOneWidget);
     // The Observatory search field is the shared NightshadeTextField in its
     // dense form (05 §8: 32 normal, 28 dense), so a 34px slot still holds it.
-    expect(tester.getSize(search).height, fieldHeightDense);
+    // Measured on the field, not on the Material `TextField` inside it: the
+    // well sizes itself and gives the editable a bare line-height slot, so the
+    // inner box reports the 14px text line rather than the control's height.
+    expect(
+      tester
+          .getSize(
+            find.ancestor(
+              of: search,
+              matching: find.byType(NightshadeTextField),
+            ),
+          )
+          .height,
+      fieldHeightDense,
+    );
 
     await settleProviderTeardown(tester);
   });

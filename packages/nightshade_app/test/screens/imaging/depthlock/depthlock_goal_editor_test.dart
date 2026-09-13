@@ -103,7 +103,8 @@ void main() {
     expect(backend.lastChecked?.scaleArcsec, 20);
     expect(backend.lastChecked?.threshold, 4);
     expect(
-      find.textContaining('Structure that is only hinted at becomes believable'),
+      find.textContaining(
+          'Structure that is only hinted at becomes believable'),
       findsOneWidget,
     );
     // The floor is per-aperture, so a new preset re-derives it.
@@ -221,7 +222,8 @@ void main() {
     );
     await _openAdvanced(tester);
 
-    await tester.enterText(find.widgetWithText(NightshadeTextField, '0.42'), '1.10');
+    await tester.enterText(
+        find.widgetWithText(NightshadeTextField, '0.42'), '1.10');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 

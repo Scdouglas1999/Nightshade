@@ -72,8 +72,7 @@ final depthLockGoalsForFilterProvider =
       final wanted = filterName.trim().toLowerCase();
       return goals
           .where(
-            (goal) =>
-                goal.definition.filterName.trim().toLowerCase() == wanted,
+            (goal) => goal.definition.filterName.trim().toLowerCase() == wanted,
           )
           .toList(growable: false);
     });

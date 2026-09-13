@@ -23,13 +23,17 @@ import '../../harness/mock_database.dart';
 Finder get _saveButton => find.text('Save changes');
 
 /// Locate an optics field by hint + suffix so the finder does not depend on
-/// field ordering (mirrors profile_editor_dialog_validation_test.dart).
-Finder _fieldWithHintAndSuffix(String hint, String suffix) =>
-    find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField &&
-          widget.decoration?.hintText == hint &&
-          widget.decoration?.suffixText == suffix,
+/// field ordering (mirrors profile_editor_dialog_validation_test.dart), on
+/// [NightshadeTextField]'s own properties rather than the Material
+/// `InputDecoration` — the design-system field has never set `suffixText`.
+Finder _fieldWithHintAndSuffix(String hint, String suffix) => find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) =>
+            widget is NightshadeTextField &&
+            widget.hint == hint &&
+            widget.suffix == suffix,
+      ),
+      matching: find.byType(TextField),
     );
 
 Finder get _focalLengthField => _fieldWithHintAndSuffix('e.g., 550', 'mm');

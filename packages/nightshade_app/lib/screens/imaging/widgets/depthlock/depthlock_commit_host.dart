@@ -105,9 +105,9 @@ class _DepthLockRegionCommitHostState
     final DepthLockGoal? editTarget = editTargetId == null
         ? null
         : (ref.read(depthLockGoalsProvider).valueOrNull ??
-                  const <DepthLockGoal>[])
-              .where((goal) => goal.id == editTargetId)
-              .firstOrNull;
+                const <DepthLockGoal>[])
+            .where((goal) => goal.id == editTargetId)
+            .firstOrNull;
 
     ref.read(depthLockRegionBusyProvider.notifier).state = true;
     ref.read(depthLockRegionErrorProvider.notifier).state = null;
@@ -122,19 +122,15 @@ class _DepthLockRegionCommitHostState
         // The rectangles are in the pixels of whatever they were drawn on, so
         // that is the grid the reference has to be on.
         drawnOnSize: selection.imageSize,
-        projectId:
-            editTarget?.definition.projectId ??
+        projectId: editTarget?.definition.projectId ??
             ref.read(activeProjectIdProvider)?.toString() ??
             '',
-        targetId:
-            editTarget?.definition.targetId ??
+        targetId: editTarget?.definition.targetId ??
             await _targetId(selection.capturedImageId),
-        profileId:
-            editTarget?.definition.profileId ??
+        profileId: editTarget?.definition.profileId ??
             ref.read(activeProfileProvider).valueOrNull?.id.toString() ??
             '',
-        label:
-            editTarget?.definition.label ??
+        label: editTarget?.definition.label ??
             p.basenameWithoutExtension(selection.referencePath!),
       );
       if (editTarget != null) {
@@ -154,8 +150,7 @@ class _DepthLockRegionCommitHostState
         context,
         initialDefinition: definition,
         existing: editTarget,
-        filterChoices:
-            ref.read(activeEquipmentProfileProvider)?.filterNames ??
+        filterChoices: ref.read(activeEquipmentProfileProvider)?.filterNames ??
             const <String>[],
         dark: masters.dark,
         flat: masters.flat,
@@ -186,12 +181,10 @@ class _DepthLockRegionCommitHostState
   /// What the calibration library matches for this acquisition, described the
   /// way the editor shows it.
   Future<({DepthLockMasterChoice? dark, DepthLockMasterChoice? flat})>
-  _matchMasters(DepthLockGoalDefinition definition) async {
+      _matchMasters(DepthLockGoalDefinition definition) async {
     final acquisition = definition.acquisition;
     try {
-      final matches = await ref
-          .read(calibrationLibraryServiceProvider)
-          .match(
+      final matches = await ref.read(calibrationLibraryServiceProvider).match(
             LightFrameContext(
               gain: acquisition.gain,
               offset: acquisition.offset,

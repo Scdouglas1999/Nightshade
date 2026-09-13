@@ -436,29 +436,34 @@ void main() {
     expect(backend.ingested?.path, '/data/M51/L_0042.fits');
   });
 
-  test('a backend refusal reaches the caller with its message intact', () async {
-    final backend = _FakeDepthLockBackend();
-    backend.nextError = const NightshadeError(
-      category: BackendErrorCategory.validation,
-      message: 'Background rectangle overlaps the signal rectangle',
-    );
-    final container = _container(backend);
-    await container.read(depthLockGoalsProvider.future);
+  test(
+    'a backend refusal reaches the caller with its message intact',
+    () async {
+      final backend = _FakeDepthLockBackend();
+      backend.nextError = const NightshadeError(
+        category: BackendErrorCategory.validation,
+        message: 'Background rectangle overlaps the signal rectangle',
+      );
+      final container = _container(backend);
+      await container.read(depthLockGoalsProvider.future);
 
-    await expectLater(
-      container.read(depthLockGoalsProvider.notifier).createGoal(_definition()),
-      throwsA(
-        isA<NightshadeError>().having(
-          (error) => error.message,
-          'message',
-          'Background rectangle overlaps the signal rectangle',
+      await expectLater(
+        container
+            .read(depthLockGoalsProvider.notifier)
+            .createGoal(_definition()),
+        throwsA(
+          isA<NightshadeError>().having(
+            (error) => error.message,
+            'message',
+            'Background rectangle overlaps the signal rectangle',
+          ),
         ),
-      ),
-    );
-    // The failed create left the list alone: nothing was re-read, and the
-    // panel keeps showing what the host actually holds.
-    expect(backend.listCalls, 1);
-  });
+      );
+      // The failed create left the list alone: nothing was re-read, and the
+      // panel keeps showing what the host actually holds.
+      expect(backend.listCalls, 1);
+    },
+  );
 
   test('a DepthLock event refreshes the list', () async {
     final backend = _FakeDepthLockBackend(goals: <DepthLockGoal>[_goal()]);
@@ -470,7 +475,10 @@ void main() {
 
     backend.goals = <DepthLockGoal>[
       _goal(),
-      _goal(id: 'goal-2', definition: _definition(label: 'Second region')),
+      _goal(
+        id: 'goal-2',
+        definition: _definition(label: 'Second region'),
+      ),
     ];
     events.add(_event('DepthLockGoalUpdated'));
     await pumpEventQueue();
@@ -502,7 +510,10 @@ void main() {
     final backend = _FakeDepthLockBackend(
       goals: <DepthLockGoal>[
         _goal(definition: _definition(filterName: 'L')),
-        _goal(id: 'goal-2', definition: _definition(filterName: 'Ha')),
+        _goal(
+          id: 'goal-2',
+          definition: _definition(filterName: 'Ha'),
+        ),
       ],
     );
     final container = _container(backend);

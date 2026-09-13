@@ -125,7 +125,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
-              'Log Observation',
+              'Log observation',
               style: TextStyle(fontSize: NightshadeTypography.fontSize18),
             ),
           ),
@@ -285,7 +285,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
         ),
         NightshadeButton(
           onPressed: _isSaving ? null : _save,
-          label: _isSaving ? 'Saving...' : 'Log Observation',
+          label: _isSaving ? 'Saving...' : 'Log observation',
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
         ),

@@ -744,6 +744,10 @@ void main() {
           'offset': 10,
           'binning': 'Two',
           'dither_every': 5,
+          // The DepthLock binding travels with the plan and is null until a
+          // goal is attached; the key is always written so the Rust side's
+          // Option<DepthGoalBinding> deserialises from a complete object.
+          'depth_goal': null,
         }),
       );
     });
@@ -753,6 +757,30 @@ void main() {
         jsonDecode(jsonEncode(sample.toJson())) as Map<String, dynamic>,
       );
       expect(back, equals(sample));
+    });
+
+    test('json_round_trip_preserves_an_attached_depth_goal', () {
+      const bound = FilterPlan(
+        filterName: 'L',
+        filterIndex: 0,
+        count: 20,
+        durationSecs: 60.0,
+        gain: 100,
+        offset: 10,
+        binning: BinningMode.two,
+        ditherEvery: 5,
+        depthGoal: DepthGoalBinding(goalId: 'goal-7', revision: 3),
+      );
+      expect(bound.toJson()['depth_goal'], <String, dynamic>{
+        'goal_id': 'goal-7',
+        'revision': 3,
+      });
+      final back = FilterPlan.fromJson(
+        jsonDecode(jsonEncode(bound.toJson())) as Map<String, dynamic>,
+      );
+      expect(back, equals(bound));
+      expect(back.depthGoal?.goalId, 'goal-7');
+      expect(back.depthGoal?.revision, 3);
     });
 
     test('from_json_applies_documented_defaults', () {

@@ -14,9 +14,9 @@
 //
 // The action labels below are the popup's CURRENT copy. The Observatory pass
 // put every button in sentence case (06 §Copy: "Frame type", not "Frame
-// Type"), so 'Log Observation' and 'Target Queue' became 'Log observation' and
-// 'Target queue'; these assertions name the strings on screen so a rename
-// cannot quietly take the guard with it.
+// Type"), so 'Log Observation', 'Target Queue' and 'Add to List' became
+// 'Log observation', 'Target queue' and 'Add to list'; these assertions name
+// the strings on screen so a rename cannot quietly take the guard with it.
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,7 +122,7 @@ Future<void> _withPopup(
 
 void main() {
   // Real bundled fonts, not the test font. flutter_test's default typeface makes
-  // every glyph a square of the font size, so 'Add to List' would measure ~143px
+  // every glyph a square of the font size, so 'Add to list' would measure ~143px
   // where HankenGrotesk needs ~62px — the widths this test asserts on only mean
   // anything against the typeface the product actually ships.
   setUpAll(SurfaceGoldenHarness.ensureFonts);
@@ -187,7 +187,7 @@ void main() {
           'Framing',
           'Sequence',
           'Log observation',
-          'Add to List',
+          'Add to list',
           'Target queue',
         ]) {
           expect(find.text(label), findsOneWidget, reason: '$label is missing');
@@ -207,7 +207,7 @@ void main() {
           'Framing',
           'Sequence',
           'Log observation',
-          'Add to List',
+          'Add to list',
           'Target queue',
         ]) {
           expect(
@@ -226,7 +226,7 @@ void main() {
           'Framing',
           'Sequence',
           'Log observation',
-          'Add to List',
+          'Add to list',
           'Target queue',
         ]) {
           // Round to absorb sub-pixel differences between siblings.

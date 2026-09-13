@@ -210,6 +210,74 @@ void main() {
       expect(comparison.hasMountSite, isFalse);
       expect(comparison.siteReadError, isNull);
     });
+
+    // The reciprocal of the two failures above: the pair of reads that BOTH
+    // succeed is what every disagreement card is drawn from, and nothing here
+    // exercised it -- `site` was a constructor parameter no test ever gave.
+    test(
+      'both reads succeeding carry the mount\'s own site and clock',
+      () async {
+        final backend = _SiteBackend(
+          capabilities: _caps(),
+          site: const bridge.MountSite(
+            latitudeDeg: 40.05,
+            longitudeDeg: -75.0,
+            elevationM: 120,
+          ),
+          time: const bridge.MountTimeInfo(
+            utcUnixSeconds: 1000000,
+            utcOffsetHours: -4,
+          ),
+        );
+        final reconciler = MountSiteReconciler(
+          backend: backend,
+          writeComputerLocation: (a, b, c) async {},
+        );
+
+        final comparison = await reconciler.compare(
+          deviceId: 'mount',
+          deviceName: 'Test Mount',
+          computerLatitudeDeg: 40,
+          computerLongitudeDeg: -75,
+        );
+
+        expect(comparison.hasMountSite, isTrue);
+        expect(comparison.mountLatitudeDeg, closeTo(40.05, 1e-9));
+        expect(comparison.mountLongitudeDeg, closeTo(-75.0, 1e-9));
+        expect(comparison.siteReadError, isNull);
+        expect(comparison.hasMountTime, isTrue);
+        expect(comparison.timeReadError, isNull);
+      },
+    );
+
+    // The mirror of 'a site read failure is carried, not thrown': the clock is
+    // the read that fails, and the site must survive it.
+    test('a clock read failure is carried, not thrown', () async {
+      final backend = _SiteBackend(
+        capabilities: _caps(),
+        site: const bridge.MountSite(
+          latitudeDeg: 40.05,
+          longitudeDeg: -75.0,
+          elevationM: 120,
+        ),
+        timeThrows: StateError('clock timeout'),
+      );
+      final reconciler = MountSiteReconciler(
+        backend: backend,
+        writeComputerLocation: (a, b, c) async {},
+      );
+
+      final comparison = await reconciler.compare(
+        deviceId: 'mount',
+        deviceName: 'Test Mount',
+        computerLatitudeDeg: 40,
+        computerLongitudeDeg: -75,
+      );
+
+      expect(comparison.hasMountTime, isFalse);
+      expect(comparison.timeReadError, contains('clock timeout'));
+      expect(comparison.hasMountSite, isTrue);
+    });
   });
 
   group('applying a direction', () {

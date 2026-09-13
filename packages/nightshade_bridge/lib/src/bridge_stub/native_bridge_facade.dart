@@ -540,10 +540,8 @@ abstract final class NativeBridge {
   static Future<List<gen_api.ApiDepthCurvePoint>> apiDepthlockGoalCurve({
     required String goalId,
     required int maxPoints,
-  }) => _nativeBridge.apiDepthlockGoalCurve(
-    goalId: goalId,
-    maxPoints: maxPoints,
-  );
+  }) =>
+      _nativeBridge.apiDepthlockGoalCurve(goalId: goalId, maxPoints: maxPoints);
   static Future<gen_api.ApiDepthGoal> apiDepthlockReplayGoal({
     required String goalId,
   }) => _nativeBridge.apiDepthlockReplayGoal(goalId: goalId);

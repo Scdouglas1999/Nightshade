@@ -69,8 +69,7 @@ class DepthLockHint extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       child: NightshadeBanner(
         title: 'Chasing something faint?',
-        message:
-            'Mark it and Nightshade will keep track of how much deeper it '
+        message: 'Mark it and Nightshade will keep track of how much deeper it '
             'still needs to go.',
         tone: BannerTone.info,
         icon: NightshadeIcons.target,

@@ -25,12 +25,12 @@ const int kDepthLockConfirmationFrames = 16;
 /// tell "has not started measuring" from "measuring but not there yet", and
 /// calling both of them Collecting hid exactly that difference.
 String depthLockStateLabel(DepthLockState state) => switch (state) {
-  DepthLockState.insufficientEvidence => 'Waiting',
-  DepthLockState.collecting => 'Measuring',
-  DepthLockState.confirmationPending => 'Confirming',
-  DepthLockState.achieved => 'Achieved',
-  DepthLockState.unreliable => 'Unreliable',
-};
+      DepthLockState.insufficientEvidence => 'Waiting',
+      DepthLockState.collecting => 'Measuring',
+      DepthLockState.confirmationPending => 'Confirming',
+      DepthLockState.achieved => 'Achieved',
+      DepthLockState.unreliable => 'Unreliable',
+    };
 
 /// One plain-language line saying what [state] means for the operator.
 ///
@@ -38,20 +38,18 @@ String depthLockStateLabel(DepthLockState state) => switch (state) {
 /// alongside this; these captions say what the STATE is, so a goal that has
 /// never been analysed still explains itself.
 String depthLockStateCaption(DepthLockState state) => switch (state) {
-  DepthLockState.insufficientEvidence =>
-    'Collecting the first $kDepthLockMinimumEvidenceFrames exposures. '
-        'Nothing is measured until then.',
-  DepthLockState.collecting =>
-    'Measuring. The goal is not reached yet.',
-  DepthLockState.confirmationPending =>
-    'Provisionally reached; waiting for $kDepthLockConfirmationFrames later '
-        'exposures to confirm.',
-  DepthLockState.achieved =>
-    'Reached and confirmed on this revision.',
-  DepthLockState.unreliable =>
-    'The measurement is not trustworthy right now. This describes the '
-        'evidence, not the goal — cleaner data can move it back.',
-};
+      DepthLockState.insufficientEvidence =>
+        'Collecting the first $kDepthLockMinimumEvidenceFrames exposures. '
+            'Nothing is measured until then.',
+      DepthLockState.collecting => 'Measuring. The goal is not reached yet.',
+      DepthLockState.confirmationPending =>
+        'Provisionally reached; waiting for $kDepthLockConfirmationFrames later '
+            'exposures to confirm.',
+      DepthLockState.achieved => 'Reached and confirmed on this revision.',
+      DepthLockState.unreliable =>
+        'The measurement is not trustworthy right now. This describes the '
+            'evidence, not the goal — cleaner data can move it back.',
+    };
 
 /// The chip tone for [state].
 ///
@@ -59,12 +57,12 @@ String depthLockStateCaption(DepthLockState state) => switch (state) {
 /// that later frames have not confirmed is not a finished goal, and colouring
 /// it green is how an operator stops a filter one night early.
 ChipTone depthLockStateTone(DepthLockState state) => switch (state) {
-  DepthLockState.insufficientEvidence => ChipTone.neutral,
-  DepthLockState.collecting => ChipTone.primary,
-  DepthLockState.confirmationPending => ChipTone.warning,
-  DepthLockState.achieved => ChipTone.success,
-  DepthLockState.unreliable => ChipTone.error,
-};
+      DepthLockState.insufficientEvidence => ChipTone.neutral,
+      DepthLockState.collecting => ChipTone.primary,
+      DepthLockState.confirmationPending => ChipTone.warning,
+      DepthLockState.achieved => ChipTone.success,
+      DepthLockState.unreliable => ChipTone.error,
+    };
 
 /// The colour that draws [state]'s rectangles on the preview.
 Color depthLockStateColor(DepthLockState state, NightshadeColors colors) =>
@@ -239,8 +237,7 @@ String? depthLockForecastLine(DepthLockGoal goal) {
   final measurement = goal.definition.measurement;
 
   if (goal.state == DepthLockState.insufficientEvidence) {
-    final int remaining =
-        kDepthLockMinimumEvidenceFrames - goal.evidenceFrames;
+    final int remaining = kDepthLockMinimumEvidenceFrames - goal.evidenceFrames;
     if (remaining <= 0) return null;
     return '$remaining more exposure${remaining == 1 ? '' : 's'} before '
         'measuring starts.';

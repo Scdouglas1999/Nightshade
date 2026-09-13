@@ -169,7 +169,7 @@ Map<String, dynamic> _$FilterPlanToJson(_FilterPlan instance) =>
       'offset': instance.offset,
       'binning': const BinningModeJsonConverter().toJson(instance.binning),
       'dither_every': instance.ditherEvery,
-      'depth_goal': instance.depthGoal,
+      'depth_goal': instance.depthGoal?.toJson(),
     };
 
 _DepthGoalBinding _$DepthGoalBindingFromJson(Map<String, dynamic> json) =>

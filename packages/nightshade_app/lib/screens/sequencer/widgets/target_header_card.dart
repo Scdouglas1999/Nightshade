@@ -40,11 +40,15 @@ class TargetHeaderCard extends ConsumerStatefulWidget {
   ConsumerState<TargetHeaderCard> createState() => _TargetHeaderCardState();
 }
 
-class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
-  /// The step's icon square and the glyph inside it (06 §Sequencer).
-  static const double _iconSquare = 28;
-  static const double _iconGlyph = 14;
+/// The step's icon square and the glyph inside it (06 Sequencer).
+///
+/// File-level so the spinning form of the glyph is the same size as the still
+/// one: it used to be built at a hard-coded 18, so the target's icon grew by
+/// 4 px the moment the run reached it and shrank again when it moved on.
+const double _iconSquare = 28;
+const double _iconGlyph = 14;
 
+class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   late bool _showAltitudeChart;
   bool _isHovered = false;
 
@@ -109,7 +113,11 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       child: GestureDetector(
         onTap: widget.onSelect,
         child: AnimatedContainer(
-          duration: NightshadeTokens.durationNormal,
+          // Through the helper, like every other animation in the tree: the
+          // selection ring and the hover wash are the two things this card
+          // moves, and a raw duration here is motion a user who turned
+          // animations off still sees.
+          duration: animationDuration(context, NightshadeTokens.durationNormal),
           curve: NightshadeTokens.curveStandard,
           margin:
               const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
@@ -804,7 +812,7 @@ class _SpinningIconState extends State<_SpinningIcon>
     // app from idling.
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: NightshadeTokens.durationPulse,
     );
   }
 
@@ -816,6 +824,11 @@ class _SpinningIconState extends State<_SpinningIcon>
 
   @override
   Widget build(BuildContext context) {
+    // A repeat cannot be shortened to nothing, so it is refused outright and
+    // the target wears the same still glyph it wears when idle.
+    if (animationsDisabled(context)) {
+      return Icon(widget.icon, size: _iconGlyph, color: widget.color);
+    }
     return OnScreenAnimationGate(
       controller: _controller,
       repeating: true,
@@ -826,7 +839,7 @@ class _SpinningIconState extends State<_SpinningIcon>
             angle: _controller.value * 2 * 3.14159,
             child: Icon(
               widget.icon,
-              size: 18,
+              size: _iconGlyph,
               color: widget.color,
             ),
           );

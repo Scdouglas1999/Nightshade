@@ -19,7 +19,8 @@ import 'depthlock_presentation.dart';
 /// sky, the target's altitude and how many nights the operator gives it; a
 /// number here would be a guess wearing a countdown's clothes.
 class DepthLockProgress extends StatelessWidget {
-  const DepthLockProgress({super.key, required this.goal, this.compact = false});
+  const DepthLockProgress(
+      {super.key, required this.goal, this.compact = false});
 
   final DepthLockGoal goal;
 
@@ -37,8 +38,8 @@ class DepthLockProgress extends StatelessWidget {
     final double? conservative = report?.conservativeScore;
     final double value = measuring
         ? (threshold <= 0 || conservative == null
-              ? 0.0
-              : (conservative / threshold).clamp(0.0, 1.0))
+            ? 0.0
+            : (conservative / threshold).clamp(0.0, 1.0))
         : (goal.evidenceFrames / kDepthLockMinimumEvidenceFrames).clamp(
             0.0,
             1.0,
@@ -47,7 +48,7 @@ class DepthLockProgress extends StatelessWidget {
     final String leading = measuring
         ? 'S/N ${depthLockScore(conservative)}'
         : '${goal.evidenceFrames} of $kDepthLockMinimumEvidenceFrames '
-              'exposures';
+            'exposures';
     final String trailing = measuring
         ? 'needs ${threshold.toStringAsFixed(1)}'
         : 'before measuring starts';
@@ -65,7 +66,7 @@ class DepthLockProgress extends StatelessWidget {
         Semantics(
           label: measuring
               ? 'Conservative signal-to-noise ${depthLockScore(conservative)} of '
-                    'threshold ${threshold.toStringAsFixed(1)}'
+                  'threshold ${threshold.toStringAsFixed(1)}'
               : leading,
           child: NightshadeProgressBar(
             value: value,
@@ -95,7 +96,8 @@ class DepthLockProgress extends StatelessWidget {
             ),
           ],
         ),
-        if (!compact && state == DepthLockState.confirmationPending) ...<Widget>[
+        if (!compact &&
+            state == DepthLockState.confirmationPending) ...<Widget>[
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             '${report?.confirmationFrames ?? 0} of '
@@ -133,10 +135,10 @@ class DepthLockProgress extends StatelessWidget {
   /// The bar takes the state's own colour so the element reads the same way
   /// as the chip beside it.
   NightshadeProgressState _barState(DepthLockState state) => switch (state) {
-    DepthLockState.insufficientEvidence => NightshadeProgressState.paused,
-    DepthLockState.collecting => NightshadeProgressState.normal,
-    DepthLockState.confirmationPending => NightshadeProgressState.warning,
-    DepthLockState.achieved => NightshadeProgressState.success,
-    DepthLockState.unreliable => NightshadeProgressState.error,
-  };
+        DepthLockState.insufficientEvidence => NightshadeProgressState.paused,
+        DepthLockState.collecting => NightshadeProgressState.normal,
+        DepthLockState.confirmationPending => NightshadeProgressState.warning,
+        DepthLockState.achieved => NightshadeProgressState.success,
+        DepthLockState.unreliable => NightshadeProgressState.error,
+      };
 }

@@ -14,8 +14,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 /// The rectangle two drag corners describe, in image pixels, with the corners
 /// in any order.
-Rect depthLockNormalizedRect(Offset a, Offset b) =>
-    Rect.fromLTRB(
+Rect depthLockNormalizedRect(Offset a, Offset b) => Rect.fromLTRB(
       math.min(a.dx, b.dx),
       math.min(a.dy, b.dy),
       math.max(a.dx, b.dx),
@@ -152,7 +151,8 @@ List<Offset>? depthLockRectangleCorners({
 /// native `SipWcs::world_to_pixel`: gnomonic projection about
 /// (CRVAL1, CRVAL2), then the inverse CD matrix, then the 1-based CRPIX
 /// offset. `null` on the far hemisphere or for a singular matrix.
-Offset? depthLockWorldToPixel(ReferenceGeometry g, double raDeg, double decDeg) {
+Offset? depthLockWorldToPixel(
+    ReferenceGeometry g, double raDeg, double decDeg) {
   final double det = g.cd1_1 * g.cd2_2 - g.cd1_2 * g.cd2_1;
   if (!det.isFinite || det.abs() < 1e-18) return null;
   final projected = depthLockTanProject(g.crval1, g.crval2, raDeg, decDeg);
@@ -166,7 +166,8 @@ Offset? depthLockWorldToPixel(ReferenceGeometry g, double raDeg, double decDeg) 
 
 /// 0-based pixel → sky (degrees, RA in [0, 360)) through a reference's TAN
 /// solution; the exact inverse of [depthLockWorldToPixel].
-(double, double) depthLockPixelToWorld(ReferenceGeometry g, double x, double y) {
+(double, double) depthLockPixelToWorld(
+    ReferenceGeometry g, double x, double y) {
   final double u = x - (g.crpix1 - 1.0);
   final double v = y - (g.crpix2 - 1.0);
   final double xi = g.cd1_1 * u + g.cd1_2 * v;
@@ -261,17 +262,17 @@ enum DepthLockHandle {
 
 /// Where [handle] sits on [rect], in the rectangle's own coordinates.
 Offset depthLockHandlePosition(Rect rect, DepthLockHandle handle) => Offset(
-  handle.movesLeft
-      ? rect.left
-      : handle.movesRight
-      ? rect.right
-      : rect.center.dx,
-  handle.movesTop
-      ? rect.top
-      : handle.movesBottom
-      ? rect.bottom
-      : rect.center.dy,
-);
+      handle.movesLeft
+          ? rect.left
+          : handle.movesRight
+              ? rect.right
+              : rect.center.dx,
+      handle.movesTop
+          ? rect.top
+          : handle.movesBottom
+              ? rect.bottom
+              : rect.center.dy,
+    );
 
 /// [rect] with [handle] dragged to [to].
 ///

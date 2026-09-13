@@ -5,7 +5,6 @@
 // "nothing measured" renders as "perfectly guided". Same shape as the polar
 // bullseye.
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
 import 'package:nightshade_app/widgets/phd2/guide_target_display.dart';

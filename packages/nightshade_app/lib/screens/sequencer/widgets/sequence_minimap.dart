@@ -328,6 +328,13 @@ class SequenceMapPainter extends CustomPainter {
   /// A fill rather than a scrim over everything else: the gutter is 34 px wide
   /// and permanently on screen, so dimming the majority of it would make the
   /// map read as disabled rather than as positioned.
+  ///
+  /// The fill is [NightshadeTokens.opacityMedium], not the accent tint the
+  /// rest of the language uses for a selected surface: this rectangle is read
+  /// across an 80 px strip of primary-coloured row blocks, and at 12 % of the
+  /// same hue it disappeared into them. The `borderHighlight` hairline just
+  /// outside the accent stroke is what stops the two primaries from touching,
+  /// so the edge stays an edge wherever the viewport happens to sit.
   void _paintViewport(Canvas canvas, Size size) {
     final metrics = sequenceMapMetrics(scrollController);
     if (metrics == null) return;
@@ -343,8 +350,15 @@ class SequenceMapPainter extends CustomPainter {
       rect,
       Paint()
         ..color =
-            colors.primary.withValues(alpha: NightshadeTokens.opacityAccentTint)
+            colors.primary.withValues(alpha: NightshadeTokens.opacityMedium)
         ..style = PaintingStyle.fill,
+    );
+    canvas.drawRect(
+      rect.inflate(0.5),
+      Paint()
+        ..color = colors.borderHighlight
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
     );
     canvas.drawRect(
       rect.deflate(0.5),

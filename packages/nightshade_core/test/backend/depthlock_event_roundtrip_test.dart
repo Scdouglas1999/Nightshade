@@ -101,9 +101,9 @@ void main() {
 
       final event =
           (bridgeEventFromCoreEvent(_throughTheWire(info)).payload
-                  as bridge.EventPayload_DepthLock)
-              .field0
-          as bridge.DepthLockEvent_GoalUpdated;
+                      as bridge.EventPayload_DepthLock)
+                  .field0
+              as bridge.DepthLockEvent_GoalUpdated;
       expect(event.score, isNull);
       expect(event.conservativeScore, isNull);
       expect(event.uncertaintyAdu, isNull);
@@ -139,9 +139,9 @@ void main() {
 
       final event =
           (bridgeEventFromCoreEvent(received).payload
-                  as bridge.EventPayload_DepthLock)
-              .field0
-          as bridge.DepthLockEvent_GoalUpdated;
+                      as bridge.EventPayload_DepthLock)
+                  .field0
+              as bridge.DepthLockEvent_GoalUpdated;
       expect(event.reachable, isTrue);
       expect(event.framesRemaining, isNull);
     });
@@ -157,9 +157,9 @@ void main() {
       );
       final rejectedEvent =
           (bridgeEventFromCoreEvent(_throughTheWire(rejected)).payload
-                  as bridge.EventPayload_DepthLock)
-              .field0
-          as bridge.DepthLockEvent_EvidenceRejected;
+                      as bridge.EventPayload_DepthLock)
+                  .field0
+              as bridge.DepthLockEvent_EvidenceRejected;
       expect(rejectedEvent.sourcePath, '/data/m42/light_0042.fits');
       expect(
         rejectedEvent.reason,
@@ -174,9 +174,9 @@ void main() {
       );
       final droppedEvent =
           (bridgeEventFromCoreEvent(_throughTheWire(dropped)).payload
-                  as bridge.EventPayload_DepthLock)
-              .field0
-          as bridge.DepthLockEvent_AnalysisDropped;
+                      as bridge.EventPayload_DepthLock)
+                  .field0
+              as bridge.DepthLockEvent_AnalysisDropped;
       expect(droppedEvent.reason, 'analysis queue full');
     });
 
@@ -191,9 +191,9 @@ void main() {
 
       final event =
           (bridgeEventFromCoreEvent(_throughTheWire(info)).payload
-                  as bridge.EventPayload_DepthLock)
-              .field0
-          as bridge.DepthLockEvent_GoalChanged;
+                      as bridge.EventPayload_DepthLock)
+                  .field0
+              as bridge.DepthLockEvent_GoalChanged;
       expect(event.change, 'revised');
       expect(event.revision, BigInt.from(4));
     });
@@ -238,9 +238,9 @@ void main() {
       );
       final event =
           (bridgeEventFromCoreEvent(received).payload
-                  as bridge.EventPayload_Sequencer)
-              .field0
-          as bridge.SequencerEvent_DepthGoalCompleted;
+                      as bridge.EventPayload_Sequencer)
+                  .field0
+              as bridge.SequencerEvent_DepthGoalCompleted;
       expect(event.nodeId, 'smart-1');
       expect(event.filterName, 'Ha');
       expect(event.goalId, 'm42-ha');
@@ -261,7 +261,7 @@ void main() {
           confirmationFrames: 3,
         ),
         'Ha reached its depth goal (score 13.4 >= 12.0, 18 exposures, '
-            '3 confirming)',
+        '3 confirming)',
       );
     });
   });

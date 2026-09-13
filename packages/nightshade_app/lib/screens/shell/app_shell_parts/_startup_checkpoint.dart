@@ -178,48 +178,54 @@ Widget buildCheckpointRecoveryDialog({
         ),
       ],
     ),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'A previous sequence was interrupted and can be resumed.',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize13,
+    // The backend's failure text is arbitrary length and the modal is
+    // barrier-locked, so content that cannot fit has to scroll: clipped at the
+    // dialog's height ceiling it took the reason for the failure — and, on a
+    // short window, the sequence facts the decision rests on — off the screen.
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'A previous sequence was interrupted and can be resumed.',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize13,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        NightshadeCard(
-          variant: CardVariant.standard,
-          borderRadius: NightshadeTokens.radiusInline8,
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _checkpointInfoRow(colors, 'Sequence', info.sequenceName),
-              const SizedBox(height: 6),
-              _checkpointInfoRow(colors, 'Saved', ageStr),
-              const SizedBox(height: 6),
-              _checkpointInfoRow(
-                colors,
-                'Completed',
-                '${info.completedExposures} frames '
-                    '(${integrationMins}m integration)',
-              ),
-            ],
-          ),
-        ),
-        if (failure != null) ...[
           const SizedBox(height: 16),
-          NightshadeAlert(
-            severity: NightshadeAlertSeverity.error,
-            title: 'Recovery did not complete',
-            message: '${describeCheckpointFailure(failure.error)}\n\n'
-                '$aftermath',
+          NightshadeCard(
+            variant: CardVariant.standard,
+            borderRadius: NightshadeTokens.radiusInline8,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _checkpointInfoRow(colors, 'Sequence', info.sequenceName),
+                const SizedBox(height: 6),
+                _checkpointInfoRow(colors, 'Saved', ageStr),
+                const SizedBox(height: 6),
+                _checkpointInfoRow(
+                  colors,
+                  'Completed',
+                  '${info.completedExposures} frames '
+                      '(${integrationMins}m integration)',
+                ),
+              ],
+            ),
           ),
+          if (failure != null) ...[
+            const SizedBox(height: 16),
+            NightshadeAlert(
+              severity: NightshadeAlertSeverity.error,
+              title: 'Recovery did not complete',
+              message: '${describeCheckpointFailure(failure.error)}\n\n'
+                  '$aftermath',
+            ),
+          ],
         ],
-      ],
+      ),
     ),
     actions: [
       if (failure != null)

@@ -81,9 +81,9 @@ void main() {
 
   test('a clamped preset still reads as that preset, not as custom', () {
     final measurement = depthLockDefinitionFixture().measurement.copyWith(
-      scaleArcsec: 16,
-      threshold: 3,
-    );
+          scaleArcsec: 16,
+          threshold: 3,
+        );
     expect(
       depthLockPresetOf(measurement, pixelScaleArcsec: 0.25),
       DepthLockPreset.extreme,
@@ -92,9 +92,9 @@ void main() {
 
   test('numbers off every preset read as custom', () {
     final measurement = depthLockDefinitionFixture().measurement.copyWith(
-      scaleArcsec: 7.5,
-      threshold: 5,
-    );
+          scaleArcsec: 7.5,
+          threshold: 5,
+        );
     expect(depthLockPresetOf(measurement, pixelScaleArcsec: 1.04), isNull);
   });
 

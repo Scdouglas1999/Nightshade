@@ -2,7 +2,7 @@
 //
 // Handing the caller the coordinate reconstructed from the tap pixel instead of
 // the catalogue coordinate of the object hit corrupts every downstream action
-// (popup readout, Slew, Framing, Sequencer, Add to List): a named object gets
+// (popup readout, Slew, Framing, Sequencer, Add to list): a named object gets
 // slewed to a position degrees away from where it actually is.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

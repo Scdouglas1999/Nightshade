@@ -100,9 +100,9 @@ class LiveStackCanvas extends ConsumerWidget {
             0,
           ),
           child: DepthLockHint(
-            onMarkRegion: () =>
-                ref.read(depthLockRegionToolActiveProvider.notifier).state =
-                    true,
+            onMarkRegion: () => ref
+                .read(depthLockRegionToolActiveProvider.notifier)
+                .state = true,
           ),
         ),
         Expanded(
@@ -127,11 +127,11 @@ class LiveStackCanvas extends ConsumerWidget {
                 // than where the operator pressed.
                 onPanUpdate: ref.watch(depthLockRegionToolActiveProvider)
                     ? null
-                    : (Offset delta) =>
-                          ref.read(stackCanvasViewProvider.notifier).state =
-                              view.copyWith(
-                                panOffset: view.panOffset + delta,
-                              ),
+                    : (Offset delta) => ref
+                            .read(stackCanvasViewProvider.notifier)
+                            .state = view.copyWith(
+                          panOffset: view.panOffset + delta,
+                        ),
                 overlays: <PreviewOverlayBuilder>[
                   (BuildContext context, PreviewViewportGeometry geometry) {
                     return DepthLockRegionLayer(
@@ -140,7 +140,8 @@ class LiveStackCanvas extends ConsumerWidget {
                       imageSize: geometry.imageSize,
                       // The stack shares its reference sub's pixel grid, so
                       // the sub's astrometry is the stack's astrometry.
-                      geometry: ref.watch(depthLockStackSelectionProvider).geometry,
+                      geometry:
+                          ref.watch(depthLockStackSelectionProvider).geometry,
                     );
                   },
                 ],
@@ -222,7 +223,7 @@ class _StackCanvasToolbar extends ConsumerWidget {
               variant: ButtonVariant.ghost,
               semanticsHint: selection.canSelect
                   ? 'Drag two boxes on the stacked image to define a '
-                        'DepthLock goal'
+                      'DepthLock goal'
                   : selection.blocker,
               onPressed: selection.canSelect
                   ? () {
@@ -230,11 +231,10 @@ class _StackCanvasToolbar extends ConsumerWidget {
                         cancelDepthLockRegionTool(ref);
                       } else {
                         ref
-                                .read(
-                                  depthLockRegionToolActiveProvider.notifier,
-                                )
-                                .state =
-                            true;
+                            .read(
+                              depthLockRegionToolActiveProvider.notifier,
+                            )
+                            .state = true;
                       }
                     }
                   : null,
@@ -249,9 +249,9 @@ class _StackCanvasToolbar extends ConsumerWidget {
                 : 'Draw saved goals on the stack',
             size: IconButtonSize.sm,
             selected: overlayVisible,
-            onPressed: () =>
-                ref.read(depthLockGoalOverlayVisibleProvider.notifier).state =
-                    !overlayVisible,
+            onPressed: () => ref
+                .read(depthLockGoalOverlayVisibleProvider.notifier)
+                .state = !overlayVisible,
           ),
           NightshadeIconButton(
             // The same three glyphs the live view's toolbar uses, so the two

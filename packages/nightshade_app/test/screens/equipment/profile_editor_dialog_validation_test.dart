@@ -32,11 +32,20 @@ Finder get _saveButton => find.text('Save changes');
 /// Locate an optics field by its hint plus its `mm` suffix, so the finder does
 /// not depend on field ordering and does not collide with the Gain field, which
 /// shares the `e.g., 100` hint.
-Finder _millimetreFieldWithHint(String hint) => find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField &&
-          widget.decoration?.hintText == hint &&
-          widget.decoration?.suffixText == 'mm',
+///
+/// Matched on [NightshadeTextField]'s own `hint`/`suffix`, not on the Material
+/// `InputDecoration` underneath: the design-system field has never put its unit
+/// in `decoration.suffixText` (it was a sibling `Text` in the well's Row, and
+/// is now a `decoration.suffix` widget), so a `suffixText` predicate matched
+/// nothing and `enterText` threw `Bad state: No element`.
+Finder _millimetreFieldWithHint(String hint) => find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) =>
+            widget is NightshadeTextField &&
+            widget.hint == hint &&
+            widget.suffix == 'mm',
+      ),
+      matching: find.byType(TextField),
     );
 
 Finder get _focalLengthField => _millimetreFieldWithHint('e.g., 550');

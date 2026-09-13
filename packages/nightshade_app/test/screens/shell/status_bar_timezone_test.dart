@@ -13,10 +13,8 @@
 // matter which machine runs the suite.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_app/screens/dashboard/widgets/dashboard_header_actions.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/pump_app_screen.dart';
 

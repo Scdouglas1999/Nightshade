@@ -54,8 +54,7 @@ class IpGeolocation {
           lastError = NightshadeError(
             category: BackendErrorCategory.io,
             message: 'Error fetching location: $e',
-            userMessage:
-                'Could not reach the location service at ${uri.host}.',
+            userMessage: 'Could not reach the location service at ${uri.host}.',
             isRecoverable: true,
           );
         }
@@ -66,10 +65,7 @@ class IpGeolocation {
     throw lastError!;
   }
 
-  static Future<LocationSettings> _fetchUri(
-    http.Client client,
-    Uri uri,
-  ) async {
+  static Future<LocationSettings> _fetchUri(http.Client client, Uri uri) async {
     final response = await client.get(uri).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
       throw NightshadeError(
@@ -147,10 +143,7 @@ class IpGeolocation {
     // and a `double` cast would throw on it.
     lat ??= (data['latitude'] as num?)?.toDouble();
     lon ??= (data['longitude'] as num?)?.toDouble();
-    if (lat == null ||
-        lon == null ||
-        lat.abs() > 90 ||
-        lon.abs() > 180) {
+    if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
       return null;
     }
     return (lat, lon);

@@ -200,7 +200,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
 
             Expanded(
               child: switch (_tab) {
-                ImagingTab.liveView => _liveView(colors, selectedSection, narrow),
+                ImagingTab.liveView =>
+                  _liveView(colors, selectedSection, narrow),
                 ImagingTab.liveStack => _liveStack(colors, narrow),
                 ImagingTab.sessionFrames => ImagingSessionFrames(
                     onFrameSelected: _showFrame,
@@ -324,9 +325,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen> {
               0,
             ),
             child: DepthLockHint(
-              onMarkRegion: () =>
-                  ref.read(depthLockRegionToolActiveProvider.notifier).state =
-                      true,
+              onMarkRegion: () => ref
+                  .read(depthLockRegionToolActiveProvider.notifier)
+                  .state = true,
             ),
           ),
         Expanded(child: _canvas(colors, narrow)),
