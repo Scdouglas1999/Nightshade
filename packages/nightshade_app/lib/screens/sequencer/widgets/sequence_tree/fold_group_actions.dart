@@ -1,10 +1,14 @@
 // Every mutation a folded row offers (spec §6): move the run as a block,
 // duplicate it, disable it, delete it.
 //
+// Move, duplicate and disable live here; DELETE lives with the single-node
+// delete in `delete_node_confirmation.dart`, because the one thing a delete
+// has to be consistent about is how it asks.
+//
 // A separate library rather than a `part` of `sequence_tree.dart` because
 // `sequence_tree_context_menu.dart` is its own library and has to reach the
-// same four operations — the right-click menu on a folded row must not be
-// able to drift from the kebab on the same row.
+// same operations — the right-click menu on a folded row must not be able to
+// drift from the kebab on the same row.
 //
 // Every entry point shares one shape: `withSequenceMutation` so a locked
 // sequence surfaces a snackbar instead of an uncaught throw, and
@@ -16,7 +20,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../../utils/sequence_mutator_helper.dart';
 import '../../sequence_fold_model.dart';
@@ -119,92 +122,6 @@ Future<bool> disableFoldGroup(
   );
 }
 
-/// Confirm once, then delete every member of the run in one undo step.
-///
-/// The policy is `confirmAndDeleteSequenceNode`'s, restated for a run: always
-/// prompt (even though every member is a leaf), say how much is going, and
-/// name the toolbar's Undo as the way back. It cannot call that helper because
-/// that helper asks per node — three dialogs for one row is exactly the
-/// question §6 says to ask once.
-///
-/// Returns true iff the user confirmed AND the removal completed.
-Future<bool> confirmAndDeleteFoldGroup({
-  required BuildContext context,
-  required WidgetRef ref,
-  required FoldGroup group,
-  NightshadeColors? colors,
-}) async {
-  final sequence = ref.read(currentSequenceProvider);
-  if (sequence == null) return false;
-  final resolvedColors = colors ?? NightshadeColors.of(context);
-  final count = group.memberCount;
-
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      backgroundColor: resolvedColors.surface,
-      title: Text(
-        'Delete $count steps?',
-        style: TextStyle(color: resolvedColors.textPrimary),
-      ),
-      content: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          dialogContext,
-          designMaxWidth: 440,
-        ),
-        child: Text(
-          // The member labels, not the group's title: "Ha · OIII · SII" is
-          // what the row shows, and a delete prompt has to name the same
-          // things the row named.
-          '${group.memberLabels.join(' · ')} will be removed from the '
-          'sequence. Recover them with Undo in the toolbar (or Ctrl+Z).',
-          style: TextStyle(color: resolvedColors.textSecondary),
-        ),
-      ),
-      actions: [
-        NightshadeButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          label: 'Cancel',
-          variant: ButtonVariant.ghost,
-          size: ButtonSize.small,
-        ),
-        NightshadeButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          label: 'Delete',
-          variant: ButtonVariant.destructive,
-          size: ButtonSize.small,
-        ),
-      ],
-    ),
-  );
-
-  if (confirmed != true) return false;
-  if (!context.mounted) return false;
-
-  final removed = await withSequenceMutation(
-    context,
-    ref,
-    operationName: 'delete the folded steps',
-    action: () async {
-      final notifier = ref.read(currentSequenceProvider.notifier);
-      notifier.withUndoGroup(() {
-        for (final memberId in group.memberIds) {
-          notifier.removeNode(memberId);
-        }
-      });
-    },
-  );
-  if (!removed) return false;
-
-  // The members are gone; a selection still pointing at one of them would
-  // redraw the properties panel on a node that no longer exists.
-  ref.read(multiSelectedNodeIdsProvider.notifier).clear();
-  if (group.memberIds.contains(ref.read(selectedNodeIdProvider))) {
-    ref.read(selectedNodeIdProvider.notifier).state = null;
-  }
-  return true;
-}
-
 /// Re-seat [memberIds] as a contiguous, ordered block starting at [index].
 /// See [moveFoldGroup] for why the followers chase their predecessor instead
 /// of taking `index + k`.
@@ -219,10 +136,17 @@ void _relocateBlock(
   for (var k = 1; k < memberIds.length; k++) {
     final siblings =
         ref.read(currentSequenceProvider)!.nodes[parentId]!.childIds;
+    final target = siblings.indexOf(memberIds[k - 1]);
+    final here = siblings.indexOf(memberIds[k]);
+    // `moveNode` REMOVES before it inserts, so the index it takes is an index
+    // into the list without this member in it. A member still sitting above
+    // its predecessor vacates a slot above it, pulling the predecessor down to
+    // `target - 1` — so "directly after the predecessor" is `target`, not
+    // `target + 1`. Adding one anyway overshoots by a slot per follower, which
+    // is how a three-member block moved down one place came out as
+    // `Y · A · C · B` instead of `Y · A · B · C`.
+    final alreadyAbove = here >= 0 && here < target;
     notifier.moveNode(
-      memberIds[k],
-      parentId,
-      siblings.indexOf(memberIds[k - 1]) + 1,
-    );
+        memberIds[k], parentId, alreadyAbove ? target : target + 1);
   }
 }

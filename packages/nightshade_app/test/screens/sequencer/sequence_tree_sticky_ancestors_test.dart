@@ -19,6 +19,12 @@ const Size _shortCanvas = Size(1200, 300);
 
 /// Root -> "M 42" -> "Broadband" -> 30 exposures: ~900 px of ledger rows in a
 /// 300 px viewport, three levels deep.
+///
+/// Every sub is a different length on purpose: exposures that share a capture
+/// spec fold into ONE row in Ledger (spec §6), and thirty subs collapsed to a
+/// single row is a tree that fits its viewport — nothing scrolls out, so
+/// nothing pins, and every case in this file would pass or fail for the wrong
+/// reason.
 Sequence _tallSequence() {
   final target = TargetHeaderNode(
     name: 'M 42',
@@ -34,7 +40,7 @@ Sequence _tallSequence() {
   final root = InstructionSetNode(name: 'Root');
   final exposures = <ExposureNode>[
     for (var i = 0; i < 30; i++)
-      ExposureNode(name: 'Sub $i', durationSecs: 60, count: 1)
+      ExposureNode(name: 'Sub $i', durationSecs: 60.0 + i, count: 1)
           .copyWith(parentId: loop.id, orderIndex: i),
   ];
   return Sequence.create(

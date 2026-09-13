@@ -8,6 +8,13 @@ part of '../sequence_tree.dart';
 /// of where they sit in the sequence. The badge makes that non-obvious
 /// behavior legible right in the tree so an operator reviewing a sequence
 /// doesn't assume the flip "runs at this position".
+/// Room the badge needs to draw its word: the chip's own padding, the glyph,
+/// the gap and the `overline` measure of "Watchdog". Below it the badge keeps
+/// the glyph and drops the word — the tooltip carries the meaning either way,
+/// and a trigger row on a 500 px canvas (the ledger's column floor, where the
+/// name has ~63 px left) overflowed by the width of the label.
+const double _watchdogLabelMinWidth = 84.0;
+
 class _WatchdogBadge extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -19,28 +26,40 @@ class _WatchdogBadge extends StatelessWidget {
       message:
           'Runs in parallel as a safety watchdog — fires on meridian-crossing '
           'regardless of its position in the list',
-      child: Container(
-        padding: NightshadeTokens.paddingXs,
-        decoration: NightshadeDecorations.statusChip(
-          colors.warning,
-          borderRadius: NightshadeTokens.borderRadiusSm,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.shieldAlert,
-              size: NightshadeTokens.iconXs,
-              color: colors.warning,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showLabel = constraints.maxWidth >= _watchdogLabelMinWidth;
+          return Container(
+            padding: NightshadeTokens.paddingXs,
+            decoration: NightshadeDecorations.statusChip(
+              colors.warning,
+              borderRadius: NightshadeTokens.borderRadiusSm,
             ),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            Text(
-              'Watchdog',
-              style:
-                  NightshadeTypography.overline.copyWith(color: colors.warning),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.shieldAlert,
+                  size: NightshadeTokens.iconXs,
+                  color: colors.warning,
+                ),
+                if (showLabel) ...[
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Flexible(
+                    child: Text(
+                      'Watchdog',
+                      style: NightshadeTypography.overline
+                          .copyWith(color: colors.warning),
+                      softWrap: false,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

@@ -41,6 +41,14 @@ void _handleFoldSelect(WidgetRef ref, FoldGroup group) {
       next.addAll(group.memberIds);
     }
     multi.selectAll(next);
+    // Ctrl-clicking the run back OUT of the selection leaves the inspector
+    // pointing at member 1 — a row that is no longer highlighted anywhere,
+    // editing one step of a run the user just deselected. The primary
+    // selection has to stay inside what is selected.
+    final primary = ref.read(selectedNodeIdProvider);
+    if (primary != null && !next.contains(primary)) {
+      ref.read(selectedNodeIdProvider.notifier).state = null;
+    }
     return;
   }
 
@@ -128,44 +136,13 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
       etaMuted: readout.etaMuted,
     );
 
-    final row = SizedBox(
-      height: _ledgerRowHeight,
-      child: Stack(
-        children: [
-          ValueListenableBuilder<bool>(
-            valueListenable: _isHovered,
-            child: content,
-            builder: (context, hovered, child) => AnimatedContainer(
-              duration: _ledgerMotion(context, NightshadeTokens.durationFast),
-              curve: NightshadeTokens.curveStandard,
-              decoration: BoxDecoration(
-                color: _fill(
-                  isRunning: state.isRunning,
-                  isSelected: isSelected,
-                  hovered: hovered,
-                ),
-              ),
-              foregroundDecoration: isSelected
-                  ? BoxDecoration(
-                      border: Border.all(
-                        color: colors.primary.withValues(
-                          alpha: NightshadeTokens.opacitySelectedRing,
-                        ),
-                      ),
-                    )
-                  : null,
-              child: child,
-            ),
-          ),
-          if (state.hasBar)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildProgressBar(state),
-            ),
-        ],
-      ),
+    final row = _LedgerRowShell(
+      colors: colors,
+      hovered: _isHovered,
+      isRunning: state.isRunning,
+      isSelected: isSelected,
+      content: content,
+      progressBar: state.hasBar ? _buildProgressBar(state) : null,
     );
 
     final semanticsRow = Semantics(
@@ -195,24 +172,6 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
       onExit: (_) => _isHovered.value = false,
       child: semanticsRow,
     );
-  }
-
-  /// Running wins over selection, which wins over hover — the same precedence
-  /// [_LedgerRow] paints with, so a folded run reads as the same kind of row.
-  Color? _fill({
-    required bool isRunning,
-    required bool isSelected,
-    required bool hovered,
-  }) {
-    final colors = widget.colors;
-    if (isRunning) {
-      return colors.primary.withValues(
-        alpha: NightshadeTokens.opacityAccentTint,
-      );
-    }
-    if (isSelected) return colors.surfaceElevated;
-    if (hovered) return colors.surfaceHover;
-    return null;
   }
 
   Widget _buildContent({
@@ -323,72 +282,27 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
     );
   }
 
-  /// The hover-revealed actions block, in the same permanently reserved width
-  /// [_LedgerRow] uses so the columns do not shift between a folded row and
-  /// the rows above and below it.
+  /// The run's three mutations plus its kebab, in the shared reserved slot —
+  /// the same width [_LedgerRow] keeps, so the columns do not shift between a
+  /// folded row and the rows above and below it.
   Widget _buildActions(BuildContext context) {
-    final isTouch = NightshadeTouchTarget.isTouch(context);
-    final slotWidth = _ledgerActionsSlotWidth(context);
-    if (widget.isDragging) {
-      return SizedBox(width: slotWidth);
-    }
-    final menu = _FoldOverflowMenu(
-      colors: widget.colors,
-      group: widget.group,
-      onDisableAll: widget.onDisableAll,
-      onDuplicate: widget.onDuplicate,
-      onDelete: widget.onDelete,
-      onMoveUp: widget.onMoveUp,
-      onMoveDown: widget.onMoveDown,
-    );
-    final actions = isTouch
-        ? OverflowBox(
-            minWidth: slotWidth,
-            maxWidth: slotWidth,
-            minHeight: slotWidth,
-            maxHeight: slotWidth,
-            child: menu,
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _FoldActionChips(
-                colors: widget.colors,
-                onDisableAll: widget.onDisableAll,
-                onDuplicate: widget.onDuplicate,
-                onDelete: widget.onDelete,
-              ),
-              SizedBox(
-                width: _ledgerKebabWidth,
-                height: _ledgerRowHeight,
-                child: menu,
-              ),
-            ],
-          );
-    return SizedBox(
-      width: slotWidth,
-      height: _ledgerRowHeight,
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _isHovered,
-        child: actions,
-        builder: (context, hovered, child) {
-          final visible = isTouch || hovered;
-          return IgnorePointer(
-            ignoring: !visible,
-            child: ExcludeSemantics(
-              excluding: !visible,
-              child: AnimatedOpacity(
-                opacity: visible ? 1 : 0,
-                duration: _ledgerMotion(
-                  context,
-                  NightshadeTokens.durationFast,
-                ),
-                curve: NightshadeTokens.curveStandard,
-                child: child,
-              ),
-            ),
-          );
-        },
+    return _LedgerActionsSlot(
+      hovered: _isHovered,
+      reservedOnly: widget.isDragging,
+      chips: _FoldActionChips(
+        colors: widget.colors,
+        onDisableAll: widget.onDisableAll,
+        onDuplicate: widget.onDuplicate,
+        onDelete: widget.onDelete,
+      ),
+      menu: _FoldOverflowMenu(
+        colors: widget.colors,
+        group: widget.group,
+        onDisableAll: widget.onDisableAll,
+        onDuplicate: widget.onDuplicate,
+        onDelete: widget.onDelete,
+        onMoveUp: widget.onMoveUp,
+        onMoveDown: widget.onMoveDown,
       ),
     );
   }
@@ -405,22 +319,11 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
       fill = colors.success;
     }
 
-    return SizedBox(
-      height: _ledgerProgressHeight,
-      child: Stack(
-        children: [
-          if (state.isRunning)
-            Positioned.fill(child: ColoredBox(color: colors.surfaceHover)),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: state.fraction,
-              heightFactor: 1,
-              child: ColoredBox(color: fill),
-            ),
-          ),
-        ],
-      ),
+    return _LedgerProgressBar(
+      colors: colors,
+      fill: fill,
+      fraction: state.fraction,
+      showTrack: state.isRunning,
     );
   }
 
@@ -502,7 +405,8 @@ class _LedgerFoldRowState extends ConsumerState<_LedgerFoldRow> {
     final count = group.count;
     return (
       columns: LedgerColumns(
-        filterExp: durationSecs == null ? '' : '${_fmtFoldSecs(durationSecs)}s',
+        filterExp:
+            durationSecs == null ? '' : '${formatLedgerSeconds(durationSecs)}s',
         count: count == null ? '' : '${count * group.memberIds.length}',
         duration: total.inSeconds <= 0 ? '' : formatRollupDuration(total),
         eta: earliest == null ? '' : formatLedgerClock(earliest.start),
@@ -729,12 +633,4 @@ class _FoldOverflowMenu extends ConsumerWidget {
       child: tooltip == null ? text : Tooltip(message: tooltip, child: text),
     );
   }
-}
-
-/// `300` not `300.0`, `1.5` not `1.50` — the compact-second spelling the
-/// Filter / exp column uses on every other row (`ledger_columns.dart`), so the
-/// folded run's cell reads as the same quantity as the cells above it.
-String _fmtFoldSecs(double value) {
-  if (value == value.roundToDouble()) return value.toStringAsFixed(0);
-  return value.toStringAsFixed(1);
 }

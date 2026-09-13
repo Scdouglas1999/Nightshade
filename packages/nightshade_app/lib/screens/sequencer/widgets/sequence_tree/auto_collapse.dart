@@ -131,6 +131,22 @@ AutoCollapsePlan planAutoCollapse({
   );
 }
 
+/// Whether the run is finished with [nodeId] — the same question
+/// [planAutoCollapse] asks before folding a container away, answered for one
+/// node so callers outside the planner can ask it too.
+///
+/// `_SequenceTreeState` uses it to decide whether a manual expansion is worth
+/// remembering: a container the operator opens AFTER it has finished is being
+/// read, not held open for the run, and recording it would shield a finished
+/// branch from every later fold.
+bool isSubtreeComplete(
+  Sequence sequence,
+  Map<String, NodeStatus> statuses,
+  String nodeId,
+) =>
+    _isSubtreeComplete(
+        sequence, statuses, nodeId, <String, bool>{}, <String>{});
+
 /// Whether the run is finished with [nodeId].
 ///
 /// A node is finished when its own status says so. A container is ALSO

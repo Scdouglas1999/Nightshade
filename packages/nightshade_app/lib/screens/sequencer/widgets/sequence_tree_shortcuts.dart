@@ -162,7 +162,11 @@ final visibleNodeOrderProvider = Provider.autoDispose<List<VisibleNode>>((ref) {
   // behind it are as unreachable as the children of a collapsed container,
   // and for the same reason: they are not drawn. The other densities draw
   // every child, so they get the unfolded order.
-  if (ref.watch(sequencerDensityProvider) != SequencerDensity.ledger) {
+  //
+  // The RESOLVED density, not the preference: a canvas below the ledger's
+  // column floor draws compact rows, one per child, and folding the order
+  // there would step the arrow keys over rows that are plainly on screen.
+  if (ref.watch(canvasSequencerDensityProvider) != SequencerDensity.ledger) {
     return out;
   }
   return applyFoldsToVisibleOrder(
@@ -175,11 +179,12 @@ final visibleNodeOrderProvider = Provider.autoDispose<List<VisibleNode>>((ref) {
 /// The [FoldGroup] the tree would draw [nodeId] inside, or null when folding
 /// is not the active rendering or the node is not part of a run.
 ///
-/// Gated on the density preference because the Left / Right arrows must not
-/// quietly toggle fold state the user cannot see: in Comfortable and Compact
-/// there are no folded rows, so the arrows keep their container meaning.
+/// Gated on the RESOLVED density because the Left / Right arrows must not
+/// quietly toggle fold state the user cannot see: in Comfortable and Compact —
+/// including a Ledger preference the canvas is too narrow to honour — there
+/// are no folded rows, so the arrows keep their container meaning.
 FoldGroup? _foldGroupForSelection(WidgetRef ref, String nodeId) {
-  if (ref.read(sequencerDensityProvider) != SequencerDensity.ledger) {
+  if (ref.read(canvasSequencerDensityProvider) != SequencerDensity.ledger) {
     return null;
   }
   final sequence = ref.read(currentSequenceProvider);

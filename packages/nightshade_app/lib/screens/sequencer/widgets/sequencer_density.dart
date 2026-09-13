@@ -106,3 +106,28 @@ final sequencerDensityProvider = Provider<SequencerDensity>((ref) {
   return ref.watch(sequencerDensityPrefsProvider).valueOrNull ??
       SequencerDensity.defaultDensity;
 });
+
+/// The density the canvas RESOLVED for the tree it is drawing, published by
+/// `SequenceTree` once its `LayoutBuilder` knows how wide the canvas is.
+///
+/// The preference is only half the answer: the phone builder always draws
+/// comfortable rows, and a desktop canvas narrower than the ledger's column
+/// floor falls back to compact rows. Surfaces that have to agree with what is
+/// ON SCREEN — the visible-row order behind the arrow keys, the gutter map and
+/// the step finder — must read the resolved value, or they fold away rows the
+/// tree is drawing one by one.
+///
+/// Null until a tree mounts, and null again once it unmounts, so a screen with
+/// no sequencer on it falls back to the preference rather than to a stale
+/// width decision. Not autoDispose for the same reason
+/// `treeNodeKeyRegistryProvider` is not: the consumers rebuild independently
+/// of the tree and must keep resolving the value.
+final resolvedSequencerDensityProvider =
+    StateProvider<SequencerDensity?>((ref) => null);
+
+/// The density the tree is actually drawing right now: the canvas's resolved
+/// value while a tree is mounted, the stored preference otherwise.
+final canvasSequencerDensityProvider = Provider<SequencerDensity>((ref) {
+  return ref.watch(resolvedSequencerDensityProvider) ??
+      ref.watch(sequencerDensityProvider);
+});

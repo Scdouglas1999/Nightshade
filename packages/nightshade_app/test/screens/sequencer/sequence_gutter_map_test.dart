@@ -15,6 +15,12 @@ const Size _canvas = Size(1200, 300);
 
 /// Root -> "M 42" -> "Broadband" -> [subs]. Tall enough that the tree scrolls,
 /// which is what gives the gutter a viewport rectangle to move.
+///
+/// Every sub is a different length on purpose: exposures that share a capture
+/// spec are a RUN, and in Ledger a run is one folded row (spec §6), so
+/// identical subs would give the gutter three rows to map instead of
+/// twenty-two — and a tree that fits its viewport has nothing to scroll, which
+/// is the one condition every case here needs.
 ({Sequence sequence, List<String> exposureIds}) _tallSequence() {
   final target = TargetHeaderNode(
     name: 'M 42',
@@ -30,7 +36,7 @@ const Size _canvas = Size(1200, 300);
   final root = InstructionSetNode(name: 'Root');
   final exposures = <ExposureNode>[
     for (var i = 0; i < 20; i++)
-      ExposureNode(name: 'Sub $i', durationSecs: 60, count: 1)
+      ExposureNode(name: 'Sub $i', durationSecs: 60.0 + i, count: 1)
           .copyWith(parentId: loop.id, orderIndex: i),
   ];
   return (
@@ -188,11 +194,23 @@ void main() {
     final built = _tallSequence();
     await _pumpTree(tester, built.sequence);
 
+    // Both samples are taken with the ancestor stack already pinned. The stack
+    // covers the top of the viewport, so the scroll content reserves its
+    // height while it is up (spec §5) — fewer rows are on screen and the
+    // rectangle is honestly shorter for it. Comparing a no-pins sample against
+    // a pinned one would be comparing two different viewports, and the
+    // invariant this case is about is the one WITHIN a viewport: the rectangle
+    // slides down the gutter without changing size.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -200));
+    await _drain(tester);
+    expect(find.byKey(sequenceStickyAncestorsKey), findsOneWidget);
+
     final before = _viewportRect(tester);
     expect(before, isNotNull);
 
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
     await _drain(tester);
+    expect(find.byKey(sequenceStickyAncestorsKey), findsOneWidget);
 
     final after = _viewportRect(tester);
     expect(after!.top, greaterThan(before!.top));

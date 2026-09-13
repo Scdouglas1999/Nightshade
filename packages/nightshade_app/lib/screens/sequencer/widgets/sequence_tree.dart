@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show ValueListenable, listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -183,11 +183,24 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   List<VisibleNode> _pinnedAncestors = const <VisibleNode>[];
   bool _stickyPassScheduled = false;
 
-  /// Whether the density the canvas resolved pins ancestors at all. Written by
-  /// the layout pass, read by the post-frame measurement: Comfortable keeps its
-  /// cards and pins nothing, and measuring render boxes every scroll frame for
-  /// a stack that will not be drawn is pure cost.
-  bool _stickyEnabled = false;
+  /// The density the canvas resolved on the last layout pass — the preference
+  /// clamped by what the canvas can actually host. Reconciled AFTER the frame
+  /// that computed it (never during build), and the one thing that says
+  /// whether ancestors pin at all: Comfortable keeps its cards and pins
+  /// nothing, and measuring render boxes every scroll frame for a stack that
+  /// will not be drawn is pure cost.
+  SequencerDensity? _canvasDensity;
+
+  bool get _stickyEnabled =>
+      _canvasDensity != null && _canvasDensity != SequencerDensity.comfortable;
+
+  /// The visible-row order as of the last build.
+  ///
+  /// Watched in [build] rather than read inside the post-frame pass:
+  /// `visibleNodeOrderProvider` is autoDispose, and a bare `ref.read` from a
+  /// state with no subscription rebuilds and disposes the whole order on every
+  /// scroll frame.
+  List<VisibleNode> _visibleOrder = const <VisibleNode>[];
 
   /// Containers the operator opened by hand that have not run since. Nothing
   /// in here is ever folded away by [planAutoCollapse]; an entry leaves when
@@ -217,12 +230,18 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   /// notifier outlives this widget and is safe to hold.
   late final StateController<Map<String, GlobalKey>?> _registryController;
 
+  /// Captured for the same reason as [_registryController]: the resolved
+  /// density is published from a post-frame callback and cleared after this
+  /// widget is gone, both of which are illegal through `ref`.
+  late final StateController<SequencerDensity?> _densityController;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onManualScroll);
     _treeFocusNode = FocusNode(debugLabel: 'sequence-tree');
     _registryController = ref.read(treeNodeKeyRegistryProvider.notifier);
+    _densityController = ref.read(resolvedSequencerDensityProvider.notifier);
     // Publish the registry handle so the minimap can route navigation
     // through the same ensureVisible path. Done post-frame because provider
     // writes are illegal during the initial build pass.
@@ -251,6 +270,10 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
       if (_registryController.state == registry) {
         _registryController.state = null;
       }
+      // With no tree on screen there is no resolved density; the consumers
+      // fall back to the stored preference rather than to this tree's last
+      // width decision.
+      if (_densityController.mounted) _densityController.state = null;
     });
     _nodeKeyRegistry.clear();
     super.dispose();
@@ -267,6 +290,11 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     if (_registryOwnerSequenceId != sequence.id) {
       _nodeKeyRegistry.clear();
       _registryOwnerSequenceId = sequence.id;
+      // Both expansion sets are keyed by node id, and node ids do not repeat
+      // across sequences: carried into the next sequence they are dead weight
+      // that can only shield a container the operator never opened (the ids
+      // would have to collide) or, worse, mask a real auto-expansion.
+      _clearExpansionBookkeeping();
       return;
     }
     final liveIds = sequence.nodes.keys.toSet();
@@ -305,19 +333,69 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     );
   }
 
-  /// Bring a pinned ancestor's REAL row to the top of the viewport.
+  /// Bring a pinned ancestor's REAL row out from under the pinned stack.
   ///
-  /// Alignment 0, not the auto-follow's 0.3: the operator clicked the row they
-  /// want to read, so it belongs exactly where the pin they clicked was.
+  /// Not alignment 0: at 0 the row lands at the very top of the viewport,
+  /// which is exactly where the stack is drawn — the operator clicks a pin and
+  /// the row they asked for arrives underneath it. The row has to land at the
+  /// BOTTOM edge of the stack that will still be there once this scroll
+  /// settles, which is the pins OUTSIDE the one that was clicked: tapping the
+  /// outermost pin empties the stack, tapping an inner one leaves its
+  /// ancestors pinned.
+  ///
+  /// `ensureVisible` places the target's leading edge at
+  /// `alignment × (viewport - row)`, and the reserved top padding shrinks by
+  /// the height the stack is about to lose, so the row ends up
+  /// `_pinLandingMargin` clear of whatever is left.
   void _scrollToPinnedRow(String nodeId) {
     final rowContext = _nodeKeyRegistry[nodeId]?.currentContext;
     if (rowContext == null) return;
+    final rowBox = rowContext.findRenderObject();
+    final viewportBox = _viewportKey.currentContext?.findRenderObject();
+    var alignment = 0.0;
+    if (rowBox is RenderBox &&
+        rowBox.hasSize &&
+        viewportBox is RenderBox &&
+        viewportBox.hasSize) {
+      final slack = viewportBox.size.height - rowBox.size.height;
+      if (slack > 0) {
+        alignment =
+            ((_reservedPinHeight + _pinLandingMargin) / slack).clamp(0.0, 1.0);
+      }
+    }
     Scrollable.ensureVisible(
       rowContext,
       duration: _ledgerMotion(context, NightshadeTokens.durationSlow),
       curve: NightshadeTokens.curveStandard,
-      alignment: 0,
+      alignment: alignment,
     );
+  }
+
+  /// Height the pinned stack currently occupies over the top of the viewport,
+  /// and therefore the height the scroll content reserves for it.
+  double get _reservedPinHeight => pinnedStackHeight(_pinnedAncestors.length);
+
+  /// Record the density the layout pass just resolved, once it has finished.
+  ///
+  /// A no-op in the steady state. When it does change it is the third of the
+  /// three things that can move the pins — the other two being a scroll and a
+  /// rebuild — so it is also where the next measurement is scheduled from.
+  void _syncCanvasDensity(SequencerDensity resolved) {
+    if (_canvasDensity == resolved) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _canvasDensity == resolved) return;
+      setState(() => _canvasDensity = resolved);
+      if (_densityController.mounted) _densityController.state = resolved;
+      _scheduleStickyPass();
+    });
+  }
+
+  @override
+  void didUpdateWidget(SequenceTree oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A rebuild can add, remove or resize rows under a stack that is still
+    // pointing at the old ones.
+    _scheduleStickyPass();
   }
 
   /// Re-measure the pinned ancestors after the current frame.
@@ -352,16 +430,26 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     final sequence = ref.read(currentSequenceProvider);
     if (sequence == null) return const <VisibleNode>[];
 
-    final viewportTop = viewport.localToGlobal(Offset.zero).dy;
+    // Rows under the pinned stack are painted over, so "still visible" means
+    // "clear of the stack", not "clear of the viewport". Using the same edge
+    // for both the anchor and the pin test is also what keeps the stack
+    // stable: the scroll content reserves exactly this much room at its top
+    // while the pins exist, so both sides of the comparison move together and
+    // the pinned set stays a function of the scroll offset alone. Compare
+    // against the viewport edge only and the reserved room would push the
+    // ancestor back into view, unpin it, remove the room, and pin it again —
+    // once per frame, forever.
+    final occludedTop =
+        viewport.localToGlobal(Offset.zero).dy + _reservedPinHeight;
 
     // The anchor is the first row the operator can still see any of. Rows
     // above it are already gone, so the walk stops there rather than measuring
     // the whole tree.
     String? anchorId;
-    for (final row in ref.read(visibleNodeOrderProvider)) {
+    for (final row in _visibleOrder) {
       final bounds = _rowBounds(row.id);
       if (bounds == null) continue;
-      if (bounds.bottom > viewportTop) {
+      if (bounds.bottom > occludedTop) {
         anchorId = row.id;
         break;
       }
@@ -370,8 +458,37 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
 
     return pinnedAncestorsOf(sequence, anchorId, (nodeId) {
       final bounds = _rowBounds(nodeId);
-      return bounds != null && bounds.bottom <= viewportTop;
+      return bounds != null && bounds.bottom <= occludedTop;
     });
+  }
+
+  /// Index into [_visibleOrder] of the row that covers [contentOffset] pixels
+  /// down the scroll content, or null while no row's box is mounted.
+  ///
+  /// The gutter's blocks are evenly spaced and the tree's rows are not (a
+  /// container's children area, the ledger's column header and the scroll
+  /// padding all take content pixels that no block stands for), so a gutter
+  /// position can only be turned into a row by asking the rows themselves
+  /// where they are. Same mapping the viewport rectangle uses — content
+  /// pixels — which is what makes a tap on the rectangle's top edge select the
+  /// row at the top of the viewport.
+  int? _rowAtContentOffset(double contentOffset) {
+    final viewport = _viewportKey.currentContext?.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize) return null;
+    if (!_scrollController.hasClients) return null;
+    final contentTop =
+        viewport.localToGlobal(Offset.zero).dy - _scrollController.offset;
+
+    int? found;
+    for (var i = 0; i < _visibleOrder.length; i++) {
+      final bounds = _rowBounds(_visibleOrder[i].id);
+      if (bounds == null) continue;
+      // Rows are walked in draw order, so the first one that starts below the
+      // target ends the search — everything after it starts lower still.
+      if (bounds.top - contentTop > contentOffset) break;
+      found = i;
+    }
+    return found;
   }
 
   /// A row's global top and bottom edge, or null while its box is not mounted.
@@ -395,7 +512,45 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     if (expanded.isEmpty) return;
     final byUser = expanded.difference(_pendingAutoExpansions);
     _pendingAutoExpansions.removeAll(expanded);
-    _userExpandedIds.addAll(byUser);
+    if (byUser.isEmpty) return;
+
+    // Only containers the run has NOT finished with are worth remembering.
+    // The set exists to stop the tree folding a branch away while the operator
+    // is working in it — and a branch the run is done with is not one they can
+    // still be working in. Expand-all is the case that proved it: one press
+    // recorded every finished target in the night, and from then on nothing
+    // the run did folded anything away again.
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+    final statuses = ref.read(sequenceProgressProvider).nodeStatuses;
+    _userExpandedIds.addAll(byUser.where(
+      (id) => !isSubtreeComplete(sequence, statuses, id),
+    ));
+  }
+
+  /// Drop the manual expansions the run has now finished with.
+  ///
+  /// A container can complete while the operator is holding it open; from that
+  /// moment it is a finished branch like any other and the next node change
+  /// may fold it away.
+  void _dropCompletedUserExpansions() {
+    if (_userExpandedIds.isEmpty) return;
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+    final statuses = ref.read(sequenceProgressProvider).nodeStatuses;
+    _userExpandedIds.removeWhere(
+      (id) => isSubtreeComplete(sequence, statuses, id),
+    );
+  }
+
+  /// Forget everything the tree knows about who opened what.
+  ///
+  /// Both sets describe ONE run over ONE sequence: carried past the end of
+  /// either they can only shield containers from a fold the operator never
+  /// asked to shield.
+  void _clearExpansionBookkeeping() {
+    _userExpandedIds.clear();
+    _pendingAutoExpansions.clear();
   }
 
   void _onExecutingNodeChanged(String? previous, String? current) {
@@ -414,6 +569,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
         _userExpandedIds.removeAll(sequenceAncestorIds(sequence, current));
       }
     }
+    _dropCompletedUserExpansions();
     _applyAutoCollapse(previousNodeId: previous, currentNodeId: current);
   }
 
@@ -421,6 +577,14 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     SequenceExecutionState? previous,
     SequenceExecutionState next,
   ) {
+    // Back to idle is the run RESET: statuses are cleared, so nothing in the
+    // sequence is "finished" any more and every id the last run recorded
+    // describes a container the next run has not reached. Keeping them would
+    // shield those containers through a whole second night.
+    if (next == SequenceExecutionState.idle) {
+      _clearExpansionBookkeeping();
+      return;
+    }
     if (next != SequenceExecutionState.running) return;
     // Resuming from a pause is not a fresh start: the tree is already folded
     // to where the run left off.
@@ -519,6 +683,10 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
       ref.watch(sequencerDensityProvider),
       isMobile: widget.isMobile,
     );
+    // Cached for the post-frame sticky pass and for the gutter's row mapping.
+    // See [_visibleOrder]: watching here is what keeps the autoDispose order
+    // alive between scroll frames.
+    _visibleOrder = ref.watch(visibleNodeOrderProvider);
 
     // Auto-scroll whenever the executing node changes
     final followExecution = ref.watch(followExecutionProvider);
@@ -532,6 +700,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
 
     // Auto-collapse to the running branch, and the manual-scroll reset that
     // rides on the same signal (spec §4).
+    // Adding, removing, folding or collapsing rows moves every row under the
+    // change, so the stack has to be re-measured against the new layout.
+    ref.listen<List<VisibleNode>>(
+      visibleNodeOrderProvider,
+      (_, __) => _scheduleStickyPass(),
+    );
     ref.listen(collapsedNodeIdsProvider, _onCollapsedSetChanged);
     ref.listen<String?>(sequenceProgressProvider.select((p) => p.currentNodeId),
         _onExecutingNodeChanged);
@@ -657,12 +831,17 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                       horizontal: NightshadeTokens.spaceXl,
                       vertical: NightshadeTokens.spaceLg,
                     );
-              // Comfortable keeps its cards, which are far too tall to stack
-              // over the viewport. The phone builder is comfortable by
-              // definition (`effectiveSequencerDensity`), so this covers it
-              // too.
-              _stickyEnabled = canvasDensity != SequencerDensity.comfortable;
-              _scheduleStickyPass();
+              // Reconciled after this frame, never during it: publishing the
+              // resolved density and re-measuring the pins are both writes,
+              // and a write from inside a build is either illegal (the
+              // provider) or a frame late (the measurement).
+              _syncCanvasDensity(canvasDensity);
+
+              // The pinned stack floats over the top of the viewport. Without
+              // this the rows behind it are simply painted over — the feature
+              // that exists to say WHERE you are would be hiding the first two
+              // rows of where you are.
+              final reservedTop = _reservedPinHeight;
 
               return Column(
                 children: [
@@ -684,31 +863,43 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                                 key: _viewportKey,
                                 controller: _scrollController,
                                 padding: scrollPadding,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    // The ledger's column headings ride inside
-                                    // the scroll view so they take the same
-                                    // horizontal padding the rows do and sit
-                                    // over the columns they name.
-                                    if (canvasDensity ==
-                                        SequencerDensity.ledger)
-                                      _LedgerColumnHeader(
-                                          colors: widget.colors),
-                                    _NodeTreeView(
-                                      colors: widget.colors,
-                                      sequence: sequence,
-                                      nodeId: rootNode.id,
-                                      progress: progress,
-                                      validation: validation,
-                                      depth: 0,
-                                      density: canvasDensity,
-                                      isMobile: widget.isMobile,
-                                      onNodeTap: widget.onNodeTap,
-                                      keyRegistry: _nodeKeyRegistry,
-                                    ),
-                                  ],
+                                // Animated on the same token as the pins'
+                                // entrance so the rows travel WITH the stack
+                                // sliding in over them rather than jumping out
+                                // from under it.
+                                child: AnimatedPadding(
+                                  padding: EdgeInsets.only(top: reservedTop),
+                                  duration: _ledgerMotion(
+                                    context,
+                                    NightshadeTokens.durationQuick,
+                                  ),
+                                  curve: NightshadeTokens.curveStandard,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // The ledger's column headings ride
+                                      // inside the scroll view so they take
+                                      // the same horizontal padding the rows
+                                      // do and sit over the columns they name.
+                                      if (canvasDensity ==
+                                          SequencerDensity.ledger)
+                                        _LedgerColumnHeader(
+                                            colors: widget.colors),
+                                      _NodeTreeView(
+                                        colors: widget.colors,
+                                        sequence: sequence,
+                                        nodeId: rootNode.id,
+                                        progress: progress,
+                                        validation: validation,
+                                        depth: 0,
+                                        density: canvasDensity,
+                                        isMobile: widget.isMobile,
+                                        onNodeTap: widget.onNodeTap,
+                                        keyRegistry: _nodeKeyRegistry,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                               if (_stickyEnabled && _pinnedAncestors.isNotEmpty)
@@ -738,6 +929,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                             key: sequenceGutterMapKey,
                             colors: widget.colors,
                             scrollController: _scrollController,
+                            rowAtContentOffset: _rowAtContentOffset,
                           ),
                       ],
                     ),

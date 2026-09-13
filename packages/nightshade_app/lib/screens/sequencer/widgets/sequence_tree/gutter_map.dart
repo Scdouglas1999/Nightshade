@@ -19,10 +19,20 @@ class _SequenceGutterMap extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ScrollController scrollController;
 
+  /// Which visible row covers a given number of content pixels down the tree,
+  /// answered by the tree itself from its live row boxes.
+  ///
+  /// The gutter cannot work this out on its own: its blocks are evenly spaced
+  /// and the tree's content is not, so `dy / height × rowCount` names a
+  /// different row than the one the viewport rectangle at the same `dy` is
+  /// drawn over. Null while no row box is mounted.
+  final int? Function(double contentOffset) rowAtContentOffset;
+
   const _SequenceGutterMap({
     super.key,
     required this.colors,
     required this.scrollController,
+    required this.rowAtContentOffset,
   });
 
   @override
@@ -60,16 +70,23 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
             : LayoutBuilder(
                 builder: (context, constraints) => GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTapDown: (details) => navigateToSequenceMapRow(
-                    ref,
-                    entries,
-                    sequenceMapRowAt(
-                      details.localPosition.dy,
-                      constraints.maxHeight,
-                      entries.length,
-                    ),
-                    widget.scrollController,
-                  ),
+                  // On UP, not on DOWN: a press that turns into a drag of the
+                  // viewport rectangle would otherwise jump the tree to
+                  // wherever the finger landed before the drag it was actually
+                  // starting had moved a pixel.
+                  onTapUp: (details) {
+                    if (_dragAnchorY != null) return;
+                    navigateToSequenceMapRow(
+                      ref,
+                      entries,
+                      _rowAtGutterY(
+                        details.localPosition.dy,
+                        constraints.maxHeight,
+                        entries.length,
+                      ),
+                      widget.scrollController,
+                    );
+                  },
                   onVerticalDragStart: (details) {
                     final metrics = sequenceMapMetrics(widget.scrollController);
                     if (metrics == null) return;
@@ -84,14 +101,13 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
                   onVerticalDragCancel: () => _dragAnchorY = null,
                   child: AnimatedBuilder(
                     animation: widget.scrollController,
-                    builder: (context, _) => Semantics(
-                      slider: true,
-                      label: 'Sequence overview',
-                      value: _positionLabel(entries.length),
-                      // The blocks are a picture of the tree, not a second
-                      // copy of it: every row they stand for is already
-                      // reachable in the tree's own traversal order.
-                      excludeSemantics: true,
+                    // The picture does not depend on this animation:
+                    // [SequenceMapPainter] already repaints from the same
+                    // controller. Handing it through as `child` — behind its
+                    // own boundary, so a scroll repaints the gutter without
+                    // touching the tree's layer — leaves the rebuild the
+                    // Semantics value needs and nothing else.
+                    child: RepaintBoundary(
                       child: CustomPaint(
                         size: Size(
                           constraints.maxWidth,
@@ -105,6 +121,28 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
                           scrollController: widget.scrollController,
                         ),
                       ),
+                    ),
+                    builder: (context, child) => Semantics(
+                      slider: true,
+                      label: 'Sequence overview',
+                      value: _positionLabel(entries.length),
+                      // Both required alongside the actions: a reader
+                      // announces where the increase/decrease will land, and
+                      // the framework asserts on a valued slider that names
+                      // neither.
+                      increasedValue: _positionLabel(entries.length, pages: 1),
+                      decreasedValue: _positionLabel(entries.length, pages: -1),
+                      // A slider a reader cannot move is a label wearing a
+                      // control's clothes: the two actions page the tree by a
+                      // screen, which is what dragging the rectangle by its
+                      // own height does.
+                      onIncrease: () => _pageBy(1),
+                      onDecrease: () => _pageBy(-1),
+                      // The blocks are a picture of the tree, not a second
+                      // copy of it: every row they stand for is already
+                      // reachable in the tree's own traversal order.
+                      excludeSemantics: true,
+                      child: child,
                     ),
                   ),
                 ),
@@ -128,13 +166,45 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
     );
   }
 
-  /// What the slider currently reads: the row at the top of the viewport.
-  String _positionLabel(int rowCount) {
+  /// Scroll one full viewport in [direction], the way the slider's increase
+  /// and decrease actions move it.
+  void _pageBy(int direction) {
     final metrics = sequenceMapMetrics(widget.scrollController);
-    final contentExtent =
-        (metrics?.maxScrollExtent ?? 0) + (metrics?.viewportDimension ?? 0);
-    if (metrics == null || contentExtent <= 0) return 'row 1 of $rowCount';
-    final row = sequenceMapRowAt(metrics.offset, contentExtent, rowCount);
+    if (metrics == null) return;
+    widget.scrollController.animateTo(
+      (metrics.offset + direction * metrics.viewportDimension)
+          .clamp(0.0, metrics.maxScrollExtent),
+      duration: _ledgerMotion(context, NightshadeTokens.durationSlow),
+      curve: NightshadeTokens.curveStandard,
+    );
+  }
+
+  /// The row a point [localY] down a gutter of [extent] pixels stands for.
+  ///
+  /// Through content pixels, not through the block grid: the viewport
+  /// rectangle is drawn at `offset / contentExtent` of the gutter's height, so
+  /// mapping a tap back the same way is the only thing that makes clicking the
+  /// top of that rectangle select the row at the top of the viewport. Falls
+  /// back to the block grid while the tree's row boxes are not mounted.
+  int _rowAtGutterY(double localY, double extent, int rowCount) {
+    final metrics = sequenceMapMetrics(widget.scrollController);
+    if (metrics == null || extent <= 0) {
+      return sequenceMapRowAt(localY, extent, rowCount);
+    }
+    final contentExtent = metrics.maxScrollExtent + metrics.viewportDimension;
+    final row = widget.rowAtContentOffset((localY / extent) * contentExtent);
+    return row ?? sequenceMapRowAt(localY, extent, rowCount);
+  }
+
+  /// What the slider reads: the row at the top of the viewport, or at the top
+  /// of the viewport [pages] screens from here — the value an increase or a
+  /// decrease will move it to.
+  String _positionLabel(int rowCount, {int pages = 0}) {
+    final metrics = sequenceMapMetrics(widget.scrollController);
+    if (metrics == null) return 'row 1 of $rowCount';
+    final offset = (metrics.offset + pages * metrics.viewportDimension)
+        .clamp(0.0, metrics.maxScrollExtent);
+    final row = widget.rowAtContentOffset(offset) ?? 0;
     return 'row ${row + 1} of $rowCount';
   }
 }

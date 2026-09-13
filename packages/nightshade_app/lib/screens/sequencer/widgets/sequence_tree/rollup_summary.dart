@@ -15,6 +15,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../plan_math.dart';
 import '../node_summary.dart';
+import 'ledger_columns.dart';
 
 /// How many child names the generic shape lists before it counts the rest.
 const _genericNameLimit = 3;
@@ -115,7 +116,7 @@ String? _filterRunSummary(List<SequenceNode> children) {
   // 300 s ×12 each` reads as one phrase; a ` · ` there would detach the
   // exposure length from the bands it belongs to.
   return <String>[
-    '${filters.join(' · ')} ${_fmtSecs(first.durationSecs)} s '
+    '${filters.join(' · ')} ${formatLedgerSeconds(first.durationSecs)} s '
         '×${first.count} each',
     if (dither != null && dither > 0) 'dither every $dither',
   ].join(' · ');
@@ -173,14 +174,6 @@ String _genericSummary(List<SequenceNode> children) {
       .toList(growable: false);
   final extra = children.length - names.length;
   return extra > 0 ? '${names.join(' · ')} · +$extra more' : names.join(' · ');
-}
-
-/// Drop a trailing `.0` so a whole number of seconds reads `300`. Mirrors
-/// `node_summary`'s `_fmtSecs` so the collapsed line and the expanded rows
-/// print the same exposure length.
-String _fmtSecs(double value) {
-  if (value == value.roundToDouble()) return value.toStringAsFixed(0);
-  return value.toStringAsFixed(1);
 }
 
 /// The collapsed-container summary for every node in the open sequence,

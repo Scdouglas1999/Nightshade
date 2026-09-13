@@ -310,20 +310,7 @@ class _NodeTreeView extends ConsumerWidget {
                     : null,
               );
 
-    // Crossfade between the two row sets when the density changes (spec §9).
-    // The switcher sits INSIDE the scroll key and the tutorial anchor so the
-    // outgoing row, which stays mounted for the length of the fade, can never
-    // hold a GlobalKey the incoming row also wants — two live holders of one
-    // GlobalKey is a hard framework error.
-    final Widget crossfadedRow = AnimatedSwitcher(
-      duration: _ledgerMotion(context, NightshadeTokens.durationSmooth),
-      switchInCurve: NightshadeTokens.curveStandard,
-      switchOutCurve: NightshadeTokens.curveStandard,
-      child: KeyedSubtree(
-        key: ValueKey<SequencerDensity>(density),
-        child: densityRow,
-      ),
-    );
+    final Widget crossfadedRow = _densityCrossfade(context, densityRow);
 
     // `baseRow` is `final` on purpose. The collapsed-container wrapper below
     // builds its child from a CLOSURE, and a closure captures the VARIABLE,
@@ -678,6 +665,25 @@ class _NodeTreeView extends ConsumerWidget {
     );
   }
 
+  /// Crossfade between the old and the new row set when the density changes
+  /// (spec §9).
+  ///
+  /// The switcher sits INSIDE the scroll key and the tutorial anchor so the
+  /// outgoing row, which stays mounted for the length of the fade, can never
+  /// hold a GlobalKey the incoming row also wants — two live holders of one
+  /// GlobalKey is a hard framework error.
+  Widget _densityCrossfade(BuildContext context, Widget row) {
+    return AnimatedSwitcher(
+      duration: _ledgerMotion(context, NightshadeTokens.durationSmooth),
+      switchInCurve: NightshadeTokens.curveStandard,
+      switchOutCurve: NightshadeTokens.curveStandard,
+      child: KeyedSubtree(
+        key: ValueKey<SequencerDensity>(density),
+        child: row,
+      ),
+    );
+  }
+
   /// One folded run: the [_LedgerFoldRow] plus everything an ordinary row
   /// carries — the context menu, the validation badge, the scroll-key anchor
   /// and the drag that moves the whole block.
@@ -770,6 +776,11 @@ class _NodeTreeView extends ConsumerWidget {
           : null,
     );
 
+    // Through the SAME crossfade an ordinary row takes, so a density switch
+    // fades the whole tree rather than fading the steps and popping the runs
+    // between them (spec §9).
+    final Widget crossfadedFoldRow = _densityCrossfade(context, foldRow);
+
     final Widget decorated = KeyedSubtree(
       key: scrollKey,
       child: SequenceTreeContextMenu(
@@ -781,8 +792,8 @@ class _NodeTreeView extends ConsumerWidget {
           validationSeverity: severity,
           validationIssues: issues,
           child: tutorialKey == null
-              ? foldRow
-              : KeyedSubtree(key: tutorialKey, child: foldRow),
+              ? crossfadedFoldRow
+              : KeyedSubtree(key: tutorialKey, child: crossfadedFoldRow),
         ),
       ),
     );

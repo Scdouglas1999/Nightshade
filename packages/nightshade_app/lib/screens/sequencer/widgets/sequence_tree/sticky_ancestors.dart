@@ -23,6 +23,26 @@ const int _maxPinnedAncestors = 3;
 /// How far a newly pinned row travels as it fades in (spec §9).
 const double _pinSlideDistance = 6.0;
 
+/// The hairline the stack draws along its bottom edge to separate itself from
+/// the rows scrolling under it. Named because the reserved height has to
+/// include it exactly.
+const double _stickyStackBorderWidth = 1.0;
+
+/// Clearance a row gets below the stack when the operator clicks a pin to
+/// reach it — flush with the pin above would read as a fourth pinned row.
+const double _pinLandingMargin = NightshadeTokens.spaceXs;
+
+/// Height a stack of [count] pinned rows occupies, and therefore the height
+/// the scroll content reserves at its top so the stack covers nothing.
+///
+/// Computed, not measured: every pinned row is exactly one [_ledgerRowHeight]
+/// in both densities the stack draws (the ledger row is fixed-height by
+/// definition, and [_PinnedCompactRow] is built to match it), so the figure is
+/// exact and — unlike a render-box measurement — available on the same frame
+/// the pin appears.
+double pinnedStackHeight(int count) =>
+    count == 0 ? 0 : count * _ledgerRowHeight + _stickyStackBorderWidth;
+
 /// The ancestors of [anchorId] that are currently pinned, outermost first.
 ///
 /// [isRowAbove] answers "has this row's own box scrolled clear of the viewport
@@ -87,6 +107,12 @@ class _StickyAncestorStack extends StatelessWidget {
               // view, and an opaque hit box would kill the wheel and the drag
               // scroll of a pointer that happens to be in the top 84 px.
               behavior: HitTestBehavior.translucent,
+              // The pin is a shortcut to a row that is already in the
+              // traversal order, and its own contents are excluded from
+              // semantics. Left to announce itself the detector would add an
+              // anonymous tappable node per pin — three unlabelled "buttons"
+              // ahead of the whole tree.
+              excludeFromSemantics: true,
               onTap: () => onTap(entry.id),
               // The row itself takes no pointer: the chevron, the kebab and
               // the drag handle belong to the real row, and a drag started
@@ -121,7 +147,12 @@ class _StickyAncestorStack extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.surfaceElevated,
-          border: Border(bottom: BorderSide(color: colors.border)),
+          border: Border(
+            bottom: BorderSide(
+              color: colors.border,
+              width: _stickyStackBorderWidth,
+            ),
+          ),
           // The design system casts a shadow on exactly two things, and both
           // are surfaces genuinely floating above the page. The pinned stack
           // is the third: without the lift it reads as a row that refuses to
