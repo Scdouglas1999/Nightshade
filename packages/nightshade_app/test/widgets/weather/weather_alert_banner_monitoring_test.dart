@@ -63,7 +63,8 @@ void main() {
 
   testWidgets('monitoring off hides the banner even at a critical level',
       (tester) async {
-    final handle = await pumpBanner(tester, _critical(monitoringEnabled: false));
+    final handle =
+        await pumpBanner(tester, _critical(monitoringEnabled: false));
     expect(find.text('Weather Critical'), findsNothing);
     await dispose(tester, handle);
   });

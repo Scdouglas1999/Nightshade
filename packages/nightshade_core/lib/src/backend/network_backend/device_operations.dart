@@ -660,9 +660,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   }
 
   @override
-  Future<MountSiteCapabilities> mountSiteCapabilities(
-    String deviceId,
-  ) async {
+  Future<MountSiteCapabilities> mountSiteCapabilities(String deviceId) async {
     final json = await _get('mount/site-capabilities', {'deviceId': deviceId});
     return MountSiteCapabilities(
       canReadSite: json['canReadSite'] as bool? ?? false,

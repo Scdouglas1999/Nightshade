@@ -17,6 +17,9 @@ import '../filter_source.dart';
 import 'delete_node_confirmation.dart';
 import 'live_stacking_properties.dart';
 import 'meridian_flip_edit_helper.dart';
+import 'node_activity_tab.dart';
+import 'node_notes_tab.dart';
+import 'node_progress_panels.dart';
 import 'node_property_widgets.dart';
 import 'node_timing_section.dart';
 import 'science_photometry_properties.dart';
@@ -44,6 +47,18 @@ part 'node_properties_panel_parts/_misc_properties.dart';
 part 'node_properties_panel_parts/_plugin_properties.dart';
 part 'node_properties_panel_parts/_motion_flip_and_polar.dart';
 
+/// The inspector tab remembered per node CATEGORY for this session
+/// (`Map<NodeCategory, int>`, in memory only — spec §8: "the active tab
+/// persists per node type"). Selecting another node of the same category
+/// restores the tab it last had; a category never visited falls back to
+/// Settings. Nothing is written to storage.
+final inspectorTabProvider =
+    StateProvider<Map<NodeCategory, int>>((ref) => const {});
+
+const int _inspectorTabSettings = 0;
+const int _inspectorTabActivity = 1;
+const int _inspectorTabNotes = 2;
+
 class NodePropertiesPanel extends ConsumerWidget {
   final NightshadeColors colors;
   final ScrollController? scrollController;
@@ -63,6 +78,11 @@ class NodePropertiesPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedNode = ref.watch(selectedNodeProvider);
+
+    // Keep the session's last-known progress fold alive while the inspector
+    // exists: the Activity tab only watches it when it is built, and a
+    // lazily-created notifier would see only the post-reset empty maps.
+    ref.watch(lastKnownNodeActivityProvider);
 
     if (isMobileSheet) {
       return _buildMobileSheetContent(context, ref, selectedNode);
@@ -109,17 +129,18 @@ class NodePropertiesPanel extends ConsumerWidget {
 
         Divider(color: colors.border, height: 1),
 
+        if (selectedNode != null) ...[
+          _buildInspectorTabBar(selectedNode),
+          Divider(color: colors.border, height: 1),
+        ],
+
         // Content
         Expanded(
           child: selectedNode == null
               ? _EmptySelection(colors: colors, isMobile: true)
-              : _NodeEditor(
-                  colors: colors,
-                  node: selectedNode,
-                  scrollController: scrollController,
-                  isMobile: true,
-                ),
+              : _buildTabBody(selectedNode),
         ),
+        if (selectedNode != null) _SelectedNodeBanner(nodeId: selectedNode.id),
       ],
     );
   }
@@ -161,15 +182,79 @@ class NodePropertiesPanel extends ConsumerWidget {
                           ),
                   ),
                 ),
+                _buildInspectorTabBar(selectedNode),
+                Divider(color: colors.border, height: 1),
                 Expanded(
-                  child: _NodeEditor(
-                    colors: colors,
-                    node: selectedNode,
-                  ),
+                  child: _buildTabBody(selectedNode),
                 ),
                 _SelectedNodeBanner(nodeId: selectedNode.id),
               ],
             ),
+    );
+  }
+
+  /// The Settings / Activity / Notes strip under the section title. The
+  /// selection is keyed by node CATEGORY (spec §8): two exposure nodes share
+  /// the instruction slot, so moving between siblings keeps the tab the
+  /// operator was working in.
+  Widget _buildInspectorTabBar(SequenceNode node) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final tabIndex = ref.watch(inspectorTabProvider)[node.category] ??
+            _inspectorTabSettings;
+        final hasComment = node.comment?.trim().isNotEmpty ?? false;
+        return AdaptiveTabBar(
+          // The bar's default squeezes labelled tabs down to icons below
+          // 480px — tuned for the 4-tab page header. The inspector is a
+          // 300px sidebar where icon-only Settings/Activity/Notes would be
+          // cryptic. Text-only tabs keep the full labels inside that width
+          // (the bar still scrolls if a narrower host ever clips them).
+          collapseLabelsWhenTight: false,
+          horizontalPadding: NightshadeTokens.spaceSm,
+          tabs: [
+            const AdaptiveTab(label: 'Settings'),
+            const AdaptiveTab(label: 'Activity'),
+            // `AdaptiveTab` has no dot slot; the bullet rides in the label.
+            AdaptiveTab(
+              label: hasComment ? 'Notes •' : 'Notes',
+              semanticLabel: hasComment ? 'Notes, has comment' : 'Notes',
+            ),
+          ],
+          selectedIndex: tabIndex,
+          onSelected: (index) => ref
+              .read(inspectorTabProvider.notifier)
+              .update((memory) => {...memory, node.category: index}),
+        );
+      },
+    );
+  }
+
+  Widget _buildTabBody(SequenceNode node) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final tabIndex = ref.watch(inspectorTabProvider)[node.category] ??
+            _inspectorTabSettings;
+        return switch (tabIndex) {
+          _inspectorTabActivity => NodeActivityTab(
+              colors: colors,
+              node: node,
+              scrollController: scrollController,
+              isMobile: isMobileSheet,
+            ),
+          _inspectorTabNotes => NodeNotesTab(
+              colors: colors,
+              node: node,
+              scrollController: scrollController,
+              isMobile: isMobileSheet,
+            ),
+          _ => _NodeEditor(
+              colors: colors,
+              node: node,
+              scrollController: scrollController,
+              isMobile: isMobileSheet,
+            ),
+        };
+      },
     );
   }
 }

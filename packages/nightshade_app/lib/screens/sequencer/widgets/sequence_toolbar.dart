@@ -19,6 +19,7 @@ import 'mosaic_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
 import 'sequence_issues_dialog.dart';
 import 'sequence_minimap.dart';
+import 'sequencer_density.dart';
 import 'sequence_step_finder.dart';
 import 'sequence_tree_shortcuts.dart';
 import 'slew_to_target_dialog.dart';
@@ -88,6 +89,13 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
   /// (148.8 + 2 + 83.3 = 234.1) and rounded up, because a pressed toggle is
   /// `secondary` and carries a border the idle one does not.
   static const double _labelledToggleGroupWidth = 260.0;
+
+  /// What the labelled density switch adds to the same group: three
+  /// `buttonSm` segment labels ("Comfortable" is the long word) with the
+  /// control's own segment padding and gaps, plus the item gap separating it
+  /// from the Map button. Measured like [_labelledToggleGroupWidth] and
+  /// rounded up.
+  static const double _densityControlWidth = 244.0;
 
   /// The width of a [NightshadeToolbar] holding [buttons] glyph buttons in
   /// [groups] groups, each button [extent] wide.
@@ -708,20 +716,38 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             NightshadeTokens.iconButtonSizeSm,
             NightshadeTouchTarget.minExtent(context),
           );
-          // Without the toggles the bar carries undo/redo and save/more.
-          final barToolbarWidth = _toolbarWidth(4, 2, glyphExtent);
-          // With them, three groups of two.
-          final toggledToolbarWidth = _toolbarWidth(6, 3, glyphExtent);
-          // Labelled, the middle group is two worded buttons.
-          final labelledToolbarWidth =
-              _toolbarWidth(4, 3, glyphExtent) + _labelledToggleGroupWidth;
-
-          final isNarrowRow = constraints.maxWidth <
-              math.max(_narrowBarWidth, _barWidthFor(barToolbarWidth));
-
           final validation = ref.watch(liveValidationProvider);
           final showTimeline = ref.watch(timelineVisibleProvider);
           final showMinimap = ref.watch(minimapVisibleProvider);
+          final density = ref.watch(sequencerDensityProvider);
+          // The mobile builder forces comfortable rows
+          // (`effectiveSequencerDensity`), so a density control there would
+          // sell a mode the canvas refuses to draw. The gate mirrors the same
+          // signal the layout applies to the tree: `builder_layout.dart`
+          // picks `_MobileBuilderLayout` on the region's SHORT side
+          // (`BreakpointTokens.isPhone(min(w, h))`), so a narrow-but-tall
+          // desktop window keeps the switch while the tree keeps drawing
+          // ledger rows. The window's short side is the closest measurement
+          // this widget can take of that region's — they differ only by the
+          // shell chrome between them.
+          final mediaSize = MediaQuery.sizeOf(context);
+          final showDensity = !BreakpointTokens.isPhone(
+            math.min(mediaSize.width, mediaSize.height),
+          );
+          // Without the toggles the bar carries undo/redo and save/more.
+          final barToolbarWidth = _toolbarWidth(4, 2, glyphExtent);
+          // With them, three groups of two — plus the three density glyphs
+          // riding inside the toggle group when the control is offered.
+          final toggledToolbarWidth =
+              _toolbarWidth(showDensity ? 9 : 6, 3, glyphExtent);
+          // Labelled, the middle group is two worded buttons and the
+          // segmented density control.
+          final labelledToolbarWidth = _toolbarWidth(4, 3, glyphExtent) +
+              _labelledToggleGroupWidth +
+              (showDensity ? _densityControlWidth : 0);
+
+          final isNarrowRow = constraints.maxWidth <
+              math.max(_narrowBarWidth, _barWidthFor(barToolbarWidth));
 
           // Below these the toolbar costs more than the canvas can spare and
           // the row overflows — measured, not guessed: at 486 px (a 1000 px
@@ -756,6 +782,24 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               ));
           }
 
+          // The density switch follows the toggles into the menu when the bar
+          // cannot hold them. The active mode's entry is disabled — the menu
+          // has no checkmark affordance, and a no-op tap is how a radio menu
+          // says "this is where you are".
+          if (!inlineToggles && showDensity) {
+            for (final mode in SequencerDensity.values) {
+              actions.add(_ToolbarAction(
+                icon: mode.icon,
+                label: 'Density: ${mode.label}',
+                onPressed: mode == density
+                    ? null
+                    : () => ref
+                        .read(sequencerDensityPrefsProvider.notifier)
+                        .setDensity(mode),
+              ));
+            }
+          }
+
           List<Widget> viewToggles() {
             if (!inlineToggles) return const <Widget>[];
             if (labelledToggles) {
@@ -785,6 +829,20 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                       .read(minimapVisibleProvider.notifier)
                       .state = !showMinimap,
                 ),
+                // Density is a one-of-three choice, not a third on/off
+                // toggle, so it keeps its own control shape even while it
+                // shares the group: `SegmentedControl` publishes button /
+                // enabled / selected / label per segment on its own.
+                if (showDensity)
+                  SegmentedControl(
+                    segments: <String>[
+                      for (final mode in SequencerDensity.values) mode.label,
+                    ],
+                    selectedIndex: density.index,
+                    onSelected: (index) => ref
+                        .read(sequencerDensityPrefsProvider.notifier)
+                        .setDensity(SequencerDensity.values[index]),
+                  ),
               ];
             }
             return <Widget>[
@@ -807,6 +865,19 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                     .read(minimapVisibleProvider.notifier)
                     .state = !showMinimap,
               ),
+              // Glyph tier: one button per mode, named by its tooltip and
+              // carrying the same `selected` treatment as Timeline / Map.
+              if (showDensity)
+                for (final mode in SequencerDensity.values)
+                  NightshadeIconButton(
+                    icon: mode.icon,
+                    tooltip: '${mode.label} density',
+                    size: IconButtonSize.sm,
+                    selected: mode == density,
+                    onPressed: () => ref
+                        .read(sequencerDensityPrefsProvider.notifier)
+                        .setDensity(mode),
+                  ),
             ];
           }
 

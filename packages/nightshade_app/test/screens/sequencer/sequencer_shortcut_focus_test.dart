@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/batch_operations_toolbar.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -49,6 +50,9 @@ Future<HarnessHandle> _pumpBuilder(WidgetTester tester) async {
       currentSequenceProvider.overrideWith((_) => notifier),
       sequenceExecutionStateProvider
           .overrideWith((ref) => SequenceExecutionState.idle),
+      // The ledger ETA clock is a real periodic stream; in the fake-async
+      // zone its timer outlives every pump and fails teardown.
+      ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
     ],
     settle: false,
   );

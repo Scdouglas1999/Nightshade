@@ -32,7 +32,49 @@ class _NoopTutorialProgressDao implements TutorialProgressDao {
       throw UnimplementedError('${invocation.memberName}');
 }
 
-Widget _host(Widget child) => ProviderScope(
+/// A session whose PSF field measured cleanly, so Diagnostics reaches its
+/// DATA branch — the health grade card with its two score bars — rather than
+/// the "pick a session" empty state.
+const int _measuredSessionId = 7;
+
+class _MeasuredSession extends SessionStateNotifier {
+  _MeasuredSession(super.ref) {
+    // ignore: invalid_use_of_protected_member
+    state = const SessionState(isActive: true, dbSessionId: _measuredSessionId);
+  }
+}
+
+ImagingSession _measuredImagingSession() => ImagingSession(
+      id: _measuredSessionId,
+      name: 'Night G - M31',
+      startTime: DateTime.utc(2026, 9, 9, 21),
+      totalExposures: 60,
+      successfulExposures: 60,
+      failedExposures: 0,
+      totalIntegrationSecs: 1800,
+      autofocusCount: 0,
+      status: 'completed',
+    );
+
+/// A flat, well-behaved field: nine tiles at the same low eccentricity. Real
+/// rows through the real `OpticalTrainDiagnosticsService`, so the card under
+/// test renders a grade it actually earned.
+PsfFieldTileRow _measuredTile(int index) => PsfFieldTileRow(
+      id: index + 1,
+      capturedImageId: 1,
+      sessionId: _measuredSessionId,
+      tileRow: index ~/ 3,
+      tileCol: index % 3,
+      starCount: 40,
+      medianFwhm: 3.0,
+      medianHfr: 1.5,
+      medianEccentricity: 0.20,
+      roundness: 0.9,
+      timestamp: DateTime.utc(2026, 9, 9, 22),
+    );
+
+Widget _host(Widget child, {List<Override> extraOverrides = const []}) =>
+    ProviderScope(
       overrides: [
         standaloneImagesProvider
             .overrideWith((ref) => Stream.value(const <DbCapturedImage>[])),
@@ -41,12 +83,30 @@ Widget _host(Widget child) => ProviderScope(
         allSessionsProvider
             .overrideWith((ref) => Stream.value(const <ImagingSession>[])),
         tutorialProvider.overrideWith((ref) => _TutorialsDisabledNotifier()),
+        ...extraOverrides,
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
         home: Scaffold(body: child),
       ),
     );
+
+/// Drives the Diagnostics data branch: one completed session, selected, with
+/// nine PSF tiles behind it.
+List<Override> _measuredDiagnosticsOverrides() => [
+      allSessionsProvider.overrideWith(
+        (ref) =>
+            Stream<List<ImagingSession>>.value([_measuredImagingSession()]),
+      ),
+      sessionStateProvider.overrideWith((ref) => _MeasuredSession(ref)),
+      sessionPsfTilesProvider.overrideWith(
+        (ref, id) =>
+            Stream.value([for (var i = 0; i < 9; i++) _measuredTile(i)]),
+      ),
+      sessionResidualVectorsProvider.overrideWith(
+        (ref, id) => Stream.value(const <AstrometryResidualVectorRow>[]),
+      ),
+    ];
 
 void main() {
   setUp(() {
@@ -166,10 +226,44 @@ void main() {
         findsNothing,
         reason: 'the scope contrast belongs in the guide the chip opens',
       );
+      // The score-direction legend is NOT page chrome and must not come back
+      // as a subtitle here — it belongs to the card whose numbers it reads,
+      // which the next test pins.
+      expect(
+        find.textContaining('Lower scores are better.'),
+        findsNothing,
+        reason: 'a legend printed above an empty state labels nothing',
+      );
+    });
+
+    testWidgets('a measured session still says which direction is good',
+        (tester) async {
+      // The one line worth keeping off the old explainer paragraph. It rides
+      // on the health grade card, directly above the two bars whose figures it
+      // reads, so it appears exactly when there are scores to read — and it
+      // says SCORES, because the figure at the end of each bar is the reading
+      // and the bar is the decoration.
+      await tester.pumpWidget(
+        _host(
+          const DiagnosticsTabContent(),
+          extraOverrides: _measuredDiagnosticsOverrides(),
+        ),
+      );
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Optical Health'), findsOneWidget);
       expect(
         find.textContaining('Lower scores are better.'),
         findsOneWidget,
-        reason: 'the one line worth keeping on the page',
+        reason: 'a penalty score is the one number here that is better low, '
+            'and nothing else on the card says so',
+      );
+      // Still no screen hint riding along with it (07 "What NOT to do").
+      expect(
+        find.textContaining('quick summary before diving into'),
+        findsNothing,
       );
     });
 

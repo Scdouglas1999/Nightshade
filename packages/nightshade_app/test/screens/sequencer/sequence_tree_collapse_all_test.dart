@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -77,6 +78,11 @@ Future<HarnessHandle> _pumpTree(WidgetTester tester) async {
       currentSequenceProvider.overrideWith((_) => notifier),
       sequenceExecutionStateProvider
           .overrideWith((ref) => SequenceExecutionState.idle),
+      // Collapsed ledger rows print a rollup summary naming their children,
+      // which collides with this test's "children are gone" assertion — the
+      // comfortable card has no such line, so pin it.
+      sequencerDensityProvider
+          .overrideWith((ref) => SequencerDensity.comfortable),
     ],
   );
 }

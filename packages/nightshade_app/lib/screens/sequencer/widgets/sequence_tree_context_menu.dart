@@ -4,10 +4,12 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../sequence_fold_model.dart';
 import 'delete_node_confirmation.dart';
 import 'node_palette_empty_state.dart';
 import 'node_palette_search.dart';
 import 'palette_icon_map.dart';
+import 'sequence_tree/fold_group_actions.dart';
 
 /// Right-click / long-press context menu for nodes in the sequencer tree.
 ///
@@ -22,11 +24,20 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     required this.nodeId,
     required this.colors,
     required this.child,
+    this.foldGroup,
   });
 
+  /// The node the menu acts on. For a folded row this is the run's first
+  /// member — the id its scroll key and its inspector selection already use.
   final String nodeId;
   final NightshadeColors colors;
   final Widget child;
+
+  /// Set when [child] is a folded row (spec §6). The menu then offers the
+  /// run's vocabulary instead of the node's: every mutation applies to all
+  /// members, Insert Above / Below anchor on the block's edges, and Move Up /
+  /// Down shift the whole block.
+  final FoldGroup? foldGroup;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,8 +60,18 @@ class SequenceTreeContextMenu extends ConsumerWidget {
 
     // Selecting the node *before* opening matches OS conventions (right-
     // click also focuses), and the menu actions all run against the
-    // selected node so this keeps state consistent.
-    ref.read(selectedNodeIdProvider.notifier).state = nodeId;
+    // selected node so this keeps state consistent. A folded row selects the
+    // way a click on it does — the whole run, inspector on the first member —
+    // because "Group into …" reads the multi-selection.
+    final group = foldGroup;
+    if (group == null) {
+      ref.read(selectedNodeIdProvider.notifier).state = nodeId;
+    } else {
+      ref
+          .read(multiSelectedNodeIdsProvider.notifier)
+          .selectAll(group.memberIds);
+      ref.read(selectedNodeIdProvider.notifier).state = group.memberIds.first;
+    }
 
     final overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
@@ -63,6 +84,20 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     final executionState = ref.read(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
+
+    if (group != null) {
+      await _openFoldMenu(
+        context,
+        ref,
+        sequence: sequence,
+        group: group,
+        overlay: overlay,
+        position: position,
+        canEdit: canEdit,
+        isRunning: isRunning,
+      );
+      return;
+    }
 
     final selected = await showMenu<_TreeMenuAction>(
       context: context,
@@ -108,64 +143,6 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     // gray out every mutating entry so the user sees them but can't fire
     // them — matches `canEditSequenceProvider` semantics. The notifier
     // still throws SequenceLockedException as a last line of defense.
-    PopupMenuItem<_TreeMenuAction> entry(
-      _TreeMenuAction action,
-      IconData icon,
-      String label, {
-      Color? labelColor,
-      bool mutating = true,
-      String? disabledReason,
-    }) {
-      // `disabledReason` overrides canEdit. We use it for "can't insert a
-      // sibling of the root sequence node" — that case is permanent for
-      // the node, not gated by execution state.
-      final structurallyDisabled = disabledReason != null;
-      final lockedByExecution = mutating && !canEdit;
-      final disabled = structurallyDisabled || lockedByExecution;
-
-      final effectiveColor =
-          disabled ? colors.textMuted : (labelColor ?? colors.textSecondary);
-      final effectiveLabel =
-          disabled ? colors.textMuted : (labelColor ?? colors.textPrimary);
-
-      // Tooltip wins for the structural case (more informative than
-      // "sequence is running"); falls back to the execution-state hint
-      // otherwise.
-      final tooltip = structurallyDisabled
-          ? disabledReason
-          : (lockedByExecution ? 'Sequence is running — stop it first.' : null);
-
-      final row = Row(
-        children: [
-          Icon(icon, size: 14, color: effectiveColor),
-          const SizedBox(width: 10),
-          // Flexible+ellipsis so the wider entries ("Group into
-          // Sequential Container") do not overflow the menu's default
-          // 256px width on narrow surfaces.
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: effectiveLabel),
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
-          ),
-        ],
-      );
-
-      return PopupMenuItem<_TreeMenuAction>(
-        value: action,
-        height: 36,
-        enabled: !disabled,
-        child: tooltip == null
-            ? row
-            // Wrap with a Tooltip so the user discovers *why* the entry
-            // is grayed out instead of silently no-op-ing on click.
-            : Tooltip(message: tooltip, child: row),
-      );
-    }
 
     // Insert Above / Insert Below require a parent slot. The root
     // sequence node has no parent, so those entries are permanently
@@ -218,7 +195,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       // running. Mutating: false because skipping does not edit the
       // sequence definition; the disabledReason teaches the user the entry
       // requires a live run when the executor is idle.
-      entry(
+      _entry(
         _TreeMenuAction.skipToHere,
         LucideIcons.skipForward,
         'Skip to here',
@@ -226,67 +203,319 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         disabledReason: isRunning
             ? (isRoot ? 'Cannot skip to the root sequence node.' : null)
             : 'Start the sequence to skip ahead to a specific node.',
+        canEdit: canEdit,
       ),
       const PopupMenuDivider(height: 8),
-      entry(
+      _entry(
         _TreeMenuAction.insertAbove,
         LucideIcons.arrowUpToLine,
         'Insert Above',
         disabledReason: isRoot ? rootDisabledReason : null,
+        canEdit: canEdit,
       ),
-      entry(
+      _entry(
         _TreeMenuAction.insertBelow,
         LucideIcons.arrowDownToLine,
         'Insert Below',
         disabledReason: isRoot ? rootDisabledReason : null,
+        canEdit: canEdit,
       ),
       const PopupMenuDivider(height: 8),
-      entry(
+      _entry(
         _TreeMenuAction.moveUp,
         LucideIcons.arrowUp,
         'Move Up',
         disabledReason: moveUpDisabledReason,
+        canEdit: canEdit,
       ),
-      entry(
+      _entry(
         _TreeMenuAction.moveDown,
         LucideIcons.arrowDown,
         'Move Down',
         disabledReason: moveDownDisabledReason,
+        canEdit: canEdit,
       ),
       const PopupMenuDivider(height: 8),
-      entry(
+      _entry(
         _TreeMenuAction.duplicate,
         LucideIcons.copy,
         'Duplicate',
         disabledReason: rootOnlyDisabledReason,
+        canEdit: canEdit,
       ),
-      entry(
+      _entry(
         _TreeMenuAction.groupSequential,
         LucideIcons.listOrdered,
         'Group into Sequential Container',
         disabledReason: groupDisabledReason,
+        canEdit: canEdit,
       ),
-      entry(
+      _entry(
         _TreeMenuAction.groupParallel,
         LucideIcons.gitBranch,
         'Group into Parallel Container',
         disabledReason: parallelGroupDisabledReason,
+        canEdit: canEdit,
       ),
       const PopupMenuDivider(height: 8),
-      entry(
+      _entry(
         node.isEnabled ? _TreeMenuAction.disable : _TreeMenuAction.enable,
         node.isEnabled ? LucideIcons.eyeOff : LucideIcons.eye,
         node.isEnabled ? 'Disable' : 'Enable',
+        canEdit: canEdit,
       ),
       const PopupMenuDivider(height: 8),
-      entry(
+      _entry(
         _TreeMenuAction.delete,
         LucideIcons.trash2,
         'Delete',
         labelColor: colors.error,
         disabledReason: rootOnlyDisabledReason,
+        canEdit: canEdit,
       ),
     ];
+  }
+
+  /// One menu row, shared by the node menu and the folded-run menu so the two
+  /// can never disagree about how a disabled entry looks or why.
+  ///
+  /// [disabledReason] overrides [canEdit]: it carries the cases that are
+  /// permanent for the target (a root node has no sibling slot, a block is
+  /// already at the end of its container) rather than gated by execution
+  /// state.
+  PopupMenuItem<T> _entry<T>(
+    T action,
+    IconData icon,
+    String label, {
+    required bool canEdit,
+    Color? labelColor,
+    bool mutating = true,
+    String? disabledReason,
+  }) {
+    final structurallyDisabled = disabledReason != null;
+    final lockedByExecution = mutating && !canEdit;
+    final disabled = structurallyDisabled || lockedByExecution;
+
+    final effectiveColor =
+        disabled ? colors.textMuted : (labelColor ?? colors.textSecondary);
+    final effectiveLabel =
+        disabled ? colors.textMuted : (labelColor ?? colors.textPrimary);
+
+    // Tooltip wins for the structural case (more informative than
+    // "sequence is running"); falls back to the execution-state hint
+    // otherwise.
+    final tooltip = structurallyDisabled
+        ? disabledReason
+        : (lockedByExecution ? 'Sequence is running — stop it first.' : null);
+
+    final row = Row(
+      children: [
+        Icon(icon, size: 14, color: effectiveColor),
+        const SizedBox(width: 10),
+        // Flexible+ellipsis so the wider entries ("Group into Sequential
+        // Container") do not overflow the menu's default 256px width on
+        // narrow surfaces.
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: effectiveLabel),
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
+        ),
+      ],
+    );
+
+    return PopupMenuItem<T>(
+      value: action,
+      height: 36,
+      enabled: !disabled,
+      child: tooltip == null
+          ? row
+          // Wrap with a Tooltip so the user discovers *why* the entry is
+          // grayed out instead of silently no-op-ing on click.
+          : Tooltip(message: tooltip, child: row),
+    );
+  }
+
+  /// The folded-run menu (spec §6): the node menu's vocabulary, restated for a
+  /// block of steps.
+  ///
+  /// What changes: every mutation applies to all members and says so, Insert
+  /// Above / Below anchor on the block's first and last member instead of on
+  /// one row, Move Up / Down shift the whole block, and Delete asks about the
+  /// run. What is absent: nothing a run cannot answer for — the node menu has
+  /// no per-node Rename or Save as Template to hide, and "Group into …" works
+  /// unchanged because opening this menu selects every member.
+  Future<void> _openFoldMenu(
+    BuildContext context,
+    WidgetRef ref, {
+    required Sequence sequence,
+    required FoldGroup group,
+    required RenderBox overlay,
+    required Offset position,
+    required bool canEdit,
+    required bool isRunning,
+  }) async {
+    final parent = sequence.nodes[group.parentId];
+    final siblingCount = parent?.childIds.length ?? 0;
+    final atTop = group.firstIndex <= 0;
+    final atBottom = group.firstIndex + group.memberCount >= siblingCount;
+
+    final selected = await showMenu<_FoldMenuAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 1, 1),
+        Offset.zero & overlay.size,
+      ),
+      color: colors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        side: BorderSide(color: colors.border),
+      ),
+      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
+      items: [
+        _entry(
+          _FoldMenuAction.skipToHere,
+          LucideIcons.skipForward,
+          'Skip to here',
+          mutating: false,
+          canEdit: canEdit,
+          disabledReason: isRunning
+              ? null
+              : 'Start the sequence to skip ahead to a specific node.',
+        ),
+        const PopupMenuDivider(height: 8),
+        _entry(
+          _FoldMenuAction.insertAbove,
+          LucideIcons.arrowUpToLine,
+          'Insert Above',
+          canEdit: canEdit,
+        ),
+        _entry(
+          _FoldMenuAction.insertBelow,
+          LucideIcons.arrowDownToLine,
+          'Insert Below',
+          canEdit: canEdit,
+        ),
+        const PopupMenuDivider(height: 8),
+        _entry(
+          _FoldMenuAction.moveUp,
+          LucideIcons.arrowUp,
+          'Move Up',
+          canEdit: canEdit,
+          disabledReason:
+              atTop ? 'Already the first steps in their container.' : null,
+        ),
+        _entry(
+          _FoldMenuAction.moveDown,
+          LucideIcons.arrowDown,
+          'Move Down',
+          canEdit: canEdit,
+          disabledReason:
+              atBottom ? 'Already the last steps in their container.' : null,
+        ),
+        const PopupMenuDivider(height: 8),
+        _entry(
+          _FoldMenuAction.duplicate,
+          LucideIcons.copy,
+          'Duplicate all',
+          canEdit: canEdit,
+        ),
+        _entry(
+          _FoldMenuAction.groupSequential,
+          LucideIcons.listOrdered,
+          'Group into Sequential Container',
+          canEdit: canEdit,
+        ),
+        _entry(
+          _FoldMenuAction.groupParallel,
+          LucideIcons.gitBranch,
+          'Group into Parallel Container',
+          canEdit: canEdit,
+        ),
+        const PopupMenuDivider(height: 8),
+        // A run is enabled by construction — a disabled step is not part of
+        // one — so this is the only direction the entry ever offers.
+        _entry(
+          _FoldMenuAction.disableAll,
+          LucideIcons.eyeOff,
+          'Disable all',
+          canEdit: canEdit,
+        ),
+        const PopupMenuDivider(height: 8),
+        _entry(
+          _FoldMenuAction.delete,
+          LucideIcons.trash2,
+          'Delete ${group.memberCount} steps',
+          labelColor: colors.error,
+          canEdit: canEdit,
+        ),
+      ],
+    );
+
+    if (selected == null) return;
+    if (!context.mounted) return;
+
+    final first = sequence.nodes[group.memberIds.first];
+    final last = sequence.nodes[group.memberIds.last];
+    if (first == null || last == null) return;
+
+    switch (selected) {
+      case _FoldMenuAction.insertAbove:
+        _insertSibling(context, ref, sequence, first, offset: 0);
+      case _FoldMenuAction.insertBelow:
+        _insertSibling(context, ref, sequence, last, offset: 1);
+      case _FoldMenuAction.moveUp:
+        await moveFoldGroup(
+          context,
+          ref,
+          memberIds: group.memberIds,
+          parentId: group.parentId,
+          index: group.firstIndex - 1,
+        );
+      case _FoldMenuAction.moveDown:
+        await moveFoldGroup(
+          context,
+          ref,
+          memberIds: group.memberIds,
+          parentId: group.parentId,
+          // The slot the step after the run holds today: removing the run's
+          // leader shifts it left by one, so inserting there lands the block
+          // one step further down.
+          index: group.firstIndex + group.memberCount,
+        );
+      case _FoldMenuAction.duplicate:
+        await duplicateFoldGroup(context, ref, group: group);
+      case _FoldMenuAction.groupSequential:
+        await _groupSelection(
+          context,
+          ref,
+          sequence,
+          first,
+          () => InstructionSetNode(name: 'Sequential'),
+        );
+      case _FoldMenuAction.groupParallel:
+        await _groupSelection(context, ref, sequence, first, ParallelNode.new);
+      case _FoldMenuAction.disableAll:
+        await disableFoldGroup(context, ref, memberIds: group.memberIds);
+      case _FoldMenuAction.delete:
+        await confirmAndDeleteFoldGroup(
+          context: context,
+          ref: ref,
+          group: group,
+        );
+      case _FoldMenuAction.skipToHere:
+        // A run starts at its first member, so that is what "here" means.
+        try {
+          await ref.read(sequenceExecutorProvider).skipToNode(first.id);
+        } catch (e) {
+          if (!context.mounted) return;
+          _showSnackBar(context, 'Failed to skip to "${first.name}": $e');
+        }
+    }
   }
 
   /// Count of selected nodes that form a contiguous run of siblings sharing
@@ -570,6 +799,22 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       colors: colors,
     );
   }
+}
+
+/// What the folded-row menu can do. A separate enum from [_TreeMenuAction]
+/// because a run answers to a different set: there is no Enable (a run has no
+/// disabled members) and every entry is plural.
+enum _FoldMenuAction {
+  skipToHere,
+  insertAbove,
+  insertBelow,
+  moveUp,
+  moveDown,
+  duplicate,
+  groupSequential,
+  groupParallel,
+  disableAll,
+  delete,
 }
 
 enum _TreeMenuAction {

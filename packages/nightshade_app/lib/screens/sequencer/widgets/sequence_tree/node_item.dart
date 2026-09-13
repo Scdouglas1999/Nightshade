@@ -1,5 +1,24 @@
 part of '../sequence_tree.dart';
 
+/// The kebab's own footprint on a card row.
+///
+/// `PopupMenuButton` renders an [IconButton], which enforces Material's
+/// interactive minimum on itself whatever padding it is given — so this is the
+/// width the menu takes, not a width chosen for it.
+const double _cardKebabWidth = kMinInteractiveDimension;
+
+/// Width a card row keeps for its hover-revealed actions on a pointer
+/// platform: the eye / duplicate / delete trio (the same 28 px chip the ledger
+/// row reserves) plus the kebab.
+///
+/// A MINIMUM, not a fixed width. `_cardKebabWidth` is the kebab's floor, not a
+/// promise: a theme with denser or looser visual density, or a large text
+/// scale, can make the real `IconButton` wider, and a tight box around it would
+/// then overflow every comfortable row in the tree at once. The cluster is the
+/// same widget hovered or not — only the chips swap for a spacer of their exact
+/// width — so letting the slot size itself cannot introduce a hover shift.
+const double _cardActionsWidth = 3 * _ledgerActionChipWidth + _cardKebabWidth;
+
 class _NodeItem extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final SequenceNode node;
@@ -33,8 +52,16 @@ class _NodeItem extends ConsumerStatefulWidget {
   /// consistent. Only meaningful for containers ([hasChildren] / target).
   final bool isCollapsed;
 
+  /// Whether the row keeps the content that renders BELOW its title block —
+  /// the live progress panel and the node's comment line.
+  ///
+  /// False in Compact density, where the row is the summary line and nothing
+  /// else; that content moves to the node inspector. The panel's own
+  /// persistence state machine still runs, so switching back to Comfortable
+  /// mid-run reveals the panel the run is actually on rather than a blank.
+  final bool showInlineExtras;
+
   const _NodeItem({
-    super.key,
     required this.colors,
     required this.node,
     required this.isSelected,
@@ -54,6 +81,7 @@ class _NodeItem extends ConsumerStatefulWidget {
     this.runFilter,
     this.isMobile = false,
     this.isCollapsed = false,
+    this.showInlineExtras = true,
   });
 
   @override
@@ -81,50 +109,6 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   Timer? _panelPersistTimer;
   static const _panelPersistDuration = Duration(seconds: 20);
 
-  // The last live progress this row was handed, kept for as long as its panel
-  // outlives the run.
-  //
-  // The panel is deliberately shown for 20s AFTER a node stops running.
-  // Rendering it from whatever the progress maps hold *at that moment* is
-  // wrong: on the success path those per-node entries are already gone, so the
-  // card falls back to its defaults and announces "0 / 4 frames" with four
-  // empty boxes directly above the four thumbnails it just captured, while the
-  // Session Report on the same screen says "Frames accepted 4/4". A run stopped
-  // at frame 1 still has its detail and reads "1 / 4", so the zeroing looks
-  // specific to success.
-  //
-  // Remembering the last non-null value makes the card independent of WHEN the
-  // maps are cleared: it keeps showing the last thing that was true instead of
-  // inventing a zero. Cleared when the node starts running again so one run
-  // can never show the previous run's frames.
-  NodeStatus? _lastKnownStatus;
-  double? _lastKnownPercent;
-  String? _lastKnownDetail;
-  InstructionProgressDetail? _lastKnownStructuredDetail;
-  String? _lastKnownRunFilter;
-
-  void _rememberLiveProgress() {
-    if (widget.nodeStatus != null) _lastKnownStatus = widget.nodeStatus;
-    if (widget.progressPercent != null) {
-      _lastKnownPercent = widget.progressPercent;
-    }
-    if (widget.progressDetail != null) {
-      _lastKnownDetail = widget.progressDetail;
-    }
-    if (widget.structuredProgressDetail != null) {
-      _lastKnownStructuredDetail = widget.structuredProgressDetail;
-    }
-    if (widget.runFilter != null) _lastKnownRunFilter = widget.runFilter;
-  }
-
-  void _forgetLiveProgress() {
-    _lastKnownStatus = null;
-    _lastKnownPercent = null;
-    _lastKnownDetail = null;
-    _lastKnownStructuredDetail = null;
-    _lastKnownRunFilter = null;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -132,18 +116,11 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
       _showProgressPanel = true;
       _lastRunningTime = DateTime.now();
     }
-    _rememberLiveProgress();
   }
 
   @override
   void didUpdateWidget(_NodeItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.nodeStatus == NodeStatus.running &&
-        oldWidget.nodeStatus != NodeStatus.running) {
-      // A fresh pass over this node: last run's frames are no longer its story.
-      _forgetLiveProgress();
-    }
-    _rememberLiveProgress();
     if (widget.nodeStatus == NodeStatus.running) {
       _showProgressPanel = true;
       _lastRunningTime = DateTime.now();
@@ -213,6 +190,27 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     final summaryFragments =
         nodeSummary(node, globalAutofocusMethod: globalAfMethod);
     final summaryA11yText = _summaryA11yText(summaryFragments);
+    // The collapsed-container rollup, shown on the title row only when the
+    // density has stripped the inline extras (compact): an expanded container
+    // has its children on screen and needs no summary, and comfortable mode
+    // already spends the space on them.
+    final rollupText =
+        !widget.showInlineExtras && widget.isCollapsed && widget.hasChildren
+            ? ref.watch(rollupSummaryMapProvider
+                    .select((summaries) => summaries[widget.node.id])) ??
+                ''
+            : '';
+    // The panel outlives the run by 20 s, and on the success path the per-node
+    // progress entries are already gone by then — rendering it from the live
+    // maps alone announced "0 / 4 frames" directly above the four thumbnails
+    // the node had just captured. The session memory is a provider rather than
+    // a field per row so the inspector's Activity tab and this panel cannot
+    // disagree about what the node last did; watched only while the panel is
+    // actually up, so an idle tree does not rebuild every row on every tick.
+    final lastKnown = widget.showInlineExtras && _shouldShowProgressPanel
+        ? ref.watch(lastKnownNodeActivityProvider
+            .select((snapshots) => snapshots[widget.node.id]))
+        : null;
     final isDisabled = !widget.node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
     final isSuccess = widget.nodeStatus == NodeStatus.success;
@@ -274,6 +272,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     context: context,
                     statusColor: statusColor,
                     summaryFragments: summaryFragments,
+                    rollupText: rollupText,
                     isDisabled: isDisabled,
                     isRunning: isRunning,
                     isSuccess: isSuccess,
@@ -287,7 +286,15 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     iconSize: iconSize,
                   ),
                   builder: (context, hovered, child) => AnimatedContainer(
-                    duration: NightshadeTokens.durationNormal,
+                    // Hover tint and the selection ring travel on the same
+                    // token in every density (spec §9): the ledger row's
+                    // `AnimatedContainer` is the same call with the same
+                    // duration, so a step cannot light up at two speeds
+                    // depending on how it is drawn.
+                    duration: animationDuration(
+                      context,
+                      NightshadeTokens.durationFast,
+                    ),
                     curve: NightshadeTokens.curveStandard,
                     margin: EdgeInsets.symmetric(vertical: verticalMargin),
                     padding: EdgeInsets.symmetric(
@@ -306,25 +313,65 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
           ),
         ),
         // Progress panel for expanded details
-        if (_shouldShowProgressPanel)
+        if (widget.showInlineExtras && _shouldShowProgressPanel)
           getProgressPanelForNode(
-                node: widget.node,
-                colors: widget.colors,
-                progressPercent:
-                    widget.progressPercent ?? _lastKnownPercent ?? 0,
-                progressDetail: widget.progressDetail ?? _lastKnownDetail,
-                structuredProgressDetail: widget.structuredProgressDetail ??
-                    _lastKnownStructuredDetail,
-                nodeStatus: widget.nodeStatus ?? _lastKnownStatus,
-                runFilter: widget.runFilter ?? _lastKnownRunFilter,
-                // The frames this node actually captured, from the slot no
-                // other instruction can overwrite. Watched here rather
-                // than threaded down the tree so the count reaches the card by
-                // the shortest path there is.
-                exposureTally:
-                    ref.watch(nodeExposureTallyProvider)[widget.node.id],
-              ) ??
-              const SizedBox.shrink(),
+            node: widget.node,
+            colors: widget.colors,
+            progressPercent: widget.progressPercent ?? lastKnown?.percent ?? 0,
+            progressDetail: widget.progressDetail ?? lastKnown?.detail,
+            structuredProgressDetail:
+                widget.structuredProgressDetail ?? lastKnown?.structuredDetail,
+            nodeStatus: widget.nodeStatus ?? lastKnown?.status,
+            runFilter: widget.runFilter ?? lastKnown?.runFilter,
+            // The frames this node actually captured, from the slot no
+            // other instruction can overwrite. Watched here rather
+            // than threaded down the tree so the count reaches the card by
+            // the shortest path there is.
+            exposureTally: ref.watch(nodeExposureTallyProvider)[widget.node.id],
+          ),
+      ],
+    );
+  }
+
+  /// [child], breathing if this row is the one the run is on and the density
+  /// has no spinner to say so.
+  Widget _maybeBreathing({required bool breathing, required Widget child}) =>
+      breathing ? _RunningMarkerBreath(child: child) : child;
+
+  /// The eye / duplicate / delete trio and the kebab, as they sit on a card
+  /// row.
+  ///
+  /// On touch the trio folds into the kebab instead of sitting inline. Three
+  /// 24dp chips are not legal Android tap targets, and padding each one up to
+  /// 48 adds 72dp to a row that then overflows a 360dp phone by 30 — measured,
+  /// not guessed. Moving them behind the kebab gives the same three actions a
+  /// single already-compliant 48dp target and hands 84dp back to the row.
+  Widget _buildActionCluster(BuildContext context, {required bool chips}) {
+    final showChips = chips && !NightshadeTouchTarget.isTouch(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (!NightshadeTouchTarget.isTouch(context) && !chips)
+          const SizedBox(width: 3 * _ledgerActionChipWidth),
+        if (showChips)
+          _NodeActionChips(
+            colors: widget.colors,
+            node: widget.node,
+            onToggleEnabled: widget.onToggleEnabled,
+            onDuplicate: widget.onDuplicate,
+            onDelete: widget.onDelete,
+          ),
+        // Inline more-actions menu, shared with the ledger row.
+        _NodeOverflowMenu(
+          colors: widget.colors,
+          node: widget.node,
+          onToggleEnabled: widget.onToggleEnabled,
+          onDuplicate: widget.onDuplicate,
+          onDelete: widget.onDelete,
+          onMoveUp: widget.onMoveUp,
+          onMoveDown: widget.onMoveDown,
+        ),
       ],
     );
   }
@@ -366,6 +413,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     required BuildContext context,
     required Color statusColor,
     required List<SummaryFragment> summaryFragments,
+    required String rollupText,
     required bool isDisabled,
     required bool isRunning,
     required bool isSuccess,
@@ -386,17 +434,22 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               : 1.0,
       child: Row(
         children: [
-          // Status indicator
+          // Status indicator. In Compact it is the row's only running marker —
+          // the spinner is Comfortable's — so there it breathes (spec §9).
           if (widget.nodeStatus != null &&
               widget.nodeStatus != NodeStatus.pending)
-            Container(
-              width: 4,
-              height: iconBoxSize,
-              margin: EdgeInsets.only(right: isMobile ? 12 : 10),
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline2),
+            _maybeBreathing(
+              breathing:
+                  isRunning && !widget.showInlineExtras && !widget.isDragging,
+              child: Container(
+                width: 4,
+                height: iconBoxSize,
+                margin: EdgeInsets.only(right: isMobile ? 12 : 10),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline2),
+                ),
               ),
             ),
 
@@ -489,6 +542,20 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                       const SizedBox(width: NightshadeTokens.spaceSm),
                       _WatchdogBadge(colors: widget.colors),
                     ],
+                    if (rollupText.isNotEmpty) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Flexible(
+                        child: Text(
+                          rollupText,
+                          style: NightshadeTypography.caption.copyWith(
+                            color: widget.colors.textMuted,
+                          ),
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 if (summaryFragments.isNotEmpty)
@@ -505,7 +572,8 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     ),
                   ),
                 // Show node comment as gray italic text
-                if (widget.node.comment != null &&
+                if (widget.showInlineExtras &&
+                    widget.node.comment != null &&
                     widget.node.comment!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -562,219 +630,44 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
           // Actions — visibility tracks hover (or always on
           // mobile). Scoped to its own ValueListenableBuilder so
           // hovering only rebuilds this cluster, not the whole row.
+          //
+          // The slot keeps its width on a pointer platform whether the actions
+          // are drawn or not: actions that appear by INSERTING themselves push
+          // the name and the summary sideways under the pointer, which is a
+          // layout shift the operator caused by doing nothing but move the
+          // mouse (spec §9, "no layout shift on hover"). Mobile draws them
+          // unconditionally and so needs no reservation.
           ValueListenableBuilder<bool>(
             valueListenable: _isHovered,
             builder: (context, hovered, _) {
-              if (!((isMobile || hovered) && !widget.isDragging)) {
-                return const SizedBox.shrink();
-              }
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Per-row action icons mutate the tree
-                  // (toggle enabled, duplicate, delete) and must
-                  // be disabled when a sequence is running. The
-                  // kebab below gates move_up/move_down; this is
-                  // the matching gate for the inline icons.
-                  Builder(builder: (context) {
-                    final canEdit = ref.watch(canEditSequenceProvider);
-                    const lockedSuffix = ' (locked while sequence is running)';
-                    final lockedTail = canEdit ? '' : lockedSuffix;
-                    final toggleLabel =
-                        widget.node.isEnabled ? 'Disable' : 'Enable';
-                    // On touch these fold into the kebab instead of sitting
-                    // inline. Three 24dp chips are not legal Android tap
-                    // targets, and padding each one up to 48 adds 72dp to a
-                    // row that then overflows a 360dp phone by 30 — measured,
-                    // not guessed. Moving them behind the kebab gives the same
-                    // three actions a single already-compliant 48dp target and
-                    // hands 84dp back to the row.
-                    if (NightshadeTouchTarget.isTouch(context)) {
-                      return const SizedBox.shrink();
-                    }
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _NodeActionButton(
-                          icon: widget.node.isEnabled
-                              ? LucideIcons.eye
-                              : LucideIcons.eyeOff,
-                          tooltip: '$toggleLabel$lockedTail',
-                          colors: widget.colors,
-                          onPressed: canEdit ? widget.onToggleEnabled : null,
-                        ),
-                        _NodeActionButton(
-                          icon: LucideIcons.copy,
-                          tooltip: 'Duplicate$lockedTail',
-                          colors: widget.colors,
-                          onPressed: canEdit ? widget.onDuplicate : null,
-                        ),
-                        _NodeActionButton(
-                          icon: LucideIcons.trash2,
-                          tooltip: 'Delete$lockedTail',
-                          colors: widget.colors,
-                          color: widget.colors.error,
-                          onPressed: canEdit ? widget.onDelete : null,
-                        ),
-                      ],
-                    );
-                  }),
-
-                  // Inline more-actions menu.
-                  //
-                  // Reconciliation: the right-click / long-press
-                  // context menu (`SequenceTreeContextMenu`) is the
-                  // comprehensive surface for tree mutations (Insert,
-                  // Move Up/Down, Duplicate, Group, Enable/Disable,
-                  // Delete). This kebab repeats:
-                  //   * Move Up / Move Down — a visible, tappable
-                  //     re-order handle. Touch has no right-click and
-                  //     drag-reordering a row inside a scrolling tree
-                  //     is fiddly, so the affordance stays on-screen.
-                  //     (`sequence_tree_shortcuts.dart` binds
-                  //     Shift+Up/Down to EXTEND the selection, not to
-                  //     move a node — there is no keyboard reorder.)
-                  //   * Save as Template — a "promote-this-subtree-
-                  //     to-the-library" action that is not part of
-                  //     the per-node edit vocabulary the context
-                  //     menu covers.
-                  // Items here respect `canEditSequenceProvider` —
-                  // when a sequence is Running / Paused / Stopping
-                  // the kebab still opens but mutating entries are
-                  // disabled (Save as Template is read-only so it
-                  // stays enabled).
-                  Builder(builder: (context) {
-                    final canEdit = ref.watch(canEditSequenceProvider);
-                    return Theme(
-                      data: Theme.of(context).copyWith(
-                        popupMenuTheme: PopupMenuThemeData(
-                          color: widget.colors.surfaceAlt,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline8),
-                            side: BorderSide(color: widget.colors.border),
-                          ),
-                        ),
+              if (widget.isDragging) return const SizedBox.shrink();
+              if (isMobile) return _buildActionCluster(context, chips: true);
+              final visible = hovered;
+              final slotWidth = NightshadeTouchTarget.isTouch(context)
+                  ? _cardKebabWidth
+                  : _cardActionsWidth;
+              return ConstrainedBox(
+                constraints: BoxConstraints(minWidth: slotWidth),
+                child: IgnorePointer(
+                  ignoring: !visible,
+                  // A hidden button must not be announced or focusable, or a
+                  // screen-reader user lands on a control they cannot operate.
+                  child: ExcludeSemantics(
+                    excluding: !visible,
+                    child: AnimatedOpacity(
+                      opacity: visible ? 1 : 0,
+                      duration: animationDuration(
+                        context,
+                        NightshadeTokens.durationFast,
                       ),
-                      child: PopupMenuButton<String>(
-                        icon: Icon(LucideIcons.moreVertical,
-                            size: 14, color: widget.colors.textMuted),
-                        tooltip: 'More Actions',
-                        padding: EdgeInsets.zero,
-                        itemBuilder: (context) => [
-                          // The inline eye / duplicate / delete chips are not
-                          // rendered on touch (see above) — they live here so
-                          // the actions stay reachable through one compliant
-                          // target instead of three illegal ones.
-                          if (NightshadeTouchTarget.isTouch(context)) ...[
-                            PopupMenuItem<String>(
-                              value: 'toggle_enabled',
-                              height: 40,
-                              enabled: canEdit,
-                              child: Text(
-                                widget.node.isEnabled ? 'Disable' : 'Enable',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                  color: canEdit
-                                      ? widget.colors.textPrimary
-                                      : widget.colors.textMuted,
-                                ),
-                              ),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'duplicate',
-                              height: 40,
-                              enabled: canEdit,
-                              child: Text(
-                                'Duplicate',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                  color: canEdit
-                                      ? widget.colors.textPrimary
-                                      : widget.colors.textMuted,
-                                ),
-                              ),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'delete',
-                              height: 40,
-                              enabled: canEdit,
-                              child: Text(
-                                'Delete',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                  color: canEdit
-                                      ? widget.colors.error
-                                      : widget.colors.textMuted,
-                                ),
-                              ),
-                            ),
-                            const PopupMenuDivider(height: 8),
-                          ],
-                          if (widget.onMoveUp != null)
-                            PopupMenuItem<String>(
-                              value: 'move_up',
-                              height: 32,
-                              enabled: canEdit,
-                              child: Text('Move Up',
-                                  style: NightshadeTypography.bodySm.copyWith(
-                                    color: canEdit
-                                        ? widget.colors.textPrimary
-                                        : widget.colors.textMuted,
-                                  )),
-                            ),
-                          if (widget.onMoveDown != null)
-                            PopupMenuItem<String>(
-                              value: 'move_down',
-                              height: 32,
-                              enabled: canEdit,
-                              child: Text('Move Down',
-                                  style: NightshadeTypography.bodySm.copyWith(
-                                    color: canEdit
-                                        ? widget.colors.textPrimary
-                                        : widget.colors.textMuted,
-                                  )),
-                            ),
-                          if (widget.onMoveUp != null ||
-                              widget.onMoveDown != null)
-                            const PopupMenuDivider(height: 8),
-                          // Save as Template is read-only (it
-                          // copies the subtree to the snippet
-                          // library; it does not mutate the
-                          // current sequence), so it stays enabled
-                          // even while the sequence is running.
-                          PopupMenuItem<String>(
-                            value: 'save_snippet',
-                            height: 32,
-                            child: Text('Save as Template',
-                                style: NightshadeTypography.bodySm.copyWith(
-                                    color: widget.colors.textPrimary)),
-                          ),
-                        ],
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'toggle_enabled':
-                              widget.onToggleEnabled?.call();
-                              break;
-                            case 'duplicate':
-                              widget.onDuplicate?.call();
-                              break;
-                            case 'delete':
-                              widget.onDelete?.call();
-                              break;
-                            case 'move_up':
-                              widget.onMoveUp?.call();
-                              break;
-                            case 'move_down':
-                              widget.onMoveDown?.call();
-                              break;
-                            case 'save_snippet':
-                              _showSaveAsSnippetDialog(
-                                  context, ref, widget.node);
-                              break;
-                          }
-                        },
-                      ),
-                    );
-                  }),
-                ],
+                      curve: NightshadeTokens.curveStandard,
+                      // The trio is built only while the pointer is in the
+                      // row; the kebab is not, for the same reason the ledger
+                      // row keeps its own mounted — see [_LedgerActionsSlot].
+                      child: _buildActionCluster(context, chips: visible),
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -796,7 +689,11 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                   padding: const EdgeInsets.all(2),
                   child: AnimatedRotation(
                     turns: widget.isCollapsed ? -0.25 : 0,
-                    duration: const Duration(milliseconds: 200),
+                    duration: animationDuration(
+                      context,
+                      NightshadeTokens.durationQuick,
+                    ),
+                    curve: NightshadeTokens.curveStandard,
                     child: Icon(
                       LucideIcons.chevronDown,
                       size: 14,

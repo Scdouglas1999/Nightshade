@@ -48,7 +48,7 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
     _currentExpandedWidth = widget.expandedWidth;
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: NightshadeTokens.durationSmooth,
     );
     _updateAnimation();
     if (!widget.isCollapsed) {
@@ -62,7 +62,7 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
       end: _currentExpandedWidth,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: NightshadeTokens.curveStandard,
     ));
   }
 
@@ -102,6 +102,11 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
 
   @override
   Widget build(BuildContext context) {
+    // The panel slides at the token pace, and not at all when the platform has
+    // asked for no motion — the width still changes, it just arrives on the
+    // frame the toggle was pressed.
+    _animationController.duration =
+        animationDuration(context, NightshadeTokens.durationSmooth);
     return AnimatedBuilder(
       animation: _widthAnimation,
       builder: (context, child) {

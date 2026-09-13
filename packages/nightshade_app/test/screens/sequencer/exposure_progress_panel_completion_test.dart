@@ -21,20 +21,18 @@ Future<void> _pumpPanel(
       theme: NightshadeTheme.dark,
       home: Scaffold(
         body: Builder(
-          builder: (context) =>
-              getProgressPanelForNode(
-                node: ExposureNode(
-                  id: 'exp',
-                  durationSecs: 15,
-                  count: 4,
-                  filter: 'R',
-                ),
-                colors: NightshadeColors.of(context),
-                progressPercent: status == NodeStatus.success ? 100 : 50,
-                progressDetail: progressDetail,
-                nodeStatus: status,
-              ) ??
-              const SizedBox.shrink(),
+          builder: (context) => getProgressPanelForNode(
+            node: ExposureNode(
+              id: 'exp',
+              durationSecs: 15,
+              count: 4,
+              filter: 'R',
+            ),
+            colors: NightshadeColors.of(context),
+            progressPercent: status == NodeStatus.success ? 100 : 50,
+            progressDetail: progressDetail,
+            nodeStatus: status,
+          ),
         ),
       ),
     ),

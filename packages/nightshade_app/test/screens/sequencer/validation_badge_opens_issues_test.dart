@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_issues_dialog.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -64,6 +65,10 @@ void main() {
         currentSequenceProvider.overrideWith((_) => editor),
         sequenceExecutionStateProvider
             .overrideWith((ref) => SequenceExecutionState.idle),
+        // The ledger ETA clock is a real periodic stream; in the fake-async
+        // zone its timer outlives every pump and fails teardown.
+        ledgerClockProvider
+            .overrideWith((ref) => const Stream<DateTime>.empty()),
       ],
       settle: false,
     );

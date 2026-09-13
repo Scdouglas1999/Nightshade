@@ -69,23 +69,51 @@ class _PlanNightChips extends ConsumerWidget {
 /// search field").
 const double _kPlannerSearchWidth = 300;
 
+/// Below this much remaining height the controls bar is in its
+/// keyboard-compact form: the outer vertical padding goes and the strip
+/// becomes the one row a phone keeps while the software keyboard is up.
+const double _kPlannerControlsCompactHeight = 120;
+
+/// The controls bar's bottom hairline, which every fit calculation below has
+/// to leave room for.
+const double _kPlannerControlsHairline = 1;
+
 class _PlannerControlsBar extends ConsumerWidget {
   final NightshadeColors colors;
   final TextEditingController controller;
   final SuggestionFilterState filters;
   final AsyncValue<List<TargetSuggestion>> candidatesAsync;
-  final bool keyboardCompact;
+
+  /// The height this bar's parent has left to give it, or
+  /// [double.infinity] when the parent is unbounded.
+  final double availableHeight;
 
   const _PlannerControlsBar({
     required this.colors,
     required this.controller,
     required this.filters,
     required this.candidatesAsync,
-    this.keyboardCompact = false,
+    this.availableHeight = double.infinity,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final keyboardCompact = availableHeight < _kPlannerControlsCompactHeight;
+
+    // A filter chip paints at [NightshadeFilterChip.height] but carries a
+    // 48 dp interactive box on a phone (03 §3.3), so that box — not the paint
+    // — is what the strip has to be tall enough for. When the slot left over
+    // cannot hold one, the chip is dropped rather than shrunk: 07 forbids
+    // scaling a control down to make it fit, and while the keyboard is up the
+    // field being typed into is the only control that has to be reachable.
+    // The filters come back the moment the keyboard closes.
+    final chipExtent = math.max(
+      NightshadeFilterChip.height,
+      NightshadeTouchTarget.minExtent(context),
+    );
+    final showFilterControls =
+        availableHeight >= chipExtent + _kPlannerControlsHairline;
+
     final constellations = ref.watch(availableConstellationsProvider);
     final magRange = ref.watch(availableMagnitudeRangeProvider);
     final sizeRange = ref.watch(availableSizeRangeProvider);
@@ -101,7 +129,6 @@ class _PlannerControlsBar extends ConsumerWidget {
       controller: controller,
       colors: colors,
       compact: isPhone,
-      height: keyboardCompact ? 32 : 36,
       onChanged: (value) {
         final notifier = ref.read(suggestionFilterProvider.notifier);
         notifier.state = notifier.state.copyWith(searchQuery: value);
@@ -136,7 +163,12 @@ class _PlannerControlsBar extends ConsumerWidget {
         keyboardCompact ? 0 : NightshadeTokens.spaceMd,
       ),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.border,
+            width: _kPlannerControlsHairline,
+          ),
+        ),
       ),
       child: isPhone
           ? Row(
@@ -146,12 +178,20 @@ class _PlannerControlsBar extends ConsumerWidget {
                 // rows — reclaiming a whole row's height for the candidate
                 // list.
                 Expanded(child: searchField),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                moreChip,
+                if (showFilterControls) ...[
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  moreChip,
+                ],
               ],
             )
           : LayoutBuilder(
               builder: (context, constraints) {
+                // Same rule as the phone row above: with no room for a chip's
+                // touch box the strip is the search field alone.
+                if (!showFilterControls) {
+                  return Row(children: [Expanded(child: searchField)]);
+                }
+
                 final sort = _SortDropdown(
                   colors: colors,
                   value: filters.plannerSort ?? PlannerSortMode.score,
