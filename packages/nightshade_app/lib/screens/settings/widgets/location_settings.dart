@@ -26,15 +26,14 @@ typedef HorizonImportReader = Future<String> Function(
   file_selector.XFile file,
 );
 
-/// Resolves this machine's GPS position. Injected so the consent + write flow
-/// can be driven in tests without a network. Does not fall back to IP: an ISP
-/// city is a town over from the observatory, and Search place is the accurate
-/// desktop path.
-typedef DeviceLocationFetcher
-    = Future<(double latitude, double longitude, String? name)?> Function();
+/// Resolves this machine's position: the device GPS when the machine has
+/// one, the HTTPS IP lookup (ipinfo.io, falling back to ipwho.is) when it
+/// does not — one click covers a desktop with no receiver. Injected so the
+/// consent + write flow can be driven in tests without a network or a GPS.
+typedef DeviceLocationFetcher = Future<GeolocationFix?> Function();
 
 final deviceLocationFetcherProvider = Provider<DeviceLocationFetcher>(
-  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: false),
+  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: true),
 );
 
 typedef PlaceSearcher = Future<List<PlaceSearchHit>> Function(String query);
@@ -373,11 +372,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   ),
                 SettingRow(
                   icon: LucideIcons.locate,
-                  // Not "GPS": on desktop there is no GPS receiver, and the
-                  // service silently falls back to a third-party IP lookup.
+                  // Not "GPS": the same click tries the machine's GPS first
+                  // and then the internet lookup, and the subtitle says both.
                   title: 'Detect location',
-                  subtitle: 'Device GPS if this machine has it. Desktops '
-                      'usually do not — search for a place by name instead',
+                  subtitle: 'Uses this machine’s GPS if it has one, '
+                      'otherwise your internet connection.',
                   trailing: NightshadeIconButton(
                     icon: LucideIcons.crosshair,
                     tooltip: 'Detect this location',
@@ -650,14 +649,14 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     );
   }
 
-  /// Resolve this machine's GPS position, with consent, and never leave the
+  /// Resolve this machine's position, with consent, and never leave the
   /// site in a state that does not exist.
   ///
-  /// Two rules. ASK before the lookup: GeoClue or a GPS receiver can still
-  /// send a request off the machine. And never mix a new fix with a stale
+  /// Two rules. ASK before the lookup: on a desktop with no GPS the service
+  /// falls back to a third-party IP lookup, and this app is often run on an
+  /// isolated observatory network. And never mix a new fix with a stale
   /// elevation: carrying the old value through gives a site that does not
-  /// exist, feeding refraction and horizon maths. IP is not written here —
-  /// Search place is the accurate path on a desktop with no GPS.
+  /// exist, feeding refraction and horizon maths.
   Future<void> _detectLocation(AppSettingsState settings) async {
     // Shared with the first-run wizard's site step, which fires the same
     // service: one dialog means the two surfaces cannot describe the outbound
@@ -665,7 +664,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     final consented = await confirmGeolocationLookup(
       context,
       outcome: kGeolocationWritesSiteOutcome,
-      includeIpFallback: false,
+      includeIpFallback: true,
     );
     if (!consented || !mounted) return;
 
@@ -683,13 +682,14 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       }
       if (location == null) {
         context.showWarningSnackBar(
-          'No GPS fix on this machine. Search for a place by name, or enter '
-          'coordinates.',
+          'No fix from this machine or the internet lookup. Search for a '
+          'place by name, or enter coordinates.',
         );
         return;
       }
 
-      final (lat, lon, name) = location;
+      final lat = location.latitude;
+      final lon = location.longitude;
       final movedKm =
           _kmBetween(settings.latitude, settings.longitude, lat, lon);
       final keepElevation = movedKm <= _sameSiteRadiusKm;
@@ -702,15 +702,22 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
             elevation: keepElevation ? settings.elevation : 0,
           );
       if (!mounted) return;
-      final where = name ??
+      final where = location.locationName ??
           '${lat.toStringAsFixed(4)}, '
               '${lon.toStringAsFixed(4)}';
+      // An internet fix is an ISP-level estimate; the operator is pointed at
+      // the accurate paths in case it landed a town over.
+      final refine = location.source == GeolocationSource.internet
+          ? ' Refine with Search place or the map if it is off.'
+          : '';
       context.showSuccessSnackBar(
         keepElevation
-            ? 'Coordinates set to $where. Elevation kept at '
-                '${settings.elevation.toStringAsFixed(0)} m.'
-            : 'Coordinates set to $where. Elevation cleared to 0 m — '
-                'enter the elevation for this site.',
+            ? 'Coordinates set to $where — ${location.describeSource()}. '
+                'Elevation kept at '
+                '${settings.elevation.toStringAsFixed(0)} m.$refine'
+            : 'Coordinates set to $where — ${location.describeSource()}. '
+                'Elevation cleared to 0 m — enter the elevation for this '
+                'site.$refine',
       );
     } catch (e) {
       if (mounted) {

@@ -21,6 +21,75 @@ class PlaceSearchHit {
   final String label;
 }
 
+/// Which path produced a [GeolocationFix].
+enum GeolocationSource {
+  /// This machine's own location services — a GPS receiver, GeoClue, or the
+  /// platform's fused provider; whatever `Geolocator` answered with.
+  device,
+
+  /// A third-party service estimated the position from the machine's public
+  /// IP address over HTTPS.
+  internet,
+}
+
+/// A resolved position, the path that produced it, and the accuracy the
+/// provider reported.
+///
+/// The path matters because the two answers are not interchangeable: a device
+/// fix is accurate to metres, while an internet lookup resolves the ISP's
+/// egress to roughly ZIP or city level. Callers that write a fix to settings
+/// name the source so the operator knows which one they got.
+class GeolocationFix {
+  const GeolocationFix({
+    required this.latitude,
+    required this.longitude,
+    required this.source,
+    this.locationName,
+    this.providerHost,
+    this.accuracyMeters,
+  });
+
+  final double latitude;
+  final double longitude;
+
+  /// City/region label the service supplied, or the `GPS: lat, lon` tag the
+  /// device path composes. Null when the provider reported none.
+  final String? locationName;
+
+  /// Which lookup produced this fix.
+  final GeolocationSource source;
+
+  /// Host that answered an internet lookup, e.g. `ipinfo.io`. Null for a
+  /// device fix — the platform's location stack does not name itself.
+  final String? providerHost;
+
+  /// Provider-reported horizontal accuracy in metres. A device fix carries
+  /// the platform's estimate; neither IP service reports one, so an internet
+  /// fix leaves this null.
+  final double? accuracyMeters;
+
+  /// Short clause naming where the fix came from and how precise it claims
+  /// to be, appended to the confirmation shown after the fix is written.
+  ///
+  /// The internet services report no accuracy at all, so the honest
+  /// statement is the mechanism plus the host that was asked; a device fix
+  /// carries the platform's metres. An accuracy of 0 claims a perfect fix,
+  /// so it is reported as none.
+  String describeSource() {
+    final metres = accuracyMeters;
+    final host = providerHost;
+    return switch (source) {
+      GeolocationSource.device =>
+        metres != null && metres > 0
+            ? 'this machine’s GPS fix, ±${metres.round()} m'
+            : 'this machine’s GPS fix',
+      GeolocationSource.internet =>
+        'approximate: from your internet connection'
+            '${host != null ? ' ($host)' : ''}',
+    };
+  }
+}
+
 class GeolocationService {
   /// Client used for the IP-geolocation lookups. Injectable so a test can
   /// assert what actually goes on the wire — the transport of these requests
@@ -45,28 +114,41 @@ class GeolocationService {
   static final Uri ipFallbackEndpoint = Uri.parse('https://ipwho.is/');
 
   /// Open-Meteo geocoding. Same vendor as the cloud forecast, TLS, no key.
-  static final Uri placeSearchEndpoint =
-      Uri.parse('https://geocoding-api.open-meteo.com/v1/search');
+  static final Uri placeSearchEndpoint = Uri.parse(
+    'https://geocoding-api.open-meteo.com/v1/search',
+  );
 
   /// Fetch location from IP using ipinfo.io (free, no API key required).
   /// Returns (latitude, longitude, locationName) or null if failed.
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocationFromIP() => _fetchIp(ipPrimaryEndpoint);
+  fetchLocationFromIP() async => _tupleOf(await _fetchIp(ipPrimaryEndpoint));
 
   /// Fallback for when the primary service is unreachable or rate-limited.
   /// The fallback must remain HTTPS because its coordinates become the active
   /// observing site.
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocationFromIPAlternative() => _fetchIp(ipFallbackEndpoint);
+  fetchLocationFromIPAlternative() async =>
+      _tupleOf(await _fetchIp(ipFallbackEndpoint));
 
-  static Future<(double latitude, double longitude, String? locationName)?>
-      _fetchIp(Uri uri) async {
+  /// The internet lookup with its provenance attached: which host answered
+  /// rides along so the caller can say "from your internet connection
+  /// (ipwho.is)" instead of presenting an estimate as a fix.
+  static Future<GeolocationFix?> _fetchIp(Uri uri) async {
     final client = clientFactory();
     try {
-      final response =
-          await client.get(uri).timeout(const Duration(seconds: 5));
+      final response = await client
+          .get(uri)
+          .timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) return null;
-      return _parseIpBody(response.body);
+      final parsed = _parseIpBody(response.body);
+      if (parsed == null) return null;
+      return GeolocationFix(
+        latitude: parsed.$1,
+        longitude: parsed.$2,
+        locationName: parsed.$3,
+        source: GeolocationSource.internet,
+        providerHost: uri.host,
+      );
     } catch (e) {
       developer.log(
         '[Geolocation] IP-based location failed (${uri.host}): $e',
@@ -79,6 +161,16 @@ class GeolocationService {
     }
     return null;
   }
+
+  /// Primary internet lookup, then the fallback when it refuses.
+  static Future<GeolocationFix?> _internetFix() async {
+    final fix = await _fetchIp(ipPrimaryEndpoint);
+    if (fix != null) return fix;
+    return _fetchIp(ipFallbackEndpoint);
+  }
+
+  static (double, double, String?)? _tupleOf(GeolocationFix? fix) =>
+      fix == null ? null : (fix.latitude, fix.longitude, fix.locationName);
 
   /// ipinfo.io uses `loc` ("lat,lon"); ipwho.is / ipapi.co use
   /// `latitude`/`longitude`. Prefer `loc` when both exist — that is the
@@ -117,8 +209,8 @@ class GeolocationService {
   static String? _ipLocationName(Map<String, dynamic> data) {
     final city = data['city'] as String?;
     final region = data['region'] as String?;
-    final country = (data['country_name'] as String?) ??
-        data['country'] as String?;
+    final country =
+        (data['country_name'] as String?) ?? data['country'] as String?;
     final parts = <String>[
       if (city != null && city.isNotEmpty) city,
       if (region != null && region.isNotEmpty) region,
@@ -129,11 +221,7 @@ class GeolocationService {
 
   /// Try to fetch location, using primary service first, then fallback
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocation() async {
-    final result = await fetchLocationFromIP();
-    if (result != null) return result;
-    return fetchLocationFromIPAlternative();
-  }
+  fetchLocation() async => _tupleOf(await _internetFix());
 
   /// Look up a town, observatory, or address by name.
   ///
@@ -154,10 +242,9 @@ class GeolocationService {
     );
     final client = clientFactory();
     try {
-      final response = await client.get(
-        uri,
-        headers: const {'User-Agent': 'Nightshade/observatory'},
-      ).timeout(const Duration(seconds: 8));
+      final response = await client
+          .get(uri, headers: const {'User-Agent': 'Nightshade/observatory'})
+          .timeout(const Duration(seconds: 8));
       if (response.statusCode != 200) return const [];
       return parsePlaceSearchBody(response.body);
     } catch (e) {
@@ -210,15 +297,23 @@ class GeolocationService {
     return hits;
   }
 
-  /// Fetch location from device GPS.
+  /// Resolve this machine's position: the device's own location services
+  /// first, then — when [fallbackToIp] — the internet lookup, all in the one
+  /// call.
   ///
-  /// [fallbackToIp] is the desktop escape hatch: most observatory PCs have no
-  /// GPS, and the IP estimate is a town-level guess. Settings and the
-  /// onboarding "use my location" control pass false so an ISP city cannot
-  /// overwrite a site the operator named. The onboarding "Estimate from IP"
-  /// button still calls [fetchLocation] directly.
-  static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocationFromGPS({bool fallbackToIp = true}) async {
+  /// Most observatory desktops have no GPS receiver, so the device attempt
+  /// fails and the IP estimate is what answers; that is what makes Detect
+  /// location work on those machines at all. Both Settings and the first-run
+  /// wizard pass `fallbackToIp: true` and show the shared consent dialog
+  /// first, since the fallback sends the machine's public IP to ipinfo.io /
+  /// ipwho.is over HTTPS.
+  ///
+  /// The returned [GeolocationFix] says which path answered and the accuracy
+  /// the provider reported (metres for a device fix, none for the internet
+  /// services), so the confirmation can name what it just wrote.
+  static Future<GeolocationFix?> fetchLocationFromGPS({
+    bool fallbackToIp = true,
+  }) async {
     try {
       // Check if location services are enabled on the device
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -228,7 +323,7 @@ class GeolocationService {
           name: 'GeolocationService',
           level: 900,
         );
-        return fallbackToIp ? await fetchLocation() : null;
+        return fallbackToIp ? await _internetFix() : null;
       }
 
       // Check and request permission
@@ -241,7 +336,7 @@ class GeolocationService {
             name: 'GeolocationService',
             level: 900,
           );
-          return fallbackToIp ? await fetchLocation() : null;
+          return fallbackToIp ? await _internetFix() : null;
         }
       }
 
@@ -251,7 +346,7 @@ class GeolocationService {
           name: 'GeolocationService',
           level: 900,
         );
-        return fallbackToIp ? await fetchLocation() : null;
+        return fallbackToIp ? await _internetFix() : null;
       }
 
       // Get current position
@@ -276,7 +371,16 @@ class GeolocationService {
         locationName = 'GPS Location';
       }
 
-      return (position.latitude, position.longitude, locationName);
+      return GeolocationFix(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        locationName: locationName,
+        source: GeolocationSource.device,
+        // The platform reports 0.0 when it measured no accuracy;
+        // describeSource treats that as "none" rather than claiming a
+        // perfect fix.
+        accuracyMeters: position.accuracy,
+      );
     } catch (e) {
       // GPS failed (timeout, no GPS hardware, etc.)
       developer.log(
@@ -286,15 +390,11 @@ class GeolocationService {
         error: e,
       );
 
-      return fallbackToIp ? await fetchLocation() : null;
+      return fallbackToIp ? await _internetFix() : null;
     }
   }
 
-  /// Get the best available location using GPS first, then IP fallback
-  /// This is the recommended method for most use cases
-  static Future<(double latitude, double longitude, String? locationName)?>
-  getBestLocation() async {
-    // Try GPS first (will auto-fallback to IP if GPS unavailable)
-    return await fetchLocationFromGPS();
-  }
+  /// Get the best available location: the device first, then the internet
+  /// lookup. This is the recommended method for most use cases.
+  static Future<GeolocationFix?> getBestLocation() => fetchLocationFromGPS();
 }

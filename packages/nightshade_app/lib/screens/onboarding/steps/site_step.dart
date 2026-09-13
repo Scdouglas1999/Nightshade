@@ -32,11 +32,16 @@ final onboardingApproximateLocationProvider =
   (ref) => GeolocationService.fetchLocation,
 );
 
-/// The device-position lookup behind "Use my current location": device GPS
-/// where the platform has one, third-party IP lookup everywhere else. Injected
-/// so the consent + elevation rules can be driven in tests without a network.
-final onboardingDeviceLocationProvider = Provider<ApproximateLocationLookup>(
-  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: false),
+/// The device-position lookup behind "Use my current location": this
+/// machine's GPS where the platform has one, the internet IP lookup
+/// everywhere else — one click covers a desktop with no receiver. Returns
+/// the provenance-carrying fix so the confirmation can say which path
+/// answered. Injected so the consent + elevation rules can be driven in
+/// tests without a network or a GPS.
+typedef DeviceLocationLookup = Future<GeolocationFix?> Function();
+
+final onboardingDeviceLocationProvider = Provider<DeviceLocationLookup>(
+  (ref) => () => GeolocationService.fetchLocationFromGPS(fallbackToIp: true),
 );
 
 /// Observing-site step.
@@ -62,7 +67,10 @@ final onboardingDeviceLocationProvider = Provider<ApproximateLocationLookup>(
 ///    site nor destroy the one already saved.
 ///  * **An IP estimate is a suggestion, never a default.** It is offered as a
 ///    labelled starting point the user accepts explicitly, never written to
-///    settings behind their back; `location_sync_service.dart` owns why.
+///    settings behind their back; `location_sync_service.dart` owns why. The
+///    explicit "Use my current location" path is different: the operator asked
+///    for a fix, consented to the outbound request, and is told when the
+///    answer came from the internet rather than a receiver.
 class OnboardingSiteStep extends ConsumerStatefulWidget {
   const OnboardingSiteStep({super.key});
 
@@ -312,7 +320,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     final consented = await confirmGeolocationLookup(
       context,
       outcome: kGeolocationWritesSiteOutcome,
-      includeIpFallback: false,
+      includeIpFallback: true,
     );
     if (!consented || !mounted) return;
     final authority = ref.read(backendProvider);
@@ -324,12 +332,15 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
       }
       if (location == null) {
         context.showWarningSnackBar(
-          'No GPS fix on this machine. Search for a place by name, or enter '
-          'coordinates.',
+          'No fix from this machine or the internet lookup. Enter your '
+          'coordinates below, or skip and set the site later in Settings → '
+          'Location.',
         );
         return;
       }
-      final (rawLat, rawLon, name) = location;
+      final rawLat = location.latitude;
+      final rawLon = location.longitude;
+      final name = location.locationName;
       final lat = _roundLookup(rawLat);
       final lon = _roundLookup(rawLon);
       // Only a site already on record can lend a stale elevation; on a first
@@ -357,9 +368,9 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
       final where = name ?? '${_trimNumber(lat)}°, ${_trimNumber(lon)}°';
       context.showSuccessSnackBar(
         keepElevation
-            ? 'Coordinates set to $where.'
-            : 'Coordinates set to $where. Elevation cleared — enter the '
-                'elevation for this site.',
+            ? 'Coordinates set to $where — ${location.describeSource()}.'
+            : 'Coordinates set to $where — ${location.describeSource()}. '
+                'Elevation cleared — enter the elevation for this site.',
       );
     } catch (error) {
       if (mounted && identical(ref.read(backendProvider), authority)) {
