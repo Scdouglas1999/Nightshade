@@ -42,4 +42,22 @@ void main() {
           'carries the label, so the label node reads as a role-less panel',
     );
   });
+
+  test('the third segment is named for what it holds, not for a queue', () {
+    final file = File(
+      'lib/screens/sequencer/sequencer_screen_parts/toolbox_panel.dart',
+    );
+    final source = file.readAsStringSync();
+
+    // The app has three things called a queue — the planetarium wishlist, the
+    // autopilot's scheduler queue, and this pane — and naming the pane after
+    // one of them told the owner nothing about the targets already in his
+    // loaded sequence. The label is also the segment's accessible name, so it
+    // is the word a screen reader announces for the pane.
+    expect(
+      source,
+      contains("segments: const ['Nodes', 'Snippets', 'Targets']"),
+      reason: 'the toolbox segments name their panes; the third is Targets',
+    );
+  });
 }

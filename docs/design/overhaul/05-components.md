@@ -69,7 +69,7 @@ with 2 px gap. `value == null` renders "—" muted. Always tabular figures.
 - Gap between tabs `space2xl` (24). No fills, no borders, no pills.
 - Keep the existing overflow/scroll behaviour and `collapseLabelsWhenTight`.
 - Delete `SubTabButton` (pill style; it has zero call sites in `nightshade_app` today). Where a screen needs a second-level switch INSIDE a panel
-  (Sequencer palette: Nodes / Snippets / Queue), use `SegmentedControl` (§5).
+  (Sequencer palette: Nodes / Snippets / Targets), use `SegmentedControl` (§5).
 
 ## 5. `SegmentedControl` — New
 
