@@ -69,7 +69,7 @@ void main() {
 
       // The Build button is rendered, but disabled.
       final buildButton = tester.widget<SmallButton>(
-        find.widgetWithText(SmallButton, 'Build defect map from current darks'),
+        find.widgetWithText(SmallButton, 'Build defect map...'),
       );
       expect(
         buildButton.isEnabled,

@@ -634,24 +634,89 @@ class SliderRowInteractive extends StatelessWidget {
     this.helpId,
   });
 
+  /// Width of the trailing value, in logical pixels.
+  static const double _valueWidth = 45;
+
+  /// Room the help affordance and its gap take out of the label column.
+  static const double _helpAffordanceWidth =
+      NightshadeTokens.spaceXs + NightshadeTokens.iconXs;
+
+  /// Whether [label] fits the label column of a row [rowWidth] wide.
+  ///
+  /// The column is [NightshadeTokens.panelRowLabelFlex] of what is left after
+  /// the trailing value, less the help affordance when there is one — about
+  /// 50px in the 216px side panel. A label that does not fit wraps, and wraps
+  /// MID-WORD when a single word is wider than the column: "Settle threshold"
+  /// rendered as "Settle threshol" over "d". So a label that does not fit
+  /// takes the whole row instead, above its own control.
+  static bool labelFitsBeside(
+    BuildContext context, {
+    required String label,
+    required double rowWidth,
+    required bool hasHelp,
+  }) {
+    const totalFlex = NightshadeTokens.panelRowLabelFlex +
+        NightshadeTokens.panelRowControlFlex;
+    final column = (rowWidth - _valueWidth) *
+            NightshadeTokens.panelRowLabelFlex /
+            totalFlex -
+        (hasHelp ? _helpAffordanceWidth : 0);
+    return measureTextWidth(
+          context,
+          text: label,
+          style: NightshadeTypography.caption,
+        ) <=
+        column;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEnabled = onChanged != null;
+    final labelWidget = _panelRowLabel(
+      context,
+      label: label,
+      style: NightshadeTypography.caption
+          .copyWith(color: isEnabled ? colors.textSecondary : colors.textMuted),
+      helpId: helpId,
+    );
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final beside = !constraints.hasBoundedWidth ||
+            labelFitsBeside(
+              context,
+              label: label,
+              rowWidth: constraints.maxWidth,
+              hasHelp: helpId != null,
+            );
+        final row = _row(context, isEnabled, beside ? labelWidget : null);
+        if (beside) return row;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(alignment: Alignment.centerLeft, child: labelWidget),
+            row,
+          ],
+        );
+      },
+    );
+  }
+
+  /// The slider and its value, with the label beside them when it fits.
+  Widget _row(BuildContext context, bool isEnabled, Widget? labelWidget) {
     return Row(
       children: [
-        Expanded(
-          flex: NightshadeTokens.panelRowLabelFlex,
-          child: _panelRowLabel(
-            context,
-            label: label,
-            style: NightshadeTypography.caption.copyWith(
-                color: isEnabled ? colors.textSecondary : colors.textMuted),
-            helpId: helpId,
+        if (labelWidget != null)
+          Expanded(
+            flex: NightshadeTokens.panelRowLabelFlex,
+            child: labelWidget,
           ),
-        ),
         Expanded(
-          flex: NightshadeTokens.panelRowControlFlex,
+          flex: labelWidget == null
+              ? NightshadeTokens.panelRowLabelFlex +
+                  NightshadeTokens.panelRowControlFlex
+              : NightshadeTokens.panelRowControlFlex,
           child: SliderTheme(
             data: SliderThemeData(
               trackHeight: 2,
@@ -671,7 +736,7 @@ class SliderRowInteractive extends StatelessWidget {
           ),
         ),
         SizedBox(
-          width: 45,
+          width: _valueWidth,
           child: Text(
             '${value.toStringAsFixed(1)}$suffix',
             textAlign: TextAlign.right,
@@ -683,6 +748,12 @@ class SliderRowInteractive extends StatelessWidget {
     );
   }
 }
+
+/// Horizontal padding inside a [SmallButton], its icon size, and the gap
+/// between that icon and the label, in logical pixels.
+const double _smallButtonPaddingH = 14;
+const double _smallButtonIconSize = 14;
+const double _smallButtonIconGap = 6;
 
 class SmallButton extends StatefulWidget {
   final String label;
@@ -701,6 +772,22 @@ class SmallButton extends StatefulWidget {
     required this.colors,
     this.onTap,
   });
+
+  /// The width this button needs to render [label] in full, in logical pixels.
+  ///
+  /// The label is `Flexible` with `TextOverflow.ellipsis`, so a pair of these
+  /// in a fixed two-column `Row` shrinks to "Cool D…" without overflowing,
+  /// throwing or logging anything. `AdaptiveColumns` asks this first and
+  /// stacks the pair when the answer does not fit.
+  static double measureWidth(BuildContext context, {required String label}) =>
+      measureTextWidth(
+        context,
+        text: label,
+        style: NightshadeTypography.labelSm,
+      ) +
+      _smallButtonIconSize +
+      _smallButtonIconGap +
+      2 * _smallButtonPaddingH;
 
   @override
   State<SmallButton> createState() => _SmallButtonState();
@@ -740,7 +827,10 @@ class _SmallButtonState extends State<SmallButton> {
         onTap: isEnabled ? widget.onTap : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+          padding: const EdgeInsets.symmetric(
+            vertical: 10,
+            horizontal: _smallButtonPaddingH,
+          ),
           decoration: widget.isOutline
               ? BoxDecoration(
                   color: _isHovered && isEnabled
@@ -763,10 +853,10 @@ class _SmallButtonState extends State<SmallButton> {
             children: [
               Icon(
                 widget.icon,
-                size: 14,
+                size: _smallButtonIconSize,
                 color: contentColor,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: _smallButtonIconGap),
               Flexible(
                 child: Text(
                   widget.label,

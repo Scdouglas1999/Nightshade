@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
         MountCapabilities,
+        MountState,
         mountStateProvider,
         equipmentMountCapabilitiesProvider,
         gateCapability,
@@ -16,7 +19,20 @@ import 'package:nightshade_core/nightshade_core.dart'
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/slew_dropdown_button.dart';
+import '../widgets/panel_widgets.dart';
 
+/// The trailing half of [SlewDropdownButton]: a 4px gap and the popup that
+/// opens the slew alternatives, which is an `IconButton` at Material's minimum
+/// interactive size. It is not part of the label measurement, so a cell that
+/// holds one has to reserve it or "Slew" is the label that ellipsises.
+const double _slewMenuAffordance = 4 + kMinInteractiveDimension;
+
+/// Side of one pulse-guide pad, and the resting gap between the west and east
+/// pads (the cross's empty centre).
+const double _pulsePadSize = 48;
+const double _pulseCentreGap = 48;
+
+/// The Mount section of the Imaging side panel.
 class MountTab extends ConsumerStatefulWidget {
   const MountTab({super.key});
 
@@ -37,7 +53,9 @@ class _MountTabState extends ConsumerState<MountTab> {
     _raController = TextEditingController(text: coords.raText);
     _decController = TextEditingController(text: coords.decText);
 
-    // Add listeners to sync changes back to provider (persists across tab switches)
+    // Add listeners to sync changes back to provider (persists across tab
+    // switches) and to rebuild this tab, so the Slew payload and the
+    // enablement of Slew/Sync follow every keystroke.
     _raController.addListener(_syncRaToProvider);
     _decController.addListener(_syncDecToProvider);
   }
@@ -94,7 +112,6 @@ class _MountTabState extends ConsumerState<MountTab> {
     final hasValidTarget = targetRa != null && targetDec != null;
     final isConnected =
         mountState.connectionState == DeviceConnectionState.connected;
-    final isMobile = Responsive.isMobile(context);
 
     // Watch mount capabilities to gate UI features.
     //
@@ -156,423 +173,247 @@ class _MountTabState extends ConsumerState<MountTab> {
         !mountState.isParked &&
         !mountState.isSlewing;
 
+    final parkLabel = mountState.isParked ? 'Unpark' : 'Park';
+    final trackingLabel =
+        mountState.isTracking ? 'Stop tracking' : 'Start tracking';
+
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      // Both hosts of this section — the SidePanel's content area and the
+      // narrow bottom sheet — already inset it by 16 (05 §15). The 24 this
+      // used to add on top, plus a card of its own at 16, spent 80 of the
+      // panel's 320 px on nothing but air, which is most of the room a second
+      // column of buttons needs.
+      padding: EdgeInsets.zero,
       child: Column(
-        children: [
-          // Status Card
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Text(
-                        'Mount Status',
-                        style: NightshadeTypography.h5
-                            .copyWith(color: colors.textPrimary),
-                      ),
-                      if (isConnected)
-                        _StatusBadge(
-                          label: mountState.isSlewing
-                              ? 'SLEWING'
-                              : (mountState.isTracking
-                                  ? 'TRACKING'
-                                  : 'STOPPED'),
-                          color: mountState.isSlewing
-                              ? colors.warning
-                              : (mountState.isTracking
-                                  ? colors.success
-                                  : colors.textSecondary),
-                        ),
-                      if (!isConnected)
-                        _StatusBadge(
-                          label: 'DISCONNECTED',
-                          color: colors.error,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _ResponsiveCoordinateGrid(
-                    isMobile: isMobile,
-                    children: [
-                      _InfoRow(
-                          label: 'RA',
-                          // Mount RA is hours (0-24); render sexagesimal so
-                          // astronomers read HH MM SS rather than raw decimals.
-                          value: mountState.ra != null
-                              ? CoordinateUtils.formatRA(mountState.ra!)
-                              : '--'),
-                      _InfoRow(
-                          label: 'Dec',
-                          // Mount Dec is degrees (-90..+90); render signed DMS.
-                          value: mountState.dec != null
-                              ? CoordinateUtils.formatDec(mountState.dec!)
-                              : '--'),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _ResponsiveCoordinateGrid(
-                    isMobile: isMobile,
-                    children: [
-                      _InfoRow(
-                          label: 'Alt',
-                          value: mountState.altitude != null
-                              ? '${mountState.altitude!.toStringAsFixed(2)}°'
-                              : '--'),
-                      _InfoRow(
-                          label: 'Az',
-                          value: mountState.azimuth != null
-                              ? '${mountState.azimuth!.toStringAsFixed(2)}°'
-                              : '--'),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _ResponsiveCoordinateGrid(
-                    isMobile: isMobile,
-                    children: [
-                      _InfoRow(
-                          label: 'Pier', value: mountState.sideOfPier ?? '--'),
-                      _InfoRow(
-                          label: 'Status',
-                          value: mountState.isParked ? 'Parked' : 'Ready'),
-                    ],
-                  ),
-                ],
-              ),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          PanelSection(
+            title: 'Mount status',
+            colors: colors,
+            child: _StatusBlock(
+              mountState: mountState,
+              isConnected: isConnected,
             ),
           ),
-
-          const SizedBox(height: 24),
-
-          // Control Actions
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Actions',
-                    style: NightshadeTypography.h5
-                        .copyWith(color: colors.textPrimary),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: NightshadeButton(
-                          label: mountState.isParked ? 'Unpark' : 'Park',
-                          icon: LucideIcons.parkingSquare,
-                          variant: ButtonVariant.outline,
-                          // Gate on canPark/canUnpark with
-                          // fail-closed capability lookup — see
-                          // gateCapability above.
-                          onPressed: isConnected &&
-                                  !mountState.isSlewing &&
-                                  (mountState.isParked ? canUnpark : canPark)
-                              ? () => ref
-                                      .read(mountCommandServiceProvider)
-                                      .togglePark()
-                                      .then((result) {
-                                    if (context.mounted) {
-                                      context.showCommandActionResult(result);
-                                    }
-                                  })
-                              : null,
-                        ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          PanelSection(
+            title: 'Actions',
+            colors: colors,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                AdaptiveColumns(
+                  cells: <AdaptiveCell>[
+                    AdaptiveCell(
+                      minWidth: NightshadeButton.measureWidth(
+                        context,
+                        label: parkLabel,
+                        hasIcon: true,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: NightshadeButton(
-                          label: mountState.isTracking
-                              ? 'Stop Track'
-                              : 'Start Track',
-                          icon: NightshadeIcons.activity,
-                          variant: mountState.isTracking
-                              ? ButtonVariant.outline
-                              : ButtonVariant.primary,
-                          // Gate on canSetTracking capability.
-                          onPressed: isConnected &&
-                                  canSetTracking &&
+                      child: _LabelFirstButton(
+                        label: parkLabel,
+                        icon: LucideIcons.parkingSquare,
+                        variant: ButtonVariant.secondary,
+                        // Gate on canPark/canUnpark with
+                        // fail-closed capability lookup — see
+                        // gateCapability above.
+                        onPressed: isConnected &&
+                                !mountState.isSlewing &&
+                                (mountState.isParked ? canUnpark : canPark)
+                            ? () => ref
+                                    .read(mountCommandServiceProvider)
+                                    .togglePark()
+                                    .then((result) {
+                                  if (context.mounted) {
+                                    context.showCommandActionResult(result);
+                                  }
+                                })
+                            : null,
+                      ),
+                    ),
+                    AdaptiveCell(
+                      minWidth: NightshadeButton.measureWidth(
+                        context,
+                        label: trackingLabel,
+                        hasIcon: true,
+                      ),
+                      child: _LabelFirstButton(
+                        label: trackingLabel,
+                        icon: NightshadeIcons.activity,
+                        variant: mountState.isTracking
+                            ? ButtonVariant.secondary
+                            : ButtonVariant.primary,
+                        // Gate on canSetTracking capability.
+                        onPressed: isConnected &&
+                                canSetTracking &&
+                                !mountState.isParked &&
+                                !mountState.isSlewing
+                            ? () => ref
+                                    .read(mountCommandServiceProvider)
+                                    .setTracking(!mountState.isTracking)
+                                    .then((result) {
+                                  if (context.mounted) {
+                                    context.showCommandActionResult(result);
+                                  }
+                                })
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                // The panic button keeps the full width in every layout and
+                // takes the destructive face: it is the one control here the
+                // operator reaches for without reading, and it must never
+                // share a row with an ordinary action.
+                _LabelFirstButton(
+                  label: 'Abort slew',
+                  icon: LucideIcons.octagon,
+                  variant: ButtonVariant.destructive,
+                  // Gate on canAbortSlew. Drivers without
+                  // abort support would otherwise stall the user when
+                  // a runaway slew demands the panic button.
+                  onPressed: isConnected && canAbortSlew
+                      ? () => ref
+                              .read(mountCommandServiceProvider)
+                              .abortSlew()
+                              .then((result) {
+                            if (context.mounted) {
+                              context.showCommandActionResult(result);
+                            }
+                          })
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          PanelSection(
+            title: 'Alignment',
+            colors: colors,
+            // "Polar alignment" is what the screen behind this button is
+            // called everywhere else it is offered (the Sequencer toolbar, the
+            // command palette). Three-point is the method chosen inside it,
+            // not the name of the door.
+            child: _LabelFirstButton(
+              label: 'Polar alignment',
+              icon: NightshadeIcons.compass,
+              variant: ButtonVariant.secondary,
+              onPressed: () => context.push('/polar-alignment'),
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          PanelSection(
+            title: 'Go to & sync',
+            colors: colors,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                // Stacked, labelled fields: side by side, the labels became
+                // "RA (H…" and "Dec (…", and a coordinate is exactly the kind
+                // of value a reader has to be able to check digit by digit.
+                NightshadeTextField(
+                  label: 'RA',
+                  hint: 'HH:MM:SS',
+                  suffix: 'h',
+                  mono: true,
+                  controller: _raController,
+                ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                NightshadeTextField(
+                  label: 'Dec',
+                  hint: '±DD:MM:SS',
+                  suffix: '°',
+                  mono: true,
+                  controller: _decController,
+                ),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                AdaptiveColumns(
+                  cells: <AdaptiveCell>[
+                    AdaptiveCell(
+                      minWidth: NightshadeButton.measureWidth(
+                            context,
+                            label: 'Slew',
+                            hasIcon: true,
+                          ) +
+                          _slewMenuAffordance,
+                      child: !hasValidTarget
+                          ? const _LabelFirstButton(
+                              label: 'Slew',
+                              icon: NightshadeIcons.move,
+                              onPressed: null,
+                            )
+                          : SlewDropdownButton(
+                              ra: targetRa,
+                              dec: targetDec,
+                              targetName: 'Manual Coordinates',
+                              // No rotation from manual coordinate entry
+                              targetRotation: null,
+                              isEnabled: isConnected &&
+                                  canSlew &&
                                   !mountState.isParked &&
-                                  !mountState.isSlewing
-                              ? () => ref
-                                      .read(mountCommandServiceProvider)
-                                      .setTracking(!mountState.isTracking)
-                                      .then((result) {
-                                    if (context.mounted) {
-                                      context.showCommandActionResult(result);
-                                    }
-                                  })
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: NightshadeButton(
-                      label: 'ABORT SLEW',
-                      icon: LucideIcons.octagon,
-                      variant: ButtonVariant.primary,
-                      // Gate on canAbortSlew. Drivers without
-                      // abort support would otherwise stall the user when
-                      // a runaway slew demands the panic button.
-                      onPressed: isConnected && canAbortSlew
-                          ? () => ref
-                                  .read(mountCommandServiceProvider)
-                                  .abortSlew()
-                                  .then((result) {
-                                if (context.mounted) {
-                                  context.showCommandActionResult(result);
-                                }
-                              })
-                          : null,
+                                  !mountState.isSlewing,
+                            ),
                     ),
-                  ),
-                ],
-              ),
+                    AdaptiveCell(
+                      minWidth: NightshadeButton.measureWidth(
+                        context,
+                        label: 'Sync',
+                        hasIcon: true,
+                      ),
+                      child: _LabelFirstButton(
+                        label: 'Sync',
+                        icon: NightshadeIcons.refresh,
+                        variant: ButtonVariant.secondary,
+                        onPressed: isConnected &&
+                                canSync &&
+                                hasValidTarget &&
+                                !mountState.isParked &&
+                                !mountState.isSlewing
+                            ? _handleSync
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-
-          const SizedBox(height: 24),
-
-          // Alignment
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Alignment',
-                    style: NightshadeTypography.h5
-                        .copyWith(color: colors.textPrimary),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: NightshadeButton(
-                      label: 'Three-Point Polar Alignment',
-                      icon: NightshadeIcons.compass,
-                      variant: ButtonVariant.outline,
-                      onPressed: () => context.push('/polar-alignment'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Slew/Sync
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'GoTo / Sync',
-                    style: NightshadeTypography.h5
-                        .copyWith(color: colors.textPrimary),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: NightshadeTextField(
-                          hint: 'RA (Hours)',
-                          initialValue: _raController.text,
-                          onChanged: (value) {
-                            _raController.text = value;
-                            ref.read(slewCoordinatesProvider.notifier).state =
-                                ref
-                                    .read(slewCoordinatesProvider)
-                                    .copyWith(raText: value);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: NightshadeTextField(
-                          hint: 'Dec (Deg)',
-                          initialValue: _decController.text,
-                          onChanged: (value) {
-                            _decController.text = value;
-                            ref.read(slewCoordinatesProvider.notifier).state =
-                                ref
-                                    .read(slewCoordinatesProvider)
-                                    .copyWith(decText: value);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: !hasValidTarget
-                            ? const NightshadeButton(
-                                label: 'Slew',
-                                icon: NightshadeIcons.move,
-                                onPressed: null,
-                              )
-                            : SlewDropdownButton(
-                                ra: targetRa,
-                                dec: targetDec,
-                                targetName: 'Manual Coordinates',
-                                // No rotation from manual coordinate entry
-                                targetRotation: null,
-                                isEnabled: isConnected &&
-                                    canSlew &&
-                                    !mountState.isParked &&
-                                    !mountState.isSlewing,
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: NightshadeButton(
-                          label: 'Sync',
-                          icon: NightshadeIcons.refresh,
-                          variant: ButtonVariant.outline,
-                          onPressed: isConnected &&
-                                  canSync &&
-                                  hasValidTarget &&
-                                  !mountState.isParked &&
-                                  !mountState.isSlewing
-                              ? _handleSync
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Pulse Guide
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Pulse Guide',
-                    style: NightshadeTypography.h5
-                        .copyWith(color: colors.textPrimary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    !isConnected
-                        ? 'Connect a mount to send guide corrections.'
-                        : !canPulseGuide
-                            ? 'Pulse guiding is unavailable for this mount.'
-                            : !hasValidPulseRange
-                                ? 'The mount reported an invalid pulse-duration range.'
-                                : mountState.isParked
-                                    ? 'Unpark the mount before pulse guiding.'
-                                    : mountState.isSlewing
-                                        ? 'Pulse guiding is disabled during a slew.'
-                                        : '$pulseDurationMs ms correction pulses',
-                    style: NightshadeTypography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Column(
-                      children: [
-                        _PulseButton(
-                            icon: NightshadeIcons.chevronUp,
-                            label: "N",
-                            onPressed: pulseControlsEnabled
-                                ? () => ref
-                                        .read(mountCommandServiceProvider)
-                                        .pulseGuide(
-                                          "north",
-                                          durationMs: pulseDurationMs,
-                                        )
-                                        .then((result) {
-                                      if (context.mounted) {
-                                        context.showCommandActionResult(result);
-                                      }
-                                    })
-                                : null),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _PulseButton(
-                                icon: NightshadeIcons.chevronLeft,
-                                label: "W",
-                                onPressed: pulseControlsEnabled
-                                    ? () => ref
-                                            .read(mountCommandServiceProvider)
-                                            .pulseGuide(
-                                              "west",
-                                              durationMs: pulseDurationMs,
-                                            )
-                                            .then((result) {
-                                          if (context.mounted) {
-                                            context.showCommandActionResult(
-                                                result);
-                                          }
-                                        })
-                                    : null),
-                            const SizedBox(width: 48),
-                            _PulseButton(
-                                icon: NightshadeIcons.chevronRight,
-                                label: "E",
-                                onPressed: pulseControlsEnabled
-                                    ? () => ref
-                                            .read(mountCommandServiceProvider)
-                                            .pulseGuide(
-                                              "east",
-                                              durationMs: pulseDurationMs,
-                                            )
-                                            .then((result) {
-                                          if (context.mounted) {
-                                            context.showCommandActionResult(
-                                                result);
-                                          }
-                                        })
-                                    : null),
-                          ],
-                        ),
-                        _PulseButton(
-                            icon: NightshadeIcons.chevronDown,
-                            label: "S",
-                            onPressed: pulseControlsEnabled
-                                ? () => ref
-                                        .read(mountCommandServiceProvider)
-                                        .pulseGuide(
-                                          "south",
-                                          durationMs: pulseDurationMs,
-                                        )
-                                        .then((result) {
-                                      if (context.mounted) {
-                                        context.showCommandActionResult(result);
-                                      }
-                                    })
-                                : null),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          PanelSection(
+            title: 'Pulse guide',
+            colors: colors,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  !isConnected
+                      ? 'Connect a mount to send guide corrections.'
+                      : !canPulseGuide
+                          ? 'Pulse guiding is unavailable for this mount.'
+                          : !hasValidPulseRange
+                              ? 'The mount reported an invalid pulse-duration range.'
+                              : mountState.isParked
+                                  ? 'Unpark the mount before pulse guiding.'
+                                  : mountState.isSlewing
+                                      ? 'Pulse guiding is disabled during a slew.'
+                                      : '$pulseDurationMs ms correction pulses',
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceLg),
+                _PulseCross(
+                  enabled: pulseControlsEnabled,
+                  onPulse: (direction) => ref
+                      .read(mountCommandServiceProvider)
+                      .pulseGuide(direction, durationMs: pulseDurationMs)
+                      .then((result) {
+                    if (context.mounted) {
+                      context.showCommandActionResult(result);
+                    }
+                  }),
+                ),
+              ],
             ),
           ),
         ],
@@ -581,54 +422,204 @@ class _MountTabState extends ConsumerState<MountTab> {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
+/// A button that would rather lose its icon than its label.
+///
+/// The glyph plus its gap is 22px of a 32px-tall control and says nothing the
+/// words do not. Below the width the label needs, `NightshadeButton` spends
+/// that 22px on the icon and ellipsises the words instead — which is how this
+/// panel came to offer "U…" and "St…". The icon is therefore the part that
+/// gives way, and only in the last few pixels: at the 320px side panel every
+/// label here keeps its glyph.
+class _LabelFirstButton extends StatelessWidget {
+  const _LabelFirstButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.variant = ButtonVariant.primary,
+  });
 
-  const _InfoRow({required this.label, required this.value});
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final ButtonVariant variant;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final withIcon = NightshadeButton.measureWidth(
+      context,
+      label: label,
+      hasIcon: true,
+    );
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final fits =
+            !constraints.hasBoundedWidth || constraints.maxWidth >= withIcon;
+        return NightshadeButton(
+          label: label,
+          icon: fits ? icon : null,
+          variant: variant,
+          onPressed: onPressed,
+        );
+      },
+    );
+  }
+}
+
+/// The mount's readouts: a chip that says what it is doing, over a grid of
+/// values that says where it is pointing.
+class _StatusBlock extends StatelessWidget {
+  const _StatusBlock({required this.mountState, required this.isConnected});
+
+  final MountState mountState;
+  final bool isConnected;
+
+  /// The chip's copy and tone, in the order a reader cares about. Park state
+  /// is NOT folded in here: it is its own readout in the grid below, and a
+  /// parked mount that is also disconnected has to report the connection.
+  ({String label, ChipTone tone}) get _status {
+    if (!isConnected) return (label: 'Disconnected', tone: ChipTone.error);
+    if (mountState.isSlewing) {
+      return (label: 'Slewing', tone: ChipTone.warning);
+    }
+    if (mountState.isTracking) {
+      return (label: 'Tracking', tone: ChipTone.success);
+    }
+    return (label: 'Stopped', tone: ChipTone.neutral);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _status;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textSecondary)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: NightshadeTypography.monoSm.copyWith(
-            fontWeight: FontWeight.w500,
-            color: colors.textPrimary,
+      children: <Widget>[
+        NightshadeChip(label: status.label, tone: status.tone, dot: true),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        _ReadoutPair(<(String, String?)>[
+          // Mount RA is hours (0-24); render sexagesimal so astronomers read
+          // HH MM SS rather than raw decimals.
+          (
+            'RA',
+            mountState.ra == null
+                ? null
+                : CoordinateUtils.formatRA(mountState.ra!)
           ),
-        ),
+          // Mount Dec is degrees (-90..+90); render signed DMS.
+          (
+            'Dec',
+            mountState.dec == null
+                ? null
+                : CoordinateUtils.formatDec(mountState.dec!)
+          ),
+        ]),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        _ReadoutPair(<(String, String?)>[
+          (
+            'Alt',
+            mountState.altitude == null
+                ? null
+                : '${mountState.altitude!.toStringAsFixed(2)}°'
+          ),
+          (
+            'Az',
+            mountState.azimuth == null
+                ? null
+                : '${mountState.azimuth!.toStringAsFixed(2)}°'
+          ),
+        ]),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        _ReadoutPair(<(String, String?)>[
+          ('Pier', mountState.sideOfPier),
+          ('Status', mountState.isParked ? 'Parked' : 'Ready'),
+        ]),
       ],
     );
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
+/// One row of the status grid: two readouts side by side while both values fit
+/// at the mono readout size, stacked as soon as one of them does not.
+///
+/// A sexagesimal RA is 13 characters wide, which two columns of a 320px panel
+/// cannot hold — and half a coordinate is not a coordinate, so this row gives
+/// up the pairing rather than the digits.
+class _ReadoutPair extends StatelessWidget {
+  const _ReadoutPair(this.values);
 
-  const _StatusBadge({required this.label, required this.color});
+  final List<(String, String?)> values;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: NightshadeTypography.caption
-            .copyWith(fontWeight: FontWeight.w600, color: color),
-      ),
+    return AdaptiveColumns(
+      spacing: NightshadeTokens.spaceMd,
+      cells: <AdaptiveCell>[
+        for (final (String label, String? value) in values)
+          AdaptiveCell(
+            minWidth: math.max(
+              measureTextWidth(
+                context,
+                text: value ?? kReadoutUnknown,
+                style: NightshadeTypography.readoutSm,
+              ),
+              measureTextWidth(
+                context,
+                text: label.toUpperCase(),
+                style: NightshadeTypography.readoutLabel,
+              ),
+            ),
+            child: Readout(
+              label: label,
+              value: value,
+              size: ReadoutSize.sm,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The four pulse-guide pads, laid out as the compass cross they are.
+class _PulseCross extends StatelessWidget {
+  const _PulseCross({required this.enabled, required this.onPulse});
+
+  final bool enabled;
+  final ValueChanged<String> onPulse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _PulseButton(
+          icon: NightshadeIcons.chevronUp,
+          label: 'N',
+          onPressed: enabled ? () => onPulse('north') : null,
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            _PulseButton(
+              icon: NightshadeIcons.chevronLeft,
+              label: 'W',
+              onPressed: enabled ? () => onPulse('west') : null,
+            ),
+            // The cross's centre is the one part of this cluster that may
+            // shrink: the pads themselves are touch targets. Flexible lets the
+            // gap close before anything overflows the card.
+            const Flexible(child: SizedBox(width: _pulseCentreGap)),
+            _PulseButton(
+              icon: NightshadeIcons.chevronRight,
+              label: 'E',
+              onPressed: enabled ? () => onPulse('east') : null,
+            ),
+          ],
+        ),
+        _PulseButton(
+          icon: NightshadeIcons.chevronDown,
+          label: 'S',
+          onPressed: enabled ? () => onPulse('south') : null,
+        ),
+      ],
     );
   }
 }
@@ -648,14 +639,14 @@ class _PulseButton extends StatelessWidget {
     return Column(
       children: [
         Material(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: InkWell(
             onTap: onPressed,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Container(
-              width: 48,
-              height: 48,
+              width: _pulsePadSize,
+              height: _pulsePadSize,
               alignment: Alignment.center,
               child: Icon(
                 icon,
@@ -668,43 +659,6 @@ class _PulseButton extends StatelessWidget {
         Text(label,
             style: NightshadeTypography.caption
                 .copyWith(color: colors.textSecondary)),
-      ],
-    );
-  }
-}
-
-/// Responsive grid layout for coordinate pairs.
-/// On mobile, stacks children vertically; on desktop, shows them side-by-side.
-class _ResponsiveCoordinateGrid extends StatelessWidget {
-  final bool isMobile;
-  final List<Widget> children;
-
-  const _ResponsiveCoordinateGrid({
-    required this.isMobile,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isMobile) {
-      // Stack vertically on mobile with smaller spacing
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (int i = 0; i < children.length; i++) ...[
-            children[i],
-            if (i < children.length - 1) const SizedBox(height: 8),
-          ],
-        ],
-      );
-    }
-    // Side-by-side on desktop
-    return Row(
-      children: [
-        for (int i = 0; i < children.length; i++) ...[
-          Expanded(child: children[i]),
-          if (i < children.length - 1) const SizedBox(width: 16),
-        ],
       ],
     );
   }

@@ -305,36 +305,49 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
             colors: widget.colors,
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: SmallButton(
-                        label: _isStartingGuiding
-                            ? 'Starting...'
-                            : isGuiding
-                                ? 'Guiding'
-                                : 'Start',
-                        icon: isGuiding
-                            ? NightshadeIcons.activity
-                            : NightshadeIcons.play,
-                        colors: widget.colors,
-                        isEnabled:
-                            isConnected && !isGuiding && !_isStartingGuiding,
-                        onTap: _startGuiding,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SmallButton(
-                        label: 'Stop',
-                        icon: NightshadeIcons.stop,
-                        isOutline: true,
-                        colors: widget.colors,
-                        isEnabled: isConnected && isGuiding,
-                        onTap: _stopGuiding,
-                      ),
-                    ),
-                  ],
+                Builder(
+                  builder: (BuildContext context) {
+                    final startLabel = _isStartingGuiding
+                        ? 'Starting...'
+                        : isGuiding
+                            ? 'Guiding'
+                            : 'Start';
+                    return AdaptiveColumns(
+                      cells: [
+                        AdaptiveCell(
+                          minWidth: SmallButton.measureWidth(
+                            context,
+                            label: startLabel,
+                          ),
+                          child: SmallButton(
+                            label: startLabel,
+                            icon: isGuiding
+                                ? NightshadeIcons.activity
+                                : NightshadeIcons.play,
+                            colors: widget.colors,
+                            isEnabled: isConnected &&
+                                !isGuiding &&
+                                !_isStartingGuiding,
+                            onTap: _startGuiding,
+                          ),
+                        ),
+                        AdaptiveCell(
+                          minWidth: SmallButton.measureWidth(
+                            context,
+                            label: 'Stop',
+                          ),
+                          child: SmallButton(
+                            label: 'Stop',
+                            icon: NightshadeIcons.stop,
+                            isOutline: true,
+                            colors: widget.colors,
+                            isEnabled: isConnected && isGuiding,
+                            onTap: _stopGuiding,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
