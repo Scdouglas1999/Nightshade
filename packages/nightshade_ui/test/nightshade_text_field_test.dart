@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -125,14 +128,191 @@ void main() {
     );
 
     final field = tester.getRect(find.byType(NightshadeTextField));
-    final unit = tester.getRect(find.text('s'));
     final editable = tester.getRect(find.byType(EditableText));
 
     expect(
       editable.center.dy,
-      closeTo(field.center.dy + fieldInkOffset.dy, 0.5),
-      reason: 'ink is lifted $fieldInkOffset so caps sit on the well centre',
+      closeTo(field.center.dy, 0.5),
+      reason: 'the collapsed slot fills the well, so the 14px input centres',
     );
-    expect(unit.center.dy, closeTo(editable.center.dy, 0.5));
+
+    // The unit suffix is laid out by the decorator on the value's baseline.
+    final editableRender = tester.renderObject<RenderEditable>(
+      find.descendant(
+        of: find.byType(EditableText),
+        matching: find.byElementPredicate(
+          (e) => e.renderObject is RenderEditable,
+        ),
+      ),
+    );
+    final unitRender = tester.renderObject<RenderParagraph>(find.text('s'));
+    final editableBaseline =
+        editable.top +
+        editableRender.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    final unit = tester.getRect(find.text('s'));
+    final unitBaseline =
+        unit.top +
+        unitRender.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    expect(
+      unitBaseline,
+      closeTo(editableBaseline, 0.5),
+      reason: 'the unit shares the value baseline instead of riding high',
+    );
+  });
+
+  RenderEditable editableRender(WidgetTester tester) {
+    return tester.renderObject<RenderEditable>(
+      find.descendant(
+        of: find.byType(EditableText),
+        matching: find.byElementPredicate(
+          (e) => e.renderObject is RenderEditable,
+        ),
+      ),
+    );
+  }
+
+  /// The centre of the tight glyph box the decorator positions, relative to
+  /// the field box's centre. Positive means the ink sits low.
+  double lineBoxOffset(WidgetTester tester) {
+    final field = tester.getRect(find.byType(NightshadeTextField));
+    final editable = editableRender(tester);
+    editable.selectionHeightStyle = ui.BoxHeightStyle.tight;
+    final len = editable.text?.toPlainText().length ?? 0;
+    final boxes = editable.getBoxesForSelection(
+      TextSelection(baseOffset: 0, extentOffset: len),
+    );
+    final editableTop = tester.getRect(find.byType(EditableText)).top;
+    final ink = boxes
+        .map((b) => b.toRect())
+        .reduce((a, b) => a.expandToInclude(b));
+    return (editableTop + ink.center.dy) - field.center.dy;
+  }
+
+  /// The centre of the bright glyph ink rows in a 4x raster of the field's
+  /// RepaintBoundary, relative to the well's centre row.
+  Future<double> rasterInkOffset(
+    WidgetTester tester, {
+    int xFrom = 0,
+    int xTo = 1 << 30,
+  }) async {
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(const ValueKey('inkBoundary')),
+    );
+    const pr = 4.0;
+    final data = await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: pr);
+      try {
+        return await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      } finally {
+        image.dispose();
+      }
+    });
+    final px = data!.buffer.asUint8List();
+    final w = (boundary.size.width * pr).round();
+    final h = (boundary.size.height * pr).round();
+    var top = -1;
+    var bottom = -1;
+    for (var y = 0; y < h; y++) {
+      var bright = false;
+      for (var x = xFrom; x < w && x < xTo; x++) {
+        final i = (y * w + x) * 4;
+        if ((px[i] + px[i + 1] + px[i + 2]) / 3 > 150) {
+          bright = true;
+          break;
+        }
+      }
+      if (bright) {
+        if (top < 0) top = y;
+        bottom = y;
+      }
+    }
+    return ((top + bottom) / 2 - h / 2) / pr;
+  }
+
+  testWidgets('numeric, lowercase and unit ink centres on the well', (
+    tester,
+  ) async {
+    await GoldenHarness.ensureFonts();
+
+    Widget field(Widget child, {double width = 200}) => MaterialApp(
+      theme: NightshadeTheme.dark,
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: RepaintBoundary(
+            key: const ValueKey('inkBoundary'),
+            child: SizedBox(width: width, child: child),
+          ),
+        ),
+      ),
+    );
+
+    // Numeric mono field at the dense 28px height: the strut's tight box and
+    // the rasterised digit ink both centre on the well.
+    await tester.pumpWidget(
+      field(
+        const NightshadeTextField(initialValue: '100', mono: true, dense: true),
+      ),
+    );
+    expect(
+      tester.getRect(find.byType(NightshadeTextField)).height,
+      fieldHeightDense,
+    );
+    expect(
+      lineBoxOffset(tester).abs(),
+      lessThanOrEqualTo(0.5),
+      reason: 'numeric line box should centre on the well',
+    );
+    final numericInk = await rasterInkOffset(tester);
+    expect(
+      numericInk.abs(),
+      lessThanOrEqualTo(0.5),
+      reason: 'digit ink should centre on the well (was +2.5 low)',
+    );
+    // A lowercase Hanken value shares the same baseline and slot; its tight
+    // line box is identical, so it centres the same way. In 'galaxy' the 'g'
+    // descender balances the 'l' ascender, so the rasterised ink centres too
+    // — the offset is reported rather than asserted since which letters a
+    // value contains shifts its ink bounds within the same centred slot.
+    await tester.pumpWidget(
+      field(const NightshadeTextField(initialValue: 'galaxy')),
+    );
+    expect(
+      lineBoxOffset(tester).abs(),
+      lessThanOrEqualTo(0.5),
+      reason: 'lowercase line box should centre on the well',
+    );
+    expect(
+      tester.getRect(find.byType(EditableText)).center.dy,
+      closeTo(tester.getRect(find.byType(NightshadeTextField)).center.dy, 0.5),
+      reason: 'the 14px input slot centres in the 32px well',
+    );
+    debugPrint(
+      'lowercase ink offset: '
+      '${(await rasterInkOffset(tester)).toStringAsFixed(2)} px',
+    );
+
+    // The unit suffix sits on the value's baseline.
+    await tester.pumpWidget(
+      field(
+        const NightshadeTextField(initialValue: '2.0', mono: true, suffix: 's'),
+      ),
+    );
+    final valueBaseline =
+        tester.getRect(find.byType(EditableText)).top +
+        editableRender(
+          tester,
+        ).computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    final unitRect = tester.getRect(find.text('s'));
+    final unitBaseline =
+        unitRect.top +
+        tester
+            .renderObject<RenderParagraph>(find.text('s'))
+            .computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    expect(
+      (unitBaseline - valueBaseline).abs(),
+      lessThanOrEqualTo(0.5),
+      reason: 'unit shares the value baseline',
+    );
   });
 }
