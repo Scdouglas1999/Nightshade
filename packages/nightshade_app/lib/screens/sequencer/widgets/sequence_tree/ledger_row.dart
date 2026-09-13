@@ -173,6 +173,14 @@ class _LedgerRow extends ConsumerStatefulWidget {
   /// True in a drag's feedback layer: no hover, no actions, no selection.
   final bool isDragging;
 
+  /// True in the sticky-ancestor stack (spec §5). A pinned row is a READOUT of
+  /// a row that has scrolled away, so it drops everything that makes the real
+  /// row a target: the focus node the shortcuts act through, the tap/hover
+  /// gestures, the hover actions, and its place in the accessibility traversal
+  /// order — the real row is still there and still reachable. It draws on
+  /// `surfaceElevated` because the stack it sits in floats over the tree.
+  final bool pinned;
+
   final VoidCallback? onSelect;
   final VoidCallback? onToggleEnabled;
   final VoidCallback? onDelete;
@@ -191,6 +199,7 @@ class _LedgerRow extends ConsumerStatefulWidget {
     required this.nodeStatus,
     this.progressPercent,
     this.isDragging = false,
+    this.pinned = false,
     this.onSelect,
     this.onToggleEnabled,
     this.onDelete,
@@ -326,6 +335,11 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
       ),
     );
 
+    // A pinned row keeps the row's LOOK and nothing else: no focus node, no
+    // gestures, and out of the traversal order so a screen reader hears each
+    // step once (spec §5).
+    if (widget.pinned) return ExcludeSemantics(child: row);
+
     final semanticsRow = Semantics(
       button: true,
       selected: widget.isSelected,
@@ -364,6 +378,9 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
   /// still carries its ring on top of whichever fill it gets.
   Color? _fill({required bool isRunning, required bool hovered}) {
     final colors = widget.colors;
+    // The pinned stack is one elevated surface; a running ancestor still says
+    // so through its left marker and its Running chip, which are content.
+    if (widget.pinned) return colors.surfaceElevated;
     if (isRunning) {
       return colors.primary.withValues(
         alpha: NightshadeTokens.opacityAccentTint,
@@ -451,18 +468,25 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
                 ),
                 if (isRunning) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
-                  _LedgerChip(
-                    colors: colors,
-                    label: 'Running',
-                    tone: colors.primary,
+                  Flexible(
+                    child: _LedgerChip(
+                      colors: colors,
+                      label: 'Running',
+                      tone: colors.primary,
+                    ),
                   ),
                 ],
                 // A target's pointing is what distinguishes it from every
                 // other target, and Ledger has no card to put it on.
+                //
+                // Flexible, because the chips are fixed-width and the name is
+                // not: at the canvas's narrow floor the name shrinks to nothing
+                // and the two coordinates then run past the row's edge. They
+                // give ground the same way the name does instead.
                 if (node is TargetHeaderNode)
                   for (final chip in _targetCoordinateChips(node, colors)) ...[
                     const SizedBox(width: NightshadeTokens.spaceSm),
-                    chip,
+                    Flexible(child: chip),
                   ],
                 if (node.category == NodeCategory.trigger) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
@@ -565,7 +589,7 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
   Widget _buildActions(BuildContext context) {
     final isTouch = NightshadeTouchTarget.isTouch(context);
     final slotWidth = _ledgerActionsSlotWidth(context);
-    if (widget.isDragging) {
+    if (widget.isDragging || widget.pinned) {
       return SizedBox(width: slotWidth);
     }
     final menu = _NodeOverflowMenu(
@@ -774,6 +798,9 @@ class _LedgerChip extends StatelessWidget {
         style: NightshadeTypography.overline.copyWith(
           color: tone ?? colors.textSecondary,
         ),
+        softWrap: false,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
