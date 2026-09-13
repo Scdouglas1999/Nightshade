@@ -135,14 +135,20 @@ void main() {
     for (final size in const [Size(800, 600), Size(2600, 900)]) {
       await _pumpBar(tester, size);
 
-      for (final value in ['No camera', 'No mount', 'No guider', 'No focuser']) {
+      for (final value in [
+        'No camera',
+        'No mount',
+        'No guider',
+        'No focuser'
+      ]) {
         expect(
           find.descendant(
             of: find.byType(StatusBar),
             matching: find.text(value),
           ),
           findsOneWidget,
-          reason: '"$value" has to stay identifiable at ${size.width.toInt()}px',
+          reason:
+              '"$value" has to stay identifiable at ${size.width.toInt()}px',
         );
       }
       expect(

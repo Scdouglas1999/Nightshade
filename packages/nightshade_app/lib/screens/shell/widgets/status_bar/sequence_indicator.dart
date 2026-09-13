@@ -32,8 +32,7 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator> {
         : null;
     // The percentage rides on the pill only while a run is actually in
     // flight; "Completed 100%" and "Idle 0%" are two words where one is true.
-    final displayText =
-        progressPercent != null &&
+    final displayText = progressPercent != null &&
             executionState != SequenceExecutionState.idle &&
             executionState != SequenceExecutionState.completed &&
             executionState != SequenceExecutionState.failed

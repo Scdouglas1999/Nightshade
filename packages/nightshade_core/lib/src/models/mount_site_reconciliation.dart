@@ -82,12 +82,10 @@ class MountSiteReconciliation {
       mountLatitudeDeg != null && mountLongitudeDeg != null;
   bool get hasMountTime => mountUtcSeconds != null;
 
-  double? get latitudeDeltaDeg => hasMountSite
-      ? (mountLatitudeDeg! - computerLatitudeDeg).abs()
-      : null;
-  double? get longitudeDeltaDeg => hasMountSite
-      ? (mountLongitudeDeg! - computerLongitudeDeg).abs()
-      : null;
+  double? get latitudeDeltaDeg =>
+      hasMountSite ? (mountLatitudeDeg! - computerLatitudeDeg).abs() : null;
+  double? get longitudeDeltaDeg =>
+      hasMountSite ? (mountLongitudeDeg! - computerLongitudeDeg).abs() : null;
 
   Duration? get timeDelta => hasMountTime
       ? Duration(seconds: (mountUtcSeconds! - computerUtcSeconds).abs())

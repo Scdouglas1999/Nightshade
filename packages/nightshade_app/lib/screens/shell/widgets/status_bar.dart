@@ -236,7 +236,6 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     return fallback;
   }
 
-
   /// What a device pill is called to assistive tech.
   ///
   /// "Camera, Simulated Camera" when there is one; "Camera, not connected"
@@ -402,8 +401,7 @@ class _StatusBarState extends ConsumerState<StatusBar> {
       if (filterWheelConnected)
         Builder(
           builder: (context) {
-            final filter =
-                _currentFilterName(filterWheelState) ??
+            final filter = _currentFilterName(filterWheelState) ??
                 l10n.text('statusReady');
             return InstrumentPill(
               icon: LucideIcons.disc,

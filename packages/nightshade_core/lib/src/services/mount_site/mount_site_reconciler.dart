@@ -12,13 +12,16 @@ import '../../models/mount_site_reconciliation.dart';
 class MountSiteReconciler {
   const MountSiteReconciler({
     required DeviceBackend backend,
-    required Future<void> Function(double latitude, double longitude,
-            double? elevation)
-        writeComputerLocation,
+    required Future<void> Function(
+      double latitude,
+      double longitude,
+      double? elevation,
+    )
+    writeComputerLocation,
     void Function(String message)? log,
-  })  : _backend = backend,
-        _writeComputerLocation = writeComputerLocation,
-        _log = log;
+  }) : _backend = backend,
+       _writeComputerLocation = writeComputerLocation,
+       _log = log;
 
   final DeviceBackend _backend;
   final Future<void> Function(double, double, double?) _writeComputerLocation;
@@ -138,10 +141,10 @@ class MountSiteReconciler {
             failures.add('Site: $e');
           }
         }
-        // The computer's clock is the operating system's business. Adopting a
-        // mount's clock would mean setting the system time, which this app has
-        // no right to do — so this direction moves the site only, and the card
-        // says so rather than silently ignoring half the request.
+      // The computer's clock is the operating system's business. Adopting a
+      // mount's clock would mean setting the system time, which this app has
+      // no right to do — so this direction moves the site only, and the card
+      // says so rather than silently ignoring half the request.
     }
 
     return failures;

@@ -40,7 +40,12 @@ class _SiteBackend implements DeviceBackend {
   }
 
   @override
-  Future<void> mountSetSite(String d, double lat, double lon, double? el) async {
+  Future<void> mountSetSite(
+    String d,
+    double lat,
+    double lon,
+    double? el,
+  ) async {
     calls.add('setSite($lat,$lon)');
   }
 
@@ -50,8 +55,9 @@ class _SiteBackend implements DeviceBackend {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('${invocation.memberName} is not part of this test');
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    '${invocation.memberName} is not part of this test',
+  );
 }
 
 bridge.MountSiteCapabilities _caps({
@@ -59,34 +65,32 @@ bridge.MountSiteCapabilities _caps({
   bool writeSite = true,
   bool readTime = true,
   bool writeTime = true,
-}) =>
-    bridge.MountSiteCapabilities(
-      canReadSite: readSite,
-      canWriteSite: writeSite,
-      canReadTime: readTime,
-      canWriteTime: writeTime,
-    );
+}) => bridge.MountSiteCapabilities(
+  canReadSite: readSite,
+  canWriteSite: writeSite,
+  canReadTime: readTime,
+  canWriteTime: writeTime,
+);
 
 MountSiteReconciliation _comparison({
   required double mountLat,
   required double mountLon,
   int? mountUtc,
   bridge.MountSiteCapabilities? capabilities,
-}) =>
-    MountSiteReconciliation(
-      deviceId: 'mount',
-      deviceName: 'Test Mount',
-      capabilities: capabilities ?? _caps(),
-      computerLatitudeDeg: 40.0,
-      computerLongitudeDeg: -75.0,
-      computerElevationM: 100,
-      computerUtcSeconds: 1000000,
-      computerUtcOffsetHours: -4,
-      mountLatitudeDeg: mountLat,
-      mountLongitudeDeg: mountLon,
-      mountUtcSeconds: mountUtc ?? 1000000,
-      mountUtcOffsetHours: -4,
-    );
+}) => MountSiteReconciliation(
+  deviceId: 'mount',
+  deviceName: 'Test Mount',
+  capabilities: capabilities ?? _caps(),
+  computerLatitudeDeg: 40.0,
+  computerLongitudeDeg: -75.0,
+  computerElevationM: 100,
+  computerUtcSeconds: 1000000,
+  computerUtcOffsetHours: -4,
+  mountLatitudeDeg: mountLat,
+  mountLongitudeDeg: mountLon,
+  mountUtcSeconds: mountUtc ?? 1000000,
+  mountUtcOffsetHours: -4,
+);
 
 void main() {
   group('what counts as a disagreement', () {
@@ -104,8 +108,14 @@ void main() {
     });
 
     test('a clock inside the tolerance is agreement, beyond it is not', () {
-      expect(_comparison(mountLat: 40, mountLon: -75, mountUtc: 1000020).timeDiffers, isFalse);
-      expect(_comparison(mountLat: 40, mountLon: -75, mountUtc: 1000100).timeDiffers, isTrue);
+      expect(
+        _comparison(mountLat: 40, mountLon: -75, mountUtc: 1000020).timeDiffers,
+        isFalse,
+      );
+      expect(
+        _comparison(mountLat: 40, mountLon: -75, mountUtc: 1000100).timeDiffers,
+        isTrue,
+      );
     });
 
     test('a hemisphere sign error is a disagreement, not a rounding blip', () {
@@ -117,23 +127,26 @@ void main() {
   });
 
   group('directions the driver cannot honour', () {
-    test('a mount that can read the clock but not set it cannot be pushed to', () {
-      final alpacaLike = _comparison(
-        mountLat: 40.0,
-        mountLon: -75.0,
-        mountUtc: 1000100,
-        capabilities: _caps(writeTime: false),
-      );
-      expect(alpacaLike.timeDiffers, isTrue);
-      expect(
-        alpacaLike.canApply(MountSiteSyncDirection.computerToMount),
-        isFalse,
-      );
-      expect(
-        alpacaLike.unavailableReason(MountSiteSyncDirection.computerToMount),
-        contains('but not set it'),
-      );
-    });
+    test(
+      'a mount that can read the clock but not set it cannot be pushed to',
+      () {
+        final alpacaLike = _comparison(
+          mountLat: 40.0,
+          mountLon: -75.0,
+          mountUtc: 1000100,
+          capabilities: _caps(writeTime: false),
+        );
+        expect(alpacaLike.timeDiffers, isTrue);
+        expect(
+          alpacaLike.canApply(MountSiteSyncDirection.computerToMount),
+          isFalse,
+        );
+        expect(
+          alpacaLike.unavailableReason(MountSiteSyncDirection.computerToMount),
+          contains('but not set it'),
+        );
+      },
+    );
 
     test('an available direction has no reason text', () {
       final ordinary = _comparison(mountLat: 40.05, mountLon: -75.0);
@@ -200,28 +213,31 @@ void main() {
   });
 
   group('applying a direction', () {
-    test('adopting the mount moves the site and never the computer clock', () async {
-      var wroteLocation = false;
-      final backend = _SiteBackend(capabilities: _caps());
-      final reconciler = MountSiteReconciler(
-        backend: backend,
-        writeComputerLocation: (lat, lon, el) async {
-          wroteLocation = true;
-          expect(lat, closeTo(40.05, 1e-9));
-        },
-      );
+    test(
+      'adopting the mount moves the site and never the computer clock',
+      () async {
+        var wroteLocation = false;
+        final backend = _SiteBackend(capabilities: _caps());
+        final reconciler = MountSiteReconciler(
+          backend: backend,
+          writeComputerLocation: (lat, lon, el) async {
+            wroteLocation = true;
+            expect(lat, closeTo(40.05, 1e-9));
+          },
+        );
 
-      final failures = await reconciler.apply(
-        _comparison(mountLat: 40.05, mountLon: -75.0, mountUtc: 1000100),
-        MountSiteSyncDirection.mountToComputer,
-      );
+        final failures = await reconciler.apply(
+          _comparison(mountLat: 40.05, mountLon: -75.0, mountUtc: 1000100),
+          MountSiteSyncDirection.mountToComputer,
+        );
 
-      expect(failures, isEmpty);
-      expect(wroteLocation, isTrue);
-      // Setting the computer's clock would mean setting the OS clock, which
-      // this app has no business doing.
-      expect(backend.calls, isEmpty);
-    });
+        expect(failures, isEmpty);
+        expect(wroteLocation, isTrue);
+        // Setting the computer's clock would mean setting the OS clock, which
+        // this app has no business doing.
+        expect(backend.calls, isEmpty);
+      },
+    );
 
     test('pushing to the mount skips what the driver cannot take', () async {
       final backend = _SiteBackend(capabilities: _caps(writeTime: false));

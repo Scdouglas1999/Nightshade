@@ -366,14 +366,15 @@ extension _DeviceServiceImagingChainConnections on DeviceService {
       final mode = settings.mountSiteSyncMode;
       if (mode == 'never') return;
 
-      final comparison =
-          await _ref.read(mountSiteReconcilerProvider).compare(
-                deviceId: deviceId,
-                deviceName: deviceName,
-                computerLatitudeDeg: settings.latitude,
-                computerLongitudeDeg: settings.longitude,
-                computerElevationM: settings.elevation,
-              );
+      final comparison = await _ref
+          .read(mountSiteReconcilerProvider)
+          .compare(
+            deviceId: deviceId,
+            deviceName: deviceName,
+            computerLatitudeDeg: settings.latitude,
+            computerLongitudeDeg: settings.longitude,
+            computerElevationM: settings.elevation,
+          );
 
       if (!comparison.needsAttention) return;
 
@@ -422,8 +423,9 @@ extension _DeviceServiceImagingChainConnections on DeviceService {
       return;
     }
 
-    final failures =
-        await _ref.read(mountSiteReconcilerProvider).apply(comparison, direction);
+    final failures = await _ref
+        .read(mountSiteReconcilerProvider)
+        .apply(comparison, direction);
     if (failures.isEmpty) {
       _safeLog(
         (l) => l.info(
@@ -456,11 +458,11 @@ extension _DeviceServiceImagingChainConnections on DeviceService {
         throw const DeviceNotConnectedException('mount');
       }
 
-// A card asking about this mount must not outlive it.
+      // A card asking about this mount must not outlive it.
       _ref
           .read(pendingMountSiteReconciliationProvider.notifier)
           .clearFor(deviceId);
-            _markUserInitiatedDisconnect(deviceId);
+      _markUserInitiatedDisconnect(deviceId);
 
       try {
         // Stop heartbeat monitoring; fail-soft inside the router so the

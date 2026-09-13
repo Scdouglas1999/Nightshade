@@ -15,7 +15,9 @@ final mountSiteReconcilerProvider = Provider<MountSiteReconciler>((ref) {
   return MountSiteReconciler(
     backend: backend,
     writeComputerLocation: (latitude, longitude, elevation) async {
-      await ref.read(appSettingsProvider.notifier).updateLocation(
+      await ref
+          .read(appSettingsProvider.notifier)
+          .updateLocation(
             latitude: latitude,
             longitude: longitude,
             elevation: elevation,
@@ -29,8 +31,8 @@ final mountSiteReconcilerProvider = Provider<MountSiteReconciler>((ref) {
 /// Core raises it; the app layer decides how to show it. Holding it as state
 /// rather than pushing a dialog from here keeps `nightshade_core` free of UI
 /// and lets a headless host ignore it entirely.
-class PendingMountSiteReconciliation extends StateNotifier<
-    MountSiteReconciliation?> {
+class PendingMountSiteReconciliation
+    extends StateNotifier<MountSiteReconciliation?> {
   PendingMountSiteReconciliation() : super(null);
 
   void raise(MountSiteReconciliation comparison) => state = comparison;
@@ -46,7 +48,8 @@ class PendingMountSiteReconciliation extends StateNotifier<
   }
 }
 
-final pendingMountSiteReconciliationProvider = StateNotifierProvider<
-    PendingMountSiteReconciliation, MountSiteReconciliation?>(
-  (ref) => PendingMountSiteReconciliation(),
-);
+final pendingMountSiteReconciliationProvider =
+    StateNotifierProvider<
+      PendingMountSiteReconciliation,
+      MountSiteReconciliation?
+    >((ref) => PendingMountSiteReconciliation());
