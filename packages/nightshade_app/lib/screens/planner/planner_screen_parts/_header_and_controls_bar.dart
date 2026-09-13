@@ -170,9 +170,7 @@ class _PlannerControlsBar extends ConsumerWidget {
           ),
         ),
       ),
-      child: !showFilterControls
-          ? searchField
-          : isPhone
+      child: isPhone
           ? Row(
               children: [
                 // Search and the Filters chip share one compact row on phone
@@ -180,12 +178,20 @@ class _PlannerControlsBar extends ConsumerWidget {
                 // rows — reclaiming a whole row's height for the candidate
                 // list.
                 Expanded(child: searchField),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                moreChip,
+                if (showFilterControls) ...[
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  moreChip,
+                ],
               ],
             )
           : LayoutBuilder(
               builder: (context, constraints) {
+                // Same rule as the phone row above: with no room for a chip's
+                // touch box the strip is the search field alone.
+                if (!showFilterControls) {
+                  return Row(children: [Expanded(child: searchField)]);
+                }
+
                 final sort = _SortDropdown(
                   colors: colors,
                   value: filters.plannerSort ?? PlannerSortMode.score,

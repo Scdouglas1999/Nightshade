@@ -45,13 +45,22 @@ class _HealthGradeCard extends StatelessWidget {
             style: NightshadeTypography.label.copyWith(color: gradeColor),
           ),
           const SizedBox(height: 6),
+          // The legend for the two bars directly below, not an explainer for
+          // the screen. They print PENALTY scores, where 0 is a clean optical
+          // train and 100 is the worst measured, and that is the one
+          // convention on this card a reader cannot infer: every other number
+          // in Nightshade reads better as it rises. It names the SCORES — the
+          // figures at the end of each bar — because the bar is the decoration
+          // and the figure is the reading.
+          //
+          // The sentence that used to follow it ("Use this grade as a quick
+          // summary before diving into the field map and findings") was a hint
+          // sentence explaining the screen, which 07 "What NOT to do" forbids.
           Text(
-            'Lower bars are better. Use this grade as a quick summary before diving into the field map and findings.',
+            'Lower scores are better.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
+            style: NightshadeTypography.captionSm.copyWith(
               color: colors.textMuted,
-              height: 1.4,
             ),
           ),
           const SizedBox(height: 8),
