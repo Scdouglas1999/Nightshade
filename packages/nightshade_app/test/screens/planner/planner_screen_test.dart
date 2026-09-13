@@ -240,7 +240,20 @@ void main() {
     expect(search.hitTestable(), findsOneWidget);
     // The Observatory search field is the shared NightshadeTextField in its
     // dense form (05 §8: 32 normal, 28 dense), so a 34px slot still holds it.
-    expect(tester.getSize(search).height, fieldHeightDense);
+    // Measured on the field, not on the Material `TextField` inside it: the
+    // well sizes itself and gives the editable a bare line-height slot, so the
+    // inner box reports the 14px text line rather than the control's height.
+    expect(
+      tester
+          .getSize(
+            find.ancestor(
+              of: search,
+              matching: find.byType(NightshadeTextField),
+            ),
+          )
+          .height,
+      fieldHeightDense,
+    );
 
     await settleProviderTeardown(tester);
   });
