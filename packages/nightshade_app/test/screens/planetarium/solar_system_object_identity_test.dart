@@ -117,7 +117,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.text('Log Observation').last);
+    await tester.tap(find.text('Log observation').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 

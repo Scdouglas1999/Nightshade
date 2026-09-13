@@ -701,7 +701,7 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
               Expanded(
                 child: PopupActionButton(
                   icon: LucideIcons.listPlus,
-                  label: 'Add to List',
+                  label: 'Add to list',
                   colors: widget.colors,
                   onTap: () {
                     _showAddToListDialog(context);

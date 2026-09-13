@@ -204,7 +204,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Click objects on the sky and use\n"Add to List" to populate it.',
+                          'Click objects on the sky and use\n"Add to list" to populate it.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize11,
