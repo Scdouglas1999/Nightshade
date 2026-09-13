@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/text_measure.dart';
 import '../utils/touch_target.dart';
 import 'nightshade_chip.dart';
 
@@ -60,6 +61,30 @@ const double _buttonIconSize = NightshadeTokens.iconGlyphButton;
 
 /// Gap between a button's icon and its label.
 const double _buttonIconGap = 7;
+
+/// The 1px stroke `Border.all` draws on each vertical edge.
+const double _buttonBorderWidth = 1;
+
+/// The three per-size metrics, as functions rather than `State` getters: the
+/// static measurement below needs them before any button exists, and one
+/// implementation each is what keeps the measurement and the paint in step.
+TextStyle _textStyleFor(ButtonSize size) => switch (size) {
+  ButtonSize.small => NightshadeTypography.buttonSm,
+  ButtonSize.medium => NightshadeTypography.button,
+  ButtonSize.large => NightshadeTypography.buttonLg,
+};
+
+double _horizontalPaddingFor(ButtonSize size) => switch (size) {
+  ButtonSize.small => _buttonPadSm,
+  ButtonSize.medium => _buttonPadMd,
+  ButtonSize.large => _buttonPadLg,
+};
+
+double _iconSizeFor(ButtonSize size) => switch (size) {
+  ButtonSize.small => _buttonIconSize,
+  ButtonSize.medium => _buttonIconSize,
+  ButtonSize.large => NightshadeTokens.iconSm,
+};
 
 /// How far outside the button's own box the keyboard focus ring is drawn, and
 /// how thick that stroke is, in logical pixels. Kept outside the box so the
@@ -124,6 +149,34 @@ class NightshadeButton extends StatefulWidget {
     ButtonSize.medium => _buttonHeightMd,
     ButtonSize.large => _buttonHeightLg,
   };
+
+  /// The width a button needs to render [label] in full, in logical pixels.
+  ///
+  /// The label is a `Flexible` `Text` with `TextOverflow.ellipsis`, so a
+  /// button handed less room than its words need neither overflows nor grows:
+  /// it renders "St…" and nothing in the app reports a problem. A layout that
+  /// chooses between side-by-side and stacked has to ask this first, and ask
+  /// it of the button's own metrics — the same text style, horizontal padding,
+  /// icon slot and border `build` paints with — so the two cannot drift apart.
+  ///
+  /// [badge] is not counted; a call site that carries one measures it itself.
+  static double measureWidth(
+    BuildContext context, {
+    required String label,
+    bool hasIcon = false,
+    ButtonSize size = ButtonSize.medium,
+  }) {
+    final labelWidth = measureTextWidth(
+      context,
+      text: label,
+      style: _textStyleFor(size),
+    );
+    final iconSlot = hasIcon ? _iconSizeFor(size) + _buttonIconGap : 0.0;
+    return labelWidth +
+        iconSlot +
+        2 * _horizontalPaddingFor(size) +
+        2 * _buttonBorderWidth;
+  }
 
   @override
   State<NightshadeButton> createState() => _NightshadeButtonState();
@@ -195,23 +248,11 @@ class _NightshadeButtonState extends State<NightshadeButton>
   /// none of the imprecision the guideline exists to absorb.
   double get _minInteractiveExtent => NightshadeTouchTarget.minExtent(context);
 
-  double get _horizontalPadding => switch (widget.size) {
-    ButtonSize.small => _buttonPadSm,
-    ButtonSize.medium => _buttonPadMd,
-    ButtonSize.large => _buttonPadLg,
-  };
+  double get _horizontalPadding => _horizontalPaddingFor(widget.size);
 
-  TextStyle get _textStyle => switch (widget.size) {
-    ButtonSize.small => NightshadeTypography.buttonSm,
-    ButtonSize.medium => NightshadeTypography.button,
-    ButtonSize.large => NightshadeTypography.buttonLg,
-  };
+  TextStyle get _textStyle => _textStyleFor(widget.size);
 
-  double get _iconSize => switch (widget.size) {
-    ButtonSize.small => _buttonIconSize,
-    ButtonSize.medium => _buttonIconSize,
-    ButtonSize.large => NightshadeTokens.iconSm,
-  };
+  double get _iconSize => _iconSizeFor(widget.size);
 
   /// Hover lightening for the [ButtonVariant.start] fill, which has no second
   /// named colour the way `primary` has `accent`.

@@ -44,11 +44,11 @@ void main() {
     expect(find.byType(SlewDropdownButton), findsNothing);
 
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'RA (Hours)'),
+      find.widgetWithText(NightshadeTextField, 'RA'),
       '05:30:00',
     );
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'Dec (Deg)'),
+      find.widgetWithText(NightshadeTextField, 'Dec'),
       '-20:15:00',
     );
     await tester.pump();
@@ -60,7 +60,7 @@ void main() {
     expect(slew.dec, closeTo(-20.25, 1e-9));
 
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'RA (Hours)'),
+      find.widgetWithText(NightshadeTextField, 'RA'),
       'not coordinates',
     );
     await tester.pump();
@@ -73,11 +73,11 @@ void main() {
     await pumpAppScreen(tester, const MountTab());
 
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'RA (Hours)'),
+      find.widgetWithText(NightshadeTextField, 'RA'),
       '5.5',
     );
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'Dec (Deg)'),
+      find.widgetWithText(NightshadeTextField, 'Dec'),
       '-20.25',
     );
     await tester.pump();
@@ -111,11 +111,11 @@ void main() {
     );
 
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'RA (Hours)'),
+      find.widgetWithText(NightshadeTextField, 'RA'),
       '05:30:00',
     );
     await tester.enterText(
-      find.widgetWithText(NightshadeTextField, 'Dec (Deg)'),
+      find.widgetWithText(NightshadeTextField, 'Dec'),
       '-20:15:00',
     );
     await tester.pump();
@@ -166,8 +166,8 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Mount Status'), findsOneWidget);
-      expect(find.text('GoTo / Sync'), findsOneWidget);
+      expect(find.text('Mount status'), findsOneWidget);
+      expect(find.text('Go to & sync'), findsOneWidget);
     });
   }
 }

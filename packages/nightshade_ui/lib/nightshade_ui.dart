@@ -15,6 +15,7 @@ export 'src/layout/adaptive_layout.dart';
 export 'src/layout/adaptive_panel_layout.dart';
 export 'src/layout/adaptive_modal.dart';
 export 'src/layout/two_pane.dart';
+export 'src/layout/adaptive_columns.dart';
 // Utils
 export 'src/utils/responsive_utils.dart';
 export 'src/utils/shell_back_dispatcher.dart';
@@ -24,6 +25,7 @@ export 'src/utils/touch_target.dart';
 export 'src/utils/animation_duration.dart';
 export 'src/utils/on_screen_animation_gate.dart';
 export 'src/utils/platform_shortcuts.dart';
+export 'src/utils/text_measure.dart';
 
 // Components
 export 'src/components/nightshade_button.dart';
