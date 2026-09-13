@@ -48,11 +48,50 @@ part 'sequence_tree/node_item_helpers.dart';
 ///
 /// [SequenceTree] publishes its registry here so sibling widgets (notably
 /// [SequenceMinimap]) can route "navigate to node" through the SAME
-/// `Scrollable.ensureVisible` path the auto-follow uses, instead of
+/// [revealSequenceRow] path the auto-follow uses, instead of
 /// guessing a scroll offset. Null until the tree mounts. Not autoDispose:
 /// the minimap may rebuild independently and must keep resolving keys.
 final treeNodeKeyRegistryProvider =
     StateProvider<Map<String, GlobalKey>?>((ref) => null);
+
+/// Scroll the TREE — and only the tree — so the row at [rowContext] lands
+/// [alignment] of the way down its viewport.
+///
+/// Every "jump to this node" in the builder goes through here: the run's
+/// auto-follow, the pinned-ancestor tap, the map/gutter jump, Find a step, and
+/// the Targets panel's "In this sequence" rows. One helper because they are one
+/// movement, and because the alternative is one bug repeated five times.
+///
+/// That bug was `Scrollable.ensureVisible`, which does not scroll *a*
+/// scrollable — it walks EVERY ancestor `Scrollable` and scrolls each one so
+/// the target is visible in it. The builder sits inside the sequencer screen's
+/// `TabBarView` pager, so revealing a row also asked the pager to centre it:
+/// the whole screen lurched sideways toward the next (lazily empty) page and
+/// the page physics sprang it back. During a run the auto-follow fires on every
+/// step, so the screen bounced at every node change.
+///
+/// Resolving the row's own [ScrollPosition] and calling
+/// [ScrollPosition.ensureVisible] on it moves the tree and nothing else.
+/// `Scrollable.maybeOf` finds the nearest enclosing scrollable, which for a row
+/// key is always the tree's own viewport.
+void revealSequenceRow(
+  BuildContext rowContext, {
+  required double alignment,
+  required Duration duration,
+}) {
+  final position = Scrollable.maybeOf(rowContext)?.position;
+  final target = rowContext.findRenderObject();
+  if (position == null || target == null || !target.attached) return;
+  position.ensureVisible(
+    target,
+    alignment: alignment,
+    duration: animationDuration(rowContext, duration),
+    // One curve for all five callers: the map's jump and the run's own scroll
+    // are the same movement started by different hands (spec §9), and a jump
+    // that eased differently would read as a different kind of navigation.
+    curve: NightshadeTokens.curveStandard,
+  );
+}
 
 /// Provider to track when a node is being dragged globally
 /// This allows all drop zones to become visible when any drag starts
@@ -333,10 +372,9 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     _userScrolledManually = false;
     _lastScrolledToNodeId = currentNodeId;
 
-    Scrollable.ensureVisible(
+    revealSequenceRow(
       key.currentContext!,
-      duration: animationDuration(context, NightshadeTokens.durationSlow),
-      curve: NightshadeTokens.curveStandard,
+      duration: NightshadeTokens.durationSlow,
       alignment: 0.3, // show node ~30% from the top
     );
   }
@@ -351,10 +389,9 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   void _scrollToPinnedRow(String nodeId) {
     final rowContext = _nodeKeyRegistry[nodeId]?.currentContext;
     if (rowContext == null) return;
-    Scrollable.ensureVisible(
+    revealSequenceRow(
       rowContext,
-      duration: animationDuration(context, NightshadeTokens.durationSlow),
-      curve: NightshadeTokens.curveStandard,
+      duration: NightshadeTokens.durationSlow,
       alignment: 0,
     );
   }
