@@ -24,6 +24,10 @@ import '../../harness/pump_app_screen.dart';
 final _testDensityProvider =
     StateProvider<SequencerDensity>((ref) => SequencerDensity.ledger);
 
+/// The ledger row's own height, as the tree's private constant fixes it. Used
+/// to aim a drag at the zone BELOW a named row.
+const double _ledgerRowHeightForTest = 28.0;
+
 /// Root -> TargetHeader "M 42" -> Loop "Broadband" -> exposures. The smallest
 /// three-level shape that exercises the container column totals, the target's
 /// ledger-row form and the collapsed rollup line.
@@ -609,8 +613,17 @@ void main() {
     final start = tester.getCenter(find.text('L subs'));
     final gesture = await tester.startGesture(start);
     await tester.pump(const Duration(milliseconds: 300));
-    await gesture.moveTo(start + const Offset(0, 56));
-    await tester.pump();
+    // Arm the drag, then let the inter-row zones finish growing (spec §9)
+    // before aiming: they are the drop targets, and they are zero-height until
+    // a drag is in flight. The row the block has to land AFTER keeps its own
+    // name — only the dragged row is duplicated in the feedback layer — so the
+    // destination is read from the settled layout rather than guessed.
+    await gesture.moveTo(start + const Offset(0, 8));
+    await tester.pumpAndSettle();
+    final below = tester.getCenter(find.text('R subs')) +
+        const Offset(0, _ledgerRowHeightForTest);
+    await gesture.moveTo(below);
+    await tester.pumpAndSettle();
     await gesture.up();
     await tester.pumpAndSettle();
 

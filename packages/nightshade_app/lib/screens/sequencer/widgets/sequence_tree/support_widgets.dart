@@ -178,7 +178,9 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
               NightshadeTouchTarget.paddingToReach(context, _chipExtent),
             ),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
+              duration:
+                  animationDuration(context, NightshadeTokens.durationFast),
+              curve: NightshadeTokens.curveStandard,
               width: _chipExtent,
               height: _chipExtent,
               margin: const EdgeInsets.only(left: 4),
@@ -438,6 +440,283 @@ Widget _treeMenuSurface(
   );
 }
 
+/// Cross-fade between what one density draws and what the next one draws
+/// (spec §9).
+///
+/// Keyed on the density, and applied per element rather than once around the
+/// whole tree: the outgoing tree would stay mounted for the length of the fade
+/// holding every scroll-key and tutorial `GlobalKey` the incoming tree also
+/// wants, which is a hard framework error. Inside one element the outgoing
+/// widget holds no key the incoming one needs.
+///
+/// Every piece of the canvas that belongs to one density goes through this —
+/// the rows, the ledger's column header and the gutter map — so the switch is
+/// ONE fade rather than a fade with two things blinking in the middle of it.
+///
+/// [animate] is false while the canvas is CLAMPING the density rather than
+/// following the preference (a canvas too narrow for the ledger's columns
+/// falls back to compact rows). A clamp is the canvas being resized, and the
+/// outgoing density is laid out at the INCOMING width for the length of the
+/// fade — ledger rows, whose columns are fixed-width, then overflow a canvas
+/// that by definition no longer fits them. A resize is not a mode switch and
+/// should not read as one: the rows the canvas can host appear at once.
+Widget densityCrossfade({
+  required BuildContext context,
+  required SequencerDensity density,
+  required Widget child,
+  bool animate = true,
+}) {
+  // No switcher at all, rather than a zero-length one: an `AnimatedSwitcher`
+  // that is already retiring a child keeps running THAT child's controller at
+  // the duration it was created with, so shortening the duration mid-switch
+  // leaves the outgoing rows on screen exactly as long as before.
+  if (!animate) return child;
+  return AnimatedSwitcher(
+    duration: animationDuration(context, NightshadeTokens.durationSmooth),
+    switchInCurve: NightshadeTokens.curveStandard,
+    switchOutCurve: NightshadeTokens.curveStandard,
+    child: KeyedSubtree(
+      key: ValueKey<SequencerDensity>(density),
+      child: child,
+    ),
+  );
+}
+
+/// How far above its resting place a container's children start as they fade
+/// in (spec §9).
+const double _childrenSlideDistance = 6.0;
+
+/// Where the children's fade-and-slide finishes inside the block's own height
+/// animation.
+///
+/// Derived from the tokens, not chosen: the rows travel on
+/// [NightshadeTokens.durationQuick] and the space they occupy opens on
+/// [NightshadeTokens.durationSmooth], so the rows have arrived by the time the
+/// block stops growing. Reversed, the rows leave before the gap closes, which
+/// is what stops a collapse reading as a row being crushed.
+final double _childrenFadeFraction =
+    NightshadeTokens.durationQuick.inMilliseconds /
+        NightshadeTokens.durationSmooth.inMilliseconds;
+
+/// The expand / collapse motion of a container's children block (spec §9).
+///
+/// [builder] is called only while the block is on screen (or on its way off),
+/// so a collapsed container costs what it has always cost: nothing. That is
+/// also why this is not an `AnimatedSize` around a conditional child —
+/// `AnimatedSize` can only animate the gap AFTER its child has already
+/// vanished, so a collapse read as the rows blinking out and an empty space
+/// then closing. [SizeTransition] keeps the departing rows mounted and clips
+/// them away instead, which is the motion the spec describes and the one
+/// `ExpansionTile` uses. It also cannot flash an overflow: the child is always
+/// laid out at its full height and clipped, never asked to lay out at an
+/// intermediate one.
+///
+/// A top-centre `alignment` keeps the block pinned to its top edge, so
+/// everything ABOVE a collapsing container stays exactly where it is and the
+/// scroll position does not jump.
+class _ChildrenReveal extends StatefulWidget {
+  final bool isCollapsed;
+  final WidgetBuilder builder;
+
+  const _ChildrenReveal({required this.isCollapsed, required this.builder});
+
+  @override
+  State<_ChildrenReveal> createState() => _ChildrenRevealState();
+}
+
+class _ChildrenRevealState extends State<_ChildrenReveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _size;
+  late final Animation<double> _content;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: NightshadeTokens.durationSmooth,
+      value: widget.isCollapsed ? 0.0 : 1.0,
+    );
+    _size = CurvedAnimation(
+      parent: _controller,
+      curve: NightshadeTokens.curveStandard,
+    );
+    _content = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(
+        0.0,
+        _childrenFadeFraction,
+        curve: NightshadeTokens.curveStandard,
+      ),
+    );
+    // The block is only unmounted once it has finished leaving; nothing else
+    // rebuilds this widget at that moment.
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ChildrenReveal oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isCollapsed == widget.isCollapsed) return;
+    if (widget.isCollapsed) {
+      _controller.reverse();
+    } else {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeStatusListener(_onStatusChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _controller.duration =
+        animationDuration(context, NightshadeTokens.durationSmooth);
+    // Collapsed and settled: nothing to draw and, more to the point, nothing
+    // to BUILD. A collapsed container's subtree is the cost collapsing exists
+    // to avoid.
+    if (widget.isCollapsed && _controller.value == 0) {
+      return const SizedBox.shrink();
+    }
+    return SizeTransition(
+      sizeFactor: _size,
+      alignment: Alignment.topCenter,
+      // `SizeTransition` aligns its child, and an aligned child is laid out
+      // LOOSE. Without this the children column would shrink-wrap to its
+      // widest row instead of filling the canvas the way the tree's
+      // `crossAxisAlignment: stretch` hands it, and every row would size to
+      // its own content and overflow a narrow canvas.
+      child: SizedBox(
+        width: double.infinity,
+        child: FadeTransition(
+          opacity: _content,
+          child: AnimatedBuilder(
+            animation: _content,
+            child: widget.builder(context),
+            builder: (context, child) => Transform.translate(
+              offset: Offset(0, -_childrenSlideDistance * (1 - _content.value)),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// How far the running marker's breath dims between beats (spec §9).
+const double _runningBreathLowOpacity = 0.55;
+
+/// The slow breath the running row's left marker takes (spec §9).
+///
+/// It is the ONE looping animation in the tree, and it earns the loop by being
+/// the only thing on screen that says "this is happening right now" in a
+/// density that has no spinner: Ledger and Compact rows mark the running step
+/// with a 2 px bar, and a still bar is indistinguishable from a decoration.
+/// The cadence is [NightshadeTokens.durationPulse] with `reverse`, which is
+/// exactly what `StatusDot`'s urgent pulse breathes at — one app, one heartbeat.
+///
+/// Two structural rules, both load-bearing:
+///
+///  * The loop runs inside an [OnScreenAnimationGate]. A repeating controller
+///    schedules a frame on every vsync for as long as it runs, whether or not
+///    anything is drawn for it; forty rows of un-gated breath would stop the
+///    application idling for the length of a night.
+///  * The [RepaintBoundary] is OUTSIDE the gate. The gate decides whether to
+///    keep running by observing whether its child actually PAINTS. A boundary
+///    placed inside the gate makes the marker its own compositing layer, so a
+///    repaint of the marker never reaches the gate's observer — the gate then
+///    concludes it is invisible and stops the animation two ticks in, silently.
+///    Outside, the boundary keeps the repaints local AND lets the observer see
+///    every one of them.
+class _RunningMarkerBreath extends StatefulWidget {
+  final Widget child;
+
+  const _RunningMarkerBreath({required this.child});
+
+  @override
+  State<_RunningMarkerBreath> createState() => _RunningMarkerBreathState();
+}
+
+class _RunningMarkerBreathState extends State<_RunningMarkerBreath>
+    with SingleTickerProviderStateMixin {
+  // Eagerly, not `late`: with animations disabled the build below never
+  // touches the controller, and a lazy field would then be CONSTRUCTED by
+  // `dispose` — which reads `TickerMode` off an element that is already
+  // deactivated, and throws.
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: NightshadeTokens.durationPulse,
+    );
+    // `Curves.easeInOut` rather than the design system's one curve: a breath
+    // reverses, and `curveStandard` decelerates into its end only, so a
+    // reversing loop on it would snap at one extreme and drift at the other.
+    // The one-curve rule governs state transitions, which this is not.
+    _opacity = Tween<double>(
+      begin: _runningBreathLowOpacity,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A repeat cannot be shortened to zero — a zero-length loop is an
+    // infinitely fast one — so with animations disabled the marker simply
+    // holds at full strength. The row still says it is running; it says it in
+    // a still image.
+    if (animationsDisabled(context)) return widget.child;
+    return RepaintBoundary(
+      child: OnScreenAnimationGate(
+        controller: _controller,
+        repeating: true,
+        reverse: true,
+        child: AnimatedBuilder(
+          animation: _opacity,
+          child: widget.child,
+          builder: (context, child) => Opacity(
+            opacity: _opacity.value,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The height an inter-row drop zone takes while a drag is in flight, and the
+/// larger height of the one the payload is actually over.
+///
+/// At rest a zone has no height at all: forty of them at four pixels each put
+/// 160 px of dead space into a tree whose whole point is that a night fits on
+/// one screen. The gap between rows is [_dropZoneGap] either side, which is
+/// spacing the rows want regardless of whether anything is being dragged.
+const double _dropZoneActiveHeight = 28.0;
+const double _dropZoneHoverHeight = 48.0;
+const double _dropZoneGap = 2.0;
+
 class _DropZone extends ConsumerWidget {
   final NightshadeColors colors;
   final String parentId;
@@ -530,7 +809,11 @@ class _DropZone extends ConsumerWidget {
               // doesn't rebuild when a drag starts elsewhere.
               final isDragging = ref.watch(isDraggingNodeProvider);
               final showDropZone = isDragging || isActive || isOver;
-              return _buildZone(isOver: isOver, showDropZone: showDropZone);
+              return _buildZone(
+                context,
+                isOver: isOver,
+                showDropZone: showDropZone,
+              );
             },
           ),
         );
@@ -538,11 +821,28 @@ class _DropZone extends ConsumerWidget {
     );
   }
 
-  Widget _buildZone({required bool isOver, required bool showDropZone}) {
+  /// The zone's three sizes, and the motion between them (spec §9).
+  ///
+  /// At rest a zone is nothing at all: it grows to [_dropZoneActiveHeight] and
+  /// fades its dashed line in when a drag starts, and to
+  /// [_dropZoneHoverHeight] when the payload is over this particular zone.
+  /// Entering the hovered state is the faster of the two — it answers a
+  /// pointer, where the reveal answers the drag as a whole.
+  Widget _buildZone(
+    BuildContext context, {
+    required bool isOver,
+    required bool showDropZone,
+  }) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      height: isOver ? 48 : (showDropZone ? 28 : 4),
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      duration: animationDuration(
+        context,
+        isOver ? NightshadeTokens.durationFast : NightshadeTokens.durationQuick,
+      ),
+      curve: NightshadeTokens.curveStandard,
+      height: isOver
+          ? _dropZoneHoverHeight
+          : (showDropZone ? _dropZoneActiveHeight : 0.0),
+      margin: const EdgeInsets.symmetric(vertical: _dropZoneGap),
       decoration: isOver
           ? NightshadeDecorations.selectedSurface(
               colors.primary,
@@ -554,38 +854,50 @@ class _DropZone extends ConsumerWidget {
           : showDropZone
               ? _dashedDropDecoration(colors)
               : const BoxDecoration(),
-      child: isOver
-          ? Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    LucideIcons.arrowDown,
-                    size: 12,
-                    color: colors.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Insert here',
-                    style: NightshadeTypography.labelStrongSm
-                        .copyWith(color: colors.primary),
-                  ),
-                ],
-              ),
-            )
-          : showDropZone
-              ? CustomPaint(
-                  painter: _DashedLinePainter(
-                      color: colors.primary.withValues(alpha: 0.5)),
-                  child: Center(
-                    child: Icon(
-                      LucideIcons.plusCircle,
+      // The dashed line and the "Insert here" label cross-fade rather than
+      // swap: a line that pops in at full strength reads as a click, and the
+      // zone it belongs to is still growing underneath it.
+      child: AnimatedSwitcher(
+        duration: animationDuration(context, NightshadeTokens.durationQuick),
+        switchInCurve: NightshadeTokens.curveStandard,
+        switchOutCurve: NightshadeTokens.curveStandard,
+        child: isOver
+            ? Center(
+                key: const ValueKey<String>('drop-zone-insert'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.arrowDown,
                       size: 12,
-                      color: colors.primary.withValues(alpha: 0.5),
+                      color: colors.primary,
                     ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Insert here',
+                      style: NightshadeTypography.labelStrongSm
+                          .copyWith(color: colors.primary),
+                    ),
+                  ],
+                ),
+              )
+            : showDropZone
+                ? CustomPaint(
+                    key: const ValueKey<String>('drop-zone-dashes'),
+                    painter: _DashedLinePainter(
+                        color: colors.primary.withValues(alpha: 0.5)),
+                    child: Center(
+                      child: Icon(
+                        LucideIcons.plusCircle,
+                        size: 12,
+                        color: colors.primary.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(
+                    key: ValueKey<String>('drop-zone-idle'),
                   ),
-                )
-              : null,
+      ),
     );
   }
 }

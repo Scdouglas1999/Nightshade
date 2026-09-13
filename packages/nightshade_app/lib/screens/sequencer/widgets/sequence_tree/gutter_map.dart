@@ -60,6 +60,11 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
 
     return SizedBox(
       width: _gutterMapWidth,
+      // Explicit rather than inherited from the Row's `stretch`: the density
+      // cross-fade puts the gutter inside a loosely-fitted Stack while it
+      // fades, and a gutter that shrink-wrapped its painter there would
+      // collapse to nothing for the length of the fade.
+      height: double.infinity,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: widget.colors.surface,
@@ -77,6 +82,7 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
                   onTapUp: (details) {
                     if (_dragAnchorY != null) return;
                     navigateToSequenceMapRow(
+                      context,
                       ref,
                       entries,
                       _rowAtGutterY(
@@ -174,7 +180,7 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
     widget.scrollController.animateTo(
       (metrics.offset + direction * metrics.viewportDimension)
           .clamp(0.0, metrics.maxScrollExtent),
-      duration: _ledgerMotion(context, NightshadeTokens.durationSlow),
+      duration: animationDuration(context, NightshadeTokens.durationSlow),
       curve: NightshadeTokens.curveStandard,
     );
   }
@@ -199,12 +205,20 @@ class _SequenceGutterMapState extends ConsumerState<_SequenceGutterMap> {
   /// What the slider reads: the row at the top of the viewport, or at the top
   /// of the viewport [pages] screens from here — the value an increase or a
   /// decrease will move it to.
+  ///
+  /// When the tree's row boxes are not mounted the answer falls back to the
+  /// evenly-spaced block grid, exactly as [_rowAtGutterY] does. It used to
+  /// fall back to "row 1", which is not an approximation — it is a number,
+  /// announced with as much confidence as a measured one, and it said the
+  /// operator was at the top of the night from wherever they actually were.
   String _positionLabel(int rowCount, {int pages = 0}) {
     final metrics = sequenceMapMetrics(widget.scrollController);
     if (metrics == null) return 'row 1 of $rowCount';
     final offset = (metrics.offset + pages * metrics.viewportDimension)
         .clamp(0.0, metrics.maxScrollExtent);
-    final row = widget.rowAtContentOffset(offset) ?? 0;
+    final contentExtent = metrics.maxScrollExtent + metrics.viewportDimension;
+    final row = widget.rowAtContentOffset(offset) ??
+        sequenceMapRowAt(offset, contentExtent, rowCount);
     return 'row ${row + 1} of $rowCount';
   }
 }

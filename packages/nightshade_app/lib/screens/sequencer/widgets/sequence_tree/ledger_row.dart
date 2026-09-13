@@ -87,12 +87,6 @@ const List<String> _ledgerColumnLabels = <String>[
 /// decide whether it can afford them.
 const double _ledgerColumnsMinWidth = 500.0;
 
-/// Zero when the platform asks for no animation, so every ledger animation is
-/// gated in one place.
-Duration _ledgerMotion(BuildContext context, Duration duration) {
-  return MediaQuery.disableAnimationsOf(context) ? Duration.zero : duration;
-}
-
 /// The width every ledger row — and the header above it — reserves for its
 /// actions block: the trio + kebab on a pointer platform, the touch-target
 /// floor on touch (where the trio folds into the kebab).
@@ -220,7 +214,8 @@ class _LedgerRowShell extends StatelessWidget {
             // hover only recomputes the fill.
             child: content,
             builder: (context, isHovered, child) => AnimatedContainer(
-              duration: _ledgerMotion(context, NightshadeTokens.durationFast),
+              duration:
+                  animationDuration(context, NightshadeTokens.durationFast),
               curve: NightshadeTokens.curveStandard,
               decoration: BoxDecoration(
                 color: _ledgerRowFill(
@@ -253,10 +248,29 @@ class _LedgerRowShell extends StatelessWidget {
   }
 }
 
+/// Fraction of the completion animation the fill spends growing, before the
+/// colour starts settling.
+///
+/// Derived from the tokens rather than chosen: the width runs on
+/// [NightshadeTokens.durationFast] and the whole gesture on
+/// [NightshadeTokens.durationSmooth], so this is where one ends inside the
+/// other. It is what makes a finishing node read as "the bar completes, THEN
+/// it goes green" rather than as two things happening at once.
+final double _ledgerProgressSettleStart =
+    NightshadeTokens.durationFast.inMilliseconds /
+        NightshadeTokens.durationSmooth.inMilliseconds;
+
 /// The 2 px bar along a row's bottom edge.
 ///
 /// [showTrack] only while a run is in flight: a finished row is a solid line,
 /// not a line inside a groove.
+///
+/// Both the width and the colour are tweened (spec §9). The width tween is the
+/// running row's progress — frames land in bursts, and a bar that jumped 8 %
+/// every few minutes read as a glitch rather than as progress. The colour tween
+/// is the one delight of the whole pass: when a node completes, its bar runs
+/// out to full and only then settles to the success colour. Nothing else in the
+/// tree celebrates anything.
 class _LedgerProgressBar extends StatelessWidget {
   final NightshadeColors colors;
   final Color fill;
@@ -272,20 +286,46 @@ class _LedgerProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settle = Interval(
+      _ledgerProgressSettleStart,
+      1.0,
+      curve: NightshadeTokens.curveStandard,
+    );
     return SizedBox(
       height: _ledgerProgressHeight,
       child: Stack(
         children: [
           // The groove must be POSITIONED — a bare ColoredBox in a loose Stack
-          // lays out at 0x0 and never paints.
-          if (showTrack)
-            Positioned.fill(child: ColoredBox(color: colors.surfaceHover)),
+          // lays out at 0x0 and never paints. It fades out on the same delay
+          // the colour settles on, so it is still behind the bar while the bar
+          // is still running out to full.
+          Positioned.fill(
+            child: AnimatedOpacity(
+              opacity: showTrack ? 1 : 0,
+              duration:
+                  animationDuration(context, NightshadeTokens.durationSmooth),
+              curve: settle,
+              child: ColoredBox(color: colors.surfaceHover),
+            ),
+          ),
           Align(
             alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: fraction,
-              heightFactor: 1,
-              child: ColoredBox(color: fill),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: fraction),
+              duration:
+                  animationDuration(context, NightshadeTokens.durationFast),
+              curve: NightshadeTokens.curveStandard,
+              builder: (context, width, child) => FractionallySizedBox(
+                widthFactor: width,
+                heightFactor: 1,
+                child: child,
+              ),
+              child: AnimatedContainer(
+                duration:
+                    animationDuration(context, NightshadeTokens.durationSmooth),
+                curve: settle,
+                color: fill,
+              ),
             ),
           ),
         ],
@@ -326,31 +366,31 @@ class _LedgerActionsSlot extends StatelessWidget {
     final slotWidth = _ledgerActionsSlotWidth(context);
     if (reservedOnly) return SizedBox(width: slotWidth);
 
-    final actions = isTouch
-        // OverflowBox lets the kebab's 48x48 hit area spill the row's 28 px
-        // height symmetrically instead of clipping the slot down to the
-        // visual. This is the padding `NightshadeTouchTarget` prescribes,
-        // applied where a fixed-height row cannot grow to fit it.
-        ? OverflowBox(
-            minWidth: slotWidth,
-            maxWidth: slotWidth,
-            minHeight: slotWidth,
-            maxHeight: slotWidth,
+    // The kebab stays mounted; the trio does not.
+    //
+    // The trio is three stateful buttons, three tooltips, three mouse regions
+    // and a `canEditSequence` watcher, on every row, held all night for
+    // controls that are on screen for a moment — so it is built only while the
+    // pointer is in the row. The kebab is ONE widget and it cannot be treated
+    // the same way: `PopupMenuButton` drops the selection if its button has
+    // been unmounted by the time the menu closes, and the menu's own modal
+    // barrier takes the pointer off the row the instant it opens. Unmounting
+    // it on hover-out therefore makes every entry in it a no-op.
+    final Widget kebab = isTouch
+        // Wide, NOT tall. The kebab's interactive minimum is 48 px in both
+        // axes, and letting it spill vertically out of a 28 px row made
+        // adjacent rows' kebabs overlap by ~20 px — a tap near a row boundary
+        // opened the neighbour's menu. The slot is already the touch minimum
+        // WIDE, so the hit area reaches the platform floor across the row
+        // instead of through it.
+        ? SizedBox(width: slotWidth, height: _ledgerRowHeight, child: menu)
+        // PopupMenuButton's IconButton enforces a 48 px interactive minimum of
+        // its own; the tight slot clamps it back to the dense footprint the
+        // reservation was sized for.
+        : SizedBox(
+            width: _ledgerKebabWidth,
+            height: _ledgerRowHeight,
             child: menu,
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              chips,
-              // PopupMenuButton's IconButton enforces a 48 px interactive
-              // minimum of its own; the tight slot clamps it back to the dense
-              // footprint the reservation was sized for.
-              SizedBox(
-                width: _ledgerKebabWidth,
-                height: _ledgerRowHeight,
-                child: menu,
-              ),
-            ],
           );
 
     return SizedBox(
@@ -358,8 +398,8 @@ class _LedgerActionsSlot extends StatelessWidget {
       height: _ledgerRowHeight,
       child: ValueListenableBuilder<bool>(
         valueListenable: hovered,
-        child: actions,
-        builder: (context, isHovered, child) {
+        child: kebab,
+        builder: (context, isHovered, kebabChild) {
           final visible = isTouch || isHovered;
           return IgnorePointer(
             ignoring: !visible,
@@ -369,9 +409,23 @@ class _LedgerActionsSlot extends StatelessWidget {
               excluding: !visible,
               child: AnimatedOpacity(
                 opacity: visible ? 1 : 0,
-                duration: _ledgerMotion(context, NightshadeTokens.durationFast),
+                duration:
+                    animationDuration(context, NightshadeTokens.durationFast),
                 curve: NightshadeTokens.curveStandard,
-                child: child,
+                child: isTouch
+                    ? kebabChild
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (visible)
+                            chips
+                          else
+                            const SizedBox(
+                              width: 3 * _ledgerActionChipWidth,
+                            ),
+                          kebabChild!,
+                        ],
+                      ),
               ),
             ),
           );
@@ -612,7 +666,16 @@ class _LedgerRowState extends ConsumerState<_LedgerRow> {
         SizedBox(
           width: _ledgerRunningMarkerWidth,
           height: _ledgerRowHeight,
-          child: isRunning ? ColoredBox(color: colors.primary) : null,
+          // A pinned row and a drag's feedback layer are readouts of a row
+          // that is drawn elsewhere; a second breath for the same step would
+          // be two heartbeats for one run.
+          child: isRunning
+              ? (widget.pinned || widget.isDragging
+                  ? ColoredBox(color: colors.primary)
+                  : _RunningMarkerBreath(
+                      child: ColoredBox(color: colors.primary),
+                    ))
+              : null,
         ),
         ..._ledgerDepthGuides(guides, colors),
         _buildChevron(context),
@@ -940,7 +1003,7 @@ class _LedgerChevron extends StatelessWidget {
             child: Center(
               child: AnimatedRotation(
                 turns: isCollapsed ? -0.25 : 0,
-                duration: _ledgerMotion(
+                duration: animationDuration(
                   context,
                   NightshadeTokens.durationQuick,
                 ),

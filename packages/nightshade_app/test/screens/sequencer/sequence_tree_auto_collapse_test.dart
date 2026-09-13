@@ -175,7 +175,9 @@ void main() {
 
     _finishTargetA(progress, t);
     progress.updateProgress(currentNodeId: t.b1);
-    await tester.pump();
+    // Settled, not pumped: a folding container's children now clip away over
+    // `durationSmooth` (spec §9) instead of vanishing on the frame.
+    await tester.pumpAndSettle();
 
     expect(handle.container.read(collapsedNodeIdsProvider), {t.targetA});
     expect(find.text('A sub'), findsNothing);
@@ -190,11 +192,11 @@ void main() {
     handle.container
         .read(collapsedNodeIdsProvider.notifier)
         .collapseAll([t.targetA, t.loopA]);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('A sub'), findsNothing);
 
     progress.updateProgress(currentNodeId: t.a1);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(handle.container.read(collapsedNodeIdsProvider), isEmpty);
     expect(find.text('A sub'), findsOneWidget);
@@ -252,7 +254,7 @@ void main() {
     expect(handle.container.read(collapsedNodeIdsProvider), isEmpty);
 
     progress.updateProgress(currentNodeId: t.b1);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(handle.container.read(collapsedNodeIdsProvider), {t.targetA});
     expect(find.text('A sub'), findsNothing);

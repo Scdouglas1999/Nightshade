@@ -15,7 +15,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../plan_math.dart';
 import '../node_summary.dart';
-import 'ledger_columns.dart';
+import '../../ledger_seconds.dart';
 
 /// How many child names the generic shape lists before it counts the rest.
 const _genericNameLimit = 3;

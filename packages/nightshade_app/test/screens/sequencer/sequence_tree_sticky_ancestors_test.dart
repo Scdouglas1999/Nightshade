@@ -83,12 +83,12 @@ Sequence _foldedRunSequence() {
   final root = InstructionSetNode(name: 'Root');
   final padding = <ExposureNode>[
     for (var i = 0; i < 20; i++)
-      ExposureNode(name: 'Sub \$i', durationSecs: 60.0 + i, count: 1),
+      ExposureNode(name: 'Sub $i', durationSecs: 60.0 + i, count: 1),
   ];
   final run = <ExposureNode>[
     for (final filter in ['Ha', 'OIII', 'SII'])
       ExposureNode(
-        name: '\$filter subs',
+        name: '$filter subs',
         filter: filter,
         durationSecs: 300,
         count: 12,
@@ -168,6 +168,10 @@ Future<void> _drain(WidgetTester tester) async {
   // A pin created by the previous frame's post-frame pass takes its first tick
   // in the frame above; this is the one that carries its entrance to the end.
   await tester.pump(const Duration(seconds: 1));
+  // And a pin that STOPPED being pinned leaves rather than vanishing (spec §9):
+  // the frame above starts its exit, this one carries it to the end and the
+  // stack drops it.
+  await tester.pump(const Duration(seconds: 1));
 }
 
 Future<void> _scrollBy(WidgetTester tester, double dy) async {
@@ -176,6 +180,23 @@ Future<void> _scrollBy(WidgetTester tester, double dy) async {
 }
 
 Finder _pinnedStack() => find.byKey(sequenceStickyAncestorsKey);
+
+/// How many of the tall fixture's two containers are standing in the stack.
+int _pinCount() {
+  var pinned = 0;
+  for (final name in const ['M 42', 'Broadband']) {
+    if (find
+        .descendant(of: _pinnedStack(), matching: find.text(name))
+        .evaluate()
+        .isNotEmpty) {
+      pinned += 1;
+    }
+  }
+  return pinned;
+}
+
+ScrollPosition _treePosition(WidgetTester tester) =>
+    tester.state<ScrollableState>(find.byType(Scrollable).first).position;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -419,5 +440,87 @@ void main() {
     await _scrollBy(tester, -400);
     expect(_pinnedStack(), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  // Un-pinning happens on every upward scroll, and a stack that loses a row
+  // between two frames reads as a glitch at the top of the canvas.
+  testWidgets('an unpinned row leaves rather than vanishing', (tester) async {
+    await _pumpTree(tester, _tallSequence());
+    await _scrollBy(tester, -400);
+    expect(_pinCount(), 2);
+
+    // Back to the top. The pins are no longer wanted, but they are still there
+    // for the length of their exit.
+    _treePosition(tester).jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      _pinCount(),
+      greaterThan(0),
+      reason: 'the stack fades its rows out; it does not drop them',
+    );
+
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(_pinnedStack(), findsNothing);
+  });
+
+  // A container whose row is only HALF under the stack is the case the strict
+  // "the row has gone entirely" test got wrong: its name is cut in two by the
+  // stack's bottom edge, and nothing at the top of the screen says which
+  // container the rows below it belong to for the 28 px of scrolling it takes
+  // to finish leaving. It pins the moment its top passes instead.
+  testWidgets('a container pins while its own row is still partly on screen',
+      (tester) async {
+    await _pumpTree(tester, _tallSequence());
+    final position = _treePosition(tester);
+
+    var pinnedAt = -1.0;
+    for (var offset = 0.0; offset <= 200.0; offset += 1.0) {
+      position.jumpTo(offset);
+      await _drain(tester);
+      if (_pinCount() == 2) {
+        pinnedAt = offset;
+        break;
+      }
+    }
+    expect(pinnedAt, greaterThan(0), reason: 'the fixture never pinned both');
+
+    // The loop's own row, not its stand-in: the pin carries the same name.
+    final realRow = find.descendant(
+      of: find.byType(SingleChildScrollView),
+      matching: find.text('Broadband'),
+    );
+    expect(
+      tester.getRect(realRow).bottom,
+      greaterThan(tester.getRect(_pinnedStack()).bottom),
+      reason: 'the pin arrives while the row it stands for is still half out '
+          'from under the stack, not a row-height later',
+    );
+  });
+
+  // The pin set is a function of the scroll offset and nothing else. It would
+  // not be if the stack's own height fed back into it: a pin grows the stack,
+  // which insets the viewport, which moves the rows — and a set computed
+  // against the un-inset geometry would then push the row that caused the pin
+  // back over the line, flap, and flap again on the next frame.
+  testWidgets('the pinned set never shrinks as the tree scrolls down',
+      (tester) async {
+    await _pumpTree(tester, _tallSequence());
+    final position = _treePosition(tester);
+
+    var previous = 0;
+    for (var offset = 0.0; offset <= 140.0; offset += 1.0) {
+      position.jumpTo(offset);
+      await _drain(tester);
+      final pinned = _pinCount();
+      expect(
+        pinned,
+        greaterThanOrEqualTo(previous),
+        reason: 'the stack lost a pin between $previous and $offset px',
+      );
+      previous = pinned;
+    }
+    expect(previous, 2, reason: 'both containers are gone by 140 px');
   });
 }
