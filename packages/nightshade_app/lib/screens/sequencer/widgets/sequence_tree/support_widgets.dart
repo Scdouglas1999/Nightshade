@@ -188,6 +188,160 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
   }
 }
 
+/// The row's inline "more actions" kebab, shared by every density.
+///
+/// Reconciliation with the other action surfaces: the right-click /
+/// long-press context menu ([SequenceTreeContextMenu]) is the comprehensive
+/// tree-mutation surface (Insert, Move Up/Down, Duplicate, Group,
+/// Enable/Disable, Delete). This kebab repeats:
+///   * Move Up / Move Down — a visible, tappable re-order handle. Touch has no
+///     right-click and drag-reordering a row inside a scrolling tree is
+///     fiddly, so the affordance stays on-screen.
+///     (`sequence_tree_shortcuts.dart` binds Shift+Up/Down to EXTEND the
+///     selection, not to move a node — there is no keyboard reorder.)
+///   * Save as Template — a "promote-this-subtree-to-the-library" action that
+///     is not part of the per-node edit vocabulary the context menu covers.
+///
+/// Items respect [canEditSequenceProvider]: while a sequence is Running /
+/// Paused / Stopping the kebab still opens but mutating entries are disabled
+/// (Save as Template is read-only, so it stays enabled).
+class _NodeOverflowMenu extends ConsumerWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+  final VoidCallback? onToggleEnabled;
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onDelete;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+
+  const _NodeOverflowMenu({
+    required this.colors,
+    required this.node,
+    this.onToggleEnabled,
+    this.onDuplicate,
+    this.onDelete,
+    this.onMoveUp,
+    this.onMoveDown,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canEdit = ref.watch(canEditSequenceProvider);
+    return Theme(
+      data: Theme.of(context).copyWith(
+        popupMenuTheme: PopupMenuThemeData(
+          color: colors.surfaceAlt,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            side: BorderSide(color: colors.border),
+          ),
+        ),
+      ),
+      child: PopupMenuButton<String>(
+        icon: Icon(LucideIcons.moreVertical, size: 14, color: colors.textMuted),
+        tooltip: 'More Actions',
+        padding: EdgeInsets.zero,
+        itemBuilder: (context) => [
+          // The inline eye / duplicate / delete chips are not rendered on
+          // touch (three 24dp chips are not legal Android tap targets) — they
+          // live here so the actions stay reachable through one compliant
+          // target instead of three illegal ones.
+          if (NightshadeTouchTarget.isTouch(context)) ...[
+            PopupMenuItem<String>(
+              value: 'toggle_enabled',
+              height: 40,
+              enabled: canEdit,
+              child: Text(
+                node.isEnabled ? 'Disable' : 'Enable',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: canEdit ? colors.textPrimary : colors.textMuted,
+                ),
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'duplicate',
+              height: 40,
+              enabled: canEdit,
+              child: Text(
+                'Duplicate',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: canEdit ? colors.textPrimary : colors.textMuted,
+                ),
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'delete',
+              height: 40,
+              enabled: canEdit,
+              child: Text(
+                'Delete',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: canEdit ? colors.error : colors.textMuted,
+                ),
+              ),
+            ),
+            const PopupMenuDivider(height: 8),
+          ],
+          if (onMoveUp != null)
+            PopupMenuItem<String>(
+              value: 'move_up',
+              height: 32,
+              enabled: canEdit,
+              child: Text('Move Up',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: canEdit ? colors.textPrimary : colors.textMuted,
+                  )),
+            ),
+          if (onMoveDown != null)
+            PopupMenuItem<String>(
+              value: 'move_down',
+              height: 32,
+              enabled: canEdit,
+              child: Text('Move Down',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: canEdit ? colors.textPrimary : colors.textMuted,
+                  )),
+            ),
+          if (onMoveUp != null || onMoveDown != null)
+            const PopupMenuDivider(height: 8),
+          // Save as Template is read-only (it copies the subtree to the
+          // snippet library; it does not mutate the current sequence), so it
+          // stays enabled even while the sequence is running.
+          PopupMenuItem<String>(
+            value: 'save_snippet',
+            height: 32,
+            child: Text('Save as Template',
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textPrimary)),
+          ),
+        ],
+        onSelected: (value) {
+          switch (value) {
+            case 'toggle_enabled':
+              onToggleEnabled?.call();
+              break;
+            case 'duplicate':
+              onDuplicate?.call();
+              break;
+            case 'delete':
+              onDelete?.call();
+              break;
+            case 'move_up':
+              onMoveUp?.call();
+              break;
+            case 'move_down':
+              onMoveDown?.call();
+              break;
+            case 'save_snippet':
+              showSaveAsSnippetDialog(context, ref, node, colors);
+              break;
+          }
+        },
+      ),
+    );
+  }
+}
+
 class _DropZone extends ConsumerWidget {
   final NightshadeColors colors;
   final String parentId;
