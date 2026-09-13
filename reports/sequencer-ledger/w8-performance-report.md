@@ -507,3 +507,172 @@ They belong to other workstreams and are not touched by this change.
   session is Wayland (`XDG_SESSION_TYPE=wayland`) and the window does not
   enumerate. The real-display numbers above are therefore for the Tonight screen
   only, which is where the app launches.
+
+---
+
+# Addendum — renderer experiment (Skia vs Impeller) and the clock experiment
+
+Requested after the audit above. **Protocol correction first:** an earlier
+attempt drove the `:0` instance with `xdotool` to reach the Sequencer and
+Imaging screens, and that blacked out the owner's desktop until the instance was
+killed. Everything below therefore obeys stricter rules, which any future agent
+should treat as binding:
+
+* **No synthetic input to `:0`, ever.** A `:0` instance is passive measurement
+  only — VM-service reads. No `xdotool`, no key/mouse, no window resize/raise.
+* **No screenshots of `:0`.**
+* **Exactly one `:0` instance at a time**, scratch `NIGHTSHADE_DATABASE_DIR`,
+  killed by pid with `/proc/<pid>` verification. `/tmp/ns-audit/run_real.sh`
+  refuses to launch while any previous instance's pid is still alive.
+* The owner's preview (pid 2184559, `~/.cache/nightshade-ledger-preview`) was
+  verified alive and untouched after every single run.
+
+Because interaction is not allowed on `:0`, all three measurements are **idle on
+the Tonight screen** — the screen the app opens on — at the app's **default
+1600x900 window**, not maximised. Scroll and screen-switch numbers stay in the
+harness (section 6) as an upper bound.
+
+> Correction to section 4: those earlier `:0` numbers were also taken at the
+> default 1600x900 window, not the full 5120x1440. The conclusion is unchanged
+> but the window size should be read with them.
+
+## Is Impeller available on Linux in this SDK? Yes.
+
+Evidence, three independent sources:
+
+1. `flutter_tools/lib/src/desktop_device.dart:297-302` emits the engine switch
+   for desktop devices, and the Linux **default is off**:
+   ```dart
+   switch (debuggingOptions.enableImpeller) {
+     case ImpellerStatus.enabled:          addFlag('enable-impeller=true');
+     case ImpellerStatus.disabled:
+     case ImpellerStatus.platformDefault:  addFlag('enable-impeller=false');
+   }
+   ```
+2. `addFlag` (`desktop_device.dart:247`) writes `FLUTTER_ENGINE_SWITCH_<n>`, the
+   same env mechanism used throughout this audit — **no rebuild required**.
+3. The shipped engine has Impeller compiled in: `strings libflutter_linux_gtk.so
+   | grep -ci impeller` → **127**, including `CreateImpellerContext`,
+   `impeller-backend`, `impeller-lazy-shader-mode`.
+
+Confirmed at runtime — with `FLUTTER_ENGINE_SWITCH_3="enable-impeller=true"` the
+app logs:
+
+```
+[IMPORTANT:...embedder_surface_gl_impeller.cc(124)] Using the Impeller rendering backend (OpenGL).
+```
+
+Note **OpenGL**, not Vulkan — see the host finding below.
+
+## The three measurements (all: `:0`, Tonight, idle, 60 s, default window)
+
+| | (a) current (Skia) | (b) Impeller — first 60 s | (b2) Impeller — warmed 60 s | (c) seconds removed | (c2) seconds removed + LST at minute resolution |
+|---|---|---|---|---|---|
+| frames/second | 1.6 | 1.6 | 1.7 | 1.6 | 1.6 |
+| build p50 | **0.68 ms** | 0.90 ms | 0.68 ms | 0.47 ms | **0.14 ms** |
+| build p90 | 1.12 ms | 2.84 ms | 1.30 ms | 0.86 ms | 0.72 ms |
+| raster p50 | **4.39 ms** | 6.46 ms | 5.07 ms | 5.18 ms | 4.66 ms |
+| raster p90 | **7.41 ms** | 21.54 ms | **30.98 ms** | 10.49 ms | **5.52 ms** |
+| total p50 | **6.93 ms** | 9.60 ms | 7.72 ms | 7.24 ms | **6.43 ms** |
+| total p90 | **10.73 ms** | 29.50 ms | **38.43 ms** | 12.79 ms | **7.33 ms** |
+| frames > 16.67 ms | 5% | 25% | 16% | 1% | 1% |
+| idle CPU (30 s) | **10.83%** | 11.93% | — | — | **10.70%** |
+| RSS | 131.6 MB | 139.5 MB | — | — | — |
+
+### (b) Impeller is worse here, and the tail is what kills it
+
+Impeller loses at the median (raster 5.07 vs 4.39 ms warmed) and loses badly at
+p90 — **30.98 ms vs 7.41 ms, 4.2x worse** — with 16% of idle frames over 16.67 ms
+against Skia's 5%. Idle CPU is also slightly higher (11.93% vs 10.83%). Warming
+does not rescue it: the second 60 s window has a *worse* raster p90 than the
+first. On a 4.17 ms budget this is the wrong direction.
+
+### Impeller renders the app correctly (harness `:9x`, never `:0`)
+
+Identical drive sequence under both renderers on a private Xvfb at `:93`,
+1920x1200, full-resolution captures, then `magick compare`:
+
+| screen | differing pixels | fraction | RMSE |
+|---|---|---|---|
+| Tonight | 8 854 / 2 304 000 | 0.38% | 0.0347 |
+| Sequencer ledger | 10 606 / 2 304 000 | 0.46% | 0.0360 |
+| Imaging | 5 801 / 2 304 000 | 0.25% | 0.0270 |
+
+By eye, at full resolution: **no artifacts**. Layout, colours, gradients, the
+twilight band, the ledger gutter strip, icons, the Imaging star field and
+histogram all render identically. The diff mask shows the differences spread
+thinly over *every glyph* — text antialiasing, which is the expected Skia↔Impeller
+difference — plus a few solid blocks that are **app state, not rendering**: the
+two runs differed in guider connection (`Ready` vs `No guider`), the preflight
+badge count, and the status-bar clock digits. Impeller is correct; it is just
+slower on this machine.
+
+### (c) Removing the seconds digit buys nothing — and section 8's recommendation was wrong
+
+This is the most important correction in this addendum. Dropping `:ss` **and**
+slowing the chip's own ticker to one minute left the idle frame rate completely
+unchanged at 1.6/s. Per-frame source tracing says why: `_TimeDisplay` was still
+rebuilding at exactly 1 Hz, because it also does
+
+```dart
+final lst = siteIsSet ? ref.watch(localSiderealTimeProvider) : null;
+```
+
+and `localSiderealTimeProvider` (`catalog_astronomy.dart:304`) is a **double**
+derived from `wallClockProvider`, a 1 Hz `AlignedTicker`. The chip renders LST as
+`HH:mm` (`formatLstChip` floors to the minute) but watched a value that changes
+**60x per displayed change**. The seconds digit was never the 1 Hz source; the
+LST chip was.
+
+With both changed (c2) — seconds gone, and the LST watched through
+`.select((h) => (h * 60).floor())`, its own display resolution — the clock leaves
+the idle path entirely: **build p50 0.68 → 0.14 ms, raster p90 7.41 → 5.52 ms,
+total p90 10.73 → 7.33 ms.** Per-source tracing confirms `_TimeDisplay` no longer
+appears at 1 Hz, and the remaining idle sources on Tonight are only:
+
+* `TonightEquipmentPanel` / `DeviceRow` / `Readout` every **2 s** — the mount
+  position poll, which that panel legitimately displays;
+* `_SaveFolderPill` every **10 s** — the disk-space poll (`disk_space_provider.dart:66`);
+* the twilight `NightBand` `CustomPaint`, occasionally.
+
+**But idle CPU did not move: 10.83% → 10.70%, inside the noise.** The remaining
+0.5 Hz mount frame costs a full-window repaint on its own, so removing the 1 Hz
+one halves the frame count without halving the cost of being idle.
+
+## Host finding that dwarfs the renderer question
+
+```
+nvidia-smi   ->  Failed to initialize NVML: Driver/library version mismatch (NVML 615.71)
+lspci        ->  01:00.0 NVIDIA AD103 [GeForce RTX 4080]
+                 10:00.0 AMD Raphael [integrated]
+drm          ->  card1-HDMI-A-1 connected      (card1 = the AMD iGPU)
+vulkaninfo   ->  GPU0 only: PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, RADV RAPHAEL_MENDOCINO
+```
+
+**The 5120x1440 240 Hz panel is being driven by the integrated Raphael GPU, and
+the RTX 4080 is currently unusable** — its kernel module and userspace libraries
+are out of step, which normally means a driver update is installed but not yet
+rebooted into. Vulkan enumerates only the iGPU, which is also why Impeller picked
+its OpenGL backend rather than Vulkan.
+
+Every raster figure in this report is therefore an **iGPU** figure. A 2-CU
+integrated GPU pushing 7.37 Mpx at 240 Hz is the actual constraint.
+
+## Recommendation
+
+**Do not enable Impeller, and do not remove the seconds digit — neither is worth
+shipping, and the numbers say so plainly**: Impeller costs 4.2x the raster p90
+(30.98 ms vs 7.41 ms) with three times as many missed frames and no correctness
+benefit, while the clock change moves idle CPU by 0.13 points, which is noise.
+The one genuinely mis-specified thing the experiment did uncover is the LST chip
+watching a 1 Hz double to render a `HH:mm` string — worth fixing on its own
+merits (it takes the clock out of the idle path entirely: build p50 0.68 → 0.14 ms,
+total p90 10.73 → 7.33 ms) but, on its own, not something the owner will feel.
+What the owner will feel is the host: his 240 Hz ultrawide is being rendered by
+the **integrated** GPU because the RTX 4080's driver and libraries are out of
+sync — a reboot into the matching NVIDIA driver, and making sure the app runs on
+that card, is a bigger single lever than any renderer or widget change in this
+report, and it costs nothing to try first. After that, the app-side work that
+actually pays is what section 5 started: `RepaintBoundary` coverage on the heavy
+screens, because with no damage region in the Linux embedder every idle tick
+repaints the whole window, and the cheapest frame is the one that repaints least.
