@@ -24,24 +24,19 @@ const int _maxPinnedAncestors = 3;
 const double _pinSlideDistance = 6.0;
 
 /// The hairline the stack draws along its bottom edge to separate itself from
-/// the rows scrolling under it. Named because the reserved height has to
-/// include it exactly.
+/// the rows scrolling under it. It is painted INSIDE the box (a `Border` on a
+/// `DecoratedBox` does not grow it), so it costs the reservation nothing.
 const double _stickyStackBorderWidth = 1.0;
 
-/// Clearance a row gets below the stack when the operator clicks a pin to
-/// reach it — flush with the pin above would read as a fourth pinned row.
-const double _pinLandingMargin = NightshadeTokens.spaceXs;
-
 /// Height a stack of [count] pinned rows occupies, and therefore the height
-/// the scroll content reserves at its top so the stack covers nothing.
+/// the scroll viewport gives up to it so the stack covers nothing.
 ///
 /// Computed, not measured: every pinned row is exactly one [_ledgerRowHeight]
 /// in both densities the stack draws (the ledger row is fixed-height by
 /// definition, and [_PinnedCompactRow] is built to match it), so the figure is
 /// exact and — unlike a render-box measurement — available on the same frame
 /// the pin appears.
-double pinnedStackHeight(int count) =>
-    count == 0 ? 0 : count * _ledgerRowHeight + _stickyStackBorderWidth;
+double pinnedStackHeight(int count) => count * _ledgerRowHeight;
 
 /// The ancestors of [anchorId] that are currently pinned, outermost first.
 ///

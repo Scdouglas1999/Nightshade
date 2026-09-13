@@ -31,10 +31,15 @@ Sequence _twoSiblings({required String first, required String second}) {
   return Sequence.create(name: 'T', nodes: tree, rootNodeId: root.id);
 }
 
+/// [density] null leaves the shipped default (Ledger) in place, which is where
+/// the collision this file guards has to be proved. Pass Comfortable only for
+/// a fixture Ledger would FOLD: two same-spec sibling exposures are one row
+/// there (spec §6), and a case about two rows cannot be asserted on one.
 Future<({ProviderContainer container, void Function() dispose})> _pumpTree(
   WidgetTester tester,
-  Sequence sequence,
-) async {
+  Sequence sequence, {
+  SequencerDensity? density,
+}) async {
   final container = ProviderContainer(
     overrides: [
       inMemoryDatabaseOverride(),
@@ -47,14 +52,8 @@ Future<({ProviderContainer container, void Function() dispose})> _pumpTree(
       // The ledger ETA clock is a real periodic stream; in the fake-async
       // zone its timer outlives every pump and fails teardown.
       ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
-      // Comfortable, because the collision this file guards is a per-NODE row
-      // holding a static GlobalKey: in Ledger two identically-specced sibling
-      // exposures are one folded row (spec §6), so the two-holder situation
-      // cannot arise there. The folded form of the same fixture — including
-      // the anchor moving onto the fold row — is asserted in
-      // `sequence_tree_fold_rows_test.dart`.
-      sequencerDensityProvider
-          .overrideWith((ref) => SequencerDensity.comfortable),
+      if (density != null)
+        sequencerDensityProvider.overrideWith((ref) => density),
     ],
   );
   var disposed = false;
@@ -86,7 +85,11 @@ Future<({ProviderContainer container, void Function() dispose})> _pumpTree(
 void main() {
   testWidgets('two sibling Take Exposures nodes both render a card',
       (tester) async {
-    await _pumpTree(tester, _twoSiblings(first: 'Node A', second: 'Node B'));
+    await _pumpTree(
+      tester,
+      _twoSiblings(first: 'Node A', second: 'Node B'),
+      density: SequencerDensity.comfortable,
+    );
 
     expect(tester.takeException(), isNull,
         reason: 'building the tree must not trip a duplicate-GlobalKey error');
@@ -100,15 +103,22 @@ void main() {
       (tester) async {
     // The coach marks need SOME depth-1 capture node to point at; losing the
     // anchor entirely would silently break the tutorial overlay.
-    await _pumpTree(tester, _twoSiblings(first: 'Node A', second: 'Node B'));
+    await _pumpTree(
+      tester,
+      _twoSiblings(first: 'Node A', second: 'Node B'),
+      density: SequencerDensity.comfortable,
+    );
     expect(tester.takeException(), isNull);
     expect(find.byKey(SequencerTutorialKeys.captureNode), findsOneWidget);
   });
 
   testWidgets('three same-type siblings all render', (tester) async {
+    // Three DIFFERENT exposure lengths, so Ledger draws three rows rather than
+    // one folded run — the anchor collision is a per-row problem and this
+    // proves it is gone in the density the app ships on.
     final a = ExposureNode(name: 'Node A', durationSecs: 2, count: 1);
-    final b = ExposureNode(name: 'Node B', durationSecs: 2, count: 1);
-    final c = ExposureNode(name: 'Node C', durationSecs: 2, count: 1);
+    final b = ExposureNode(name: 'Node B', durationSecs: 3, count: 1);
+    final c = ExposureNode(name: 'Node C', durationSecs: 4, count: 1);
     final root = InstructionSetNode(name: 'Sequence');
     final tree = <String, SequenceNode>{
       a.id: a.copyWith(parentId: root.id, orderIndex: 0),
@@ -155,6 +165,7 @@ void main() {
     final handle = await _pumpTree(
       tester,
       _twoSiblings(first: 'Node A', second: 'Node B'),
+      density: SequencerDensity.comfortable,
     );
     final container = handle.container;
     final sequence = container.read(currentSequenceProvider)!;

@@ -17,6 +17,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/batch_operations_toolba
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/visual_timeline.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/tutorial_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -105,6 +106,8 @@ Future<HarnessHandle> _pumpTree(
   Sequence sequence, {
   Size size = const Size(1200, 900),
   ThemeData? theme,
+  SequenceProgressNotifier? progressNotifier,
+  PreSessionSimulationResult? simulation,
 }) async {
   final notifier = CurrentSequenceNotifier();
   // ignore: invalid_use_of_protected_member
@@ -133,6 +136,10 @@ Future<HarnessHandle> _pumpTree(
       // The minute clock is a real periodic stream; in the fake-async zone its
       // timer outlives every pump and fails teardown.
       ledgerClockProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+      if (progressNotifier != null)
+        sequenceProgressProvider.overrideWith((_) => progressNotifier),
+      if (simulation != null)
+        sequenceTimelineProvider.overrideWithValue(simulation),
       sequencerDensityProvider
           .overrideWith((ref) => ref.watch(_testDensityProvider)),
     ],
@@ -574,4 +581,379 @@ void main() {
       isNot(contains(built.exposureIds.last)),
     );
   });
+
+  testWidgets('below the column floor nothing folds', (tester) async {
+    // The canvas — not the preference — decides what is on screen: under
+    // `_ledgerColumnsMinWidth` the tree falls back to compact rows and draws
+    // every child. An arrow-key order still folded there would step over rows
+    // the operator can plainly see.
+    final built = _runInAlpha();
+    final handle = await _pumpTree(
+      tester,
+      built.sequence,
+      size: const Size(420, 900),
+    );
+    await _drainValidationDebounce(tester);
+
+    expect(
+      handle.container.read(canvasSequencerDensityProvider),
+      SequencerDensity.compact,
+    );
+    expect(
+      handle.container.read(visibleNodeOrderProvider).map((row) => row.id),
+      containsAll(built.exposureIds),
+      reason: 'the members are drawn one per row, so they are one row each to '
+          'the arrow keys too',
+    );
+    expect(find.text('Ha · OIII · SII'), findsNothing);
+  });
+
+  testWidgets('a wide canvas publishes ledger, and the order folds again',
+      (tester) async {
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence);
+    await _drainValidationDebounce(tester);
+
+    expect(
+      handle.container.read(canvasSequencerDensityProvider),
+      SequencerDensity.ledger,
+    );
+    expect(
+      handle.container.read(visibleNodeOrderProvider).map((row) => row.id),
+      isNot(containsAll(built.exposureIds)),
+    );
+  });
+
+  testWidgets('the run\'s chip and its Filter / exp cell print one exposure',
+      (tester) async {
+    final built = _runInAlpha();
+    await _pumpTree(tester, built.sequence);
+
+    // The chip reads as prose and the cell is a 70 px column, so the UNIT is
+    // spelled differently by design (spec §6 vs §2) — but the DIGITS come from
+    // one formatter, because a row quoting `1.5 s` beside a cell saying `2s`
+    // is reporting two different exposures.
+    final seconds = formatLedgerSeconds(300);
+    expect(find.text('$seconds s ×12 each'), findsOneWidget);
+    expect(find.text('${seconds}s'), findsOneWidget);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('Move Down on the kebab moves the whole run past its neighbour',
+      (tester) async {
+    final pointerTheme =
+        NightshadeTheme.dark.copyWith(platform: TargetPlatform.linux);
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence, theme: pointerTheme);
+
+    // Put a step after the run for it to move past.
+    final trailing = DelayNode(name: 'Cooldown', seconds: 10);
+    handle.container
+        .read(currentSequenceProvider.notifier)
+        .addNode(trailing, parentId: built.alphaId);
+    await tester.pump();
+
+    await _openFoldKebab(tester);
+    await tester.tap(find.text('Move Down').last);
+    await tester.pumpAndSettle();
+
+    final after = handle.container.read(currentSequenceProvider)!;
+    expect(
+      after.nodes[built.alphaId]!.childIds,
+      <String>[built.settleId, trailing.id, ...built.exposureIds],
+      reason: 'the block lands contiguous and in order on the far side',
+    );
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('Move Up on the kebab lifts the whole run above its neighbour',
+      (tester) async {
+    final pointerTheme =
+        NightshadeTheme.dark.copyWith(platform: TargetPlatform.linux);
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence, theme: pointerTheme);
+
+    await _openFoldKebab(tester);
+    await tester.tap(find.text('Move Up').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      handle.container
+          .read(currentSequenceProvider)!
+          .nodes[built.alphaId]!
+          .childIds,
+      <String>[...built.exposureIds, built.settleId],
+    );
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('Duplicate all leaves the run twice, back to back',
+      (tester) async {
+    final pointerTheme =
+        NightshadeTheme.dark.copyWith(platform: TargetPlatform.linux);
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence, theme: pointerTheme);
+
+    await _hoverFoldRow(tester);
+    await tester.tap(find.descendant(
+      of: _rowShellOf(find.text('Ha · OIII · SII')).first,
+      matching: find.byTooltip('Duplicate all'),
+    ));
+    await tester.pumpAndSettle();
+
+    final children = handle.container
+        .read(currentSequenceProvider)!
+        .nodes[built.alphaId]!
+        .childIds;
+    expect(children, hasLength(7));
+    expect(children.sublist(1, 4), built.exposureIds);
+    expect(
+      children.sublist(4).toSet().intersection(built.exposureIds.toSet()),
+      isEmpty,
+      reason: 'the copies follow the originals as a second block, not '
+          'interleaved with them',
+    );
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('Disable all strikes the run out and hands back its member rows',
+      (tester) async {
+    final pointerTheme =
+        NightshadeTheme.dark.copyWith(platform: TargetPlatform.linux);
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence, theme: pointerTheme);
+
+    await _hoverFoldRow(tester);
+    await tester.tap(find.descendant(
+      of: _rowShellOf(find.text('Ha · OIII · SII')).first,
+      matching: find.byTooltip('Disable all'),
+    ));
+    await tester.pumpAndSettle();
+
+    final after = handle.container.read(currentSequenceProvider)!;
+    for (final id in built.exposureIds) {
+      expect(after.nodes[id]!.isEnabled, isFalse);
+    }
+    // A disabled step is not a run member, so the fold is gone and the three
+    // struck-through rows are back.
+    expect(find.text('Ha · OIII · SII'), findsNothing);
+    expect(find.text('Ha subs'), findsOneWidget);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('shift-tap extends the selection through the run\'s last member',
+      (tester) async {
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence);
+
+    await tester.tap(find.text('Settle'));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.tap(find.text('Ha · OIII · SII'));
+    await tester.pump();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+
+    expect(
+      handle.container.read(multiSelectedNodeIdsProvider),
+      unorderedEquals(<String>[built.settleId, ...built.exposureIds]),
+      reason: 'the range covers everything the folded row draws, not just its '
+          'first member',
+    );
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('a collapsed container accepts the run as one block',
+      (tester) async {
+    final built = _runInAlpha();
+    final handle = await _pumpTree(tester, built.sequence);
+    handle.container.read(collapsedNodeIdsProvider.notifier).collapse(
+          built.betaId,
+        );
+    await tester.pump();
+
+    final payload = FoldDragPayload(
+      groupId: _groupIdUnder(built.sequence, built.alphaId),
+      memberIds: built.exposureIds,
+      parentId: built.alphaId,
+    );
+    final target = find
+        .ancestor(
+          of: find.text('Beta'),
+          matching: find.byType(DragTarget<Object>),
+        )
+        .first;
+    final dropTarget = tester.widget<DragTarget<Object>>(target);
+    expect(
+      dropTarget.onWillAcceptWithDetails!(
+        DragTargetDetails<Object>(data: payload, offset: Offset.zero),
+      ),
+      isTrue,
+    );
+    dropTarget.onAcceptWithDetails!(
+      DragTargetDetails<Object>(data: payload, offset: Offset.zero),
+    );
+    await tester.pumpAndSettle();
+
+    final after = handle.container.read(currentSequenceProvider)!;
+    expect(
+      after.nodes[built.betaId]!.childIds,
+      <String>[built.warmUpId, ...built.exposureIds],
+      reason: 'a collapsed header is a drop destination, and the run appends '
+          'into it as one contiguous block',
+    );
+    expect(after.nodes[built.alphaId]!.childIds, <String>[built.settleId]);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('the 2 px bar shows the run\'s aggregate, not one member\'s',
+      (tester) async {
+    final built = _runInAlpha();
+    final progress = SequenceProgressNotifier();
+    await _pumpTree(tester, built.sequence, progressNotifier: progress);
+    final colors = NightshadeTheme.dark.extension<NightshadeColors>()!;
+
+    // One member done, one half way, one untouched: 1.5 of 3.
+    progress.updateNodeStatus(built.exposureIds[0], NodeStatus.success);
+    progress.updateNodeStatus(built.exposureIds[1], NodeStatus.running);
+    progress.updateNodeProgress(built.exposureIds[1], 50, '');
+    await tester.pump();
+
+    final shell = _rowShellOf(find.text('Ha · OIII · SII')).first;
+    expect(
+      find.descendant(
+        of: shell,
+        matching: find.byWidgetPredicate(
+          (w) => w is ColoredBox && w.color == colors.surfaceHover,
+        ),
+      ),
+      findsOneWidget,
+      reason: 'a run in flight draws the groove behind its fill',
+    );
+    expect(
+      find.descendant(
+        of: shell,
+        matching: find.byWidgetPredicate(
+          (w) => w is FractionallySizedBox && w.widthFactor == 0.5,
+        ),
+      ),
+      findsOneWidget,
+    );
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets(
+      'the run\'s ETA is its earliest member start, muted once it has '
+      'been overtaken', (tester) async {
+    final built = _runInAlpha();
+    // Anchored at `now`: an idle pre-session simulation is rebased onto the
+    // clock, so a fixed wall time would print as whatever today's is.
+    final t0 = DateTime.now();
+    final simulation = PreSessionSimulationResult(
+      start: t0,
+      end: t0.add(const Duration(hours: 3)),
+      duration: const Duration(hours: 3),
+      segments: [
+        for (var i = 0; i < built.exposureIds.length; i++)
+          PreSessionSimulationSegment(
+            nodeId: built.exposureIds[i],
+            nodeName: 'sub $i',
+            nodeType: 'ExposureNode',
+            start: t0.add(Duration(hours: i)),
+            end: t0.add(Duration(hours: i + 1)),
+            duration: const Duration(hours: 1),
+          ),
+      ],
+      targetWindows: const {},
+      issues: const [],
+    );
+    final progress = SequenceProgressNotifier();
+    await _pumpTree(
+      tester,
+      built.sequence,
+      progressNotifier: progress,
+      simulation: simulation,
+    );
+    final colors = NightshadeTheme.dark.extension<NightshadeColors>()!;
+
+    // The run begins when its FIRST member does, not when the last one would.
+    final etaCell = find.descendant(
+      of: _rowShellOf(find.text('Ha · OIII · SII')).first,
+      matching: find.text(formatLedgerClock(t0)),
+    );
+    expect(etaCell, findsOneWidget);
+    expect(
+      find.descendant(
+        of: _rowShellOf(find.text('Ha · OIII · SII')).first,
+        matching:
+            find.text(formatLedgerClock(t0.add(const Duration(hours: 2)))),
+      ),
+      findsNothing,
+    );
+
+    // Once the run is under way the cell is still quoting the estimator's
+    // projection, so it says so rather than presenting it as fact.
+    progress.updateNodeStatus(built.exposureIds.first, NodeStatus.running);
+    await tester.pump();
+    expect(tester.widget<Text>(etaCell).style!.color, colors.textMuted);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('the run\'s badge carries the worst of its members\' issues',
+      (tester) async {
+    final built = _runInAlpha();
+    await _pumpTree(tester, built.sequence);
+    // Live validation runs on a debounce; let it settle so the badge is real
+    // rather than injected.
+    await _drainValidationDebounce(tester);
+
+    // Every member is missing its filter from the (empty) active profile, so
+    // the run's badge stands for three issues at once — the folded row is the
+    // only place they are reachable.
+    final badge = find.descendant(
+      of: _rowShellOf(find.text('Ha · OIII · SII')).first,
+      matching: find.byType(Tooltip),
+    );
+    expect(badge, findsWidgets);
+  });
+
+  testWidgets('the context menu on a folded row offers the run\'s actions',
+      (tester) async {
+    final built = _runInAlpha();
+    await _pumpTree(tester, built.sequence);
+
+    await tester.tap(
+      find.text('Ha · OIII · SII'),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+
+    // The right-click menu must reach the same four operations as the kebab,
+    // or the two surfaces on one row disagree about what it can do.
+    expect(find.text('Duplicate all'), findsOneWidget);
+    expect(find.text('Disable all'), findsOneWidget);
+    expect(find.text('Delete 3 steps'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await _drainValidationDebounce(tester);
+  });
+}
+
+/// Put the pointer over the folded row so its hover actions are live.
+Future<void> _hoverFoldRow(WidgetTester tester) async {
+  final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await gesture.addPointer(location: Offset.zero);
+  addTearDown(gesture.removePointer);
+  await gesture.moveTo(tester.getCenter(find.text('Ha · OIII · SII')));
+  await tester.pump();
+}
+
+/// Open the folded row's kebab, which is where Move Up / Move Down live.
+Future<void> _openFoldKebab(WidgetTester tester) async {
+  await _hoverFoldRow(tester);
+  await tester.tap(find.descendant(
+    of: _rowShellOf(find.text('Ha · OIII · SII')).first,
+    matching: find.byTooltip('More Actions'),
+  ));
+  await tester.pumpAndSettle();
 }

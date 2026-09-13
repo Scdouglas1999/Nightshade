@@ -63,6 +63,60 @@ Sequence _tallSequence() {
   );
 }
 
+/// The same shape as [_tallSequence], but with a folded run at the bottom of a
+/// deep branch: `M 42` -> `Broadband` -> 20 padding subs + `Ha · OIII · SII`.
+///
+/// The padding subs differ in length so they stay individual rows and the tree
+/// still scrolls; the last three share a capture spec and fold into one.
+Sequence _foldedRunSequence() {
+  final target = TargetHeaderNode(
+    name: 'M 42',
+    targetName: 'Orion',
+    raHours: 5.5,
+    decDegrees: -5.4,
+  );
+  final loop = LoopNode(
+    name: 'Broadband',
+    conditionType: LoopConditionType.count,
+    repeatCount: 1,
+  );
+  final root = InstructionSetNode(name: 'Root');
+  final padding = <ExposureNode>[
+    for (var i = 0; i < 20; i++)
+      ExposureNode(name: 'Sub \$i', durationSecs: 60.0 + i, count: 1),
+  ];
+  final run = <ExposureNode>[
+    for (final filter in ['Ha', 'OIII', 'SII'])
+      ExposureNode(
+        name: '\$filter subs',
+        filter: filter,
+        durationSecs: 300,
+        count: 12,
+        ditherEvery: 0,
+      ),
+  ];
+  final children = <ExposureNode>[...padding, ...run];
+  return Sequence.create(
+    name: 'Folded',
+    rootNodeId: root.id,
+    nodes: {
+      for (var i = 0; i < children.length; i++)
+        children[i].id: children[i].copyWith(parentId: loop.id, orderIndex: i),
+      loop.id: loop.copyWith(
+        parentId: target.id,
+        orderIndex: 0,
+        childIds: [for (final child in children) child.id],
+      ),
+      target.id: target.copyWith(
+        parentId: root.id,
+        orderIndex: 0,
+        childIds: [loop.id],
+      ),
+      root.id: root.copyWith(childIds: [target.id]),
+    },
+  );
+}
+
 Future<void> _pumpTree(
   WidgetTester tester,
   Sequence sequence, {
@@ -152,10 +206,12 @@ void main() {
       reason: 'the loop is an ancestor too, and pins under the target',
     );
     expect(
-      tester.getTopLeft(_pinnedStack()).dy,
-      tester.getTopLeft(find.byType(SingleChildScrollView)).dy,
-      reason: 'the entrance slide has to end flush with the viewport top, not '
-          '6 px above it',
+      tester.getRect(_pinnedStack()).bottom,
+      closeTo(tester.getTopLeft(find.byType(SingleChildScrollView)).dy, 0.01),
+      reason: 'the entrance slide has to end flush with the scroll viewport, '
+          'which gives up exactly the stack\'s height while it is up — 6 px '
+          'either way means the slide is still running or the reservation is '
+          'the wrong size',
     );
 
     await _scrollBy(tester, 400);
@@ -180,7 +236,122 @@ void main() {
       ),
       findsNothing,
     );
+
+    // And no anonymous tappable node either. Each pin is a tap-to-scroll
+    // GestureDetector wrapped around the IgnorePointer'd row it stands for;
+    // left in the semantics tree those contribute one UNLABELLED tappable node
+    // per pin, ahead of every step in the tree — the row's own content is
+    // already excluded, so there would be nothing to announce them by.
+    final pinDetectors = find.descendant(
+      of: _pinnedStack(),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is GestureDetector && widget.child is IgnorePointer,
+      ),
+    );
+    expect(pinDetectors, findsNWidgets(2));
+    for (final element in pinDetectors.evaluate()) {
+      expect(
+        (element.widget as GestureDetector).excludeFromSemantics,
+        isTrue,
+        reason: 'a pin is a pointer affordance, not a control',
+      );
+    }
     handle.dispose();
+  });
+
+  testWidgets('tapping an INNER pin lands its row clear of the stack above it',
+      (tester) async {
+    await _pumpTree(tester, _tallSequence());
+    await _scrollBy(tester, -400);
+    expect(_pinnedStack(), findsOneWidget);
+
+    // "Broadband" is the second of the two pins: tapping it scrolls its row
+    // back, but "M 42" is still above it and stays pinned — so alignment 0
+    // would deliver the row the operator asked for underneath the pin that is
+    // still there.
+    await tester.tap(
+      find.descendant(of: _pinnedStack(), matching: find.text('Broadband')),
+      warnIfMissed: false,
+    );
+    await _drain(tester);
+
+    expect(
+      find.descendant(of: _pinnedStack(), matching: find.text('M 42')),
+      findsOneWidget,
+      reason: 'the target is still scrolled away, so it is still pinned',
+    );
+    expect(
+      find.descendant(of: _pinnedStack(), matching: find.text('Broadband')),
+      findsNothing,
+      reason: 'the loop row is back on screen, so nothing stands in for it',
+    );
+
+    final realRow = tester.getRect(
+      find
+          .ancestor(
+            of: find.text('Broadband'),
+            matching: find.byWidgetPredicate(
+              (w) => w is SizedBox && w.height == 28.0 && w.width == null,
+            ),
+          )
+          .first,
+    );
+    expect(
+      realRow.top,
+      greaterThanOrEqualTo(tester.getRect(_pinnedStack()).bottom),
+      reason: 'the row the operator clicked for must not arrive under the '
+          'pin that is still up',
+    );
+  });
+
+  testWidgets('the stack reserves its height instead of covering rows',
+      (tester) async {
+    await _pumpTree(tester, _tallSequence());
+    await _scrollBy(tester, -400);
+    expect(_pinnedStack(), findsOneWidget);
+
+    final stackBottom = tester.getRect(_pinnedStack()).bottom;
+    // Every ledger row that is drawn at all is drawn below the stack: the
+    // reserved top padding is what stops the pins painting over the rows they
+    // exist to explain.
+    final rows = find.byWidgetPredicate(
+      (w) => w is SizedBox && w.height == 28.0 && w.width == null,
+    );
+    final viewport = tester.getRect(find.byType(SingleChildScrollView));
+    for (final row in rows.evaluate()) {
+      final rect = tester.getRect(find.byElementPredicate((e) => e == row));
+      // Rows scrolled out of the viewport keep their box; only the ones the
+      // operator can actually see are the subject here.
+      if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
+      expect(
+        rect.bottom,
+        greaterThan(stackBottom - 0.01),
+        reason: 'a visible row must not sit under the pinned stack',
+      );
+    }
+  });
+
+  testWidgets('a folded run pins and stands as the topmost row',
+      (tester) async {
+    // Folding and pinning meet here: the fold row answers to its FIRST
+    // member's registry key, which is the id the visible order keeps as the
+    // run's stand-in — so the sticky pass, which walks that order and those
+    // keys, has to find the fold row where a member row used to be.
+    await _pumpTree(tester, _foldedRunSequence());
+    await _scrollBy(tester, -400);
+
+    expect(_pinnedStack(), findsOneWidget);
+    expect(
+      find.descendant(of: _pinnedStack(), matching: find.text('M 42')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: _pinnedStack(), matching: find.text('Broadband')),
+      findsOneWidget,
+      reason: 'the loop holding the run is an ancestor like any other',
+    );
+    // The run itself is one row, drawn under the stack it just pinned.
+    expect(find.text('Ha · OIII · SII'), findsOneWidget);
   });
 
   testWidgets('tapping a pinned row brings its real row back to the top',

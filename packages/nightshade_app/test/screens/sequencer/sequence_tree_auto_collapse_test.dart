@@ -298,4 +298,94 @@ void main() {
 
     expect(handle.container.read(collapsedNodeIdsProvider), isEmpty);
   });
+
+  testWidgets('a run reset forgets what the last run was holding open',
+      (tester) async {
+    final t = _twoTargets();
+    final progress = SequenceProgressNotifier();
+    final handle = await _pumpTree(tester, t.sequence, progress);
+    final collapsed = handle.container.read(collapsedNodeIdsProvider.notifier);
+    final execution =
+        handle.container.read(sequenceExecutionStateProvider.notifier);
+
+    execution.state = SequenceExecutionState.running;
+    progress.updateProgress(currentNodeId: t.a1);
+    await tester.pump();
+
+    // The operator holds A open for THIS run.
+    collapsed.toggle(t.targetA);
+    collapsed.toggle(t.targetA);
+    await tester.pump();
+
+    // Stop. Back at idle the statuses are cleared and nothing in the sequence
+    // has run, so a hold recorded against the last run describes nothing.
+    execution.state = SequenceExecutionState.idle;
+    await tester.pump();
+
+    // A second night reaches the same point, and this time nothing shields
+    // the loop it has finished with.
+    progress.updateNodeStatus(t.a1, NodeStatus.success);
+    progress.updateNodeStatus(t.loopA, NodeStatus.success);
+    progress.updateProgress(currentNodeId: t.b1);
+    await tester.pump();
+
+    expect(handle.container.read(collapsedNodeIdsProvider), contains(t.loopA));
+  });
+
+  testWidgets('opening a different sequence forgets the last one\'s holds',
+      (tester) async {
+    final t = _twoTargets();
+    final progress = SequenceProgressNotifier();
+    final notifier = CurrentSequenceNotifier();
+    // ignore: invalid_use_of_protected_member
+    notifier.state = t.sequence;
+
+    final handle = await pumpAppScreen(
+      tester,
+      Builder(
+        builder: (context) =>
+            SequenceTree(colors: NightshadeColors.of(context)),
+      ),
+      size: const Size(1200, 900),
+      settle: false,
+      extraOverrides: [
+        currentSequenceProvider.overrideWith((_) => notifier),
+        sequenceProgressProvider.overrideWith((_) => progress),
+        sequenceExecutionStateProvider
+            .overrideWith((ref) => SequenceExecutionState.idle),
+        ledgerClockProvider
+            .overrideWith((ref) => const Stream<DateTime>.empty()),
+      ],
+    );
+    await tester.pump(const Duration(seconds: 1));
+    final collapsed = handle.container.read(collapsedNodeIdsProvider.notifier);
+
+    progress.updateProgress(currentNodeId: t.a1);
+    await tester.pump();
+    collapsed.toggle(t.targetA);
+    collapsed.toggle(t.targetA);
+    await tester.pump();
+
+    // The operator opens a DIFFERENT sequence that happens to reuse these node
+    // ids — the shape a "save as" or a re-import produces. The hold belonged
+    // to the tree they left; carried over it would shield a container of the
+    // new one that nobody ever opened.
+    // ignore: invalid_use_of_protected_member
+    notifier.state = Sequence.create(
+      name: 'Another night',
+      rootNodeId: t.sequence.rootNodeId,
+      nodes: t.sequence.nodes,
+    );
+    await tester.pump();
+
+    progress.updateNodeStatus(t.a1, NodeStatus.success);
+    progress.updateNodeStatus(t.loopA, NodeStatus.success);
+    progress.updateProgress(currentNodeId: t.b1);
+    await tester.pump();
+
+    expect(handle.container.read(collapsedNodeIdsProvider), contains(t.loopA));
+    // Swapping the sequence arms a fresh live-validation debounce; drain it or
+    // teardown trips the pending-timer assertion.
+    await tester.pump(const Duration(seconds: 1));
+  });
 }

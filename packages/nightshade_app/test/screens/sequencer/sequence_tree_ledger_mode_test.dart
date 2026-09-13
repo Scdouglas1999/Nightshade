@@ -13,6 +13,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_co
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/visual_timeline.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -752,6 +753,56 @@ void main() {
       matching: find.text(formatLedgerClock(t0)),
     ));
     expect(etaText.style?.color, colors.textMuted);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('the Watchdog badge drops its label rather than overflow the row',
+      (tester) async {
+    // A meridian flip nested three deep at the narrowest canvas Ledger will
+    // still take: marker, chevron, icon, three depth guides, the reserved
+    // actions block, the four columns and the badge gutter leave the name and
+    // the badge ~60 px between them. The labelled badge alone is wider than
+    // that, so on a real trigger row it ran straight past the row's edge.
+    final flip = MeridianFlipNode(name: 'Meridian flip');
+    final built = _threeLevelSequence(const <ExposureNode>[]);
+    final loop = built.sequence.nodes[built.loopId]!;
+    final narrow = built.sequence.copyWith(nodes: {
+      ...built.sequence.nodes,
+      flip.id: flip.copyWith(parentId: loop.id, orderIndex: 0),
+      loop.id: loop.copyWith(childIds: [flip.id]),
+    });
+
+    await _pumpTree(tester, narrow, size: const Size(582, 900));
+
+    // Still Ledger — this is the floor, not below it.
+    expect(find.text('Filter / exp'), findsOneWidget);
+    expect(find.text('Meridian flip'), findsOneWidget);
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'a RenderFlex overflow on a trigger row is a red stripe across '
+          'the canvas in debug and a clipped row in release',
+    );
+    // The glyph and its tooltip carry the meaning; the word is what gives way.
+    expect(find.text('Watchdog'), findsNothing);
+    expect(find.byIcon(LucideIcons.shieldAlert), findsOneWidget);
+    await _drainValidationDebounce(tester);
+  });
+
+  testWidgets('a wide row still spells the Watchdog badge out', (tester) async {
+    final flip = MeridianFlipNode(name: 'Meridian flip');
+    final built = _threeLevelSequence(const <ExposureNode>[]);
+    final loop = built.sequence.nodes[built.loopId]!;
+    final wide = built.sequence.copyWith(nodes: {
+      ...built.sequence.nodes,
+      flip.id: flip.copyWith(parentId: loop.id, orderIndex: 0),
+      loop.id: loop.copyWith(childIds: [flip.id]),
+    });
+
+    await _pumpTree(tester, wide);
+
+    expect(find.text('Watchdog'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await _drainValidationDebounce(tester);
   });
 }

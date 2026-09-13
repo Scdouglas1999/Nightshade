@@ -333,46 +333,26 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     );
   }
 
-  /// Bring a pinned ancestor's REAL row out from under the pinned stack.
+  /// Bring a pinned ancestor's REAL row back to the top of the viewport.
   ///
-  /// Not alignment 0: at 0 the row lands at the very top of the viewport,
-  /// which is exactly where the stack is drawn — the operator clicks a pin and
-  /// the row they asked for arrives underneath it. The row has to land at the
-  /// BOTTOM edge of the stack that will still be there once this scroll
-  /// settles, which is the pins OUTSIDE the one that was clicked: tapping the
-  /// outermost pin empties the stack, tapping an inner one leaves its
-  /// ancestors pinned.
-  ///
-  /// `ensureVisible` places the target's leading edge at
-  /// `alignment × (viewport - row)`, and the reserved top padding shrinks by
-  /// the height the stack is about to lose, so the row ends up
-  /// `_pinLandingMargin` clear of whatever is left.
+  /// Alignment 0, and it means something different now that the viewport is
+  /// inset by the stack: position zero is the stack's bottom edge, not the
+  /// canvas's top. The row therefore arrives exactly where the pin the
+  /// operator clicked was — and stays there when the stack shrinks, because
+  /// the viewport grows from the same edge the row is measured against.
   void _scrollToPinnedRow(String nodeId) {
     final rowContext = _nodeKeyRegistry[nodeId]?.currentContext;
     if (rowContext == null) return;
-    final rowBox = rowContext.findRenderObject();
-    final viewportBox = _viewportKey.currentContext?.findRenderObject();
-    var alignment = 0.0;
-    if (rowBox is RenderBox &&
-        rowBox.hasSize &&
-        viewportBox is RenderBox &&
-        viewportBox.hasSize) {
-      final slack = viewportBox.size.height - rowBox.size.height;
-      if (slack > 0) {
-        alignment =
-            ((_reservedPinHeight + _pinLandingMargin) / slack).clamp(0.0, 1.0);
-      }
-    }
     Scrollable.ensureVisible(
       rowContext,
       duration: _ledgerMotion(context, NightshadeTokens.durationSlow),
       curve: NightshadeTokens.curveStandard,
-      alignment: alignment,
+      alignment: 0,
     );
   }
 
-  /// Height the pinned stack currently occupies over the top of the viewport,
-  /// and therefore the height the scroll content reserves for it.
+  /// Height the pinned stack occupies over the top of the tree, and therefore
+  /// the height the scroll viewport gives up to it.
   double get _reservedPinHeight => pinnedStackHeight(_pinnedAncestors.length);
 
   /// Record the density the layout pass just resolved, once it has finished.
@@ -430,17 +410,14 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     final sequence = ref.read(currentSequenceProvider);
     if (sequence == null) return const <VisibleNode>[];
 
-    // Rows under the pinned stack are painted over, so "still visible" means
-    // "clear of the stack", not "clear of the viewport". Using the same edge
-    // for both the anchor and the pin test is also what keeps the stack
-    // stable: the scroll content reserves exactly this much room at its top
-    // while the pins exist, so both sides of the comparison move together and
-    // the pinned set stays a function of the scroll offset alone. Compare
-    // against the viewport edge only and the reserved room would push the
-    // ancestor back into view, unpin it, remove the room, and pin it again —
-    // once per frame, forever.
-    final occludedTop =
-        viewport.localToGlobal(Offset.zero).dy + _reservedPinHeight;
+    // The scroll viewport is inset by the stack's height while the pins are
+    // up, so its own top edge IS the first pixel the operator can see — no row
+    // is ever behind the stack, and this one comparison serves both the anchor
+    // and the pin test. It is also what keeps the set stable: the inset moves
+    // the rows and the edge by the same amount, so which ancestors are pinned
+    // stays a function of the scroll offset alone instead of feeding back into
+    // itself once a frame.
+    final occludedTop = viewport.localToGlobal(Offset.zero).dy;
 
     // The anchor is the first row the operator can still see any of. Rows
     // above it are already gone, so the walk stops there rather than measuring
@@ -837,10 +814,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               // provider) or a frame late (the measurement).
               _syncCanvasDensity(canvasDensity);
 
-              // The pinned stack floats over the top of the viewport. Without
-              // this the rows behind it are simply painted over — the feature
-              // that exists to say WHERE you are would be hiding the first two
-              // rows of where you are.
+              // The pinned stack floats over the top of the tree, so the
+              // scroll viewport gives up exactly its height while it is up.
+              // Padding the scroll CONTENT instead would only change which
+              // rows end up behind the stack, never that two of them are: the
+              // feature that exists to say where you are would be hiding the
+              // first two rows of where you are.
               final reservedTop = _reservedPinHeight;
 
               return Column(
@@ -859,21 +838,20 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                             // and break the scroll maths under it.
                             fit: StackFit.expand,
                             children: [
-                              SingleChildScrollView(
-                                key: _viewportKey,
-                                controller: _scrollController,
-                                padding: scrollPadding,
-                                // Animated on the same token as the pins'
-                                // entrance so the rows travel WITH the stack
-                                // sliding in over them rather than jumping out
-                                // from under it.
-                                child: AnimatedPadding(
-                                  padding: EdgeInsets.only(top: reservedTop),
-                                  duration: _ledgerMotion(
-                                    context,
-                                    NightshadeTokens.durationQuick,
-                                  ),
-                                  curve: NightshadeTokens.curveStandard,
+                              // Animated on the same token as the pins'
+                              // entrance, so the rows travel down WITH the
+                              // stack sliding in over them.
+                              AnimatedPadding(
+                                padding: EdgeInsets.only(top: reservedTop),
+                                duration: _ledgerMotion(
+                                  context,
+                                  NightshadeTokens.durationQuick,
+                                ),
+                                curve: NightshadeTokens.curveStandard,
+                                child: SingleChildScrollView(
+                                  key: _viewportKey,
+                                  controller: _scrollController,
+                                  padding: scrollPadding,
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,

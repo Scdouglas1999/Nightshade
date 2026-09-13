@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_minimap.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree/ledger_columns.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequencer_density.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -114,6 +115,35 @@ Rect? _viewportRect(WidgetTester tester) => sequenceMapViewportRect(
       maxScrollExtent: _treePosition(tester).maxScrollExtent,
       size: tester.getSize(_gutter()),
     );
+
+/// The content pixel a point [localY] down the gutter stands for, through the
+/// same `offset / contentExtent` mapping the viewport rectangle is drawn with.
+double _contentOffsetAtGutterY(WidgetTester tester, double localY) {
+  final position = _treePosition(tester);
+  final contentExtent = position.maxScrollExtent + position.viewportDimension;
+  return (localY / tester.getSize(_gutter()).height) * contentExtent;
+}
+
+/// The visible row covering [contentOffset], read off the live row boxes — the
+/// answer neither mapping is allowed to disagree with.
+String? _rowAtContentOffset(
+  WidgetTester tester,
+  HarnessHandle handle,
+  double contentOffset,
+) {
+  final registry = handle.container.read(treeNodeKeyRegistryProvider);
+  if (registry == null) return null;
+  final contentTop = tester.getTopLeft(find.byType(SingleChildScrollView)).dy -
+      _treePosition(tester).pixels;
+  String? found;
+  for (final row in handle.container.read(visibleNodeOrderProvider)) {
+    final box = registry[row.id]?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) continue;
+    if (box.localToGlobal(Offset.zero).dy - contentTop > contentOffset) break;
+    found = row.id;
+  }
+  return found;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -238,6 +268,55 @@ void main() {
       reason: 'selecting a row off screen without bringing it on screen is a '
           'selection the operator cannot see',
     );
+  });
+
+  testWidgets(
+      'a tap in the gutter follows the viewport rectangle, not the '
+      'block grid', (tester) async {
+    final built = _tallSequence();
+    final handle = await _pumpTree(tester, built.sequence);
+
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+    await _drain(tester);
+
+    // The two mappings have to be ONE mapping. The rectangle is drawn at
+    // `offset / contentExtent` of the gutter's height; a tap read through the
+    // block grid (`dy / height x rowCount`) instead names whichever row that
+    // fraction lands on in a list of evenly-sized blocks — and the tree's
+    // content is a third chrome (the column header, the scroll padding and a
+    // drop zone between every pair of rows), none of which a block stands for.
+    // So the two come apart, and where they do, the tap has to follow the
+    // rectangle the operator is aiming at.
+    final gutter = tester.getRect(_gutter());
+    final entries = sequenceMapEntries(
+      handle.container.read(currentSequenceProvider)!,
+      handle.container.read(visibleNodeOrderProvider),
+    );
+
+    double? probe;
+    String? expected;
+    for (var y = 0.0; y < gutter.height; y += 1) {
+      final byContent = _rowAtContentOffset(
+        tester,
+        handle,
+        _contentOffsetAtGutterY(tester, y),
+      );
+      final byBlocks =
+          entries[sequenceMapRowAt(y, gutter.height, entries.length)].node.id;
+      if (byContent != null && byContent != byBlocks) {
+        probe = y;
+        expected = byContent;
+        break;
+      }
+    }
+    expect(probe, isNotNull,
+        reason: 'the two mappings agree everywhere, so this case proves '
+            'nothing — the fixture has stopped being a scrolling tree');
+
+    await tester.tapAt(Offset(gutter.center.dx, gutter.top + probe!));
+    await _drain(tester);
+
+    expect(handle.container.read(selectedNodeIdProvider), expected);
   });
 
   testWidgets('dragging the gutter scrolls the tree', (tester) async {
