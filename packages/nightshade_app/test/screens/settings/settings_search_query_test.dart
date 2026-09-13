@@ -169,9 +169,12 @@ void main() {
   });
 
   test('a heading the page renders is in the index', () {
+    // Sentence case, exactly as `view_builders.dart` paints it: the index is
+    // generated from the page's own strings, so a title-cased literal here
+    // asserts a heading the operator never sees.
     expect(
       kSettingsSearchTerms['catalogs'],
-      contains('GLADE+ Galaxy Catalog'),
+      contains('GLADE+ galaxy catalog'),
     );
     // Equipment Profiles renders its rows from `part` files; the index used to
     // hold nothing but that page's two error strings.

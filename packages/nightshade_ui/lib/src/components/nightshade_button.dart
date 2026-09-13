@@ -381,7 +381,14 @@ class _NightshadeButtonState extends State<NightshadeButton>
           duration: NightshadeTokens.durationNormal,
           curve: NightshadeTokens.curveStandard,
           height: widget.height,
-          alignment: Alignment.center,
+          // No `alignment`: a Container that aligns its child takes the whole
+          // slot it is offered, so every button in a `crossAxisAlignment:
+          // start` Column — which hands its children LOOSE, not tight,
+          // constraints — stretched to the full page width and read as a
+          // banner instead of a button (02 rule 4). Without it the container
+          // shrink-wraps the label row when the slot is loose and still fills
+          // a tight one, where the row's own `mainAxisAlignment: center`
+          // centres the label.
           // Floor the tappable box on touch platforms. `constraints` rather
           // than extra padding so the fill and border grow with it and the
           // whole visible control is the target, not a small shape inside a

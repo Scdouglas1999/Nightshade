@@ -4,6 +4,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/field_width.dart';
 
 /// Field heights in logical pixels (03 §3.3: `inputHeight` 32, dense 28).
 const double fieldHeight = NightshadeTokens.inputHeight;
@@ -243,55 +244,51 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
       ),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Same expand rule as [NightshadeDropdown]: fill a bounded slot so the
-        // value reads from the leading edge and the unit sits at the trailing
-        // one; shrink-wrap when the parent is a content-sized Row.
-        final expand = constraints.hasBoundedWidth;
-        // Listener, not GestureDetector: a tap recognizer would publish its
-        // own tappable node and steal the label off the text field.
-        return Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: widget.enabled
-              ? (_) {
-                  if (!_focusNode.hasFocus) _focusNode.requestFocus();
-                }
-              : null,
-          child: Container(
-            height: widget.height,
-            width: expand ? constraints.maxWidth : null,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(
-              horizontal: fieldHorizontalPadding,
-            ),
-            decoration: well,
-            child: Row(
-              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                if (widget.prefixIcon != null) ...<Widget>[
-                  ExcludeSemantics(
-                    child: Icon(
-                      widget.prefixIcon,
-                      size: fieldIconSize,
-                      color: _isFocused && widget.enabled
-                          ? colors.primary
-                          : colors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                ],
-                Flexible(
-                  fit: expand ? FlexFit.tight : FlexFit.loose,
-                  child: input,
-                ),
-                if (widget.suffixWidget != null) widget.suffixWidget!,
-              ],
-            ),
+    // [FieldWidthBox] resolves the same expand rule as [NightshadeDropdown] —
+    // fill a bounded slot so the value reads from the leading edge and the
+    // unit sits at the trailing one, shrink-wrap in a content-sized Row — but
+    // in the render object rather than a `LayoutBuilder`, so this subtree can
+    // still answer the intrinsic queries an `AlertDialog` puts to its content.
+    // The width it hands down is tight either way, which is what lets the Row
+    // below stay `MainAxisSize.max` with a tight [Flexible] in both cases.
+    return FieldWidthBox(
+      // Listener, not GestureDetector: a tap recognizer would publish its own
+      // tappable node and steal the label off the text field.
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: widget.enabled
+            ? (_) {
+                if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              }
+            : null,
+        child: Container(
+          height: widget.height,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(
+            horizontal: fieldHorizontalPadding,
           ),
-        );
-      },
+          decoration: well,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              if (widget.prefixIcon != null) ...<Widget>[
+                ExcludeSemantics(
+                  child: Icon(
+                    widget.prefixIcon,
+                    size: fieldIconSize,
+                    color: _isFocused && widget.enabled
+                        ? colors.primary
+                        : colors.textMuted,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+              ],
+              Expanded(child: input),
+              if (widget.suffixWidget != null) widget.suffixWidget!,
+            ],
+          ),
+        ),
+      ),
     );
   }
 

@@ -586,7 +586,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     setState(() {
       _methodRunning = true;
       _cancelRequested = false;
-      _currentDownload = 'GLADE+ Galaxy Catalog';
+      _currentDownload = 'GLADE+ galaxy catalog';
       _downloadStatus = 'Preparing download...';
       _downloadProgress = 0;
       _recomputeDownloading();
