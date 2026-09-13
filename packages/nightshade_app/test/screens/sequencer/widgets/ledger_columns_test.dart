@@ -565,11 +565,168 @@ void main() {
         ]);
       }
 
-      test('pushes the pending tail by how late the executing node is', () {
+      /// The plan bills every step one minute (see [simFor]'s `_segment`
+      /// default of five — overridden here so the node has a real length to
+      /// run inside).
+      PreSessionSimulationResult simWithLengths(
+        ({
+          Sequence sequence,
+          InstructionSetNode container,
+          List<SequenceNode> children
+        }) built,
+      ) {
+        return PreSessionSimulationResult(
+          start: t0,
+          end: t0.add(const Duration(minutes: 15)),
+          duration: const Duration(minutes: 15),
+          segments: [
+            for (var i = 0; i < built.children.length; i++)
+              _segment(
+                built.children[i].id,
+                t0.add(Duration(minutes: 5 * i)),
+                // 5 minutes billed, back to back: `b` runs 22:05 -> 22:10.
+                duration: const Duration(minutes: 5),
+              ),
+          ],
+          targetWindows: const {},
+          issues: const [],
+        );
+      }
+
+      // The defect the review caught: `now - predictedStart` is time ELAPSED IN
+      // the node, and the plan asked for most of it. A step running exactly to
+      // plan used to push every pending ETA by a minute every minute for as
+      // long as it lasted, then snap back when it ended.
+      test('a node running ON plan pushes nothing, at any point inside it', () {
         final built = late();
-        final simulation = simFor(built);
-        // `b` was predicted to start at 22:05 and the run started on plan, so
-        // the clock at 22:45 says the night is 40 minutes behind.
+        final simulation = simWithLengths(built);
+        // `b` is billed 22:05 -> 22:10 and began exactly on time.
+        final actual = {
+          built.children[1].id: t0.add(const Duration(minutes: 5))
+        };
+
+        for (final minutes in <int>[5, 6, 8, 10]) {
+          final etas = ledgerEtasFor(
+            built.sequence,
+            simulation,
+            now: t0.add(Duration(minutes: minutes)),
+            runActive: true,
+            runStart: t0,
+            currentNodeId: built.children[1].id,
+            actualStarts: actual,
+          );
+          expect(
+            etas[built.children[2].id],
+            LedgerEta(t0.add(const Duration(minutes: 10)), isActual: false),
+            reason: 'the tail drifted $minutes minutes into an on-plan node',
+          );
+        }
+      });
+
+      test('a node that STARTED late pushes the tail by exactly that', () {
+        final built = late();
+        final simulation = simWithLengths(built);
+        // Billed 22:05; really began 22:17. Twelve minutes late.
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          // Eight minutes into a five-minute node, so a formula that counted
+          // elapsed time would say twenty, not twelve.
+          now: t0.add(const Duration(minutes: 20)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+          actualStarts: {
+            built.children[1].id: t0.add(const Duration(minutes: 17)),
+          },
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 22)), isActual: false),
+          reason: 'c was planned for 22:10 and the run is 12 minutes late',
+        );
+      });
+
+      test('a node OVERRUNNING its predicted end pushes the tail further', () {
+        final built = late();
+        final simulation = simWithLengths(built);
+        // Began on time at 22:05, billed to 22:10, and it is now 22:15.
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          now: t0.add(const Duration(minutes: 15)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+          actualStarts: {
+            built.children[1].id: t0.add(const Duration(minutes: 5)),
+          },
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 15)), isActual: false),
+          reason: 'the next step cannot start before the current one ends',
+        );
+      });
+
+      // Lateness and overrun are a MAX, not a sum: once a late node is past
+      // the moment it was expected to finish, the overrun already contains the
+      // lateness, and adding them would count the same minutes twice.
+      test('a late node that also overruns is not charged twice', () {
+        final built = late();
+        final simulation = simWithLengths(built);
+        // Billed 22:05 -> 22:10. Began 22:17 (12 late), so it was expected to
+        // finish at 22:22. It is now 22:25 — three minutes past that, so the
+        // run is fifteen minutes behind, not twelve plus fifteen.
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          now: t0.add(const Duration(minutes: 25)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+          actualStarts: {
+            built.children[1].id: t0.add(const Duration(minutes: 17)),
+          },
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 25)), isActual: false),
+        );
+      });
+
+      // Without an observed start there is nothing to measure lateness
+      // against, but an overrun past the node's own predicted end is still
+      // visible from the clock alone.
+      test('an unobserved start still reports a genuine overrun', () {
+        final built = late();
+        final simulation = simWithLengths(built);
+        final etas = ledgerEtasFor(
+          built.sequence,
+          simulation,
+          now: t0.add(const Duration(minutes: 18)),
+          runActive: true,
+          runStart: t0,
+          currentNodeId: built.children[1].id,
+        );
+
+        expect(
+          etas[built.children[2].id],
+          LedgerEta(t0.add(const Duration(minutes: 18)), isActual: false),
+        );
+      });
+
+      test(
+          'a long-overrunning node keeps its observed start and moves the '
+          'tail to the clock', () {
+        final built = late();
+        final simulation = simWithLengths(built);
+        // `b` is billed 22:05 -> 22:10 and began at 22:07. At 22:45 it is
+        // still going: thirty-five minutes past the moment the plan had it
+        // finished, which is how far behind the night is.
         final etas = ledgerEtasFor(
           built.sequence,
           simulation,
@@ -587,11 +744,11 @@ void main() {
           etas[built.children[1].id],
           LedgerEta(t0.add(const Duration(minutes: 7)), isActual: true),
         );
-        // The step after it was predicted for 22:10 and is now 22:50: the
-        // 40 minutes the run is behind, added to the plan's own spacing.
+        // `c` was planned for 22:10 and cannot begin before the step in front
+        // of it ends, which has not happened yet.
         expect(
           etas[built.children[2].id],
-          LedgerEta(t0.add(const Duration(minutes: 50)), isActual: false),
+          LedgerEta(t0.add(const Duration(minutes: 45)), isActual: false),
         );
       });
 

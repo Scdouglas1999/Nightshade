@@ -183,6 +183,12 @@ class _DraggableNodeItemCompactState
   /// Glyph inside that square, and the trailing plus.
   static const double _glyph = 14;
 
+  /// The narrowest a tile can draw its full furniture in: the glyph square,
+  /// the gap after it and the add button's 18 px box. Below this the row
+  /// overflows, which is reachable only while the pane is animating.
+  static const double _tileMinWidth =
+      _iconSquare + NightshadeTokens.spaceSm + 2 + _glyph + 4;
+
   void _addNode() {
     // Refuse the click while the executor owns the tree; the editor still
     // throws SequenceLockedException as a last line of defense.
@@ -255,65 +261,80 @@ class _DraggableNodeItemCompactState
                     color: colors.surfaceHover,
                   )
                 : NightshadeDecorations.panel(colors),
-            child: Row(
-              children: [
-                Container(
-                  width: _iconSquare,
-                  height: _iconSquare,
-                  decoration: NightshadeDecorations.well(colors),
-                  child: Icon(
-                    widget.getIcon(widget.item.icon),
-                    size: _glyph,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm + 2),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        // Sentence case at the point of DRAWING: the strings
-                        // live in nightshade_core, which this wave may not
-                        // touch, and the name a node carries once it is in a
-                        // sequence is the user's data (see palette_copy.dart).
-                        paletteSentenceCase(widget.item.name),
-                        style: NightshadeTypography.bodySm.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        widget.item.description,
-                        style: NightshadeTypography.caption.copyWith(
-                          color: colors.textMuted,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                // Always-visible single-tap add button (drag still works on
-                // the tile). The hidden double-tap was undiscoverable.
-                Tooltip(
-                  message: 'Add to sequence',
-                  child: GestureDetector(
-                    onTap: _addNode,
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // The palette pane animates its WIDTH open and shut, and its
+                // tiles are laid out at every width on the way — including
+                // widths narrower than a tile's own fixed furniture (the glyph
+                // square, the gap and the add button), where the row overflowed
+                // by 20 px on every collapse. Below that cost the tile keeps
+                // the one thing that still identifies it. The threshold is the
+                // furniture's own width, so a settled palette never sees it.
+                final tight = constraints.maxWidth < _tileMinWidth;
+                return Row(
+                  children: [
+                    Container(
+                      width: _iconSquare,
+                      height: _iconSquare,
+                      decoration: NightshadeDecorations.well(colors),
                       child: Icon(
-                        LucideIcons.plus,
+                        widget.getIcon(widget.item.icon),
                         size: _glyph,
-                        color: _isHovered
-                            ? colors.textSecondary
-                            : colors.textMuted,
+                        color: colors.textSecondary,
                       ),
                     ),
-                  ),
-                ),
-              ],
+                    if (!tight) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm + 2),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              // Sentence case at the point of DRAWING: the
+                              // strings live in nightshade_core, which this
+                              // wave may not touch, and the name a node carries
+                              // once it is in a sequence is the user's data
+                              // (see palette_copy.dart).
+                              paletteSentenceCase(widget.item.name),
+                              style: NightshadeTypography.bodySm.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              widget.item.description,
+                              style: NightshadeTypography.caption.copyWith(
+                                color: colors.textMuted,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Always-visible single-tap add button (drag still works
+                      // on the tile). The hidden double-tap was undiscoverable.
+                      Tooltip(
+                        message: 'Add to sequence',
+                        child: GestureDetector(
+                          onTap: _addNode,
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              LucideIcons.plus,
+                              size: _glyph,
+                              color: _isHovered
+                                  ? colors.textSecondary
+                                  : colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),

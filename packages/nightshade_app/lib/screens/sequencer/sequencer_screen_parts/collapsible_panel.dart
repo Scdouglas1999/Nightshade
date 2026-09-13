@@ -62,15 +62,7 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
       end: _currentExpandedWidth,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      // NOT `curveStandard`. The panel animates its WIDTH, and its content
-      // does not survive the intermediate widths: the palette's node rows
-      // overflow by 20 px somewhere around the halfway mark. `easeOutCubic`
-      // spends most of its time near the end of the travel, so a frame lands
-      // in that band on every collapse; `easeInOut` passes through it. The
-      // one-curve rule governs what the operator reads as a state change —
-      // this is a reveal whose content would have to be re-laid-out to obey
-      // it, which is a layout change, not a motion one.
-      curve: Curves.easeInOut,
+      curve: NightshadeTokens.curveStandard,
     ));
   }
 

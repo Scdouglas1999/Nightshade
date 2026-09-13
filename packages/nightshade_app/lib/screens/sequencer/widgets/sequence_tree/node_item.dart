@@ -10,6 +10,13 @@ const double _cardKebabWidth = kMinInteractiveDimension;
 /// Width a card row keeps for its hover-revealed actions on a pointer
 /// platform: the eye / duplicate / delete trio (the same 28 px chip the ledger
 /// row reserves) plus the kebab.
+///
+/// A MINIMUM, not a fixed width. `_cardKebabWidth` is the kebab's floor, not a
+/// promise: a theme with denser or looser visual density, or a large text
+/// scale, can make the real `IconButton` wider, and a tight box around it would
+/// then overflow every comfortable row in the tree at once. The cluster is the
+/// same widget hovered or not — only the chips swap for a spacer of their exact
+/// width — so letting the slot size itself cannot introduce a hover shift.
 const double _cardActionsWidth = 3 * _ledgerActionChipWidth + _cardKebabWidth;
 
 class _NodeItem extends ConsumerStatefulWidget {
@@ -639,8 +646,8 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               final slotWidth = NightshadeTouchTarget.isTouch(context)
                   ? _cardKebabWidth
                   : _cardActionsWidth;
-              return SizedBox(
-                width: slotWidth,
+              return ConstrainedBox(
+                constraints: BoxConstraints(minWidth: slotWidth),
                 child: IgnorePointer(
                   ignoring: !visible,
                   // A hidden button must not be announced or focusable, or a
