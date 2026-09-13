@@ -1,9 +1,12 @@
-// Target Queue panel tests.
+// Targets panel — the "Saved for later" (planetarium wishlist) section.
+//
+// The "In this sequence" section above it has its own file,
+// `target_panel_in_sequence_test.dart`.
 //
 // Pins:
-//   * the queue panel renders a row per queued target,
-//   * the empty state appears when the planetarium's
-//     targetQueueProvider has no entries,
+//   * the wishlist renders a row per queued target,
+//   * the empty wishlist explains what the section is for instead of
+//     reporting an empty queue and pointing at two other screens,
 //   * the per-row "Add to sequence" button creates a TargetHeaderNode
 //     in the current sequence with the queued target's RA/Dec,
 //   * "Remove from queue" mutates targetQueueProvider,
@@ -86,9 +89,36 @@ void main() {
   });
 
   group('TargetQueuePanel', () {
-    testWidgets('shows empty state when queue is empty', (tester) async {
+    testWidgets('an empty wishlist explains what the section is for',
+        (tester) async {
       await _pumpPanel(tester);
-      expect(find.text('Your target queue is empty.'), findsOneWidget);
+
+      // The section header stays so the purpose is readable when both lists
+      // are empty, and the sentence says what puts targets here without
+      // sending the reader to another screen to find out.
+      expect(find.text('SAVED FOR LATER'), findsOneWidget);
+      expect(
+        find.text('Targets you queue from the Planetarium or Plan Tonight '
+            'appear here, ready to drag into the sequence.'),
+        findsOneWidget,
+      );
+      expect(find.text('Your target queue is empty.'), findsNothing);
+    });
+
+    testWidgets('the wishlist sentence disappears once a target is queued',
+        (tester) async {
+      final container = await _pumpPanel(tester);
+      container
+          .read(targetQueueProvider.notifier)
+          .addTarget(_fakeObject('M13', raHours: 16.69, decDeg: 36.46));
+      await tester.pump();
+
+      expect(
+        find.text('Targets you queue from the Planetarium or Plan Tonight '
+            'appear here, ready to drag into the sequence.'),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('target_queue_list')), findsOneWidget);
     });
 
     testWidgets('renders one row per queued target', (tester) async {

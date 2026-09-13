@@ -1,13 +1,24 @@
-// Target Queue panel for the sequencer Builder.
+// The Targets panel: the toolbox tab that answers "what am I pointing at?".
 //
-// Bridges the planetarium's `target_queue_provider` (a user-curated
-// wishlist of targets) into the sequencer authoring surface. Drag a
-// queued target onto the sequence tree to insert a TargetHeaderNode
-// with the target's RA/Dec pre-filled.
+// Two sections, because the word "queue" was doing two jobs and neither was
+// visible. The tab used to be called Queue and showed ONLY the planetarium's
+// wishlist, so loading the bundled "Mono LRGB M51" starter — a sequence with a
+// target in it — produced the tab saying "Your target queue is empty."
 //
-// The panel is purely a *view* on the planetarium's queue — it does
-// not own its own state. Mutations to the queue (add / remove / mark
-// active) flow through `targetQueueProvider`.
+//   * IN THIS SEQUENCE reads `Sequence.targetHeaders`, the same list the
+//     canvas bar counts in its "1 target" chip. One row per target header,
+//     with the coordinates and the planned capture the tree row carries, and a
+//     tap that selects it in the tree and scrolls it into view — the same
+//     `selectedNodeIdProvider` + `treeNodeKeyRegistryProvider` jump the step
+//     finder and the minimap use.
+//   * SAVED FOR LATER is the planetarium's `targetQueueProvider` wishlist,
+//     unchanged: sort, filter, live visibility readouts, drag-to-insert and
+//     remove. The section stays on screen when it is empty so the panel says
+//     what the wishlist IS rather than only reporting that it has nothing.
+//
+// The panel is still purely a *view* on both sources. Mutations to the
+// wishlist (add / remove / mark active) flow through `targetQueueProvider`;
+// selection flows through `selectedNodeIdProvider`.
 //
 // Drag payload: a `TargetQueueDragPayload` (defined below) carrying the
 // queued target plus a resolved coordinate. The sequence tree's
@@ -28,7 +39,11 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/add_target_header_helper.dart';
+import '../../../utils/count_label.dart';
 import '../../accessible_dropdown.dart';
+import '../plan_math.dart';
+import 'sequence_tree.dart' show treeNodeKeyRegistryProvider;
+import 'target_coordinates.dart';
 import 'target_header_card.dart';
 
 /// Drag payload type carried by `Draggable<TargetQueueDragPayload>` from
@@ -187,18 +202,18 @@ _TargetVisibility _computeVisibility({
   );
 }
 
-/// Public widget rendered in the sequencer Builder toolbox.
+/// The Targets tab of the sequencer Builder toolbox.
+///
+/// Named for the wishlist it started as; it now renders the sequence's own
+/// targets above that wishlist. The class name is kept because the drag
+/// payload beside it (`TargetQueueDragPayload`) is what `sequence_tree.dart`
+/// accepts, and renaming both for the tab's sake would rename a wire contract.
 class TargetQueuePanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
-
-  /// Optional collapse handler — if provided, a collapse-icon is shown
-  /// in the header that calls back to the parent toolbox.
-  final VoidCallback? onCollapse;
 
   const TargetQueuePanel({
     super.key,
     required this.colors,
-    this.onCollapse,
   });
 
   @override
@@ -324,35 +339,89 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
     final filtered = _applyFilter(queue.targets, visibilityByTarget);
     _applySort(filtered, visibilityByTarget);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(right: BorderSide(color: colors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Header(
+    // `targetHeaders` and not a tree walk of our own: it is what the canvas
+    // bar's "N targets" chip counts, and a panel that listed a different set
+    // from the chip two panes away would be the same class of lie this rewrite
+    // is here to remove.
+    final sequence = ref.watch(currentSequenceProvider);
+    final headers = sequence?.targetHeaders ?? const <TargetHeaderNode>[];
+    final selectedId = ref.watch(selectedNodeIdProvider);
+
+    // ONE scroll view over both sections: they are one list of targets read
+    // twice, and two independently scrolling boxes in a 280 px column would
+    // each be a few rows tall and neither would reach its end.
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: _SectionHeader(
             colors: colors,
-            queueLength: queue.targets.length,
-            onCollapse: widget.onCollapse,
+            label: 'In this sequence',
+            count: headers.length,
           ),
-          _SortFilterBar(
+        ),
+        if (sequence == null || headers.isEmpty)
+          SliverToBoxAdapter(
+            child: _SectionSentence(
+              colors: colors,
+              text: 'No targets in this sequence yet. Drop a Target from the '
+                  'Nodes tab, or pick one below.',
+            ),
+          )
+        else
+          SliverPadding(
+            padding: _listPadding,
+            sliver: SliverList.separated(
+              key: const ValueKey('in_sequence_target_list'),
+              itemCount: headers.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final header = headers[index];
+                return _InSequenceRow(
+                  colors: colors,
+                  node: header,
+                  planned: plannedCaptureUnder(sequence, header.id),
+                  isSelected: header.id == selectedId,
+                );
+              },
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: _SectionHeader(
             colors: colors,
-            sortMode: _sortMode,
-            filterMode: _filterMode,
-            onSortChanged: (m) => setState(() => _sortMode = m),
-            onFilterChanged: (m) => setState(() => _filterMode = m),
+            label: 'Saved for later',
+            count: queue.targets.length,
           ),
-          if (queue.targets.isEmpty)
-            _EmptyState(colors: colors)
-          else if (filtered.isEmpty)
-            _NoMatchesState(colors: colors)
+        ),
+        if (queue.targets.isEmpty)
+          SliverToBoxAdapter(
+            child: _SectionSentence(
+              colors: colors,
+              text: 'Targets you queue from the Planetarium or Plan Tonight '
+                  'appear here, ready to drag into the sequence.',
+            ),
+          )
+        else ...[
+          SliverToBoxAdapter(
+            child: _SortFilterBar(
+              colors: colors,
+              sortMode: _sortMode,
+              filterMode: _filterMode,
+              onSortChanged: (m) => setState(() => _sortMode = m),
+              onFilterChanged: (m) => setState(() => _filterMode = m),
+            ),
+          ),
+          if (filtered.isEmpty)
+            SliverToBoxAdapter(
+              child: _SectionSentence(
+                colors: colors,
+                text: 'No targets match the current filter.',
+              ),
+            )
           else
-            Expanded(
-              child: ListView.separated(
+            SliverPadding(
+              padding: _listPadding,
+              sliver: SliverList.separated(
                 key: const ValueKey('target_queue_list'),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 itemCount: filtered.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
@@ -368,7 +437,10 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
               ),
             ),
         ],
-      ),
+        const SliverToBoxAdapter(
+          child: SizedBox(height: NightshadeTokens.spaceMd),
+        ),
+      ],
     );
   }
 
@@ -427,71 +499,81 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
   }
 }
 
-// Header / sort & filter bar
+// Section chrome
 
-class _Header extends StatelessWidget {
+/// The padding both target lists take, so the sequence rows and the wishlist
+/// rows share one left edge down the whole panel.
+const EdgeInsets _listPadding =
+    EdgeInsets.symmetric(horizontal: 8, vertical: 8);
+
+/// An eyebrow label and the number of rows under it.
+///
+/// The panel's own title is gone with it: the toolbox's segmented control
+/// already names this pane "Targets", and a second title under it said the
+/// same word twice. What the sections need is the eyebrow that says which of
+/// the two lists you are reading (06: panel and column labels).
+class _SectionHeader extends StatelessWidget {
   final NightshadeColors colors;
-  final int queueLength;
-  final VoidCallback? onCollapse;
+  final String label;
+  final int count;
 
-  const _Header({
+  const _SectionHeader({
     required this.colors,
-    required this.queueLength,
-    this.onCollapse,
+    required this.label,
+    required this.count,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
+    final style =
+        NightshadeTypography.eyebrow.copyWith(color: colors.textMuted);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceXs,
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.listChecks, size: 14, color: colors.textMuted),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Target Queue',
-              style: NightshadeTypography.labelStrong
-                  .copyWith(color: colors.textPrimary),
+              label.toUpperCase(),
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: colors.border),
-            ),
-            child: Text(
-              '$queueLength',
-              style: NightshadeTypography.labelStrongSm
-                  .copyWith(color: colors.textSecondary),
-            ),
-          ),
-          if (onCollapse != null) ...[
-            const SizedBox(width: 4),
-            Tooltip(
-              message: 'Collapse panel',
-              child: InkWell(
-                onTap: onCollapse,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline4),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    LucideIcons.panelLeftClose,
-                    size: 14,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Text('$count', style: style),
         ],
+      ),
+    );
+  }
+}
+
+/// One plain sentence under a section header: what the empty list is for, or
+/// why the populated one is showing nothing. No icon and no headline above it
+/// — an empty list inside a 280 px pane is a line of explanation, not a
+/// full-height illustrated state (07).
+class _SectionSentence extends StatelessWidget {
+  final NightshadeColors colors;
+  final String text;
+
+  const _SectionSentence({required this.colors, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceXs,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceSm,
+      ),
+      child: Text(
+        text,
+        style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
       ),
     );
   }
@@ -515,7 +597,7 @@ class _SortFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
       child: Row(
         children: [
           Expanded(
@@ -577,7 +659,7 @@ class _Dropdown<T> extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+          color: colors.well,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
@@ -610,68 +692,205 @@ class _Dropdown<T> extends StatelessWidget {
   }
 }
 
-// Empty / no-match states
+// In this sequence
 
-class _EmptyState extends ConsumerWidget {
+/// What a target's subtree plans to capture, in one phrase.
+///
+/// Reads the shared [plannedCaptureUnder] walk, so this row, the target card
+/// in the tree and the library preview cannot disagree about the same target.
+/// The honesty rules are the walk's own: an open-ended Smart Exposure has no
+/// fixed count and is described as looping rather than as zero frames, and a
+/// non-`count` loop makes the counted figure one pass rather than the night.
+String targetPlanSummary(PlannedCapture planned) {
+  if (planned.isEmpty) return 'No exposures yet';
+
+  final parts = <String>[];
+  if (planned.frames > 0) {
+    final integration = DurationFormat.seconds(
+      planned.integrationSecs,
+      style: DurationStyle.compact,
+    );
+    parts.add(
+      '${countLabel(planned.frames, 'frame')} \u00b7 $integration'
+      '${planned.hasUnboundedRepeat ? ' per pass' : ''}',
+    );
+  }
+  if (planned.hasOpenEndedLoop) {
+    final budget = planned.openEndedBudgetSecs > 0
+        ? 'looping up to ${DurationFormat.seconds(
+            planned.openEndedBudgetSecs,
+            style: DurationStyle.compact,
+          )}'
+        : 'looping until the window closes';
+    parts.add(parts.isEmpty ? _sentenceCase(budget) : budget);
+  }
+  return parts.join(' + ');
+}
+
+String _sentenceCase(String value) =>
+    value.isEmpty ? value : value[0].toUpperCase() + value.substring(1);
+
+/// One target already in the loaded sequence.
+///
+/// Tapping it selects the header in the tree and scrolls it into view \u2014 the
+/// same "select, then `Scrollable.ensureVisible` through the key registry"
+/// jump the step finder and the minimap make, so the three navigations land
+/// the row in the same place at the same speed.
+class _InSequenceRow extends ConsumerWidget {
   final NightshadeColors colors;
+  final TargetHeaderNode node;
+  final PlannedCapture planned;
+  final bool isSelected;
 
-  const _EmptyState({required this.colors});
+  const _InSequenceRow({
+    required this.colors,
+    required this.node,
+    required this.planned,
+    required this.isSelected,
+  });
+
+  /// Land the row ~30 % from the top, matching the minimap and the run's own
+  /// auto-follow, so its children are visible under it.
+  static const double _revealAlignment = 0.3;
+
+  void _select(BuildContext context, WidgetRef ref) {
+    ref.read(multiSelectedNodeIdsProvider.notifier).clear();
+    ref.read(selectedNodeIdProvider.notifier).state = node.id;
+
+    // No key when the target sits inside a collapsed container: the row is not
+    // built, so there is nothing to scroll to. Selection still lands, and the
+    // inspector follows it \u2014 the same limit the step finder has.
+    final target = ref.read(treeNodeKeyRegistryProvider)?[node.id];
+    final anchor = target?.currentContext;
+    if (anchor != null) {
+      Scrollable.ensureVisible(
+        anchor,
+        duration: animationDuration(context, NightshadeTokens.durationSlow),
+        curve: NightshadeTokens.curveStandard,
+        alignment: _revealAlignment,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.list,
-                size: 32, color: colors.textMuted.withValues(alpha: 0.6)),
-            const SizedBox(height: 12),
-            Text(
-              'Your target queue is empty.',
-              textAlign: TextAlign.center,
-              style:
-                  NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+    final name = node.targetName.isEmpty ? node.name : node.targetName;
+    final unset = targetCoordinatesUnset(node);
+    final summary = targetPlanSummary(planned);
+    final chipLabels = unset
+        ? const <String>['Not set']
+        : <String>[
+            CoordinateFormat.raHm(
+              node.raHours,
+              style: SexagesimalStyle.compactLetters,
+              wrapHours: true,
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Add targets from Plan Tonight \u2192 Planetarium, then drag '
-              'them into the sequence tree to start a plan. This queue is the '
-              'builder\'s own \u2014 the autopilot runs the separate '
-              'scheduler queue in Plan Tonight \u2192 Schedule.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
+            CoordinateFormat.decDm(
+              node.decDegrees,
+              style: SexagesimalStyle.compactLetters,
+            ),
+          ];
+
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: <String>[name, ...chipLabels, summary].join(' \u00b7 '),
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _select(context, ref),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? colors.primary
+                      .withValues(alpha: NightshadeTokens.opacityStatusFill)
+                  : colors.well,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              border: Border.all(
+                color: isSelected ? colors.primary : colors.border,
               ),
             ),
-          ],
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(LucideIcons.target, size: 12, color: colors.primary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: NightshadeTypography.labelStrong
+                            .copyWith(color: colors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: NightshadeTokens.spaceXs,
+                  runSpacing: NightshadeTokens.spaceXs,
+                  children: [
+                    for (final label in chipLabels)
+                      _TargetChip(
+                        colors: colors,
+                        label: label,
+                        tone: unset ? colors.warning : null,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  summary,
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textSecondary),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _NoMatchesState extends StatelessWidget {
+/// A coordinate (or "Not set") chip, cut to the ledger row's chip so the same
+/// target reads the same in the panel and in the tree. [tone] null is a fact
+/// about the target; a toned chip carries state, and "Not set" is `warning`
+/// because exactly 0h/+0\u00b0 is a real point in Pisces and printing it as a
+/// settled pointing is the bug [targetCoordinatesUnset] exists to prevent.
+class _TargetChip extends StatelessWidget {
   final NightshadeColors colors;
-  const _NoMatchesState({required this.colors});
+  final String label;
+  final Color? tone;
+
+  const _TargetChip({
+    required this.colors,
+    required this.label,
+    this.tone,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'No targets match the current filter.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted,
-            ),
-          ),
+    return Container(
+      padding: NightshadeTokens.paddingXs,
+      decoration: NightshadeDecorations.chip(colors, tone: tone),
+      child: Text(
+        label,
+        style: NightshadeTypography.overline.copyWith(
+          color: tone ?? colors.textSecondary,
         ),
+        softWrap: false,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -801,7 +1020,7 @@ class _RowCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: target.isActive
             ? colors.primary.withValues(alpha: 0.06)
-            : colors.surfaceAlt,
+            : colors.well,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: accent),
       ),
