@@ -187,7 +187,25 @@ class _TimeDisplayState extends ConsumerState<_TimeDisplay>
     final siteIsSet = settings != null &&
         siteLocationIsSet(settings.latitude, settings.longitude);
     // Only read the LST once we know whose LST it is.
-    final lst = siteIsSet ? ref.watch(localSiderealTimeProvider) : null;
+    //
+    // Watch what is DISPLAYED, not the underlying double. The chip renders LST
+    // as `HH:mm`, but `localSiderealTimeProvider` is a `double` recomputed off
+    // a 1 Hz wall clock, so a whole-provider watch rebuilt this chip sixty
+    // times for every change an operator can see — and on Flutter's Linux
+    // embedder, which has no damage region, each of those repainted the entire
+    // window. Selecting the formatted text makes a rebuild MEAN the text moved.
+    //
+    // `known` rides along because the semantic label distinguishes "no sidereal
+    // time" from a real one, and the em dash [formatLstChip] returns for null
+    // is a rendering detail, not a signal to switch on. Records compare
+    // structurally, so the pair changes exactly when one of its halves does.
+    final lstChip = siteIsSet
+        ? ref.watch(
+            localSiderealTimeProvider.select(
+              (hours) => (text: formatLstChip(hours), known: hours != null),
+            ),
+          )
+        : (text: formatLstChip(null), known: false);
     final l10n = context.l10n;
     final lstTooltip = settings == null
         ? l10n.text('statusLstLoading')
@@ -219,9 +237,9 @@ class _TimeDisplayState extends ConsumerState<_TimeDisplay>
           value: timeStr,
           mono: true,
           trailingLabel: 'LST',
-          trailingValue: formatLstChip(lst),
+          trailingValue: lstChip.text,
           semanticLabel: 'Local time $timeStr, '
-              '${lst == null ? 'sidereal time unknown' : 'LST ${formatLstChip(lst)}'}',
+              '${lstChip.known ? 'LST ${lstChip.text}' : 'sidereal time unknown'}',
         ),
       ),
     );

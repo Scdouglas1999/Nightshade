@@ -24,12 +24,29 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator> {
   @override
   Widget build(BuildContext context) {
     final executionState = ref.watch(sequenceExecutionStateProvider);
-    final progress = ref.watch(sequenceProgressProvider);
+    // Same rule as the LST chip next door: watch what is DISPLAYED. While a run
+    // is in flight the executor republishes progress every second
+    // (`_startPerRunTimers`), and most of what moves in it — elapsed seconds,
+    // the smoothed ETA — is not on this pill. Whole-watching it rebuilt the pill
+    // once a second for the length of a night, and on an embedder with no
+    // damage region that is a full-window repaint each time.
+    //
+    // The percentage is rounded INSIDE the selector, so the pill rebuilds when
+    // the integer it prints changes, not when the underlying double drifts.
+    final progress = ref.watch(
+      sequenceProgressProvider.select(
+        (p) => (
+          hasExposures: p.totalExposures > 0,
+          percent: (p.progressPercent * 100).round(),
+          currentTarget: p.currentTarget ?? '',
+          currentNodeName: p.currentNodeName ?? '',
+          message: p.message ?? '',
+        ),
+      ),
+    );
     final statusText = _statusText(executionState);
     final isRunning = executionState == SequenceExecutionState.running;
-    final progressPercent = progress.totalExposures > 0
-        ? (progress.progressPercent * 100).round()
-        : null;
+    final progressPercent = progress.hasExposures ? progress.percent : null;
     // The percentage rides on the pill only while a run is actually in
     // flight; "Completed 100%" and "Idle 0%" are two words where one is true.
     final displayText = progressPercent != null &&
@@ -40,17 +57,17 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator> {
         : statusText;
     final tooltipLines = <String>[
       statusText,
-      if ((progress.currentTarget ?? '').isNotEmpty)
+      if (progress.currentTarget.isNotEmpty)
         widget.l10n.text(
           'statusSequenceTarget',
-          params: {'name': progress.currentTarget!},
+          params: {'name': progress.currentTarget},
         ),
-      if ((progress.currentNodeName ?? '').isNotEmpty)
+      if (progress.currentNodeName.isNotEmpty)
         widget.l10n.text(
           'statusSequenceStep',
-          params: {'name': progress.currentNodeName!},
+          params: {'name': progress.currentNodeName},
         ),
-      if ((progress.message ?? '').isNotEmpty) progress.message!,
+      if (progress.message.isNotEmpty) progress.message,
     ];
 
     return Tooltip(
