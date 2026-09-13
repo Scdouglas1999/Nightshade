@@ -70,11 +70,15 @@ class CockpitNowImaging extends ConsumerWidget {
 
     final sky = ref.watch(runDashboardSkyStatsProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
-    final hasLocation = settingsAsync.valueOrNull?.hasObserverLocation ?? false;
+    // A settings read still in flight is not evidence the site is unset. Only
+    // send the operator to go set one once the settings actually say it is
+    // missing; until then the altitude is merely unknown.
+    final locationUnset =
+        settingsAsync.valueOrNull?.hasObserverLocation == false;
 
     final altText = sky != null
         ? '${sky.altitudeDeg.toStringAsFixed(1)}°'
-        : (hasLocation ? '—' : 'set location');
+        : (locationUnset ? 'set location' : '—');
     final altColor =
         sky == null ? colors.textMuted : _altitudeColor(sky, colors);
 

@@ -452,8 +452,10 @@ final ledgerEtaProvider = Provider.autoDispose<Map<String, LedgerEta>>((ref) {
   return ledgerEtasFor(
     sequence,
     simulation,
-    // An empty (run-active) clock stream has no value; `now` is only read when
-    // the run is idle, so falling back to a fresh read is correct.
+    // `now` is the wall clock, idle or running (running, it is what pushes the
+    // pending tail when a node overruns). The stream's own first event is a
+    // `DateTime.now()`, so this reads the same clock one moment earlier on the
+    // build that precedes it — not a stand-in for a time nobody measured.
     now: ref.watch(ledgerClockProvider).valueOrNull ?? DateTime.now(),
     runActive: runActive,
     runStart: ref.watch(sessionStateProvider).startTime,

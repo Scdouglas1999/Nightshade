@@ -24,6 +24,7 @@ class TonightMoonPanel extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
     final night = ref.watch(tonightNightProvider);
+    final illumination = night?.moonIlluminationPercent;
     final percent = night?.moonIlluminationRounded;
 
     return NightshadePanel(
@@ -34,18 +35,24 @@ class TonightMoonPanel extends ConsumerWidget {
           SizedBox(
             width: _discSize,
             height: _discSize,
-            child: CustomPaint(
-              painter: MoonPainter(
-                // MoonPainter takes 0–100, which is what the provider hands us.
-                illumination: night?.moonIlluminationPercent ?? 0,
-                // Waxing between new and full: the moon that sets AFTER the sun
-                // is the one lit on its western limb.
-                waxing: _isWaxing(night),
-                litColor: colors.textPrimary,
-                darkColor: colors.well,
-                borderColor: colors.border,
-              ),
-            ),
+            // No illumination figure, no disc. A 0 % phase paints a fully dark
+            // circle that reads as a confident new moon, and the Illuminated
+            // readout beside it is showing '—' for the very same missing value.
+            child: illumination == null
+                ? null
+                : CustomPaint(
+                    painter: MoonPainter(
+                      // MoonPainter takes 0–100, which is what the provider
+                      // hands us.
+                      illumination: illumination,
+                      // Waxing between new and full: the moon that sets AFTER
+                      // the sun is the one lit on its western limb.
+                      waxing: _isWaxing(night),
+                      litColor: colors.textPrimary,
+                      darkColor: colors.well,
+                      borderColor: colors.border,
+                    ),
+                  ),
           ),
           const SizedBox(width: NightshadeTokens.spaceLg),
           Expanded(
