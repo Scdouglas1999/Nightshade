@@ -3809,68 +3809,42 @@ fn generate_fits_thumbnail_jpeg(
         )));
     }
 
-    // Convert to u16 data
-    let data_u16 = match image_data.pixel_type {
-        nightshade_imaging::PixelType::U8 => {
-            // Convert u8 to u16
-            image_data
-                .data
-                .iter()
-                .map(|&b| (b as u16) << 8)
-                .collect::<Vec<u16>>()
-        }
-        nightshade_imaging::PixelType::U16 => {
-            // Already u16, convert bytes to u16 values
-            image_data
-                .data
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-                .collect::<Vec<u16>>()
-        }
-        nightshade_imaging::PixelType::U32 => {
-            // Convert u32 to u16 (downscale)
-            image_data
-                .data
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|chunk| {
-                    let val = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                    (val >> 16) as u16 // Take high 16 bits
-                })
-                .collect::<Vec<u16>>()
-        }
-        nightshade_imaging::PixelType::F32 => {
-            // Convert f32 to u16 (scale 0.0-1.0 to 0-65535)
-            image_data
-                .data
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|chunk| {
-                    let val = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                    (val.clamp(0.0, 1.0) * 65535.0) as u16
-                })
-                .collect::<Vec<u16>>()
-        }
-        nightshade_imaging::PixelType::F64 => {
-            // Convert f64 to u16 (scale 0.0-1.0 to 0-65535)
-            image_data
-                .data
-                .as_chunks::<8>()
-                .0
-                .iter()
-                .map(|chunk| {
-                    let val = f64::from_le_bytes([
-                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                        chunk[7],
-                    ]);
-                    (val.clamp(0.0, 1.0) * 65535.0) as u16
-                })
-                .collect::<Vec<u16>>()
-        }
+    // One sample, converted on demand.
+    //
+    // This used to convert the WHOLE frame to `Vec<u16>` first — a second
+    // 32.8 MB allocation for an ASI1600 frame, and 16.4 million conversions —
+    // and then read one sample in every `scale` from it. A 512 px thumbnail of
+    // a 4656 px frame keeps one pixel in 81, so all but 1.2% of that work was
+    // thrown away. Converting per sampled sample instead costs the same per
+    // pixel that survives and nothing for the pixels that do not.
+    let bytes_per_sample = image_data.pixel_type.byte_size();
+    let raw = image_data.data.as_slice();
+    let sample_at = |index: usize| -> Result<u16, NightshadeError> {
+        let offset = index * bytes_per_sample;
+        let chunk = raw.get(offset..offset + bytes_per_sample).ok_or_else(|| {
+            NightshadeError::ImageError(format!(
+                "FITS sample {} falls outside its validated buffer",
+                index
+            ))
+        })?;
+        Ok(match image_data.pixel_type {
+            nightshade_imaging::PixelType::U8 => u16::from(chunk[0]) << 8,
+            nightshade_imaging::PixelType::U16 => u16::from_le_bytes([chunk[0], chunk[1]]),
+            // High 16 bits, matching the whole-frame conversion this replaced.
+            nightshade_imaging::PixelType::U32 => {
+                (u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) >> 16) as u16
+            }
+            nightshade_imaging::PixelType::F32 => {
+                let value = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                (value.clamp(0.0, 1.0) * 65535.0) as u16
+            }
+            nightshade_imaging::PixelType::F64 => {
+                let value = f64::from_le_bytes([
+                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
+                ]);
+                (value.clamp(0.0, 1.0) * 65535.0) as u16
+            }
+        })
     };
 
     // Calculate downscale factor
@@ -3920,25 +3894,19 @@ fn generate_fits_thumbnail_jpeg(
             let sample_end = sample_idx.checked_add(channels).ok_or_else(|| {
                 NightshadeError::ImageError("FITS sample index overflow".to_string())
             })?;
-            let samples = data_u16.get(sample_idx..sample_end).ok_or_else(|| {
-                NightshadeError::ImageError(format!(
+            if sample_end > sample_count {
+                return Err(NightshadeError::ImageError(format!(
                     "FITS pixel {} falls outside its validated sample buffer",
                     pixel_idx
-                ))
-            })?;
-            if let [r, g, b, ..] = samples {
-                let r = *r as u32;
-                let g = *g as u32;
-                let b = *b as u32;
+                )));
+            }
+            if channels >= 3 {
+                let r = u32::from(sample_at(sample_idx)?);
+                let g = u32::from(sample_at(sample_idx + 1)?);
+                let b = u32::from(sample_at(sample_idx + 2)?);
                 downscaled.push(((77 * r + 150 * g + 29 * b + 128) >> 8) as u16);
             } else {
-                let value = samples.first().copied().ok_or_else(|| {
-                    NightshadeError::ImageError(format!(
-                        "FITS pixel {} has no channel samples",
-                        pixel_idx
-                    ))
-                })?;
-                downscaled.push(value);
+                downscaled.push(sample_at(sample_idx)?);
             }
         }
     }
@@ -5266,3 +5234,6 @@ mod calibrate_header_carry_over_tests;
 
 #[cfg(test)]
 mod frame_stats_tests;
+
+#[cfg(test)]
+mod fits_thumbnail_tests;
