@@ -95,7 +95,7 @@ class _TargetDetailColumn extends ConsumerWidget {
       // The sensor the exposure above was computed from, and where each of its
       // figures came from. It belongs beside the exposure, not on a settings
       // screen: this is the number the owner found the app calling unknown.
-      const _SensorSpecsProvenanceRow(),
+      const CameraSensorSpecsRow(),
       if (target.warnings.isNotEmpty) ...[
         const SizedBox(height: NightshadeTokens.spaceMd),
         // ONE banner for the target's problems, not one per warning: the

@@ -143,11 +143,14 @@ class _CameraSensorSpecsDialogState
           color: colors.textPrimary,
         ),
       ),
-      content: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
+      // A definite width, not a max: the content column stretches its fields
+      // to the dialog's width, and AlertDialog measures its child's intrinsic
+      // width, which an unbounded stretch cannot answer.
+      content: SizedBox(
+        width: AdaptiveDialogConstraints.dialogSize(
           context,
-          designMaxWidth: _dialogWidth,
-        ),
+          designWidth: _dialogWidth,
+        ).width,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
