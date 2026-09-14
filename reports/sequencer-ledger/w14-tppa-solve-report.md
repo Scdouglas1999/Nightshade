@@ -216,6 +216,79 @@ amplification by nine, and the new log line
 (`circle radius …, arc …, one arcmin … moves this axis …`) will say immediately whether the
 remaining offset is real.
 
+## Part 3 — the manual solve button (live follow-up, 03:13-03:21 UTC)
+
+With Part 1 on the rig the **automatic** post-capture solve ran
+`-ra 0.984722 -spd 145.950000 -r 30.00 -fov 0.7543 -z 2` against a mount really at
+RA 14.8°/Dec 55.95° and succeeded three times. The owner's manual **"Solve latest camera
+frame"** ran `Plate solving near RA:341.84°, Dec:58.13°` with `-r 5.00` — a position from
+01:34 UTC, before hours of slews and a NINA polar alignment — so ASTAP answered
+"No solution found!" in about a second, twice, and the button reported failure with no
+fallback. "Solving when I click Solve latest camera frame no longer works."
+
+Two separate defects, one in each language.
+
+### The hint was the framing target, not the telescope
+
+`_solveCurrentFrame` (`packages/nightshade_app/lib/screens/framing/widgets/framing_actions_panel.dart`)
+passed `target.raHours` / `target.decDegrees`. The framing target is resolved once and then
+outlives every slew of the session, so the hint decays from "where the scope is" to "where
+the operator wanted it hours ago" — and a 5° radius around a hint that is 30° stale is a
+guarantee of failure, not a speed-up. It now reads `mountStateProvider` at click time and
+uses `mountState.ra`/`.dec` (hours, as that model reports them) whenever the mount is
+connected AND has reported a position; the target remains the hint when there is no mount,
+or when a connected mount has not reported one yet (a fabricated 0h/0° hint would send the
+solver to a patch of sky the telescope is nowhere near).
+
+### No hinted solve escalated — now they all do, in one place
+
+Every solve in the app converges on `plate_solve_near_scaled` /
+`plate_solve_blind_scaled`, so that is where the ladder went:
+
+1. the caller's radius (5° for manual and for the automatic post-capture path, 30° for
+   polar alignment),
+2. `WIDE_SEARCH_RADIUS_DEG` = 30°, skipped when the caller already asked for 30° or more so
+   no solve is run twice,
+3. blind.
+
+Each rung logs why it escalated
+(`no solution within 5° of RA 341.84°, Dec 58.13° (No solution found!); escalating`), and a
+frame that no rung solves reports **what was tried**:
+`No solution found for this frame. Tried 5° around the hint, then 30° around the hint, then
+a blind solve near RA 341.84°, Dec 58.13°.` That string is already what the framing panel's
+error banner and snackbar render, so item (3) needed no UI change — the UI was faithfully
+showing a message that had nothing in it.
+
+**The coalescer is intact and the ladder is inside it.** `solve_ladder` is called from
+within `coalesced_solve`'s closure and itself calls the *uncoalesced* `plate_solve_*_inner`
+entries — calling the coalesced ones would have deadlocked the leader against its own
+in-flight entry. A follower therefore waits on the whole ladder and receives the rung it
+*ended* on, which
+`a_follower_receives_the_escalated_result_not_the_first_rung` pins (two callers, one ladder
+run, both get the escalated answer). The Hinted-leads-Blind preference is unchanged.
+
+**Budget.** The whole ladder fits inside the caller's timeout: the hinted rungs share
+`max(50%, 15 s)` of it and the blind rung takes the rest (skipped under 10 s). Running each
+rung for the full timeout would have tripled every frame's cost. In practice a failed
+hinted rung returns in ~1 s, so at the 60 s default the blind rung still gets ~45 s.
+
+### Part 1's TPPA ladder was deleted, not duplicated
+
+`solve_polar_frame` had grown its own hinted-then-blind ladder with its own budget split and
+its own watchdog. That logic now lives once, in `plate_solve.rs`, and polar alignment is a
+caller like any other: it decides what the hint IS (the mount's position, 30° radius, the
+`-z` rule) and the shared ladder decides how hard to try. `PolarSolvePath`,
+`run_polar_solve_attempt`, `split_polar_solve_budget`, `astap_process_timeout_secs` and
+`format_polar_solve_failure` are gone; their tests moved to `solve_ladder_tests` and now
+cover every path instead of one.
+
+### Noted, not changed
+
+`NightshadeBackend.plateSolve`'s `fovDegrees` parameter is the search RADIUS, not a field of
+view (`plate_solve_service.dart:211` passes `config.searchRadius` into it). The name is
+wrong at three backend implementations and one role interface; renaming it touches files
+other agents hold, and it is not tonight's bug.
+
 ## Deviations from the brief
 
 1. **"The ASTAP process timeout must be ≥ the point timeout."** Held exactly for the
@@ -255,12 +328,13 @@ remaining offset is real.
 
 | Command | Exit |
 | --- | --- |
-| `cargo test -p nightshade_sequencer -p nightshade_bridge -p nightshade_native --lib` (TMPDIR=~/.cache/ns-tests, CARGO_TARGET_DIR=~/.cache/ns-worktrees/cargo-target) | 0 — 708 + 202 + 868 passed, 0 failed |
+| `cargo test -p nightshade_bridge -p nightshade_native -p nightshade_sequencer --lib` (TMPDIR=~/.cache/ns-tests, CARGO_TARGET_DIR=~/.cache/ns-worktrees/cargo-target) | 0 — 713 + 202 + 868 passed, 0 failed |
 | `cargo test -p nightshade_imaging --lib` | 0 — 865 passed, 0 failed |
 | `cargo build --release -p nightshade_bridge` | 0 (Linux preview stays buildable) |
 | `cargo clippy -p nightshade_bridge -p nightshade_imaging -p nightshade_sequencer --lib --all-targets` | 0, no warnings |
 | `rustfmt --check` on the seven files this branch touches | 0. Repo-wide `cargo fmt --check` is red at the base commit (depthlock/mod.rs, sequencer/src/lib.rs, sequencer/tests/dart_wire_contract.rs); those were left as they were found. |
 | `flutter test test/screens/polar_alignment --concurrency=3` (nightshade_app) | 0 — 62 passed |
+| `flutter test test/screens/framing --concurrency=3` (nightshade_app) | 1 — 146 passed, **2 pre-existing golden failures** (`framing_hips_layer_wiring`, `framing_canvas_golden`) at 100.00% pixel diff: Windows-captured goldens on Linux. This branch touches no canvas, HiPS or rendering file (`git diff --name-only` = plate_solve.rs, polar_alignment/solve.rs, framing_actions_panel.dart). The three new hint-freshness tests pass. |
 | `flutter test test/models/polar_alignment_config_validation_test.dart test/providers/polar_alignment_{run_control,stop_acknowledgement}_test.dart` (nightshade_core) | 0 — 35 passed |
 | `flutter test test/headless_api/session_handlers_test.dart` (apps/desktop) | 0 — 22 passed |
 | `dart format --output=none --set-exit-if-changed packages/nightshade_app packages/nightshade_core apps/desktop/…/session_handlers.dart` | 0 — 3714 files, 0 changed |
@@ -269,6 +343,20 @@ remaining offset is real.
 | `dart analyze lib/headless_api` (apps/desktop) | 0 — no issues found |
 
 ## Tests added
+
+Rust (`bridge/src/api/plate_solve.rs`, `solve_ladder_tests`) — the escalation ladder: a
+narrow hint widens before giving up, an already-wide hint is not searched twice, a
+meaningless radius falls back to the wide one, the whole ladder fits inside the configured
+timeout, a hintless frame spends it all solving blind, a short budget keeps the hinted floor
+and drops a hopeless blind rung, an impossible timeout is clamped, ASTAP owns each rung's
+deadline with the watchdog behind it, a follower on a coalesced frame receives the escalated
+result (not the first rung, and the ladder runs once), and a frame no rung solves names
+every rung it tried plus the hint it tried them around.
+
+Dart (`packages/nightshade_app/test/screens/framing/framing_solve_hint_freshness_test.dart`)
+— two clicks with the mount moved between them produce two different hints (the target
+unchanged throughout, which is the point), no mount falls back to the target, and a connected
+mount that has not reported a position falls back to the target rather than hinting at 0h/0°.
 
 Rust (`sequencer/src/polar_align/math.rs`) — the geometry: the rig's exact three points
 returning a northern axis (and its southern mirror), east and west sweeps of one circle
