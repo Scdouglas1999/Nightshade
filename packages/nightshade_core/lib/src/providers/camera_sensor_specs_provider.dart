@@ -22,6 +22,12 @@ import 'profiles_provider.dart';
 /// share a single fetch. They used to load it separately, which on a remote
 /// client meant two `GET /api/smart-night/settings` round trips for every
 /// planner rebuild.
+///
+/// Locally it rides the settings table's own stream rather than reading it
+/// once, so a correction saved anywhere — the camera sensor specs dialog, the
+/// headless API — reaches the planner without a manual invalidation somebody
+/// has to remember. A one-shot read here left the Plan screen still warning
+/// about a camera the user had just described.
 final rigCameraSettingsProvider = FutureProvider<Map<String, String>>((
   ref,
 ) async {
@@ -33,7 +39,7 @@ final rigCameraSettingsProvider = FutureProvider<Map<String, String>>((
     ]);
     return {...values[0], ...values[1]};
   }
-  return ref.watch(settingsDaoProvider).getAllSettings();
+  return ref.watch(allSettingsProvider.future);
 });
 
 /// The resolver. Overridden in tests to pin a database.

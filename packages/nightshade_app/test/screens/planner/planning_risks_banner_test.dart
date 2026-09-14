@@ -1,4 +1,3 @@
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,40 +5,32 @@ import 'package:nightshade_app/screens/planner/widgets/planning_risks_banner.dar
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// The profile the owner reported the defect from: an ASI1600MM-Cool with no
-/// sensor fields filled in and no camera connected.
-const _ownersProfile = EquipmentProfileModel(
-  name: 'Backyard rig',
-  cameraId: 'ASI1600MM-Cool',
-  cameraName: 'ASI1600MM-Cool',
-  focalLength: 500,
-  aperture: 100,
-  defaultGain: 139,
-  filterNames: ['L'],
-);
+/// The resolution chain has its own tests in `nightshade_core`; these pump the
+/// chain's OUTPUT so the banner and the provenance row are what is under test.
+/// Standing a real database up here would also hand the test a live settings
+/// stream whose timer outlives the widget tree.
+ResolvedCameraSensorSpecs _resolved(String? cameraName, {int? gain}) =>
+    CameraSensorSpecResolver().resolve(
+      CameraSensorSpecInputs(cameraName: cameraName, gain: gain),
+    );
 
-const _unknownCameraProfile = EquipmentProfileModel(
-  name: 'Mystery rig',
-  cameraId: 'Acme SkyCam 9000',
-  cameraName: 'Acme SkyCam 9000',
-  focalLength: 500,
-  aperture: 100,
-  filterNames: ['L'],
-);
+/// The camera the owner reported the defect from, with nothing connected: only
+/// the published specification can answer for it.
+final _ownersCamera = _resolved('ASI1600MM-Cool', gain: 139);
+
+/// A camera no manufacturer here publishes.
+final _unknownCamera = _resolved('Acme SkyCam 9000');
 
 Future<void> _pump(
   WidgetTester tester, {
   required List<String> riskFactors,
-  EquipmentProfileModel? profile,
+  required ResolvedCameraSensorSpecs specs,
   Widget? child,
 }) async {
-  final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-  addTearDown(db.close);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        databaseProvider.overrideWithValue(db),
-        activeEquipmentProfileProvider.overrideWithValue(profile),
+        activeCameraSensorSpecsProvider.overrideWith((ref) async => specs),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -61,7 +52,7 @@ void main() {
     ) async {
       await _pump(
         tester,
-        profile: _ownersProfile,
+        specs: _ownersCamera,
         riskFactors: const [
           'Moon separation is tight; gradients or contrast loss are more '
               'likely.',
@@ -80,7 +71,7 @@ void main() {
         'the camera', (tester) async {
       await _pump(
         tester,
-        profile: _unknownCameraProfile,
+        specs: _unknownCamera,
         riskFactors: [
           for (final field in [
             SensorSpecField.readNoise,
@@ -116,7 +107,7 @@ void main() {
         'becoming a second one', (tester) async {
       await _pump(
         tester,
-        profile: _unknownCameraProfile,
+        specs: _unknownCamera,
         riskFactors: [
           sensorSpecCaveat(
             field: SensorSpecField.readNoise,
@@ -138,7 +129,7 @@ void main() {
     ) async {
       await _pump(
         tester,
-        profile: null,
+        specs: ResolvedCameraSensorSpecs.none,
         riskFactors: [
           sensorSpecCaveat(
             field: SensorSpecField.pixelSize,
@@ -158,7 +149,7 @@ void main() {
     ) async {
       await _pump(
         tester,
-        profile: _ownersProfile,
+        specs: _ownersCamera,
         riskFactors: const [unreadableSensorOverridesCaveat],
       );
       // It is a sensor caveat, so it collapses into the sensor banner rather
@@ -173,7 +164,7 @@ void main() {
     ) async {
       await _pump(
         tester,
-        profile: _ownersProfile,
+        specs: _ownersCamera,
         riskFactors: const [],
         child: const CameraSensorSpecsRow(),
       );
@@ -187,26 +178,60 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Published specs'), findsOneWidget);
+      expect(find.text('Camera sensor'), findsOneWidget);
     });
 
     testWidgets('says nothing when nothing resolved', (tester) async {
       await _pump(
         tester,
-        profile: _unknownCameraProfile,
+        specs: _unknownCamera,
         riskFactors: const [],
         child: const CameraSensorSpecsRow(),
       );
-      expect(find.byType(ListRow), findsNothing);
+      expect(find.text('Camera sensor'), findsNothing);
     });
 
     testWidgets('says nothing when there is no camera at all', (tester) async {
       await _pump(
         tester,
-        profile: null,
+        specs: ResolvedCameraSensorSpecs.none,
         riskFactors: const [],
         child: const CameraSensorSpecsRow(),
       );
-      expect(find.byType(ListRow), findsNothing);
+      expect(find.text('Camera sensor'), findsNothing);
+    });
+
+    testWidgets('the row is one activatable node that reads its provenance', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await _pump(
+        tester,
+        specs: _ownersCamera,
+        riskFactors: const [],
+        child: const CameraSensorSpecsRow(),
+      );
+
+      // ONE node for the whole row, not one per figure, and it reads the
+      // values AND where each came from — including the gain ZWO quotes the
+      // read noise at, which is the clause a reader can be misled by.
+      expect(
+        find.bySemanticsLabel(
+          'Camera sensor specs for ZWO ASI1600MM: '
+          '3.8 µm · 4656 × 3520 · 1.2 e⁻ read noise · 20,000 e⁻ well · 60% QE. '
+          'Pixel size: the published pixel pitch for ZWO ASI1600MM. '
+          'Sensor width and sensor height: the published resolution for '
+          'ZWO ASI1600MM. '
+          'Read noise: the published figure for ZWO ASI1600MM, which the '
+          'manufacturer quotes only at 30 dB gain. '
+          'Full well: the published figure for ZWO ASI1600MM, which the '
+          'manufacturer quotes with no gain stated. '
+          'QE: the published peak QE for ZWO ASI1600MM. '
+          'Activate to correct them.',
+        ),
+        findsOneWidget,
+      );
+      handle.dispose();
     });
   });
 }

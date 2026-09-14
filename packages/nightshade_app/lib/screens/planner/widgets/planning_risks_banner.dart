@@ -100,19 +100,81 @@ class PlanningRisksBanner extends ConsumerWidget {
 class CameraSensorSpecsRow extends ConsumerWidget {
   const CameraSensorSpecsRow({super.key});
 
+  /// Room for the five figures to wrap inside the 380px detail column. A
+  /// single-line row truncated the read noise to "1.2 e- r…", which states a
+  /// number and then hides which number it is.
+  static const int _maxSummaryLines = 3;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final specs = ref.watch(activeCameraSensorSpecsProvider).valueOrNull;
     if (specs == null || specs.isEmpty) return const SizedBox.shrink();
+    final colors = context.nightshadeColors;
+    final origin = specs.originLabel;
+    final camera = specs.databaseEntry?.model ?? specs.reportedModel;
 
     return NightshadeTooltip(
       message: specs.provenanceSentence,
-      child: ListRow(
-        icon: LucideIcons.camera,
-        title: specs.valueSummary,
-        trailing: specs.originLabel,
-        onTap: () => CameraSensorSpecsDialog.show(context, specs),
-        showDivider: false,
+      child: Semantics(
+        button: true,
+        label: 'Camera sensor specs for ${camera ?? 'this camera'}: '
+            '${specs.valueSummary}. ${specs.provenanceSentence} '
+            'Activate to correct them.',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: () => CameraSensorSpecsDialog.show(context, specs),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: NightshadeTokens.spaceSm,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  LucideIcons.camera,
+                  size: NightshadeTokens.iconSm,
+                  color: colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Camera sensor',
+                              style: NightshadeTypography.eyebrow.copyWith(
+                                color: colors.textMuted,
+                              ),
+                            ),
+                          ),
+                          if (origin != null)
+                            Text(
+                              origin,
+                              style: NightshadeTypography.caption.copyWith(
+                                color: colors.textMuted,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceXs),
+                      Text(
+                        specs.valueSummary,
+                        style: NightshadeTypography.bodySm.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                        maxLines: _maxSummaryLines,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

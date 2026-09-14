@@ -291,11 +291,18 @@ void main() {
         ),
       );
       expect(specs.originLabel, 'Remembered');
+      // One clause per distinct source phrase, labelled with the fields it
+      // covers — collapsing by tier hid the read noise's operating point,
+      // which is the clause a reader can be misled by.
       expect(
         specs.provenanceSentence,
-        'Remembered from ZWO ASI1600MM on 2026-09-12; and the published '
-        'figure for ZWO ASI1600MM, which the manufacturer quotes only at '
-        '30 dB gain.',
+        'Pixel size, sensor width and sensor height: remembered from '
+        'ZWO ASI1600MM on 2026-09-12. '
+        'Read noise: the published figure for ZWO ASI1600MM, which the '
+        'manufacturer quotes only at 30 dB gain. '
+        'Full well: the published figure for ZWO ASI1600MM, which the '
+        'manufacturer quotes with no gain stated. '
+        'QE: the published peak QE for ZWO ASI1600MM.',
       );
     });
 

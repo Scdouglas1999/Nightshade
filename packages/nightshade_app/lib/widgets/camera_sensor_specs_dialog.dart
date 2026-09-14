@@ -273,9 +273,15 @@ class _CameraSensorSpecsDialogState
   static const double _dialogWidth = 480;
 
   /// What the chain says about one field, as the sentence under its input.
-  String _provenanceOf(SensorSpecField field) {
+  ///
+  /// Null for a field nothing supplied on a camera where nothing was supplied
+  /// at all: the paragraph at the top of the dialog has already said so, and
+  /// repeating it under six empty inputs is noise. On a camera where most
+  /// fields DID resolve, an empty one is the exception and gets the reason.
+  String? _provenanceOf(SensorSpecField field) {
     final value = _specs[field];
     if (value == null) {
+      if (_specs.isEmpty) return null;
       return 'Not published for this camera. Planning falls back to a '
           'conservative estimate until you fill it in.';
     }
@@ -287,7 +293,7 @@ class _CameraSensorSpecsDialogState
     required Key fieldKey,
     required TextEditingController controller,
     required String label,
-    required String provenance,
+    required String? provenance,
     bool numeric = false,
     bool integer = false,
     bool isLast = false,
@@ -316,13 +322,15 @@ class _CameraSensorSpecsDialogState
                   ]
                 : null,
           ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            provenance,
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textMuted,
+          if (provenance != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              provenance,
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -430,8 +438,12 @@ class _CameraSensorSpecsDialogState
       );
       existing.add(spec);
       await _persist(existing);
-      ref.invalidate(activeCameraSensorSpecsProvider);
-      ref.invalidate(smartNightExposureContextProvider);
+      // Locally the chain rides the settings stream and refreshes itself; on a
+      // paired remote client the settings live on the host and are fetched, so
+      // the fetch has to be dropped by hand.
+      if (ref.read(backendProvider) is NetworkBackend) {
+        ref.invalidate(rigCameraSettingsProvider);
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
