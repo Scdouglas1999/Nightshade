@@ -138,7 +138,10 @@ ASI1600MC and ASI183MC QE (the manuals give a peak for the mono sensor only);
 every QHY row's QE (QHY's specification tables carry QE curves, no peak number);
 read noise, full well and QE on every DSLR row (Canon and Nikon publish none).
 
-### The curated database — 30 rows, every figure sourced on the row
+### The curated database — 29 rows, every figure sourced on the row
+
+(The first commit's message says "30 rows"; the count is 29. Corrected here
+rather than by rewriting the branch's history.)
 
 Each `CameraSensorEntry.source` names the document, its revision and its URL.
 Nothing is measured, averaged, inferred from a sibling model or taken from a
@@ -248,9 +251,11 @@ Commands run unpiped in the worktree with
 | 2 | `dart analyze` in `packages/nightshade_core` | 0 — zero errors, zero warnings. 16 pre-existing infos, none in a file this branch touches |
 | 3 | `dart analyze` in `packages/nightshade_app` | 0 — zero errors, zero warnings. 873 pre-existing infos (820 `deprecated_member_use` from the design-system wave); the only three that land in a file I edited (`smart_night_dialog.dart` h4/h5/outline) are verified present at `5b2235cc7` in lines I did not change |
 | 4 | `flutter test test/services test/providers test/models --concurrency=4` in `packages/nightshade_core` | 0 — 5796 passed, 4 pre-existing skips |
-| 5 | `flutter test test/screens/planner test/widgets test/screens/sequencer test/screens/settings test/screens/framing --concurrency=4` in `packages/nightshade_app` | 1 — two pre-existing golden failures, proved identical at `5b2235cc7` (see below); everything else passes |
+| 5 | `flutter test test/screens/planner test/widgets test/screens/sequencer test/screens/settings test/screens/framing --concurrency=4` in `packages/nightshade_app` | 1 — 1963 passed, 2 failed: both pre-existing golden failures, proved identical at `5b2235cc7` (see below) |
+| 5b | `flutter test test/screens/planner test/widgets --concurrency=4` in `packages/nightshade_app`, re-run after the last banner change | 0 — 442 passed |
 | 6 | `flutter test test/headless_api/science_handlers_test.dart --concurrency=4` in `apps/desktop` | 0 — 9 passed |
 | 7 | `flutter build linux --release` in `apps/desktop`, at `5b2235cc7` and at the branch tip | 0 both |
+| 8 | `graphify update .` | 0 |
 
 The two failures in gate 5 are `framing_hips_layer_wiring_test`
 (`goldens/framing_hips_layer_wiring.png`) and `framing_registration_test`
