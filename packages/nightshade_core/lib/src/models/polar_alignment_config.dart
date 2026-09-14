@@ -122,7 +122,12 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
     /// Step size in degrees for mount rotation between measurements
     @Default(15.0) double stepSize,
 
-    /// Camera binning (1, 2, 3, 4)
+    /// Camera binning (1, 2, 3, 4).
+    ///
+    /// 2 is the default because a binned frame plate-solves in a quarter of
+    /// the time and the alignment measurement — where the mount's rotation
+    /// axis sits — is unaffected: the axis is fitted from three solved sky
+    /// positions, not from the resolution they were solved at.
     @Default(2) int binning,
 
     /// Whether observing from northern hemisphere
@@ -134,8 +139,14 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
     /// Direction to rotate (true = east, false = west) for auto rotation
     @Default(true) bool rotateEast,
 
-    /// Timeout in seconds for plate solve attempts
-    @Default(30.0) double solveTimeout,
+    /// Timeout in seconds for one frame's plate solve.
+    ///
+    /// This is the whole budget for the frame, shared by the hinted solve and
+    /// the blind fallback behind it. 30 s was the old default and it was not
+    /// enough: on the owner's rig a full-resolution blind solve of a
+    /// pole-region frame took 26.5 s on a good night and was killed
+    /// mid-solve on a bad one.
+    @Default(90.0) double solveTimeout,
 
     /// Delay between all-sky drift re-solves. Kept in the shared config so
     /// headless/API-started runs are recorded and replayed with the cadence
@@ -282,7 +293,10 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
     exposureTime: 3.0,
     stepSize: 15.0,
     binning: 2,
-    solveTimeout: 20.0,
+    // A binned frame with a position hint solves in seconds; the timeout is
+    // the ceiling, not the cost. 20 s was below what the blind fallback needs
+    // to finish at all, which made "quick" mean "gives up".
+    solveTimeout: 60.0,
   );
 
   /// Create configuration for high-precision alignment
@@ -290,7 +304,9 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
     exposureTime: 10.0,
     stepSize: 30.0,
     binning: 1,
-    solveTimeout: 45.0,
+    // Unbinned frames are the slowest to solve, so this preset gets the
+    // largest budget the validator accepts.
+    solveTimeout: 120.0,
     autoCompleteThreshold: 10.0,
   );
 }

@@ -245,6 +245,7 @@ fn sidereal_hours_for_rotation(status: &MountStatus, observer_longitude_deg: f64
 /// refused when the step would cross the meridian, and the settle wait shares
 /// the pole preamble's abort ordering: cancel or supersede while moving stops
 /// the mount before this returns.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn rotate_for_next_point(
     mount_id: &str,
     next_point: i32,
@@ -252,14 +253,18 @@ pub(crate) async fn rotate_for_next_point(
     rotate_east: bool,
     observer_longitude_deg: f64,
     generation: u64,
+    hold_dec_degrees: Option<f64>,
 ) -> Result<SlewOutcome, String> {
     let status = get_device_manager()
         .mount_get_status(mount_id)
         .await
         .map_err(|e| format!("Could not read the mount's position before rotating: {}", e))?;
+    // `hold_dec_degrees` is the declination measured before the FIRST point,
+    // held for the whole run so the three points share one small circle. See
+    // the comment where the run reads it.
     let (target_ra_hours, target_dec) = rotation_step_target(
         status.right_ascension,
-        status.declination,
+        hold_dec_degrees.unwrap_or(status.declination),
         step_degrees,
         rotate_east,
     );
@@ -280,12 +285,14 @@ pub(crate) async fn rotate_for_next_point(
 
     tracing::info!(
         "Polar alignment point {}: rotating {} {:.1}° in RA in the mount's frame \
-         (mount RA {:.4}h -> {:.4}h, Dec {:.4}° held, HA {:+.2}h -> {:+.2}h)",
+         (mount RA {:.4}h -> {:.4}h, Dec {:.4}° held from the first point, mount now \
+         reads Dec {:.4}°, HA {:+.2}h -> {:+.2}h)",
         next_point,
         if rotate_east { "east" } else { "west" },
         step_degrees,
         status.right_ascension,
         target_ra_hours,
+        target_dec,
         status.declination,
         ha_before,
         ha_after

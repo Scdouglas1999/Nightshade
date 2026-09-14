@@ -28,7 +28,8 @@ mod math;
 mod preview;
 
 pub use math::{
-    calculate_alignment_error_arcmin, calculate_center_of_rotation, rotate_axis_by_star_motion,
+    calculate_alignment_error_arcmin, fit_rotation_axis, rotate_axis_by_star_motion,
+    RotationAxisFit,
 };
 pub use preview::prepare_image_for_display;
 
@@ -371,11 +372,22 @@ where
         &mut self,
         ctx: &InstructionContext,
     ) -> WizardStepOutcome<PolarStep> {
-        let (center_ra, center_dec) = math::calculate_center_of_rotation(&self.points);
+        let Some(fit) = math::fit_rotation_axis(&self.points, self.config.is_north) else {
+            return WizardStepOutcome::Failed(
+                "The three measurement points do not describe a rotation — the mount did not \
+                 turn between them, or the same field was solved three times."
+                    .to_string(),
+            );
+        };
+        let (center_ra, center_dec) = (fit.ra_degrees, fit.dec_degrees);
         tracing::info!(
-            "Calculated Center of Rotation: RA {:.4}°, Dec {:.4}°",
+            "Calculated Center of Rotation: RA {:.4}°, Dec {:.4}° \
+             (circle radius {:.2}°, arc {:.1}°, {:.2}°/arcmin of point error)",
             center_ra,
-            center_dec
+            center_dec,
+            fit.radius_degrees,
+            fit.arc_degrees,
+            fit.axis_degrees_per_arcmin
         );
 
         (self.status_callback)("Entering adjustment mode".to_string(), Some(1.0));

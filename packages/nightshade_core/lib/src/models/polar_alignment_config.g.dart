@@ -15,7 +15,7 @@ _PolarAlignmentConfig _$PolarAlignmentConfigFromJson(
   isNorth: json['isNorth'] as bool? ?? true,
   manualRotation: json['manualRotation'] as bool? ?? false,
   rotateEast: json['rotateEast'] as bool? ?? true,
-  solveTimeout: (json['solveTimeout'] as num?)?.toDouble() ?? 30.0,
+  solveTimeout: (json['solveTimeout'] as num?)?.toDouble() ?? 90.0,
   iterationCadenceSecs:
       (json['iterationCadenceSecs'] as num?)?.toDouble() ?? 3.0,
   autoCompleteThreshold:

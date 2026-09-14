@@ -1144,11 +1144,17 @@ impl DeviceOps for UnifiedDeviceOps {
                 SEARCH_RADIUS_DEG,
                 None,
                 scale_hint,
+                None,
             )
             .await
         } else {
-            crate::api::plate_solve::plate_solve_blind_scaled(temp_path.clone(), None, scale_hint)
-                .await
+            crate::api::plate_solve::plate_solve_blind_scaled(
+                temp_path.clone(),
+                None,
+                scale_hint,
+                None,
+            )
+            .await
         };
 
         // Clean up temp file

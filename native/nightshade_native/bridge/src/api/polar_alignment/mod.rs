@@ -53,5 +53,7 @@ mod pole_slew;
 pub use pole_slew::*;
 mod run_control;
 pub use run_control::*;
+mod solve;
+pub use solve::*;
 pub mod run_loop;
 pub use run_loop::*;

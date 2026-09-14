@@ -17,11 +17,22 @@ mixin _$PolarAlignmentConfig {
 
 /// Exposure time in seconds for each measurement image
  double get exposureTime;/// Step size in degrees for mount rotation between measurements
- double get stepSize;/// Camera binning (1, 2, 3, 4)
+ double get stepSize;/// Camera binning (1, 2, 3, 4).
+///
+/// 2 is the default because a binned frame plate-solves in a quarter of
+/// the time and the alignment measurement — where the mount's rotation
+/// axis sits — is unaffected: the axis is fitted from three solved sky
+/// positions, not from the resolution they were solved at.
  int get binning;/// Whether observing from northern hemisphere
  bool get isNorth;/// Whether to use manual rotation (user rotates mount) vs automatic slewing
  bool get manualRotation;/// Direction to rotate (true = east, false = west) for auto rotation
- bool get rotateEast;/// Timeout in seconds for plate solve attempts
+ bool get rotateEast;/// Timeout in seconds for one frame's plate solve.
+///
+/// This is the whole budget for the frame, shared by the hinted solve and
+/// the blind fallback behind it. 30 s was the old default and it was not
+/// enough: on the owner's rig a full-resolution blind solve of a
+/// pole-region frame took 26.5 s on a good night and was killed
+/// mid-solve on a bad one.
  double get solveTimeout;/// Delay between all-sky drift re-solves. Kept in the shared config so
 /// headless/API-started runs are recorded and replayed with the cadence
 /// they actually used rather than silently reverting to 3 seconds.
@@ -235,14 +246,19 @@ return $default(_that.exposureTime,_that.stepSize,_that.binning,_that.isNorth,_t
 @JsonSerializable()
 
 class _PolarAlignmentConfig extends PolarAlignmentConfig {
-  const _PolarAlignmentConfig({this.exposureTime = 5.0, this.stepSize = 15.0, this.binning = 2, this.isNorth = true, this.manualRotation = false, this.rotateEast = true, this.solveTimeout = 30.0, this.iterationCadenceSecs = 3.0, this.autoCompleteThreshold = 30.0, this.startFromCurrent = true, this.gain, this.offset}): super._();
+  const _PolarAlignmentConfig({this.exposureTime = 5.0, this.stepSize = 15.0, this.binning = 2, this.isNorth = true, this.manualRotation = false, this.rotateEast = true, this.solveTimeout = 90.0, this.iterationCadenceSecs = 3.0, this.autoCompleteThreshold = 30.0, this.startFromCurrent = true, this.gain, this.offset}): super._();
   factory _PolarAlignmentConfig.fromJson(Map<String, dynamic> json) => _$PolarAlignmentConfigFromJson(json);
 
 /// Exposure time in seconds for each measurement image
 @override@JsonKey() final  double exposureTime;
 /// Step size in degrees for mount rotation between measurements
 @override@JsonKey() final  double stepSize;
-/// Camera binning (1, 2, 3, 4)
+/// Camera binning (1, 2, 3, 4).
+///
+/// 2 is the default because a binned frame plate-solves in a quarter of
+/// the time and the alignment measurement — where the mount's rotation
+/// axis sits — is unaffected: the axis is fitted from three solved sky
+/// positions, not from the resolution they were solved at.
 @override@JsonKey() final  int binning;
 /// Whether observing from northern hemisphere
 @override@JsonKey() final  bool isNorth;
@@ -250,7 +266,13 @@ class _PolarAlignmentConfig extends PolarAlignmentConfig {
 @override@JsonKey() final  bool manualRotation;
 /// Direction to rotate (true = east, false = west) for auto rotation
 @override@JsonKey() final  bool rotateEast;
-/// Timeout in seconds for plate solve attempts
+/// Timeout in seconds for one frame's plate solve.
+///
+/// This is the whole budget for the frame, shared by the hinted solve and
+/// the blind fallback behind it. 30 s was the old default and it was not
+/// enough: on the owner's rig a full-resolution blind solve of a
+/// pole-region frame took 26.5 s on a good night and was killed
+/// mid-solve on a bad one.
 @override@JsonKey() final  double solveTimeout;
 /// Delay between all-sky drift re-solves. Kept in the shared config so
 /// headless/API-started runs are recorded and replayed with the cadence
