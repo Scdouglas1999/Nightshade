@@ -408,26 +408,10 @@ class _AddToProfileButtonState extends State<_AddToProfileButton> {
 
   Future<void> _open() async {
     final anchor = _anchorKey.currentContext;
-    final overlay = Overlay.of(context).context.findRenderObject();
-    if (anchor == null || overlay is! RenderBox) return;
-    final box = anchor.findRenderObject();
-    if (box is! RenderBox) return;
-    final topLeft = box.localToGlobal(
-      Offset(0, box.size.height),
-      ancestor: overlay,
-    );
-    final bottomRight = box.localToGlobal(
-      box.size.bottomRight(Offset.zero),
-      ancestor: overlay,
-    );
+    if (anchor == null) return;
     final action = await showMenu<AssignAction>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        topLeft.dx,
-        topLeft.dy,
-        overlay.size.width - bottomRight.dx,
-        overlay.size.height - bottomRight.dy,
-      ),
+      position: menuPositionBelowWidget(anchor),
       items: widget.itemBuilder(),
     );
     if (!mounted || action == null) return;

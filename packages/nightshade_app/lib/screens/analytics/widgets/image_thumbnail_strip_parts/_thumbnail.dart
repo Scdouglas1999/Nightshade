@@ -507,17 +507,16 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     }
   }
 
+  /// A small square at the thumbnail's top-left, rather than the thumbnail's
+  /// own bounds: a frame tile is wide, and anchoring on the whole tile would
+  /// let the menu right-align off the far edge of it.
+  static const Size _menuAnchorSize = Size(40, 40);
+
   RelativeRect _menuPosition(BuildContext context) {
-    final renderBox = context.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (renderBox == null || overlay == null) {
-      return const RelativeRect.fromLTRB(0, 0, 0, 0);
-    }
-    final tl = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
-    return RelativeRect.fromRect(
-      Rect.fromPoints(tl, tl + const Offset(40, 40)),
-      Offset.zero & overlay.size,
+    final box = context.findRenderObject()! as RenderBox;
+    return menuPositionFromRect(
+      context,
+      box.localToGlobal(Offset.zero) & _menuAnchorSize,
     );
   }
 

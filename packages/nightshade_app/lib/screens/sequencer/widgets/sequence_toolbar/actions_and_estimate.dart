@@ -42,18 +42,7 @@ class _ToolbarOverflowMenu extends StatelessWidget {
   const _ToolbarOverflowMenu({required this.colors, required this.actions});
 
   Future<void> _open(BuildContext context) async {
-    final button = context.findRenderObject() as RenderBox?;
-    final overlay =
-        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
-    if (button == null || overlay == null) return;
-
-    final origin = button.localToGlobal(Offset.zero, ancestor: overlay);
-    final position = RelativeRect.fromLTRB(
-      origin.dx,
-      origin.dy + button.size.height,
-      overlay.size.width - origin.dx - button.size.width,
-      0,
-    );
+    final position = menuPositionBelowWidget(context);
 
     final items = <PopupMenuEntry<int>>[];
     for (var i = 0; i < actions.length; i++) {

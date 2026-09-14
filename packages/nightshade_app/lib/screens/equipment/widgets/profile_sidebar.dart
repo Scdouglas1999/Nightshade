@@ -317,24 +317,11 @@ class ProfileSidebar extends ConsumerWidget {
     NightshadeColors colors, {
     required bool isActive,
   }) {
-    final overlay =
-        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-
-    // [globalAnchor] arrives in GLOBAL coordinates; `showMenu` measures its
-    // `position` insets against the enclosing Navigator's OVERLAY. Those are
-    // not the same origin here: `/equipment` is a go_router `ShellRoute` route,
-    // so the Navigator holding it is the nested one `AppShell` is handed, and
-    // its overlay begins at the content edge — below the `TitleBar` and right
-    // of the `SideNavigation`. Feeding a global coordinate in unconverted
-    // added the overlay's own origin a second time and put the menu roughly
-    // `(rail width, title-bar height)` away from its anchor: measured on the
-    // profile list at 1920x1080, collapsing the nav rail by 156 px moved the
-    // menu 312 px, exactly twice, because both terms carried the rail width.
-    final anchor = Rect.fromPoints(
-      overlay.globalToLocal(globalAnchor.topLeft),
-      overlay.globalToLocal(globalAnchor.bottomRight),
-    );
-    final position = RelativeRect.fromRect(anchor, Offset.zero & overlay.size);
+    // [globalAnchor] arrives in GLOBAL coordinates and `showMenu` measures its
+    // insets against the nested Navigator's overlay; see
+    // [menuPositionFromRect] for why those differ under `AppShell` and what
+    // the unconverted version did to this menu.
+    final position = menuPositionFromRect(context, globalAnchor);
 
     showMenu<String>(
       context: context,

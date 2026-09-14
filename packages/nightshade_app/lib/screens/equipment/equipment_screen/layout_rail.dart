@@ -303,27 +303,11 @@ class _ProfileMenuButtonState extends ConsumerState<_ProfileMenuButton> {
 
   Future<void> _openMenu() async {
     final anchor = _anchorKey.currentContext;
-    final overlay = Overlay.of(context).context.findRenderObject();
-    if (anchor == null || overlay is! RenderBox) return;
-    final box = anchor.findRenderObject();
-    if (box is! RenderBox) return;
-    final topLeft = box.localToGlobal(
-      Offset(0, box.size.height),
-      ancestor: overlay,
-    );
-    final bottomRight = box.localToGlobal(
-      box.size.bottomRight(Offset.zero),
-      ancestor: overlay,
-    );
+    if (anchor == null) return;
     final model = widget.profile;
     final action = await showMenu<_ProfileMenuAction>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        topLeft.dx,
-        topLeft.dy,
-        overlay.size.width - bottomRight.dx,
-        overlay.size.height - bottomRight.dy,
-      ),
+      position: menuPositionBelowWidget(anchor),
       items: <PopupMenuEntry<_ProfileMenuAction>>[
         PopupMenuItem<_ProfileMenuAction>(
           value: _ProfileMenuAction.edit,

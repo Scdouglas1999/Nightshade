@@ -97,6 +97,27 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
     final Offset offset = renderBox.localToGlobal(Offset.zero);
     final Size size = renderBox.size;
 
+    // DELIBERATELY not [menuPositionBelowWidget], unlike every other showMenu
+    // call site in the app.
+    //
+    // Those need it because their menus open inside the nested `Navigator`
+    // go_router's `ShellRoute` hands `AppShell`, whose overlay starts at the
+    // shell's content edge — so a global coordinate passed straight through
+    // counts that origin twice. THIS badge is built by `TitleBar`, which sits
+    // in the shell `Column` ABOVE that `Navigator`. `showMenu` therefore
+    // resolves the ROOT navigator, whose overlay is the whole window at
+    // (0, 0), and global coordinates already ARE overlay-local here.
+    //
+    // Left as it is because switching is not free: the insets below are not
+    // the ones [menuPositionBelowWidget] computes (`right` is
+    // `offset.dx + size.width`, not the distance from the window's right
+    // edge), so the helper would change which side the menu aligns to. There
+    // is no live defect to justify that in the title bar.
+    //
+    // The assumption this depends on: the badge stays outside the ShellRoute
+    // navigator. Move it under the shell's routed content and the menu will
+    // start opening a rail-width away — switch to [menuPositionBelowWidget]
+    // then.
     showMenu<void>(
       context: context,
       position: RelativeRect.fromLTRB(

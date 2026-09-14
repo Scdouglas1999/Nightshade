@@ -801,15 +801,7 @@ class _DeviceOverflowMenuState extends State<_DeviceOverflowMenu> {
 
   Future<void> _open() async {
     final anchor = _anchorKey.currentContext;
-    final overlay = Overlay.of(context).context.findRenderObject();
-    if (anchor == null || overlay is! RenderBox) return;
-    final box = anchor.findRenderObject();
-    if (box is! RenderBox) return;
-    final topLeft =
-        box.localToGlobal(Offset(0, box.size.height), ancestor: overlay);
-    final bottomRight =
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
-
+    if (anchor == null) return;
     final extras = <_ActionButton>[
       for (final action in widget.extraActions)
         if (action is _ActionButton) action,
@@ -817,12 +809,7 @@ class _DeviceOverflowMenuState extends State<_DeviceOverflowMenu> {
 
     final chosen = await showMenu<VoidCallback>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        topLeft.dx,
-        topLeft.dy,
-        overlay.size.width - bottomRight.dx,
-        overlay.size.height - bottomRight.dy,
-      ),
+      position: menuPositionBelowWidget(anchor),
       items: <PopupMenuEntry<VoidCallback>>[
         for (final action in extras)
           PopupMenuItem<VoidCallback>(
