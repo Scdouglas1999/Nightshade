@@ -30,12 +30,12 @@ class PlanningRisksBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sensorCaveats = riskFactors.where(isSensorSpecCaveat).toList();
+    if (riskFactors.isEmpty) return const SizedBox.shrink();
     final others =
         riskFactors.where((caveat) => !isSensorSpecCaveat(caveat)).toList();
 
-    if (sensorCaveats.isEmpty) {
-      // Nothing to collapse: say what the scorer said.
+    if (others.length == riskFactors.length) {
+      // No sensor caveat to collapse: say what the scorer said.
       return NightshadeBanner(
         title: others.first,
         message: others.length > 1 ? others.skip(1).join(' · ') : null,
@@ -44,8 +44,19 @@ class PlanningRisksBanner extends ConsumerWidget {
     }
 
     final specs = ref.watch(activeCameraSensorSpecsProvider).valueOrNull;
-    final missing = specs?.unresolvedFields ?? const <SensorSpecField>[];
-    final camera = specs?.databaseEntry?.model ?? specs?.reportedModel;
+    if (specs == null) {
+      // The chain is still resolving. Say the scorer's own words rather than
+      // an empty field list; one more frame and this is replaced.
+      return NightshadeBanner(
+        title: riskFactors.first,
+        message:
+            riskFactors.length > 1 ? riskFactors.skip(1).join(' · ') : null,
+        tone: BannerTone.warning,
+      );
+    }
+
+    final missing = specs.unresolvedFields;
+    final camera = specs.databaseEntry?.model ?? specs.reportedModel;
 
     final String title;
     if (camera == null) {
@@ -53,7 +64,7 @@ class PlanningRisksBanner extends ConsumerWidget {
     } else if (missing.length == SensorSpecField.values.length) {
       title = 'No published sensor specs for $camera';
     } else {
-      title = '${_fieldList(missing)} '
+      title = '${_capitalize(_fieldList(missing))} '
           '${missing.length == 1 ? 'is' : 'are'} not published for $camera';
     }
 
@@ -68,14 +79,15 @@ class PlanningRisksBanner extends ConsumerWidget {
       tone: BannerTone.warning,
       title: title,
       message: message,
-      action: specs == null
-          ? null
-          : CameraSensorSpecsAction(
-              specs: specs,
-              label: camera == null ? 'Open equipment' : 'Enter camera specs',
-            ),
+      action: CameraSensorSpecsAction(
+        specs: specs,
+        label: camera == null ? 'Open equipment' : 'Enter camera specs',
+      ),
     );
   }
+
+  static String _capitalize(String value) =>
+      value.isEmpty ? value : value[0].toUpperCase() + value.substring(1);
 
   /// "read noise, full well and QE" — an Oxford-comma-free list, because the
   /// banner is one line and the fields are a set, not a sentence.
