@@ -318,8 +318,8 @@ All commands unpiped, exit codes recorded.
 | analyze (core lib) | `dart analyze packages/nightshade_core/lib` | 0 | 2 infos, both pre-existing in `scheduler/rejection_labels.dart` |
 | analyze (app) | `cd packages/nightshade_app && dart analyze` | **0** | 873 infos, all pre-existing; none in any file I touched |
 | planetarium | `flutter test --exclude-tags golden --concurrency=3` | **0** | 638 passed (612 baseline + 26 new) |
-| core | `flutter test --exclude-tags golden --concurrency=3` | **0** | 6512 passed, 4 skipped |
-| app | `flutter test --exclude-tags golden --concurrency=3` | see below | |
+| core | `flutter test --exclude-tags golden --concurrency=3` | **0** | 6520 passed, 4 skipped (re-run after the science change) |
+| app | `flutter test --exclude-tags golden --concurrency=3` | **0** | 4389 passed |
 
 `--exclude-tags golden` is the project's own gate (`ns-worktrees/final-verify.sh`). Run
 without it, `test/benchmark/golden_compare_test.dart` fails with a 1.9-4.4% pixel delta on
