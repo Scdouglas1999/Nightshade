@@ -1,12 +1,55 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter/scheduler.dart';
+
+/// A reading of `PaintingBinding.instance.imageCache` at report time.
+///
+/// Reported alongside the frame rate because a decode-bound stall shows up
+/// here before it shows up in the frame count: images decoded far larger than
+/// the box that displays them blow through the cache's byte budget, so the
+/// cache evicts and re-decodes them on every scroll, and the frame rate only
+/// says "slow" without saying why.
+class ImageCacheReading {
+  /// Bytes of decoded image data the cache is holding.
+  final int sizeBytes;
+
+  /// Images in the cache, whether or not anything is displaying them.
+  final int imageCount;
+
+  /// Images the cache is holding that something on screen still references.
+  final int liveImageCount;
+
+  const ImageCacheReading({
+    required this.sizeBytes,
+    required this.imageCount,
+    required this.liveImageCount,
+  });
+
+  /// Reads the binding's live cache. Requires an initialised binding.
+  factory ImageCacheReading.now() {
+    final cache = PaintingBinding.instance.imageCache;
+    return ImageCacheReading(
+      sizeBytes: cache.currentSizeBytes,
+      imageCount: cache.currentSize,
+      liveImageCount: cache.liveImageCount,
+    );
+  }
+
+  String get _megabytes => (sizeBytes / (1024 * 1024)).toStringAsFixed(1);
+
+  @override
+  String toString() =>
+      'imgCacheMB=$_megabytes imgCacheImages=$imageCount '
+      'imgCacheLive=$liveImageCount';
+}
 
 /// Opt-in frame-rate probe, armed by `NIGHTSHADE_FRAME_TIMING=1`.
 ///
-/// Reports engine [FrameTiming] counts per window to stdout. It is inert unless
-/// enabled and returns a cleanup callback for tests.
+/// Reports engine [FrameTiming] counts and the image cache's occupancy per
+/// window to stdout. It is inert unless enabled and returns a cleanup callback
+/// for tests.
 void Function() startFrameTimingProbe({
   Duration window = const Duration(seconds: 5),
   void Function(String line) emit = _stdout,
@@ -26,7 +69,7 @@ void Function() startFrameTimingProbe({
   // windows in which NO frame was produced, and a frame-driven report cannot
   // observe its own absence.
   final timer = Timer.periodic(window, (_) {
-    emit(frameTimingLine(frames, window));
+    emit(frameTimingLine(frames, window, imageCache: ImageCacheReading.now()));
     frames.clear();
   });
 
@@ -39,20 +82,27 @@ void Function() startFrameTimingProbe({
 /// Render one window's worth of [frames] as a single log line.
 ///
 /// ```text
-/// [frame-timing] window=5.0s frames=0 fps=0.0
-/// [frame-timing] window=5.0s frames=312 fps=62.4 buildAvgMs=0.8 rasterAvgMs=6.1 buildP95Ms=1.9 rasterP95Ms=11.4
+/// [frame-timing] window=5.0s frames=0 fps=0.0 imgCacheMB=0.0 imgCacheImages=0 imgCacheLive=0
+/// [frame-timing] window=5.0s frames=312 fps=62.4 buildAvgMs=0.8 rasterAvgMs=6.1 buildP95Ms=1.9 rasterP95Ms=11.4 imgCacheMB=3.4 imgCacheImages=118 imgCacheLive=24
 /// ```
 ///
 /// The zero case prints deliberately rather than staying silent: "the app
 /// produced no frames for five seconds" is the finding, and a silent probe is
-/// indistinguishable from a probe that failed to start.
-String frameTimingLine(List<FrameTiming> frames, Duration window) {
+/// indistinguishable from a probe that failed to start. [imageCache] is
+/// appended to both cases when supplied, so a window with no frames still says
+/// what the cache was holding while nothing painted.
+String frameTimingLine(
+  List<FrameTiming> frames,
+  Duration window, {
+  ImageCacheReading? imageCache,
+}) {
   final seconds = window.inMicroseconds / Duration.microsecondsPerSecond;
   final fps = (frames.length / seconds).toStringAsFixed(1);
   final head = '[frame-timing] window=${seconds}s frames=${frames.length}';
+  final tail = imageCache == null ? '' : ' $imageCache';
 
   if (frames.isEmpty) {
-    return '$head fps=0.0';
+    return '$head fps=0.0$tail';
   }
 
   final build = _Summary.of([
@@ -63,7 +113,7 @@ String frameTimingLine(List<FrameTiming> frames, Duration window) {
   ]);
   return '$head fps=$fps '
       'buildAvgMs=${build.averageMs} rasterAvgMs=${raster.averageMs} '
-      'buildP95Ms=${build.p95Ms} rasterP95Ms=${raster.p95Ms}';
+      'buildP95Ms=${build.p95Ms} rasterP95Ms=${raster.p95Ms}$tail';
 }
 
 void _stdout(String line) => stdout.writeln(line);
