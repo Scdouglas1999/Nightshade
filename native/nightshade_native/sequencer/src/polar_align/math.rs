@@ -234,7 +234,7 @@ fn normalize_signed_angle_degrees(angle_degrees: f64) -> f64 {
 }
 
 /// (RA, Dec) in degrees → Cartesian unit vector (same convention as
-/// `calculate_center_of_rotation`).
+/// `fit_rotation_axis`).
 fn radec_to_unit(ra_deg: f64, dec_deg: f64) -> (f64, f64, f64) {
     let ra = ra_deg.to_radians();
     let dec = dec_deg.to_radians();
@@ -356,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_center_of_rotation() {
+    fn a_circle_about_the_pole_fits_the_pole() {
         // Perfect rotation around pole (0, 90).
         let points = vec![(0.0, 89.0), (20.0, 89.0), (40.0, 89.0)];
         let fit =

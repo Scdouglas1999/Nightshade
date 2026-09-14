@@ -259,7 +259,7 @@ remaining offset is real.
 | `cargo test -p nightshade_imaging --lib` | 0 — 865 passed, 0 failed |
 | `cargo build --release -p nightshade_bridge` | 0 (Linux preview stays buildable) |
 | `cargo clippy -p nightshade_bridge -p nightshade_imaging -p nightshade_sequencer --lib --all-targets` | 0, no warnings |
-| `cargo fmt --check` | 0 (after `cargo fmt`; three files it reformatted outside this change were reverted) |
+| `rustfmt --check` on the seven files this branch touches | 0. Repo-wide `cargo fmt --check` is red at the base commit (depthlock/mod.rs, sequencer/src/lib.rs, sequencer/tests/dart_wire_contract.rs); those were left as they were found. |
 | `flutter test test/screens/polar_alignment --concurrency=3` (nightshade_app) | 0 — 62 passed |
 | `flutter test test/models/polar_alignment_config_validation_test.dart test/providers/polar_alignment_{run_control,stop_acknowledgement}_test.dart` (nightshade_core) | 0 — 35 passed |
 | `flutter test test/headless_api/session_handlers_test.dart` (apps/desktop) | 0 — 22 passed |
