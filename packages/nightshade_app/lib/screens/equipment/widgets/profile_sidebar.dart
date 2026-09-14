@@ -227,10 +227,10 @@ class ProfileSidebar extends ConsumerWidget {
             onProfileSelected(profile.id!);
             onConnectAll(profile);
           },
-          onShowContextMenu: (offset) => _showProfileContextMenu(
+          onShowContextMenu: (globalAnchor) => _showProfileContextMenu(
             context,
             ref,
-            offset,
+            globalAnchor,
             profile,
             colors,
             isActive: profile.id == activeProfileId,
@@ -312,17 +312,29 @@ class ProfileSidebar extends ConsumerWidget {
   void _showProfileContextMenu(
     BuildContext context,
     WidgetRef ref,
-    Offset offset,
+    Rect globalAnchor,
     EquipmentProfileModel profile,
     NightshadeColors colors, {
     required bool isActive,
   }) {
     final overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromLTWH(offset.dx, offset.dy, 0, 0),
-      Offset.zero & overlay.size,
+
+    // [globalAnchor] arrives in GLOBAL coordinates; `showMenu` measures its
+    // `position` insets against the enclosing Navigator's OVERLAY. Those are
+    // not the same origin here: `/equipment` is a go_router `ShellRoute` route,
+    // so the Navigator holding it is the nested one `AppShell` is handed, and
+    // its overlay begins at the content edge — below the `TitleBar` and right
+    // of the `SideNavigation`. Feeding a global coordinate in unconverted
+    // added the overlay's own origin a second time and put the menu roughly
+    // `(rail width, title-bar height)` away from its anchor: measured on the
+    // profile list at 1920x1080, collapsing the nav rail by 156 px moved the
+    // menu 312 px, exactly twice, because both terms carried the rail width.
+    final anchor = Rect.fromPoints(
+      overlay.globalToLocal(globalAnchor.topLeft),
+      overlay.globalToLocal(globalAnchor.bottomRight),
     );
+    final position = RelativeRect.fromRect(anchor, Offset.zero & overlay.size);
 
     showMenu<String>(
       context: context,
@@ -521,7 +533,12 @@ class _ProfileCard extends StatefulWidget {
   final NightshadeColors colors;
   final VoidCallback onTap;
   final VoidCallback onDoubleTap;
-  final void Function(Offset globalPosition) onShowContextMenu;
+
+  /// Opens the profile menu anchored on [globalAnchor], in GLOBAL coordinates.
+  /// A pointer gesture passes a zero-size rect at the cursor; the overflow
+  /// button passes its own bounds, so the menu hangs off the button rather
+  /// than off a corner of the card.
+  final void Function(Rect globalAnchor) onShowContextMenu;
 
   const _ProfileCard({
     super.key,
@@ -606,10 +623,10 @@ class _ProfileCardState extends State<_ProfileCard>
           onTap: widget.onTap,
           onDoubleTap: widget.onDoubleTap,
           onSecondaryTapUp: (details) {
-            widget.onShowContextMenu(details.globalPosition);
+            widget.onShowContextMenu(details.globalPosition & Size.zero);
           },
           onLongPressStart: (details) {
-            widget.onShowContextMenu(details.globalPosition);
+            widget.onShowContextMenu(details.globalPosition & Size.zero);
           },
           child: ReorderableDragStartListener(
             index: widget.index,
@@ -677,20 +694,29 @@ class _ProfileCardState extends State<_ProfileCard>
                         ),
 
                       // Keep profile actions discoverable without a context menu.
-                      NightshadeIconButton(
-                        key: profileCardMenuButtonKey(widget.profile.id),
-                        icon: LucideIcons.moreVertical,
-                        tooltip: 'Profile actions',
-                        size: IconButtonSize.sm,
-                        onPressed: () {
-                          final box = context.findRenderObject() as RenderBox?;
-                          final origin = box == null
-                              ? Offset.zero
-                              : box.localToGlobal(
-                                  Offset(box.size.width, box.size.height),
-                                );
-                          widget.onShowContextMenu(origin);
-                        },
+                      //
+                      // Builder so the anchor is the BUTTON's render object.
+                      // The enclosing `build` context is the card's, and its
+                      // box put the menu against a corner of the card instead
+                      // of under the control that opened it.
+                      Builder(
+                        builder: (buttonContext) => NightshadeIconButton(
+                          key: profileCardMenuButtonKey(widget.profile.id),
+                          icon: LucideIcons.moreVertical,
+                          tooltip: 'Profile actions',
+                          size: IconButtonSize.sm,
+                          onPressed: () {
+                            // Not null-guarded: the button has just been
+                            // pressed, so it is laid out. A fallback offset
+                            // here is how the old code shipped a menu that
+                            // opened in the wrong place instead of failing.
+                            final box =
+                                buttonContext.findRenderObject()! as RenderBox;
+                            widget.onShowContextMenu(
+                              box.localToGlobal(Offset.zero) & box.size,
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),
