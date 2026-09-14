@@ -10,6 +10,7 @@ import '../session_review_controller.dart';
 import '../../../services/image_download_service.dart';
 import '../../../utils/filter_label.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../utils/image_decode_size.dart';
 
 part 'sub_cull_rail_parts/_toolbar.dart';
 part 'sub_cull_rail_parts/_tiles.dart';

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../utils/image_decode_size.dart';
 import 'red_night_filter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -179,6 +180,16 @@ class FrameThumbnail extends ConsumerWidget {
   Widget _placeholder() =>
       _wrap(Icon(LucideIcons.image, size: iconSize, color: colors.textMuted));
 
+  /// Builds [image] with a `cacheWidth` matching the cell it lands in, so the
+  /// decode is the size of the tile rather than the size of the file.
+  Widget _decodedToCell(Widget Function(int? cacheWidth) image) {
+    return LayoutBuilder(
+      builder: (context, constraints) => RedNightImage(
+        child: image(thumbnailDecodeWidth(context, constraints.maxWidth)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isRemoteMode = ref.watch(isRemoteModeProvider);
@@ -198,35 +209,38 @@ class FrameThumbnail extends ConsumerWidget {
           );
         }
         final bytes = snapshot.data;
-        if (bytes != null && bytes.isNotEmpty) {
-          // A thumbnail is image DATA, so red night re-emits its luminance on
-          // the red axis instead of putting a full-colour frame on screen.
-          return RedNightImage(
-            child: Image.memory(
-              bytes,
-              fit: fit,
-              width: double.infinity,
-              height: double.infinity,
-              gaplessPlayback: true,
-              errorBuilder: (_, __, ___) => _placeholder(),
-            ),
-          );
+        if (bytes == null || bytes.isEmpty) {
+          // No backend thumbnail. `Image.file` handles a missing file through
+          // its own errorBuilder, so there is no need to stat it from a sync
+          // build.
+          if (!isRemoteMode && isDisplayableImagePath(fallbackFilePath)) {
+            return _decodedToCell(
+              (cacheWidth) => Image.file(
+                File(fallbackFilePath),
+                fit: fit,
+                width: double.infinity,
+                height: double.infinity,
+                cacheWidth: cacheWidth,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => _placeholder(),
+              ),
+            );
+          }
+          return _placeholder();
         }
-        // No backend thumbnail. `Image.file` handles a missing file through its
-        // own errorBuilder, so there is no need to stat it from a sync build.
-        if (!isRemoteMode && isDisplayableImagePath(fallbackFilePath)) {
-          return RedNightImage(
-            child: Image.file(
-              File(fallbackFilePath),
-              fit: fit,
-              width: double.infinity,
-              height: double.infinity,
-              gaplessPlayback: true,
-              errorBuilder: (_, __, ___) => _placeholder(),
-            ),
-          );
-        }
-        return _placeholder();
+        // A thumbnail is image DATA, so red night re-emits its luminance on
+        // the red axis instead of putting a full-colour frame on screen.
+        return _decodedToCell(
+          (cacheWidth) => Image.memory(
+            bytes,
+            fit: fit,
+            width: double.infinity,
+            height: double.infinity,
+            cacheWidth: cacheWidth,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          ),
+        );
       },
     );
   }

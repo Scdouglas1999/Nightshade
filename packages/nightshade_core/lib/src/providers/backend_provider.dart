@@ -16,6 +16,7 @@ import 'equipment/equipment_state_reset.dart';
 import 'sequence/sequence_progress.dart';
 import '../services/device_service_lifecycle.dart';
 import '../services/remote_sequence_editor_sync_lifecycle.dart';
+import 'thumbnail_sidecar_provider.dart';
 
 /// Factory seam for remote backends. Production uses [NetworkBackend.new];
 /// tests can provide controllable candidates without opening sockets.
@@ -249,7 +250,14 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
   Future<void> useLocalBackend() async {
     final transitionGeneration = ++_transitionGeneration;
     final database = _ref.read(databaseProvider);
-    final backend = FfiBackend(database: database);
+    // Share the container's sidecar service so the capture path's
+    // fire-and-forget writes and the backend's on-demand reads use one
+    // in-flight map — a frame being written as the UI asks for it is decoded
+    // once — and so sidecar failures reach the structured logger.
+    final backend = FfiBackend(
+      database: database,
+      thumbnailSidecars: _ref.read(thumbnailSidecarServiceProvider),
+    );
     try {
       await _swapBackend(backend, authorityGeneration: transitionGeneration);
     } catch (_) {

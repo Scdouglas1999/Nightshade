@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
 import 'settings_widgets.dart';
+import '../../../utils/image_decode_size.dart';
 
 /// Browse the frames captured on the connected appliance.
 ///
@@ -383,7 +384,19 @@ class _GalleryTile extends StatelessWidget {
                                       strokeWidth: 2)),
                     );
                   }
-                  return Image.memory(bytes, fit: BoxFit.cover);
+                  // Gallery tile, not an inspection surface: decode at tile
+                  // width so a long session's grid does not hold a megabyte of
+                  // RGBA per cell.
+                  return LayoutBuilder(
+                    builder: (context, constraints) => Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                      cacheWidth: thumbnailDecodeWidth(
+                        context,
+                        constraints.maxWidth,
+                      ),
+                    ),
+                  );
                 },
               ),
             if (thumb == null)

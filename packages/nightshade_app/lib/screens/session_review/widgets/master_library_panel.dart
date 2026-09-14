@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/darkroom_navigation.dart' show unavailableControlName;
+import '../../../utils/image_decode_size.dart';
 
 /// Lists the persisted [IntegratedMaster]s for the current target and surfaces
 /// the multi-night accumulation actions: open, finalize, add tonight's data,
@@ -278,6 +279,11 @@ class _MasterCard extends StatelessWidget {
 }
 
 class _Thumb extends StatelessWidget {
+  /// Tile edge in logical pixels. Also the decode width: `previewPngPath` is
+  /// the master's full-frame preview, so without a `cacheWidth` this 72 px
+  /// tile decodes a 16 Mpx PNG into 65 MB of RGBA.
+  static const double _edgePx = 72;
+
   final String? previewPath;
   final NightshadeColors colors;
 
@@ -286,8 +292,8 @@ class _Thumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final placeholder = Container(
-      width: 72,
-      height: 72,
+      width: _edgePx,
+      height: _edgePx,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
@@ -309,9 +315,10 @@ class _Thumb extends StatelessWidget {
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       child: Image.file(
         file,
-        width: 72,
-        height: 72,
+        width: _edgePx,
+        height: _edgePx,
         fit: BoxFit.cover,
+        cacheWidth: thumbnailDecodeWidth(context, _edgePx),
         errorBuilder: (_, __, ___) => placeholder,
       ),
     );
