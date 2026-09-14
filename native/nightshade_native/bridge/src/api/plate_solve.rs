@@ -498,17 +498,22 @@ pub async fn api_plate_solve_blind(
     file_path: String,
     timeout_secs: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
-    plate_solve_blind_scaled(file_path, timeout_secs, None).await
+    plate_solve_blind_scaled(file_path, timeout_secs, None, None).await
 }
 
 /// Blind (position-unknown) solve that is still told the field scale.
+///
+/// `downsample` is the ASTAP `-z` factor; `None` leaves the configured
+/// default in place. A caller whose frame is already binned in hardware
+/// passes `Some(1)` so the two reductions do not compound.
 pub(crate) async fn plate_solve_blind_scaled(
     file_path: String,
     timeout_secs: Option<u32>,
     hint_scale: Option<f64>,
+    downsample: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
     coalesced_solve(&file_path, "blind", SolvePreference::Blind, || {
-        plate_solve_blind_inner(&file_path, timeout_secs, hint_scale)
+        plate_solve_blind_inner(&file_path, timeout_secs, hint_scale, downsample)
     })
     .await
 }
@@ -517,6 +522,7 @@ async fn plate_solve_blind_inner(
     file_path: &str,
     timeout_secs: Option<u32>,
     hint_scale: Option<f64>,
+    downsample: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
@@ -544,7 +550,12 @@ async fn plate_solve_blind_inner(
     // runner, which kills and reaps the child on expiry.
     let owned_path = path.to_path_buf();
     let result = tokio::task::spawn_blocking(move || {
-        nightshade_imaging::blind_solve_with_timeout(&owned_path, timeout_secs, hint_scale)
+        nightshade_imaging::blind_solve_with_timeout(
+            &owned_path,
+            timeout_secs,
+            hint_scale,
+            downsample,
+        )
     })
     .await
     .map_err(|error| {
@@ -594,11 +605,16 @@ pub async fn api_plate_solve_near(
         search_radius,
         timeout_secs,
         None,
+        None,
     )
     .await
 }
 
 /// Near solve that is told the field scale as well as the position.
+///
+/// `downsample` is the ASTAP `-z` factor; `None` leaves the configured
+/// default in place.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn plate_solve_near_scaled(
     file_path: String,
     hint_ra: f64,
@@ -606,6 +622,7 @@ pub(crate) async fn plate_solve_near_scaled(
     search_radius: f64,
     timeout_secs: Option<u32>,
     hint_scale: Option<f64>,
+    downsample: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
     coalesced_solve(&file_path, "near", SolvePreference::Hinted, || {
         plate_solve_near_inner(
@@ -615,11 +632,13 @@ pub(crate) async fn plate_solve_near_scaled(
             search_radius,
             timeout_secs,
             hint_scale,
+            downsample,
         )
     })
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn plate_solve_near_inner(
     file_path: &str,
     hint_ra: f64,
@@ -627,6 +646,7 @@ async fn plate_solve_near_inner(
     search_radius: f64,
     timeout_secs: Option<u32>,
     hint_scale: Option<f64>,
+    downsample: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
@@ -664,6 +684,7 @@ async fn plate_solve_near_inner(
             search_radius,
             timeout_secs,
             hint_scale,
+            downsample,
         )
     })
     .await

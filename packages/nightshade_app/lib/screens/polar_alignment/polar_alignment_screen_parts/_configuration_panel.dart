@@ -225,7 +225,8 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
             // Binning
             _SettingRow(
               label: 'Binning',
-              tooltip: 'Higher binning = faster plate solves, lower resolution',
+              tooltip: 'Binning 2 solves in a quarter of the time; alignment '
+                  'accuracy is unaffected.',
               colors: colors,
               child: PolarAlignmentSegmentedButton<int>(
                 segments: const [
@@ -346,7 +347,8 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
             // Solve timeout
             _SettingRow(
               label: 'Solve timeout',
-              tooltip: 'Maximum time to wait for plate solve',
+              tooltip: 'Budget for one frame: a solve hinted from the mount '
+                  'position first, then a blind solve with whatever is left.',
               colors: colors,
               child: Row(
                 children: [

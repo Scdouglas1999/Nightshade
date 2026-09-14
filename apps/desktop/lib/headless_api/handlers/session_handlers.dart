@@ -96,7 +96,9 @@ class SessionHandlers {
       rotateEast: rotateEast,
       gain: gain,
       offset: offset,
-      solveTimeout: solveTimeout ?? 30,
+      // The omitted-parameter default is the model's, so a headless run and
+      // the desktop dialog cannot drift apart.
+      solveTimeout: solveTimeout ?? const PolarAlignmentConfig().solveTimeout,
       startFromCurrent: startFromCurrent ?? true,
       autoCompleteThreshold: autoCompleteThreshold ?? 30,
     );

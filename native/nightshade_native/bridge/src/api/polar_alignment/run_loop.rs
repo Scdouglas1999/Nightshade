@@ -63,7 +63,7 @@ pub async fn api_start_polar_alignment(
     // Only the non-hardware options carry a fixed default. gain/offset stay
     // `Option` and are threaded through so `None` means "use the camera's
     // current value" — never forced to 0.
-    let solve_timeout_val = solve_timeout.unwrap_or(60.0);
+    let solve_timeout_val = solve_timeout.unwrap_or(DEFAULT_POLAR_SOLVE_TIMEOUT_SECS);
     let start_from_current_val = start_from_current.unwrap_or(true);
     let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
 
@@ -243,6 +243,12 @@ pub(crate) async fn run_polar_alignment(
         // Emit polar alignment image (before plate solve, no coordinates yet)
         emit_polar_image(&image, point as i32, "measuring", None, None);
 
+        // Read off the frame that was actually taken, not the requested
+        // binning: a camera that refused the binning request would otherwise
+        // have its full-resolution frame downsampled by a rule that thinks it
+        // is already binned.
+        let solve_downsample = polar_solve_downsample(image.width, image.height, binning);
+
         // Save temp file for plate solving
         let temp_path = create_unique_temp_fits_path(&format!("polar_align_point_{}", point));
         let temp_path_str = temp_path.to_string_lossy().to_string();
@@ -252,62 +258,42 @@ pub(crate) async fn run_polar_alignment(
             return Err(format!("Failed to write temp FITS: {}", e));
         }
 
-        // Plate solve with configurable timeout
-        let solve_future = crate::api::plate_solve::plate_solve_blind_scaled(
-            temp_path_str.clone(),
-            Some(solve_timeout_secs.ceil().clamp(1.0, 3600.0) as u32),
+        // Hinted first, blind as the fallback. The mount is re-read for every
+        // point because every point is a different pointing.
+        let solve_result = solve_polar_frame(
+            &format!("point {}", point),
+            &temp_path_str,
+            read_polar_solve_hint(&mount_id).await,
             solve_scale,
-        );
-        let solve_result = match tokio::time::timeout(
-            tokio::time::Duration::from_secs_f64(solve_timeout_secs),
-            solve_future,
+            solve_downsample,
+            solve_timeout_secs,
         )
-        .await
-        {
-            Ok(Ok(result)) => result,
-            Ok(Err(e)) => {
-                let _ = std::fs::remove_file(&temp_path);
-                return Err(format!("Plate solve error: {:?}", e));
-            }
-            Err(_) => {
-                let _ = std::fs::remove_file(&temp_path);
-                return Err(format!(
-                    "Plate solve timed out after {:.1} seconds for point {}",
-                    solve_timeout_secs, point
-                ));
-            }
-        };
+        .await;
 
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_path);
+        let solve_result = solve_result?;
 
-        if solve_result.success {
-            // PlateSolveResult follows the native solver contract: RA is
-            // already degrees. Multiplying by 15 here corrupted both the
-            // rotation-center fit and the next mount slew target.
-            let ra_degrees = plate_solve_ra_degrees(solve_result.ra);
-            solved_points.push((ra_degrees, solve_result.dec));
-            tracing::info!(
-                "Point {} solved: RA={:.4}°, Dec={:.4}°",
-                point,
-                ra_degrees,
-                solve_result.dec
-            );
+        // PlateSolveResult follows the native solver contract: RA is already
+        // degrees. Multiplying by 15 here corrupted both the rotation-center
+        // fit and the next mount slew target.
+        let ra_degrees = plate_solve_ra_degrees(solve_result.ra);
+        solved_points.push((ra_degrees, solve_result.dec));
+        tracing::info!(
+            "Point {} solved: RA={:.4}°, Dec={:.4}°",
+            point,
+            ra_degrees,
+            solve_result.dec
+        );
 
-            // Emit image again with plate solve coordinates
-            emit_polar_image(
-                &image,
-                point as i32,
-                "measuring",
-                Some(ra_degrees),
-                Some(solve_result.dec),
-            );
-        } else {
-            return Err(format!(
-                "Plate solve failed for point {}: {:?}",
-                point, solve_result.error
-            ));
-        }
+        // Emit image again with plate solve coordinates
+        emit_polar_image(
+            &image,
+            point as i32,
+            "measuring",
+            Some(ra_degrees),
+            Some(solve_result.dec),
+        );
 
         // Rotate mount for next point (if not last point)
         if point < 3 {
@@ -515,216 +501,183 @@ pub(crate) async fn run_polar_alignment(
 
         emit_polar_status("Solving...", "adjusting", 0);
 
-        // Plate solve with 30 second timeout (shorter for adjustment loop)
-        let solve_future = crate::api::plate_solve::plate_solve_blind_scaled(
-            temp_path_str.clone(),
-            Some(30),
+        // The adjustment frames solve the same way the measurement points do,
+        // on the same operator-configured budget. A hard-coded 30s here is
+        // what killed the measurement points on the owner's laptop, and the
+        // adjustment loop re-solves the same field over and over — the frame
+        // ASTAP is least entitled to search the whole sky for.
+        let solve_result = solve_polar_frame(
+            "the adjustment frame",
+            &temp_path_str,
+            read_polar_solve_hint(&mount_id).await,
             solve_scale,
-        );
-        let solve_result =
-            match tokio::time::timeout(tokio::time::Duration::from_secs(30), solve_future).await {
-                Ok(Ok(result)) => {
-                    let _ = std::fs::remove_file(&temp_path);
-                    result
-                }
-                Ok(Err(e)) => {
-                    let _ = std::fs::remove_file(&temp_path);
-                    consecutive_failures += 1;
-                    tracing::warn!("Plate solve error in adjustment loop: {:?}", e);
-                    emit_polar_status(
-                        &format!(
-                            "Solve failed: {:?} (retry {}/{})",
-                            e, consecutive_failures, MAX_FAILURES
-                        ),
-                        "adjusting",
-                        0,
-                    );
-                    if consecutive_failures >= MAX_FAILURES {
-                        return Err(format!(
-                            "Too many consecutive failures ({}) in adjustment loop",
-                            MAX_FAILURES
-                        ));
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-                Err(_) => {
-                    let _ = std::fs::remove_file(&temp_path);
-                    consecutive_failures += 1;
-                    tracing::warn!("Plate solve timed out in adjustment loop");
-                    emit_polar_status(
-                        &format!(
-                            "Solve timed out (retry {}/{})",
-                            consecutive_failures, MAX_FAILURES
-                        ),
-                        "adjusting",
-                        0,
-                    );
-                    if consecutive_failures >= MAX_FAILURES {
-                        return Err(format!(
-                            "Too many consecutive failures ({}) in adjustment loop",
-                            MAX_FAILURES
-                        ));
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
+            polar_solve_downsample(image.width, image.height, binning),
+            solve_timeout_secs,
+        )
+        .await;
+        let _ = std::fs::remove_file(&temp_path);
 
-        if solve_result.success {
-            // Reset failure counter on success
-            consecutive_failures = 0;
-
-            // Native plate-solve results report RA in degrees.
-            let ra_degrees = plate_solve_ra_degrees(solve_result.ra);
-
-            // Emit image again with plate solve coordinates
-            emit_polar_image(
-                &image,
-                0,
-                "adjusting",
-                Some(ra_degrees),
-                Some(solve_result.dec),
-            );
-
-            // Track the current mount axis by applying the boresight
-            // displacement (vs the first adjustment frame) to the measured axis.
-            // This reflects the user's physical alt/az adjustments WITHOUT the
-            // degenerate re-fit-from-stationary-points collapse.
-            let (ref_ra, ref_dec) = *reference_solve.get_or_insert((ra_degrees, solve_result.dec));
-
-            // Apply the exact geodesic rotation that moved the solved
-            // boresight to the measured mechanical axis. This remains stable
-            // near the pole where dividing a first-order RA delta by cos(dec)
-            // becomes singular and can explode a tiny adjustment.
-            let (cur_axis_ra, cur_axis_dec) = nightshade_sequencer::rotate_axis_by_star_motion(
-                initial_axis,
-                (ref_ra, ref_dec),
-                (ra_degrees, solve_result.dec),
-            );
-
-            tracing::debug!(
-                "Adjustment: boresight Δ=({:.4}°,{:.4}°) → current axis RA={:.4}°, Dec={:.4}°",
-                ra_degrees - ref_ra,
-                solve_result.dec - ref_dec,
-                cur_axis_ra,
-                cur_axis_dec
-            );
-
-            // Error in ARCSECONDS: the Dart UI labels these values with `"` and
-            // uses 30"/60" colour bands, and the auto-complete threshold is in
-            // the same unit. Emitting arcminutes here shows a 5' error as 5" and
-            // fires the auto-complete ~60x too early.
-            let (az_arcmin, alt_arcmin, total_arcmin) =
-                nightshade_sequencer::calculate_alignment_error_arcmin(
-                    cur_axis_ra,
-                    cur_axis_dec,
-                    is_north,
-                    observer_latitude,
-                    observer_longitude,
-                    chrono::Utc::now(),
+        let solve_result = match solve_result {
+            Ok(result) => result,
+            Err(e) => {
+                consecutive_failures += 1;
+                // A frame that did not solve measured nothing, so the
+                // auto-complete dwell starts again from the next solved one.
+                auto_complete_start = None;
+                tracing::warn!("Plate solve failed in adjustment loop: {}", e);
+                emit_polar_status(
+                    &format!(
+                        "Solve failed: {} (retry {}/{})",
+                        e, consecutive_failures, MAX_FAILURES
+                    ),
+                    "adjusting",
+                    0,
                 );
-            let (az_error, alt_error, total_error) =
-                (az_arcmin * 60.0, alt_arcmin * 60.0, total_arcmin * 60.0);
-            center_ra = cur_axis_ra;
-            center_dec = cur_axis_dec;
+                if consecutive_failures >= MAX_FAILURES {
+                    return Err(format!(
+                        "Too many consecutive failures ({}) in adjustment loop",
+                        MAX_FAILURES
+                    ));
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                continue;
+            }
+        };
 
-            // Auto-complete logic: check if error is below threshold
-            if total_error <= auto_complete_threshold {
-                match auto_complete_start {
-                    Some(start_time) => {
-                        let elapsed = start_time.elapsed();
-                        if elapsed.as_secs() >= AUTO_COMPLETE_DURATION_SECS {
-                            // Error has been below threshold for required duration
-                            tracing::info!(
-                                "Polar alignment complete! Total error {:.1} arcsec below threshold {:.1} for {} seconds",
-                                total_error, auto_complete_threshold, AUTO_COMPLETE_DURATION_SECS
-                            );
-                            emit_polar_status(
-                                &format!(
-                                    "Complete! Error {:.1}\" below threshold for {}s",
-                                    total_error, AUTO_COMPLETE_DURATION_SECS
-                                ),
-                                "complete",
-                                0,
-                            );
-                            emit_polar_error(
-                                az_error,
-                                alt_error,
-                                total_error,
-                                ra_degrees,
-                                solve_result.dec,
-                                center_ra,
-                                center_dec,
-                            );
-                            return Ok(());
-                        } else {
-                            // Still within threshold, update status with countdown
-                            let remaining = AUTO_COMPLETE_DURATION_SECS - elapsed.as_secs();
-                            emit_polar_status(
-                                &format!("Below threshold - completing in {}s...", remaining),
-                                "adjusting",
-                                0,
-                            );
-                        }
-                    }
-                    None => {
-                        // First time below threshold, start timer
-                        auto_complete_start = Some(std::time::Instant::now());
+        // A solved frame clears the failure streak.
+        consecutive_failures = 0;
+
+        // Native plate-solve results report RA in degrees.
+        let ra_degrees = plate_solve_ra_degrees(solve_result.ra);
+
+        // Emit image again with plate solve coordinates
+        emit_polar_image(
+            &image,
+            0,
+            "adjusting",
+            Some(ra_degrees),
+            Some(solve_result.dec),
+        );
+
+        // Track the current mount axis by applying the boresight
+        // displacement (vs the first adjustment frame) to the measured axis.
+        // This reflects the user's physical alt/az adjustments WITHOUT the
+        // degenerate re-fit-from-stationary-points collapse.
+        let (ref_ra, ref_dec) = *reference_solve.get_or_insert((ra_degrees, solve_result.dec));
+
+        // Apply the exact geodesic rotation that moved the solved
+        // boresight to the measured mechanical axis. This remains stable
+        // near the pole where dividing a first-order RA delta by cos(dec)
+        // becomes singular and can explode a tiny adjustment.
+        let (cur_axis_ra, cur_axis_dec) = nightshade_sequencer::rotate_axis_by_star_motion(
+            initial_axis,
+            (ref_ra, ref_dec),
+            (ra_degrees, solve_result.dec),
+        );
+
+        tracing::debug!(
+            "Adjustment: boresight Δ=({:.4}°,{:.4}°) → current axis RA={:.4}°, Dec={:.4}°",
+            ra_degrees - ref_ra,
+            solve_result.dec - ref_dec,
+            cur_axis_ra,
+            cur_axis_dec
+        );
+
+        // Error in ARCSECONDS: the Dart UI labels these values with `"` and
+        // uses 30"/60" colour bands, and the auto-complete threshold is in
+        // the same unit. Emitting arcminutes here shows a 5' error as 5" and
+        // fires the auto-complete ~60x too early.
+        let (az_arcmin, alt_arcmin, total_arcmin) =
+            nightshade_sequencer::calculate_alignment_error_arcmin(
+                cur_axis_ra,
+                cur_axis_dec,
+                is_north,
+                observer_latitude,
+                observer_longitude,
+                chrono::Utc::now(),
+            );
+        let (az_error, alt_error, total_error) =
+            (az_arcmin * 60.0, alt_arcmin * 60.0, total_arcmin * 60.0);
+        center_ra = cur_axis_ra;
+        center_dec = cur_axis_dec;
+
+        // Auto-complete logic: check if error is below threshold
+        if total_error <= auto_complete_threshold {
+            match auto_complete_start {
+                Some(start_time) => {
+                    let elapsed = start_time.elapsed();
+                    if elapsed.as_secs() >= AUTO_COMPLETE_DURATION_SECS {
+                        // Error has been below threshold for required duration
                         tracing::info!(
-                            "Error {:.1} arcsec dropped below threshold {:.1}, starting auto-complete timer",
-                            total_error, auto_complete_threshold
+                            "Polar alignment complete! Total error {:.1} arcsec below threshold {:.1} for {} seconds",
+                            total_error, auto_complete_threshold, AUTO_COMPLETE_DURATION_SECS
                         );
                         emit_polar_status(
                             &format!(
-                                "Below threshold - completing in {}s...",
-                                AUTO_COMPLETE_DURATION_SECS
+                                "Complete! Error {:.1}\" below threshold for {}s",
+                                total_error, AUTO_COMPLETE_DURATION_SECS
                             ),
+                            "complete",
+                            0,
+                        );
+                        emit_polar_error(
+                            az_error,
+                            alt_error,
+                            total_error,
+                            ra_degrees,
+                            solve_result.dec,
+                            center_ra,
+                            center_dec,
+                        );
+                        return Ok(());
+                    } else {
+                        // Still within threshold, update status with countdown
+                        let remaining = AUTO_COMPLETE_DURATION_SECS - elapsed.as_secs();
+                        emit_polar_status(
+                            &format!("Below threshold - completing in {}s...", remaining),
                             "adjusting",
                             0,
                         );
                     }
                 }
-            } else {
-                // Error above threshold, reset timer if it was running
-                if auto_complete_start.is_some() {
-                    tracing::debug!(
-                        "Error {:.1} arcsec went back above threshold {:.1}, resetting auto-complete timer",
+                None => {
+                    // First time below threshold, start timer
+                    auto_complete_start = Some(std::time::Instant::now());
+                    tracing::info!(
+                        "Error {:.1} arcsec dropped below threshold {:.1}, starting auto-complete timer",
                         total_error, auto_complete_threshold
                     );
-                    auto_complete_start = None;
+                    emit_polar_status(
+                        &format!(
+                            "Below threshold - completing in {}s...",
+                            AUTO_COMPLETE_DURATION_SECS
+                        ),
+                        "adjusting",
+                        0,
+                    );
                 }
-                emit_polar_status("Adjusting - make corrections", "adjusting", 0);
             }
-
-            emit_polar_error(
-                az_error,
-                alt_error,
-                total_error,
-                ra_degrees,
-                solve_result.dec,
-                center_ra,
-                center_dec,
-            );
         } else {
-            consecutive_failures += 1;
-            // Failed solve means we can't track error, reset auto-complete timer
-            auto_complete_start = None;
-            emit_polar_status(
-                &format!(
-                    "Solve unsuccessful (retry {}/{})",
-                    consecutive_failures, MAX_FAILURES
-                ),
-                "adjusting",
-                0,
-            );
-            if consecutive_failures >= MAX_FAILURES {
-                return Err(format!(
-                    "Too many consecutive failures ({}) in adjustment loop",
-                    MAX_FAILURES
-                ));
+            // Error above threshold, reset timer if it was running
+            if auto_complete_start.is_some() {
+                tracing::debug!(
+                    "Error {:.1} arcsec went back above threshold {:.1}, resetting auto-complete timer",
+                    total_error, auto_complete_threshold
+                );
+                auto_complete_start = None;
             }
+            emit_polar_status("Adjusting - make corrections", "adjusting", 0);
         }
+
+        emit_polar_error(
+            az_error,
+            alt_error,
+            total_error,
+            ra_degrees,
+            solve_result.dec,
+            center_ra,
+            center_dec,
+        );
 
         // Brief pause before next update
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -733,12 +686,14 @@ pub(crate) async fn run_polar_alignment(
 
 /// Write the temp FITS a polar-alignment frame is solved from.
 ///
-/// `hints` carries the field scale (see [`SolveHints`]). Polar alignment
-/// solves blind on purpose — it runs before the mount's pointing can be
-/// trusted, so no position hint is stamped — but the scale is known from the
-/// operator's profile and the camera, and without it ASTAP has to sweep for
-/// the field of view on all three measurement frames plus every frame of the
-/// adjustment loop.
+/// `hints` carries the field scale (see [`SolveHints`]). No position is
+/// stamped into the header: the position hint polar alignment does have is the
+/// mount's own report, and it reaches ASTAP as `-ra`/`-spd` with the wide
+/// search radius the unaligned pointing model needs (see [`solve_polar_frame`])
+/// rather than as a header card a solver may read as gospel. The scale is
+/// known from the operator's profile and the camera, and without it ASTAP has
+/// to sweep for the field of view on all three measurement frames plus every
+/// frame of the adjustment loop.
 pub(crate) fn write_temp_fits_for_solve(
     image: &CapturedImageResult,
     path: &str,

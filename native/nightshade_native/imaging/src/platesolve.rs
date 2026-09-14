@@ -612,7 +612,7 @@ pub fn fits_scale_arcsec_per_px(path: &Path) -> Option<f64> {
 /// * `-spd <deg>` — hint south-pole distance = Dec + 90°
 /// * `-r <deg>` — search radius in degrees (only meaningful with `-ra`/`-spd`)
 /// * `-fov <deg>` — field HEIGHT in degrees, the scale hint
-/// * `-z <factor>` — downsample factor (default 0 = auto)
+/// * `-z <factor>` — downsample factor (0 = ASTAP auto, 1 = none, 2 = half)
 /// * `-d <dir>` — star catalog directory, required whenever the catalog is not
 ///   co-located with the ASTAP binary
 /// * `-wcs` — write the solution to a sibling `.wcs` FITS file. `-update` is
@@ -678,8 +678,12 @@ pub(crate) fn build_astap_args(
         }
     }
 
-    // Downsample: 0 means auto; send an explicit value when configured > 1.
-    if config.downsample > 1 {
+    // Downsample: 0 means "let ASTAP choose". Any other value is the
+    // operator's decision and is sent verbatim — including `-z 1`, which is
+    // how a caller says "this frame is already binned, do NOT throw half of
+    // each axis away again". Suppressing 1 here would silently hand such a
+    // frame back to ASTAP's auto ladder.
+    if config.downsample >= 1 {
         push("-z", format!("{}", config.downsample).into());
     }
 
@@ -1593,6 +1597,12 @@ pub fn blind_solve(image_path: &Path) -> PlateSolveResult {
 
 /// Blind plate solve with a caller-selected subprocess timeout.
 ///
+/// `downsample` is the ASTAP `-z` factor: `None` keeps the configured default,
+/// `Some(1)` solves the frame at full resolution, `Some(2)` halves each axis.
+/// A caller that already binned the frame in hardware passes `Some(1)` —
+/// binning and downsampling compound, and a 4x4 frame halved again has lost
+/// the stars the solve needs.
+///
 /// "Blind" is about POSITION, not scale: `hint_scale` (arcsec/pixel of the
 /// frame as taken, i.e. binned) still reaches ASTAP as `-fov` and is what
 /// keeps a narrow field off the blind scale ladder. It is a required
@@ -1603,12 +1613,16 @@ pub fn blind_solve_with_timeout(
     image_path: &Path,
     timeout_secs: u32,
     hint_scale: Option<f64>,
+    downsample: Option<u32>,
 ) -> PlateSolveResult {
     let start = std::time::Instant::now();
-    let config = PlateSolverConfig {
+    let mut config = PlateSolverConfig {
         timeout_secs,
         ..PlateSolverConfig::default()
     };
+    if let Some(factor) = downsample {
+        config.downsample = factor;
+    }
     solve_with_external_config(image_path, None, None, hint_scale, config, start)
 }
 
@@ -1640,7 +1654,10 @@ pub fn solve_near(
 /// `hint_scale` is arcsec/pixel of the frame as taken (binned). Position and
 /// scale are independent hints: passing a position does not tell ASTAP how
 /// wide the field is, and a near solve with no scale still walks the blind
-/// field-of-view ladder.
+/// field-of-view ladder. `downsample` is the ASTAP `-z` factor; `None` keeps
+/// the configured default. It does not change `-fov`, which is the angular
+/// size of the field and is the same field however many pixels ASTAP reads
+/// it at.
 pub fn solve_near_with_timeout(
     image_path: &Path,
     hint_ra: f64,
@@ -1648,13 +1665,17 @@ pub fn solve_near_with_timeout(
     search_radius: f64,
     timeout_secs: u32,
     hint_scale: Option<f64>,
+    downsample: Option<u32>,
 ) -> PlateSolveResult {
     let start = std::time::Instant::now();
-    let config = PlateSolverConfig {
+    let mut config = PlateSolverConfig {
         search_radius,
         timeout_secs,
         ..PlateSolverConfig::default()
     };
+    if let Some(factor) = downsample {
+        config.downsample = factor;
+    }
 
     solve_with_external_config(
         image_path,
@@ -3288,6 +3309,54 @@ mod astap_arg_tests {
             Some("0.7353"),
             "scale hint did not reach the ASTAP argument vector: {args:?}"
         );
+    }
+
+    fn args_with_downsample(downsample: u32, hint_scale: Option<f64>) -> Vec<String> {
+        let config = PlateSolverConfig {
+            downsample,
+            ..config()
+        };
+        build_astap_args(
+            &config,
+            Path::new("/scratch/frame.fits"),
+            None,
+            None,
+            hint_scale,
+            Some(3520.0),
+        )
+        .into_iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect()
+    }
+
+    /// A frame that is already binned in hardware is solved as it is, and
+    /// saying so takes an explicit `-z 1`: omitting the flag hands the frame
+    /// back to ASTAP's auto ladder, which is not the same instruction.
+    #[test]
+    fn an_explicit_no_downsample_reaches_astap_as_z_one() {
+        assert_eq!(
+            value_after(&args_with_downsample(1, None), "-z").as_deref(),
+            Some("1")
+        );
+    }
+
+    /// Zero is the one value that means "ASTAP decides", and it is sent by
+    /// saying nothing.
+    #[test]
+    fn an_auto_downsample_sends_no_flag() {
+        assert!(!args_with_downsample(0, None).iter().any(|a| a == "-z"));
+    }
+
+    /// `-fov` is the ANGULAR height of the field. Downsampling changes how
+    /// many pixels ASTAP reads that field at, not how wide the field is, so
+    /// the scale hint is the same number either way — the polar-alignment
+    /// downsample rule depends on this.
+    #[test]
+    fn downsampling_does_not_move_the_field_of_view_hint() {
+        let full = args_with_downsample(1, Some(0.77));
+        let halved = args_with_downsample(2, Some(0.77));
+        assert_eq!(value_after(&full, "-fov"), value_after(&halved, "-fov"));
+        assert_eq!(value_after(&full, "-fov").as_deref(), Some("0.7529"));
     }
 
     /// A blind solve is a solve with no scale: nothing to convert, no flag.
