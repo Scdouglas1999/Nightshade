@@ -26,6 +26,16 @@ part 'profile_editor_dialog/helper_widgets.dart';
 /// Widest the Optical train page's form column gets before it stops growing.
 const double opticalTrainPageMaxWidth = 720.0;
 
+/// Widest the Profiles tab's editor column gets before it stops growing.
+///
+/// Wider than [opticalTrainPageMaxWidth] because this hosts every section, and
+/// it shares its row with the 360 px profile list: at the 1920 px width the
+/// owner's laptop runs, the pane is ~1340 px, so the form fills it rather than
+/// leaving the empty half the tab used to be. The cap only bites on an
+/// ultrawide monitor, where an unbounded form would stretch a "Profile name"
+/// field across 2000 px.
+const double profilePageMaxWidth = 1200.0;
+
 abstract final class ProfileEditorField {
   static const focalLength = 'focalLength';
   static const reducer = 'reducer';
@@ -45,6 +55,12 @@ enum ProfileEditorMode {
   /// screen's "Optical train" tab (06 §Equipment). No dialog chrome, no
   /// Navigator pops: the tab stays put and the footer just saves.
   opticalTrainPage,
+
+  /// The whole editor, embedded as a page beside the profile list — the
+  /// Equipment screen's "Profiles" tab. Same sections as [full] and the same
+  /// save path, without the dialog chrome or the pop: the selected profile is
+  /// edited in place next to the list it was picked from.
+  profilePage,
 }
 
 /// Single-page profile editor dialog replacing the multi-step wizard.
@@ -398,6 +414,35 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         ],
       ),
     );
+
+    // Embedded as the Equipment screen's Profiles tab: every section on the
+    // page's own background beside the profile list, with no dialog chrome and
+    // no pop (see [_closeAfterSave]). The footer carries Save alone — there is
+    // nothing to cancel back to when the pane simply shows the selected row.
+    if (widget.mode == ProfileEditorMode.profilePage) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.space2xl,
+                vertical: NightshadeTokens.spaceXl,
+              ),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: ConstrainedBox(
+                  constraints:
+                      const BoxConstraints(maxWidth: profilePageMaxWidth),
+                  child: body,
+                ),
+              ),
+            ),
+          ),
+          _buildFooter(colors),
+        ],
+      );
+    }
 
     final title = isEditing ? 'Edit profile' : 'New profile';
 

@@ -41,22 +41,21 @@ class ShellHelpButton extends ConsumerWidget {
 
   void _open(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final box = context.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null || !box.hasSize) return;
+    final box = context.findRenderObject()! as RenderBox;
 
     // Anchored under the button's trailing edge, which is where a popover
-    // belongs relative to the control that opened it.
-    final topRight = box.localToGlobal(
-      box.size.bottomRight(Offset.zero),
-      ancestor: overlay,
-    );
-    final position = RelativeRect.fromLTRB(
-      topRight.dx - _menuWidth,
-      topRight.dy + NightshadeTokens.spaceXs,
-      overlay.size.width - topRight.dx,
-      0,
+    // belongs relative to the control that opened it. The anchor is a
+    // menu-wide box ending at that edge, so the popover's right side lines up
+    // with the button's right side instead of hanging off it.
+    final bottomRight = box.localToGlobal(box.size.bottomRight(Offset.zero));
+    final position = menuPositionFromRect(
+      context,
+      Rect.fromLTWH(
+        bottomRight.dx - _menuWidth,
+        bottomRight.dy + NightshadeTokens.spaceXs,
+        _menuWidth,
+        0,
+      ),
     );
 
     final screen = _currentScreen(context);
