@@ -257,6 +257,14 @@ and after the resize; the after-shots above are all at a confirmed `1920x1080+0+
       `deprecated_member_use` from the Flutter 3.44 / pinned-CI drift; NONE in a file I touched.
     flutter test test/screens/equipment --concurrency=4                  EXIT=0  (+173)
     flutter test test/screens/settings  --concurrency=4                  EXIT=0  (+615)
+    flutter test test/screens/mobile_tap_target_test.dart --concurrency=4 EXIT=0  (+24)
+    flutter test test/golden/public_screenshots_test.dart --concurrency=4 EXIT=0  (+1)
+
+The last two are the only tests outside those dirs that touch `EquipmentScreen`,
+`ProfileEditorDialog` or `ProfileSidebar`. NOTE: `public_screenshots_test.dart` REWRITES
+`assets/screenshots/*.png` as a side effect of passing. Those 12 files were reverted with
+`git checkout -- assets/screenshots/` — the brief forbids modifying golden PNGs, and the committed
+tree carries none of them. Anyone running that test locally should expect the same and revert.
 
 `dart analyze` needed `flutter pub get` in the package first; without a resolved
 `.dart_tool/package_config.json` it reports every Flutter import as `uri_does_not_exist`
