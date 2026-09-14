@@ -627,7 +627,13 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
 /// The Profiles tab: the profile list that used to be a permanent left column,
 /// now a page of its own so the Devices tab keeps the full width for cards.
-class _ProfilesTab extends StatelessWidget {
+///
+/// The list keeps its 360 px column and the rest of the row is the selected
+/// profile's editor ([ProfileEditorMode.profilePage]). Before that the tab WAS
+/// the 360 px column and nothing else — `Align(topLeft)` around a `SizedBox`,
+/// which left ~1340 of 1920 px of bare background beside it and gave a click
+/// on a profile row nothing to populate.
+class _ProfilesTab extends ConsumerWidget {
   final int? selectedProfileId;
   final ValueChanged<int?> onProfileSelected;
   final VoidCallback onCreateProfile;
@@ -655,27 +661,56 @@ class _ProfilesTab extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: SizedBox(
-        width: _profilesColumnWidth,
-        child: ProfileSidebar(
-          // Spotlight target for the Equipment Setup tour's first step.
-          key: EquipmentTutorialKeys.profileSelector,
-          selectedProfileId: selectedProfileId,
-          onProfileSelected: onProfileSelected,
-          onCreateProfile: onCreateProfile,
-          onEditProfile: onEditProfile,
-          onConnectAll: onConnectAll,
-          onDisconnectAll: onDisconnectAll,
-          onSetDefault: onSetDefault,
-          onActivateProfile: onActivateProfile,
-          onDuplicateProfile: onDuplicateProfile,
-          onDeleteProfile: onDeleteProfile,
-          onReorderProfiles: onReorderProfiles,
-        ),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ProfileSidebar(
+      // Spotlight target for the Equipment Setup tour's first step.
+      key: EquipmentTutorialKeys.profileSelector,
+      selectedProfileId: selectedProfileId,
+      onProfileSelected: onProfileSelected,
+      onCreateProfile: onCreateProfile,
+      onEditProfile: onEditProfile,
+      onConnectAll: onConnectAll,
+      onDisconnectAll: onDisconnectAll,
+      onSetDefault: onSetDefault,
+      onActivateProfile: onActivateProfile,
+      onDuplicateProfile: onDuplicateProfile,
+      onDeleteProfile: onDeleteProfile,
+      onReorderProfiles: onReorderProfiles,
+    );
+
+    final profiles = ref.watch(sortedProfilesProvider);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // One column when there is nothing to inspect, or no room to inspect
+        // it in:
+        //
+        // * No profiles — the list's own empty state already invites creating
+        //   one and says what a profile saves, so splitting the tab would put
+        //   that invitation on screen twice, side by side. It gets the width
+        //   instead.
+        // * Below [_profilesTwoPaneMinWidth] the editor's 120 px labels plus
+        //   their controls do not fit in what is left beside the list, so the
+        //   tab stays the single column it has always been and editing goes
+        //   through the list footer's "Edit profile" dialog.
+        if (profiles.isEmpty ||
+            constraints.maxWidth < _profilesTwoPaneMinWidth) {
+          return list;
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(width: _profilesColumnWidth, child: list),
+            Expanded(
+              child: _ProfileInspector(
+                profile: profiles
+                    .where((p) => p.id == selectedProfileId)
+                    .firstOrNull,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -683,6 +718,76 @@ class _ProfilesTab extends StatelessWidget {
 /// Width the profile list keeps as a tab body. Wider than the old 240 px
 /// sidebar because it no longer has to share the row with the device grid.
 const double _profilesColumnWidth = 360.0;
+
+/// Narrowest tab body that seats the list and the editor side by side.
+///
+/// [_profilesColumnWidth] plus the editor's minimum useful measure: its
+/// [profileEditorLabelWidth] label column, a control wide enough for a device
+/// name, and the page's own 24 px gutters.
+const double _profilesTwoPaneMinWidth = _profilesColumnWidth + 520.0;
+
+/// The Profiles tab's right-hand pane: the selected profile's editor, or the
+/// reason there isn't one.
+///
+/// The editor is keyed on the profile id so switching rows rebuilds its
+/// controllers from the new profile instead of leaving the previous row's text
+/// in the fields, and the swap cross-fades rather than cutting.
+class _ProfileInspector extends StatelessWidget {
+  const _ProfileInspector({required this.profile});
+
+  final EquipmentProfileModel? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final selected = profile;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(color: colors.background),
+      child: AnimatedSwitcher(
+        duration: animationDuration(context, NightshadeTokens.durationQuick),
+        switchInCurve: NightshadeTokens.curveStandard,
+        switchOutCurve: NightshadeTokens.curveStandard,
+        // Top-left rather than the default centred stack: the two forms are
+        // different heights, and centring them slides the incoming one's
+        // heading up the pane as it fades in.
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.topLeft,
+          children: [...previous, if (current != null) current],
+        ),
+        child: selected == null
+            ? const _NoProfileSelected(key: ValueKey('profiles.none'))
+            : ProfileEditorDialog(
+                key: ValueKey<int?>(selected.id),
+                profile: selected,
+                mode: ProfileEditorMode.profilePage,
+              ),
+      ),
+    );
+  }
+}
+
+/// The pane with no profile to show.
+///
+/// Only reachable while there ARE profiles but none is selected — the moment
+/// between deleting the selected row and the list settling on another. With no
+/// profiles at all the tab is one column and the list's own empty state does
+/// the inviting, so this never has to repeat it.
+class _NoProfileSelected extends StatelessWidget {
+  const _NoProfileSelected({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: EmptyState(
+        icon: LucideIcons.aperture,
+        title: 'Pick a profile',
+        body: 'Choose a profile on the left to see and edit its optics, '
+            'devices, filters and capture defaults.',
+      ),
+    );
+  }
+}
 
 /// The Optical train tab: the profile editor's optical-train section, hosted
 /// as a page instead of a dialog section.
