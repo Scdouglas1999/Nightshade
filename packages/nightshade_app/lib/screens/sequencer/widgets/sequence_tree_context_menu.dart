@@ -73,10 +73,6 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       ref.read(selectedNodeIdProvider.notifier).state = group.memberIds.first;
     }
 
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-
     final canEdit = ref.read(canEditSequenceProvider);
     // "Skip to here" is only meaningful while the sequence
     // is running/paused. canEdit is FALSE in those states — the inverse of
@@ -91,7 +87,6 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         ref,
         sequence: sequence,
         group: group,
-        overlay: overlay,
         position: position,
         canEdit: canEdit,
         isRunning: isRunning,
@@ -101,13 +96,14 @@ class SequenceTreeContextMenu extends ConsumerWidget {
 
     final selected = await showMenu<_TreeMenuAction>(
       context: context,
-      // RelativeRect from the global pointer position so the menu opens
-      // exactly under the cursor regardless of where the widget sits in
-      // the layout. Width 1×1 because we want a point, not a region.
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(position.dx, position.dy, 1, 1),
-        Offset.zero & overlay.size,
-      ),
+      // [position] is the GLOBAL pointer position and `showMenu` measures its
+      // insets against the nested Navigator's overlay, which starts at the
+      // shell's content edge. It has to be converted, or the overlay's origin
+      // is counted twice: this used to claim it opened "exactly under the
+      // cursor" while landing a nav-rail plus a title-bar away from it —
+      // measured live, 147 px right and 32 px down of the cursor with the rail
+      // expanded, and 43 px right with it collapsed.
+      position: menuPositionFromPoint(context, position),
       color: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -354,7 +350,6 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     WidgetRef ref, {
     required Sequence sequence,
     required FoldGroup group,
-    required RenderBox overlay,
     required Offset position,
     required bool canEdit,
     required bool isRunning,
@@ -366,10 +361,8 @@ class SequenceTreeContextMenu extends ConsumerWidget {
 
     final selected = await showMenu<_FoldMenuAction>(
       context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(position.dx, position.dy, 1, 1),
-        Offset.zero & overlay.size,
-      ),
+      // Global pointer position, converted — see the node menu above.
+      position: menuPositionFromPoint(context, position),
       color: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),

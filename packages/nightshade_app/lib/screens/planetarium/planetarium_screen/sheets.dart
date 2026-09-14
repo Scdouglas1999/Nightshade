@@ -98,18 +98,17 @@ extension _PlanetariumScreenSheets on _PlanetariumScreenState {
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
-    final RenderBox? overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-
     showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        overlay.size.width - position.dx,
-        overlay.size.height - position.dy,
-      ),
+      // [position] is the GLOBAL pointer position; `showMenu` measures its
+      // insets against the nested Navigator's overlay, which under `AppShell`
+      // starts below the title bar and right of the nav rail. Measured live,
+      // the unconverted version put this menu a title-bar height below the
+      // cursor and — because deriving the right inset from the overlay's own
+      // width made `left > right` — flipped it to right-alignment, so it
+      // landed LEFT of the cursor and moved 104 px sideways when the nav rail
+      // was expanded without the cursor moving at all.
+      position: menuPositionFromPoint(context, position),
       items: [
         const PopupMenuItem<String>(
           value: 'reset',
