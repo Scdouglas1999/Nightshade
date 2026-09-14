@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/frame_timing_probe.dart';
@@ -117,10 +118,80 @@ void main() {
       // timer fires, line is emitted, and it says zero.
       await tester.pump(const Duration(seconds: 5));
 
-      expect(lines, ['[frame-timing] window=5.0s frames=0 fps=0.0']);
+      // The live probe always attaches an image-cache reading, so the idle
+      // line carries the cache too — that is the pairing the thumbnail work
+      // needs: "nothing painted, and here is what the cache was holding".
+      expect(lines, hasLength(1));
+      expect(
+        lines.single,
+        startsWith(
+          '[frame-timing] window=5.0s frames=0 '
+          'fps=0.0 imgCacheMB=',
+        ),
+      );
+      expect(lines.single, contains('imgCacheImages='));
+      expect(lines.single, contains('imgCacheLive='));
       // Inside the body, not addTearDown: the binding checks for pending
       // timers before tear-downs run.
       stop();
+    });
+  });
+
+  group('ImageCacheReading', () {
+    test('renders bytes as megabytes alongside both counts', () {
+      const reading = ImageCacheReading(
+        sizeBytes: 3670016, // 3.5 MiB
+        imageCount: 118,
+        liveImageCount: 24,
+      );
+      expect(
+        reading.toString(),
+        'imgCacheMB=3.5 imgCacheImages=118 imgCacheLive=24',
+      );
+    });
+
+    // The distinction is the diagnosis. `imageCount` far above `liveImageCount`
+    // with a large `sizeBytes` is the signature of thumbnails decoded at full
+    // resolution: the cache is full of frames nothing is showing any more, and
+    // it is about to evict the ones that are.
+    test('carries live and total counts separately', () {
+      const reading = ImageCacheReading(
+        sizeBytes: 104857600,
+        imageCount: 1000,
+        liveImageCount: 8,
+      );
+      expect(reading.imageCount, 1000);
+      expect(reading.liveImageCount, 8);
+      expect(reading.toString(), contains('imgCacheMB=100.0'));
+    });
+
+    testWidgets('reads the binding it is given', (tester) async {
+      final reading = ImageCacheReading.now();
+      final cache = PaintingBinding.instance.imageCache;
+      expect(reading.sizeBytes, cache.currentSizeBytes);
+      expect(reading.imageCount, cache.currentSize);
+      expect(reading.liveImageCount, cache.liveImageCount);
+    });
+  });
+
+  group('frameTimingLine image cache', () {
+    test('omits the cache section when no reading is supplied', () {
+      final line = frameTimingLine(const [], const Duration(seconds: 5));
+      expect(line, '[frame-timing] window=5.0s frames=0 fps=0.0');
+    });
+
+    test('appends the cache section to a window that did produce frames', () {
+      final line = frameTimingLine(
+        [_frame(buildMicros: 1000, rasterMicros: 2000)],
+        const Duration(seconds: 1),
+        imageCache: const ImageCacheReading(
+          sizeBytes: 1048576,
+          imageCount: 4,
+          liveImageCount: 2,
+        ),
+      );
+      expect(line, endsWith('imgCacheMB=1.0 imgCacheImages=4 imgCacheLive=2'));
+      expect(line, contains('buildAvgMs=1.0'));
     });
   });
 }
