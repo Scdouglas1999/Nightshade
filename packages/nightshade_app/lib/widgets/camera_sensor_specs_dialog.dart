@@ -60,6 +60,12 @@ class _CameraSensorSpecsDialogState
   late final TextEditingController _fullWell;
   late final TextEditingController _qe;
 
+  /// What each field was prefilled with. A field the user did not touch is
+  /// not part of their override: leaving ZWO's published read noise in the box
+  /// and pressing Save must not relabel it "the value you entered" and lose
+  /// the gain it was quoted at.
+  late final Map<Key, String> _initialText;
+
   String? _error;
   bool _saving = false;
 
@@ -79,6 +85,15 @@ class _CameraSensorSpecsDialogState
     _readNoise = _prefilled(_specs.readNoiseE, decimals: 2);
     _fullWell = _prefilled(_specs.fullWellE);
     _qe = _prefilled(_specs.qePeakFraction, decimals: 2);
+    _initialText = {
+      _gainKey: _gain.text,
+      _pixelSizeKey: _pixelSize.text,
+      _widthKey: _width.text,
+      _heightKey: _height.text,
+      _readNoiseKey: _readNoise.text,
+      _fullWellKey: _fullWell.text,
+      _qeKey: _qe.text,
+    };
   }
 
   /// The driver gain a published figure was quoted at, when there is one, so
@@ -336,7 +351,14 @@ class _CameraSensorSpecsDialogState
     );
   }
 
-  double? _number(TextEditingController controller) {
+  /// The field's value when the user has changed it, else null.
+  double? _changed(Key field, TextEditingController controller) =>
+      controller.text.trim() == _initialText[field]!.trim()
+          ? null
+          : _current(controller);
+
+  /// The field's value as it stands, changed or not.
+  double? _current(TextEditingController controller) {
     final text = controller.text.trim();
     if (text.isEmpty) return null;
     final value = double.tryParse(text);
@@ -350,20 +372,38 @@ class _CameraSensorSpecsDialogState
       setState(() => _error = 'Name the camera these values belong to.');
       return;
     }
-    final pixelSize = _number(_pixelSize);
-    final width = _number(_width);
-    final height = _number(_height);
-    final readNoise = _number(_readNoise);
-    final fullWell = _number(_fullWell);
-    final qe = _number(_qe);
+    final pixelSize = _changed(_pixelSizeKey, _pixelSize);
+    final width = _changed(_widthKey, _width);
+    final height = _changed(_heightKey, _height);
+    final qe = _changed(_qeKey, _qe);
+    // Read noise and full well are ONE point on a gain curve, so the pair
+    // moves together: touching either records both of the values the user has
+    // in front of them, at the gain they name. Touching neither records no
+    // point at all, which is what keeps a geometry-only correction from
+    // asserting a noise figure.
+    final noiseTouched = _changed(_readNoiseKey, _readNoise) != null ||
+        _changed(_fullWellKey, _fullWell) != null;
+    final readNoise = noiseTouched ? _current(_readNoise) : null;
+    final fullWell = noiseTouched ? _current(_fullWell) : null;
 
+    if (pixelSize == null &&
+        width == null &&
+        height == null &&
+        !noiseTouched &&
+        qe == null) {
+      setState(
+        () => _error = 'Change a value to record a correction.',
+      );
+      return;
+    }
     if (qe != null && qe > 1) {
       setState(() => _error = 'Peak QE is a fraction: 0.6 means 60%.');
       return;
     }
-    // Read noise and full well are stored as one point on a gain curve, so a
-    // value without its gain would be a figure with no operating point — the
-    // exact thing the published database refuses to invent.
+    // Read noise and full well are one point on a gain curve, so neither can
+    // be recorded without the gain it was measured at — a figure with no
+    // operating point is exactly what the published database refuses to
+    // invent — and neither is usable in the exposure model without the other.
     final gain = int.tryParse(_gain.text.trim());
     if ((readNoise != null || fullWell != null) && gain == null) {
       setState(
@@ -380,27 +420,6 @@ class _CameraSensorSpecsDialogState
       setState(() => _error = 'Enter read noise as well as full well.');
       return;
     }
-    if (pixelSize == null &&
-        width == null &&
-        height == null &&
-        readNoise == null &&
-        qe == null) {
-      setState(() => _error = 'Fill in at least one value.');
-      return;
-    }
-    // The stored shape carries a pixel pitch and a QE alongside the gain
-    // points, so those two need a value even when the user only came to fix
-    // read noise. Falling back to what the chain already resolved keeps the
-    // saved row equal to what was on screen.
-    final effectivePixelSize = pixelSize ?? _specs.pixelSizeMicrons?.value;
-    final effectiveQe = qe ?? _specs.qePeakFraction?.value;
-    if (effectivePixelSize == null) {
-      setState(
-        () => _error =
-            'Enter the pixel size: nothing else can be scaled without it.',
-      );
-      return;
-    }
 
     setState(() {
       _saving = true;
@@ -410,7 +429,6 @@ class _CameraSensorSpecsDialogState
     try {
       final existing = await _loadExisting();
       final alias = _specs.reportedModel?.trim();
-      final resolvedGain = gain ?? _quotedGain() ?? _fallbackGain;
       final spec = CameraHardwareSpec(
         model: model,
         aliases: alias == null ||
@@ -418,20 +436,20 @@ class _CameraSensorSpecsDialogState
                 alias.toLowerCase() == model.toLowerCase()
             ? const []
             : [alias],
-        pixelSizeMicrons: effectivePixelSize,
-        qePeak: effectiveQe ?? _fallbackQePeak,
-        defaultGain: resolvedGain,
+        pixelSizeMicrons: pixelSize,
+        qePeak: qe,
+        defaultGain: gain ?? _quotedGain() ?? _profileGainFallback,
         sensorWidthPx: width?.round(),
         sensorHeightPx: height?.round(),
-        gainPoints: [
-          CameraGainPoint(
-            gain: resolvedGain,
-            readNoiseE:
-                readNoise ?? _specs.readNoiseE?.value ?? _fallbackReadNoiseE,
-            fullWellE:
-                fullWell ?? _specs.fullWellE?.value ?? _fallbackFullWellE,
-          ),
-        ],
+        gainPoints: readNoise == null || fullWell == null
+            ? const []
+            : [
+                CameraGainPoint(
+                  gain: gain!,
+                  readNoiseE: readNoise,
+                  fullWellE: fullWell,
+                ),
+              ],
       );
       existing.removeWhere(
         (entry) => entry.model.toLowerCase() == model.toLowerCase(),
@@ -454,14 +472,10 @@ class _CameraSensorSpecsDialogState
     }
   }
 
-  /// Stand-ins for the two fields the stored shape requires but the user may
-  /// not have supplied and the chain could not resolve. Same conservative
-  /// planning estimates the exposure context falls back to, so an override
-  /// that only fixes pixel size does not quietly improve the noise model.
-  static const int _fallbackGain = 100;
-  static const double _fallbackQePeak = 0.65;
-  static const double _fallbackReadNoiseE = 3.5;
-  static const double _fallbackFullWellE = 18000;
+  /// The gain a row is filed under when the user corrected only geometry, so
+  /// there is no measured gain to file it under. It selects nothing — the row
+  /// carries no gain points — and exists because the stored shape keys on one.
+  static const int _profileGainFallback = 100;
 
   Future<List<CameraHardwareSpec>> _loadExisting() async {
     final backend = ref.read(backendProvider);
