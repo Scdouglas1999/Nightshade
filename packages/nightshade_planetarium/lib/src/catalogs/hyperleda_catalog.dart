@@ -305,8 +305,8 @@ Future<CatalogRegionScan<HyperLedaData>> scanHyperLedaRegion(
   filePath: filePath,
   filter: filter,
   parse: HyperLedaData.fromCsvLine,
-  positionOf: (galaxy) => (ra: galaxy.ra, dec: galaxy.dec),
-  magnitudeOf: (galaxy) => galaxy.magnitude,
+  positionOf: _positionOf,
+  magnitudeOf: _magnitudeOf,
   catalogName: 'HyperLEDA',
 );
 

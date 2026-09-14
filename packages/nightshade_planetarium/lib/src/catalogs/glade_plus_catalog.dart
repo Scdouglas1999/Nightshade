@@ -158,8 +158,8 @@ Future<CatalogRegionScan<GladePlusData>> scanGladePlusRegion(
   filePath: filePath,
   filter: filter,
   parse: GladePlusData.fromCsvLine,
-  positionOf: (galaxy) => (ra: galaxy.ra, dec: galaxy.dec),
-  magnitudeOf: (galaxy) => galaxy.magnitude,
+  positionOf: _positionOf,
+  magnitudeOf: _magnitudeOf,
   catalogName: 'GLADE+',
 );
 
