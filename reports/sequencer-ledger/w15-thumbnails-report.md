@@ -391,6 +391,17 @@ golden PNGs.
 5. **`maximumSize` (1000 images) is untuned.** Measured as 120 images at peak here, so
    there was nothing to decide; a much longer night in one session would want a look.
 
+## SCRATCH ARTEFACTS (outside the repo, safe to delete)
+
+Roughly 4 GB under `~/.cache/ns-tmp/w15-thumbnails/`: `measure/frames/` (the 120 real
+FITS fixtures, 3.7 GB, plus their sidecars), `measure/bundle-before/` and
+`measure/bundle-after/` (the two release bundles the A/B ran against, 141 MB each),
+`measure/shots/` (the rail captures the paint counts were read from), `ns-audit/w15/` (the
+scratch profile and its `app.log` with every `[frame-timing]` line), and `bench/` (the
+one-off Rust timing harness). The generator and driver scripts that produced all of it are
+`measure/make_fits.py`, `measure/seed_db.py`, `measure/cold_probe.py` and
+`measure/warm_probe.py`. Kept as evidence, not needed by the build.
+
 ## COMMITS
 
 * `234258bdf` perf(thumbnails): take the full-frame FITS decode off the UI isolate
