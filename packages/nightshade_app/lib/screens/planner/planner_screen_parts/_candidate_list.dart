@@ -62,7 +62,7 @@ class _CandidateList extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
       itemBuilder: (context, index) {
         if (hasRisks && index == 0) {
-          return _PlanningRisksBanner(riskFactors: riskFactors);
+          return PlanningRisksBanner(riskFactors: riskFactors);
         }
         if (index == leading - 1) {
           return _CandidateColumnHeader(
@@ -406,86 +406,3 @@ final _plannerNightWindowProvider = Provider.autoDispose<_PlannerNightWindow?>(
     return _PlannerNightWindow(start: dusk, end: end);
   },
 );
-
-/// The planner's risk caveats, as ONE statement of ONE problem.
-///
-/// The scorer emits a caveat per missing sensor value, and the banner printed
-/// them verbatim, one after another:
-///
-///   "Camera read noise is not configured; using a conservative 3.5e- planning
-///    estimate. Camera full well is not configured; using an 18,000e- planning
-///    estimate. Camera QE is not configured; using a 65% planning estimate."
-///
-/// Three sentences, one problem — the camera's sensor specs are not filled in —
-/// and the same remedy for all of them. 02 rule 4 allows one banner per
-/// problem and rule 5 says it once, so the sensor caveats collapse into a
-/// single sentence with the missing values named as chips, and anything the
-/// scorer raises that is NOT a sensor caveat still gets said.
-class _PlanningRisksBanner extends StatelessWidget {
-  const _PlanningRisksBanner({required this.riskFactors});
-
-  final List<String> riskFactors;
-
-  /// Maps a scorer caveat to the sensor value it is about. The match is on the
-  /// caveat's subject, not its full text, so a reworded estimate does not
-  /// silently fall out of the group and become a fourth sentence again.
-  static const Map<String, String> _sensorSubjects = <String, String>{
-    'read noise': 'Read noise',
-    'full well': 'Full well',
-    'qe': 'QE',
-    'quantum efficiency': 'QE',
-    'pixel size': 'Pixel size',
-    'gain': 'Gain',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final missing = <String>[];
-    final others = <String>[];
-
-    for (final caveat in riskFactors) {
-      final lower = caveat.toLowerCase();
-      final isSensorCaveat =
-          lower.contains('not configured') && lower.contains('camera');
-      String? subject;
-      if (isSensorCaveat) {
-        for (final entry in _sensorSubjects.entries) {
-          if (lower.contains(entry.key)) {
-            subject = entry.value;
-            break;
-          }
-        }
-      }
-      if (subject == null) {
-        others.add(caveat);
-      } else if (!missing.contains(subject)) {
-        missing.add(subject);
-      }
-    }
-
-    if (missing.isEmpty) {
-      // Nothing to collapse: say what the scorer said.
-      return NightshadeBanner(
-        title: others.first,
-        message: others.length > 1 ? others.skip(1).join(' · ') : null,
-        tone: BannerTone.warning,
-      );
-    }
-
-    return NightshadeBanner(
-      key: const ValueKey('planner_sensor_specs_banner'),
-      tone: BannerTone.warning,
-      title: 'Camera sensor specs are not configured',
-      message: others.isEmpty
-          ? 'Scores use conservative estimates until you fill them in.'
-          : 'Scores use conservative estimates until you fill them in. '
-              '${others.join(' · ')}',
-      action: NightshadeButton(
-        label: 'Open camera specs',
-        variant: ButtonVariant.secondary,
-        size: ButtonSize.small,
-        onPressed: () => context.go('/equipment'),
-      ),
-    );
-  }
-}

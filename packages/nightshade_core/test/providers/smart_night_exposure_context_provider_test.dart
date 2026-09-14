@@ -11,6 +11,7 @@ import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/session_optimizer_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import 'package:nightshade_core/src/services/sensor_specs/camera_sensor_specs.dart';
 import 'package:nightshade_core/src/services/smart_night/hardware_specs_service.dart';
 
 final _initialSettingsProvider = Provider<AppSettingsState>(
@@ -120,10 +121,16 @@ void main() {
       );
 
       expect(context, isNotNull);
-      expect(context!.camera.readNoiseE, 1.1);
-      expect(context.camera.fullWellE, 51000);
-      expect(context.camera.qePeak, 0.88);
+      // The host's camera override names this camera at this gain, so it wins
+      // over `science.camera.read_noise_e`: that key is auto-written FROM the
+      // sensor-spec chain unless the user freezes it, and reading it back as
+      // an override would be circular. The next test freezes it.
+      expect(context!.camera.readNoiseE, 2.0);
+      expect(context.camera.fullWellE, 42000);
+      expect(context.camera.qePeak, 0.7);
       expect(context.pixelSizeMicrons, 4.2);
+      // The global `smart_night.camera.*` keys the host also returns are
+      // outranked by the per-camera override for the same reason.
       expect(context.gloverKFactor, 14);
       expect(context.guideSampleCount, 2);
       expect(context.guideRmsArcsec, closeTo(0.9333, 0.0001));
@@ -293,16 +300,205 @@ void main() {
       );
 
       expect(context, isNotNull);
-      expect(context!.camera.readNoiseE, closeTo(1.5, 0.001));
-      expect(context.camera.fullWellE, closeTo(18700, 0.001));
+      // ZWO's ASI2600 manual (Rev 1.3) publishes read noise as a 1.0-3.3e
+      // range with no per-gain attribution, full well as 50ke, and the mono
+      // QE peak as 91%. The high end of the read-noise range is the figure
+      // that does not flatter the camera, so that is what planning uses; the
+      // superseded built-in catalog claimed an unsourced 1.5e / 18,700e at
+      // gain 100.
+      expect(context!.camera.readNoiseE, closeTo(3.3, 0.001));
+      expect(context.camera.fullWellE, closeTo(50000, 0.001));
       expect(context.camera.qePeak, closeTo(0.91, 0.001));
       expect(context.pixelSizeMicrons, closeTo(3.76, 0.001));
-      expect(
-        context.caveats,
-        isNot(contains(contains('Camera read noise is not configured'))),
-      );
+      expect(context.caveats, isEmpty);
     },
   );
+
+  test('a frozen science read noise wins over the published figure', () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    // `science.camera.read_noise_e` is auto-written from the sensor-spec
+    // chain, so it only counts as the user's own value once they have frozen
+    // it by editing the field.
+    await db.settingsDao.setSettings({
+      'science.camera.auto_managed': 'false',
+      'science.camera.read_noise_e': '1.15',
+    });
+
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+        _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Measured rig',
+            cameraName: 'ASI2600MM Pro',
+            focalLength: 530,
+            aperture: 106,
+            defaultGain: 100,
+            filterNames: ['L'],
+          ),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+
+    final context = await container.read(
+      smartNightExposureContextProvider.future,
+    );
+    expect(context!.camera.readNoiseE, closeTo(1.15, 0.001));
+    // Everything else still comes from the published specification.
+    expect(context.camera.fullWellE, closeTo(50000, 0.001));
+  });
+
+  test('an unknown camera caveats every field and names the camera', () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+        _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Mystery rig',
+            cameraName: 'Acme SkyCam 9000',
+            focalLength: 500,
+            aperture: 100,
+            filterNames: ['L'],
+          ),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+
+    final context = await container.read(
+      smartNightExposureContextProvider.future,
+    );
+    expect(context, isNotNull);
+    expect(context!.caveats, hasLength(4));
+    expect(context.caveats.every(isSensorSpecCaveat), isTrue);
+    for (final caveat in context.caveats) {
+      expect(caveat, contains('Acme SkyCam 9000'));
+    }
+    // The conservative stand-ins, each announced by its caveat.
+    expect(context.pixelSizeMicrons, 3.76);
+    expect(context.camera.readNoiseE, 3.5);
+    expect(context.camera.fullWellE, 18000);
+    expect(context.camera.qePeak, 0.65);
+  });
+
+  test('a correction saved after the first read reaches the planner', () async {
+    // The chain is only useful if it notices. A one-shot settings read left
+    // the Plan screen warning about a camera whose specs the user had just
+    // typed into the dialog, because the settings map behind the chain was
+    // already cached.
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+        _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Mystery rig',
+            cameraName: 'Acme SkyCam 9000',
+            focalLength: 500,
+            aperture: 100,
+            defaultGain: 120,
+            filterNames: ['L'],
+          ),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+
+    // A live listener, as a screen watching the provider would be: without
+    // one Riverpod has no reason to keep the settings stream subscribed.
+    final subscription = container.listen(
+      smartNightExposureContextProvider,
+      (_, __) {},
+    );
+    addTearDown(subscription.close);
+
+    final before = await container.read(
+      smartNightExposureContextProvider.future,
+    );
+    expect(before!.caveats, hasLength(4), reason: 'precondition: unknown');
+
+    await db.settingsDao.setSetting(
+      HardwareSpecsService.cameraOverridesSettingKey,
+      '[{"model":"Acme SkyCam 9000","aliases":[],"pixelSizeMicrons":4.63,'
+      '"qePeak":0.75,"defaultGain":120,"gainPoints":'
+      '[{"gain":120,"readNoiseE":2.1,"fullWellE":42000.0}],'
+      '"sensorWidthPx":4144,"sensorHeightPx":2822}]',
+    );
+
+    // No invalidation anywhere: the write reaches the planner through the
+    // settings table's own stream, which takes a few event-loop turns.
+    var after = before;
+    for (
+      var attempt = 0;
+      attempt < 100 && after.caveats.isNotEmpty;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      after = (await container.read(smartNightExposureContextProvider.future))!;
+    }
+    expect(after.caveats, isEmpty);
+    expect(after.pixelSizeMicrons, 4.63);
+    expect(after.camera.readNoiseE, 2.1);
+    expect(after.camera.fullWellE, 42000);
+    expect(after.camera.qePeak, 0.75);
+  });
+
+  test('a malformed override blob is reported, not silently ignored', () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    await db.settingsDao.setSetting(
+      HardwareSpecsService.cameraOverridesSettingKey,
+      '{not json at all',
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+        _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Corrupt override rig',
+            cameraName: 'ASI1600MM-Cool',
+            focalLength: 500,
+            aperture: 100,
+            defaultGain: 139,
+            filterNames: ['L'],
+          ),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+
+    final context = await container.read(
+      smartNightExposureContextProvider.future,
+    );
+    expect(context!.caveats, [unreadableSensorOverridesCaveat]);
+    // The published figures still get used underneath.
+    expect(context.pixelSizeMicrons, 3.8);
+    expect(context.camera.readNoiseE, 1.2);
+  });
 
   test(
     'Smart Night exposure context uses user camera hardware overrides',

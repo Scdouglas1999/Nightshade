@@ -1,8 +1,7 @@
-import 'dart:math' as math;
+import '../sensor_specs/camera_sensor_database.dart';
+import '../sensor_specs/camera_sensor_spec_resolver.dart';
 
-import 'exposure_calculator.dart';
-
-/// Per-gain camera sensor values used by the Smart Night exposure model.
+/// Per-gain camera sensor values a user entered for one camera.
 class CameraGainPoint {
   final int gain;
   final double readNoiseE;
@@ -29,30 +28,51 @@ class CameraGainPoint {
   };
 }
 
-/// Bundled camera metadata. This is intentionally small and deterministic;
-/// the service boundary lets us replace the catalog with JSON/remote specs
-/// without changing the exposure callers.
+/// One camera's sensor values as the USER entered them.
+///
+/// This is the top of the sensor-spec resolution chain and the only tier the
+/// app writes on the user's behalf. The published specification database
+/// ([kCuratedCameraSensors]) is a separate, lower tier; a row from it never
+/// overwrites one of these.
 class CameraHardwareSpec {
   final String model;
   final List<String> aliases;
-  final double pixelSizeMicrons;
-  final double qePeak;
+
+  /// Only the fields the user actually set are present.
+  ///
+  /// A user who opens the dialog to correct a pixel size must not come away
+  /// having also asserted a read noise. Every figure here is nullable so an
+  /// override can claim one value and leave the rest of the chain — the
+  /// published specification, or an honest caveat — to answer for the others.
+  final double? pixelSizeMicrons;
+  final double? qePeak;
   final int defaultGain;
   final List<CameraGainPoint> gainPoints;
+
+  /// Sensor pixel count, when the user corrected it. Optional because the
+  /// driver reports geometry reliably and most corrections are to the figures
+  /// it does not report.
+  final int? sensorWidthPx;
+  final int? sensorHeightPx;
 
   const CameraHardwareSpec({
     required this.model,
     this.aliases = const [],
-    required this.pixelSizeMicrons,
-    required this.qePeak,
+    this.pixelSizeMicrons,
+    this.qePeak,
     required this.defaultGain,
-    required this.gainPoints,
+    this.gainPoints = const [],
+    this.sensorWidthPx,
+    this.sensorHeightPx,
   });
 
   factory CameraHardwareSpec.fromJson(Map<String, dynamic> json) {
+    // The key has to be there and has to be a list — a blob that does not even
+    // have the shape is corrupt, and the planner says so. An EMPTY list is
+    // different and legitimate: an override that corrects geometry only.
     final gainPointsJson = json['gainPoints'];
-    if (gainPointsJson is! List || gainPointsJson.isEmpty) {
-      throw const FormatException('Camera spec requires gainPoints');
+    if (gainPointsJson is! List) {
+      throw const FormatException('Camera spec requires a gainPoints list');
     }
     final aliasesJson = json['aliases'];
     return CameraHardwareSpec(
@@ -60,11 +80,8 @@ class CameraHardwareSpec {
       aliases: aliasesJson is List
           ? aliasesJson.map((value) => value.toString()).toList()
           : const [],
-      pixelSizeMicrons: _doubleValue(
-        json['pixelSizeMicrons'],
-        'pixelSizeMicrons',
-      ),
-      qePeak: _doubleValue(json['qePeak'], 'qePeak'),
+      pixelSizeMicrons: _optionalDoubleValue(json['pixelSizeMicrons']),
+      qePeak: _optionalDoubleValue(json['qePeak']),
       defaultGain: _intValue(json['defaultGain'], 'defaultGain'),
       gainPoints: gainPointsJson
           .map(
@@ -73,53 +90,92 @@ class CameraHardwareSpec {
             ),
           )
           .toList(),
+      sensorWidthPx: _optionalIntValue(json['sensorWidthPx']),
+      sensorHeightPx: _optionalIntValue(json['sensorHeightPx']),
     );
   }
 
   Map<String, dynamic> toJson() => {
     'model': model,
     'aliases': aliases,
-    'pixelSizeMicrons': pixelSizeMicrons,
-    'qePeak': qePeak,
+    if (pixelSizeMicrons != null) 'pixelSizeMicrons': pixelSizeMicrons,
+    if (qePeak != null) 'qePeak': qePeak,
     'defaultGain': defaultGain,
     'gainPoints': gainPoints.map((point) => point.toJson()).toList(),
+    if (sensorWidthPx != null) 'sensorWidthPx': sensorWidthPx,
+    if (sensorHeightPx != null) 'sensorHeightPx': sensorHeightPx,
   };
+
+  /// Every name this spec answers to, normalised.
+  Set<String> get matchKeys => {
+    for (final name in [model, ...aliases])
+      if (CameraSensorDatabase.normalize(name).isNotEmpty)
+        CameraSensorDatabase.normalize(name),
+  };
+
+  /// The gain point at [gain], interpolated between the user's own points and
+  /// clamped to the ends of what they entered. Null when they entered none.
+  ///
+  /// Interpolation is legitimate here in a way it is not for the published
+  /// database: these points are a curve the user supplied, and the values
+  /// between two of their own measurements are the best answer available.
+  CameraGainPoint? gainPointFor(int gain) {
+    if (gainPoints.isEmpty) return null;
+    final points = [...gainPoints]..sort((a, b) => a.gain.compareTo(b.gain));
+    for (final point in points) {
+      if (point.gain == gain) return point;
+    }
+    if (gain <= points.first.gain) return points.first;
+    if (gain >= points.last.gain) return points.last;
+    for (var i = 0; i < points.length - 1; i++) {
+      final lower = points[i];
+      final upper = points[i + 1];
+      if (gain > lower.gain && gain < upper.gain) {
+        final t = (gain - lower.gain) / (upper.gain - lower.gain);
+        return CameraGainPoint(
+          gain: gain,
+          readNoiseE: _lerp(lower.readNoiseE, upper.readNoiseE, t),
+          fullWellE: _lerp(lower.fullWellE, upper.fullWellE, t),
+        );
+      }
+    }
+    return points.last;
+  }
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
 }
 
-class CameraHardwareMatch {
-  final CameraHardwareSpec spec;
-  final String matchedName;
-  final CameraExposureSpec exposureSpec;
-  final double pixelSizeMicrons;
-
-  const CameraHardwareMatch({
-    required this.spec,
-    required this.matchedName,
-    required this.exposureSpec,
-    required this.pixelSizeMicrons,
-  });
-}
-
+/// The user's camera sensor overrides — tier (a) of the sensor-spec chain.
+///
+/// The values live in the `app_settings` row named by
+/// [cameraOverridesSettingKey] and are written by the camera sensor specs
+/// dialog. This service does two things with them: parse them, and decide
+/// which one (if any) describes the camera in hand.
+///
+/// That decision is an EXACT normalised name match, never an approximate one.
+/// The previous implementation matched on Levenshtein distance ≤ 3 plus a
+/// six-character substring rule against a small built-in catalog, which
+/// answered "ASI2400MC Pro" with the ASI2600MC's 3.76 µm pitch (the ASI2400 is
+/// 5.94 µm) and "ASI183MM Pro" with the ASI533's (2.4 µm against 3.76 µm) —
+/// silently, and into every image-scale and field-of-view figure in the app.
+/// See [CameraSensorDatabase] for the same rule on the published database.
 class HardwareSpecsService {
   static const cameraOverridesSettingKey =
       'smart_night.hardware.camera_overrides.v1';
 
   final List<CameraHardwareSpec> _cameraOverrides;
-  final List<CameraHardwareSpec> _cameraCatalog;
 
   const HardwareSpecsService({
     List<CameraHardwareSpec> cameraOverrides = const [],
-    List<CameraHardwareSpec> cameraCatalog = _defaultCameraCatalog,
-  }) : _cameraOverrides = cameraOverrides,
-       _cameraCatalog = cameraCatalog;
+  }) : _cameraOverrides = cameraOverrides;
+
+  List<CameraHardwareSpec> get cameraOverrides =>
+      List.unmodifiable(_cameraOverrides);
 
   HardwareSpecsService withCameraOverrides(
     List<CameraHardwareSpec> cameraOverrides,
   ) {
-    return HardwareSpecsService(
-      cameraOverrides: cameraOverrides,
-      cameraCatalog: _cameraCatalog,
-    );
+    return HardwareSpecsService(cameraOverrides: cameraOverrides);
   }
 
   static List<CameraHardwareSpec> cameraOverridesFromJson(Object? decoded) {
@@ -136,133 +192,39 @@ class HardwareSpecsService {
         .toList();
   }
 
-  CameraHardwareMatch? matchCamera({
+  /// The override that names this camera, or null.
+  CameraHardwareSpec? overrideFor({String? cameraName, String? cameraId}) {
+    final candidates = [cameraName, cameraId]
+        .map(
+          (value) => value == null ? '' : CameraSensorDatabase.normalize(value),
+        )
+        .where((value) => value.isNotEmpty);
+    for (final candidate in candidates) {
+      for (final spec in _cameraOverrides) {
+        if (spec.matchKeys.contains(candidate)) return spec;
+      }
+    }
+    return null;
+  }
+
+  /// The override for this camera in the shape the resolver consumes.
+  UserSensorSpecOverrides overridesFor({
     String? cameraName,
     String? cameraId,
     int? gain,
   }) {
-    final candidates = [cameraName, cameraId]
-        .whereType<String>()
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList(growable: false);
-    if (candidates.isEmpty) return null;
-
-    _CameraCatalogHit? best;
-    for (final candidate in candidates) {
-      final normalizedCandidate = _normalize(candidate);
-      if (normalizedCandidate.isEmpty) continue;
-      for (final spec in [..._cameraOverrides, ..._cameraCatalog]) {
-        final names = [spec.model, ...spec.aliases];
-        for (final name in names) {
-          final normalizedName = _normalize(name);
-          if (normalizedName.isEmpty) continue;
-          final score = _matchScore(normalizedCandidate, normalizedName);
-          if (score == null) continue;
-          final hit = _CameraCatalogHit(
-            spec: spec,
-            matchedName: name,
-            score: score,
-          );
-          if (best == null || hit.score < best.score) {
-            best = hit;
-          }
-        }
-      }
-    }
-
-    if (best == null) return null;
-    final point = _gainPointFor(best.spec, gain ?? best.spec.defaultGain);
-    return CameraHardwareMatch(
-      spec: best.spec,
-      matchedName: best.matchedName,
-      pixelSizeMicrons: best.spec.pixelSizeMicrons,
-      exposureSpec: CameraExposureSpec(
-        readNoiseE: point.readNoiseE,
-        fullWellE: point.fullWellE,
-        qePeak: best.spec.qePeak,
-      ),
+    final spec = overrideFor(cameraName: cameraName, cameraId: cameraId);
+    if (spec == null) return UserSensorSpecOverrides.none;
+    final point = spec.gainPointFor(gain ?? spec.defaultGain);
+    return UserSensorSpecOverrides(
+      pixelSizeMicrons: spec.pixelSizeMicrons,
+      sensorWidthPx: spec.sensorWidthPx,
+      sensorHeightPx: spec.sensorHeightPx,
+      readNoiseE: point?.readNoiseE,
+      fullWellE: point?.fullWellE,
+      qePeakFraction: spec.qePeak,
     );
   }
-
-  static int? _matchScore(String candidate, String catalogName) {
-    if (candidate == catalogName) return 0;
-    if (candidate.length >= 6 &&
-        catalogName.length >= 6 &&
-        (candidate.contains(catalogName) || catalogName.contains(candidate))) {
-      return 1;
-    }
-    final distance = _levenshtein(candidate, catalogName);
-    if (distance <= 3) return distance + 2;
-    return null;
-  }
-
-  static CameraGainPoint _gainPointFor(CameraHardwareSpec spec, int gain) {
-    final points = [...spec.gainPoints]
-      ..sort((a, b) => a.gain.compareTo(b.gain));
-    for (final point in points) {
-      if (point.gain == gain) return point;
-    }
-    if (gain <= points.first.gain) return points.first;
-    if (gain >= points.last.gain) return points.last;
-
-    for (var i = 0; i < points.length - 1; i++) {
-      final lower = points[i];
-      final upper = points[i + 1];
-      if (gain > lower.gain && gain < upper.gain) {
-        final t = (gain - lower.gain) / (upper.gain - lower.gain);
-        return CameraGainPoint(
-          gain: gain,
-          readNoiseE: _lerp(lower.readNoiseE, upper.readNoiseE, t),
-          fullWellE: _lerp(lower.fullWellE, upper.fullWellE, t),
-        );
-      }
-    }
-
-    return points.reduce(
-      (a, b) => (gain - a.gain).abs() <= (gain - b.gain).abs() ? a : b,
-    );
-  }
-
-  static double _lerp(double a, double b, double t) => a + (b - a) * t;
-
-  static String _normalize(String value) => value
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9]+'), '')
-      .replaceAll('colour', 'color');
-
-  static int _levenshtein(String a, String b) {
-    if (a == b) return 0;
-    if (a.isEmpty) return b.length;
-    if (b.isEmpty) return a.length;
-
-    var previous = List<int>.generate(b.length + 1, (i) => i);
-    for (var i = 0; i < a.length; i++) {
-      final current = List<int>.filled(b.length + 1, 0);
-      current[0] = i + 1;
-      for (var j = 0; j < b.length; j++) {
-        final substitutionCost = a.codeUnitAt(i) == b.codeUnitAt(j) ? 0 : 1;
-        current[j + 1] = math.min(
-          math.min(current[j] + 1, previous[j + 1] + 1),
-          previous[j] + substitutionCost,
-        );
-      }
-      previous = current;
-    }
-    return previous.last;
-  }
-}
-
-class _CameraCatalogHit {
-  final CameraHardwareSpec spec;
-  final String matchedName;
-  final int score;
-
-  const _CameraCatalogHit({
-    required this.spec,
-    required this.matchedName,
-    required this.score,
-  });
 }
 
 String _stringValue(Object? value, String field) {
@@ -271,67 +233,29 @@ String _stringValue(Object? value, String field) {
 }
 
 int _intValue(Object? value, String field) {
-  if (value is int) return value;
-  if (value is num && value.isFinite) return value.round();
-  if (value is String) {
-    final parsed = int.tryParse(value);
-    if (parsed != null) return parsed;
-  }
+  final parsed = _optionalIntValue(value);
+  if (parsed != null) return parsed;
   throw FormatException('Camera spec requires numeric $field');
 }
 
+int? _optionalIntValue(Object? value) {
+  if (value is int) return value;
+  if (value is num && value.isFinite) return value.round();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
 double _doubleValue(Object? value, String field) {
+  final parsed = _optionalDoubleValue(value);
+  if (parsed != null) return parsed;
+  throw FormatException('Camera spec requires numeric $field');
+}
+
+double? _optionalDoubleValue(Object? value) {
   if (value is num && value.isFinite) return value.toDouble();
   if (value is String) {
     final parsed = double.tryParse(value);
     if (parsed != null && parsed.isFinite) return parsed;
   }
-  throw FormatException('Camera spec requires numeric $field');
+  return null;
 }
-
-const _defaultCameraCatalog = [
-  CameraHardwareSpec(
-    model: 'ZWO ASI2600MM Pro',
-    aliases: ['ASI2600MM', 'ASI2600MM Pro', 'ZWO ASI2600MM'],
-    pixelSizeMicrons: 3.76,
-    qePeak: 0.91,
-    defaultGain: 100,
-    gainPoints: [
-      CameraGainPoint(gain: 0, readNoiseE: 3.5, fullWellE: 50000),
-      CameraGainPoint(gain: 100, readNoiseE: 1.5, fullWellE: 18700),
-    ],
-  ),
-  CameraHardwareSpec(
-    model: 'ZWO ASI2600MC Pro',
-    aliases: ['ASI2600MC', 'ASI2600MC Pro', 'ZWO ASI2600MC'],
-    pixelSizeMicrons: 3.76,
-    qePeak: 0.80,
-    defaultGain: 100,
-    gainPoints: [
-      CameraGainPoint(gain: 0, readNoiseE: 3.5, fullWellE: 50000),
-      CameraGainPoint(gain: 100, readNoiseE: 1.5, fullWellE: 18700),
-    ],
-  ),
-  CameraHardwareSpec(
-    model: 'ZWO ASI533MM Pro',
-    aliases: ['ASI533MM', 'ASI533MM Pro', 'ZWO ASI533MM'],
-    pixelSizeMicrons: 3.76,
-    qePeak: 0.91,
-    defaultGain: 100,
-    gainPoints: [
-      CameraGainPoint(gain: 0, readNoiseE: 3.5, fullWellE: 50000),
-      CameraGainPoint(gain: 100, readNoiseE: 1.5, fullWellE: 18200),
-    ],
-  ),
-  CameraHardwareSpec(
-    model: 'ZWO ASI533MC Pro',
-    aliases: ['ASI533MC', 'ASI533MC Pro', 'ZWO ASI533MC'],
-    pixelSizeMicrons: 3.76,
-    qePeak: 0.80,
-    defaultGain: 100,
-    gainPoints: [
-      CameraGainPoint(gain: 0, readNoiseE: 3.5, fullWellE: 50000),
-      CameraGainPoint(gain: 100, readNoiseE: 1.5, fullWellE: 18200),
-    ],
-  ),
-];

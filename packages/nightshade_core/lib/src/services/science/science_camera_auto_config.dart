@@ -11,8 +11,9 @@ import '../../providers/capability_provider.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/equipment/camera_state_provider.dart';
 import '../../providers/profiles_provider.dart';
-import '../../providers/session_optimizer_provider.dart';
 import '../logging_service.dart';
+import '../sensor_specs/camera_sensor_spec_resolver.dart';
+import '../sensor_specs/camera_sensor_specs.dart';
 import '../smart_night/hardware_specs_service.dart';
 
 /// Keeps the `science.camera.*` settings (read noise, gain in e⁻/ADU,
@@ -25,10 +26,10 @@ import '../smart_night/hardware_specs_service.dart';
 ///   2. The active equipment profile (camera name + default gain) when no
 ///      camera is connected.
 ///
-/// Sensor values come from [HardwareSpecsService] — the same per-gain
-/// read-noise / full-well catalog (plus user overrides) that Smart Night's
-/// exposure model uses, so the two features can never disagree about the
-/// camera. Saturation and the e⁻/ADU conversion are derived from the
+/// Sensor values come from [CameraSensorSpecResolver] — the same resolution
+/// chain (user entry, then the published specification database) that Smart
+/// Night's exposure model uses, so the two features can never disagree about
+/// the camera. Saturation and the e⁻/ADU conversion are derived from the
 /// driver-reported PIXEL-CONTAINER full scale (`CameraStatus.maxAdu`):
 ///   maxAdu       = CameraStatus.maxAdu   (65535 when the camera is unreachable)
 ///   gain e⁻/ADU  = fullWell_e / maxAdu
@@ -99,32 +100,27 @@ class ScienceCameraAutoConfig {
         return;
       }
 
-      final specs = await _specsWithOverrides(dao);
+      final specs = await _resolveSensorSpecs(dao, identity);
       if (!_isCurrent(generation)) return;
-      final match = specs.matchCamera(
-        cameraName: identity.name,
-        cameraId: identity.deviceId,
-        gain: identity.gain,
-      );
+      final readNoise = specs.readNoiseE;
+      final fullWell = specs.fullWellE;
 
       final updates = <String, String>{saturationKey: maxAdu.toString()};
       String source;
-      if (match != null) {
-        final readNoise = match.exposureSpec.readNoiseE;
-        final gainEPerAdu = match.exposureSpec.fullWellE / maxAdu;
-        updates[readNoiseKey] = readNoise.toStringAsFixed(2);
-        updates[gainKey] = gainEPerAdu.toStringAsFixed(3);
+      if (readNoise != null && fullWell != null) {
+        updates[readNoiseKey] = readNoise.value.toStringAsFixed(2);
+        updates[gainKey] = (fullWell.value / maxAdu).toStringAsFixed(3);
         source =
-            '${match.spec.model} @ gain ${identity.gain ?? match.spec.defaultGain} '
-            '($bitDepth-bit)';
+            '${specs.databaseEntry?.model ?? identity.name} ($bitDepth-bit) — '
+            'read noise ${readNoise.provenance}';
       } else {
         // Unknown sensor: the driver's full scale still gives a correct
         // saturation level, but read noise / e-/ADU would be guesses — leave
         // whatever the user (or a previous match) configured rather than
         // overwrite with fabricated values.
         source =
-            '${identity.name} ($bitDepth-bit) — sensor not in catalog, '
-            'read noise/gain unchanged';
+            '${identity.name} ($bitDepth-bit) — no published read noise or '
+            'full well for this camera, read noise/gain unchanged';
       }
       updates[autoSourceKey] = source;
 
@@ -221,24 +217,43 @@ class ScienceCameraAutoConfig {
     return 65535;
   }
 
-  Future<HardwareSpecsService> _specsWithOverrides(SettingsDao dao) async {
-    final base = _ref.read(hardwareSpecsServiceProvider);
+  Future<ResolvedCameraSensorSpecs> _resolveSensorSpecs(
+    SettingsDao dao,
+    ({String name, String? deviceId, int? gain}) identity,
+  ) async {
+    var overrides = UserSensorSpecOverrides.none;
     try {
       final raw = await dao.getSetting(
         HardwareSpecsService.cameraOverridesSettingKey,
       );
-      if (raw == null || raw.trim().isEmpty) return base;
-      final overrides = HardwareSpecsService.cameraOverridesFromJson(
-        jsonDecode(raw),
-      );
-      return overrides.isEmpty ? base : base.withCameraOverrides(overrides);
+      if (raw != null && raw.trim().isNotEmpty) {
+        overrides =
+            HardwareSpecsService(
+              cameraOverrides: HardwareSpecsService.cameraOverridesFromJson(
+                jsonDecode(raw),
+              ),
+            ).overridesFor(
+              cameraName: identity.name,
+              cameraId: identity.deviceId,
+              gain: identity.gain,
+            );
+      }
     } catch (error) {
       _logger.warning(
-        'Ignoring malformed camera hardware overrides: $error',
+        'Ignoring malformed camera hardware overrides: \$error',
         source: 'ScienceCameraAutoConfig',
       );
-      return base;
     }
+    // Geometry is irrelevant here: this service writes read noise and the
+    // e-/ADU conversion, neither of which any driver reports.
+    return CameraSensorSpecResolver().resolve(
+      CameraSensorSpecInputs(
+        cameraName: identity.name,
+        cameraId: identity.deviceId,
+        gain: identity.gain,
+        overrides: overrides,
+      ),
+    );
   }
 }
 

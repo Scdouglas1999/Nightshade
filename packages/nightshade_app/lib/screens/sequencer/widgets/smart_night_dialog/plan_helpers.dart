@@ -255,15 +255,21 @@ extension _SmartNightPlanHelpers on _SmartNightDialogState {
     }
   }
 
-  bool _shouldPromptForCameraSpecs(SmartNightExposureContext? context) {
-    if (context == null) return false;
-    return context.caveats.any((caveat) {
-      final text = caveat.toLowerCase();
-      return text.contains('camera read noise') ||
-          text.contains('camera full well') ||
-          text.contains('camera qe') ||
-          text.contains('camera pixel size');
-    });
+  /// Whether a sensor value Smart Night's exposure model needs is missing.
+  ///
+  /// Asked of the resolved specs rather than of the caveat text: a reworded
+  /// caveat used to stop this prompt firing silently, and the exposure model
+  /// then planned the night on a stand-in figure without anyone being asked.
+  /// Sensor dimensions are not on the list — they set the field of view, not
+  /// the exposure.
+  bool _shouldPromptForCameraSpecs(ResolvedCameraSensorSpecs specs) {
+    const needed = {
+      SensorSpecField.pixelSize,
+      SensorSpecField.readNoise,
+      SensorSpecField.fullWell,
+      SensorSpecField.qePeak,
+    };
+    return specs.unresolvedFields.any(needed.contains);
   }
 
   void _adjustFilterCount(

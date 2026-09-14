@@ -20,6 +20,7 @@ import '../../localization/nightshade_localizations.dart';
 import '../../utils/authority_bound_dialog.dart';
 import '../../utils/darkroom_navigation.dart' show unavailableControlName;
 import '../../utils/plan_tonight_sequencer_helper.dart';
+import 'widgets/planning_risks_banner.dart';
 import 'widgets/progress_tab_content.dart';
 import 'widgets/projects_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
