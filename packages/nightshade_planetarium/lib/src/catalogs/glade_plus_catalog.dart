@@ -1,6 +1,6 @@
-import 'dart:developer' as developer;
-import 'dart:io';
-import 'dart:math' as math;
+import 'dart:isolate';
+
+import 'catalog_region_scan.dart';
 
 /// GLADE+ catalog data for deep galaxy annotation
 /// Columns: RAJ2000, DEJ2000, Bmag, zhelio, PGC
@@ -78,134 +78,52 @@ class GladePlusData {
   String get displayName => 'PGC $pgc';
 }
 
-class _SpatialGridCell {
-  final List<GladePlusData> objects = [];
-}
-
-/// GLADE+ catalog loader with spatial indexing for fast coordinate queries
+/// GLADE+ catalog loader.
+///
+/// GLADE+ is ~22 million rows, so this loader never holds the catalog in
+/// memory. Every query streams the file in a background isolate and keeps only
+/// the rows inside the requested cone — see `catalog_region_scan.dart` for why
+/// the previous load-everything-then-filter shape froze the app.
 class GladePlusCatalogLoader {
   final String filePath;
-  List<GladePlusData>? _cachedData;
-
-  Map<String, _SpatialGridCell>? _spatialIndex;
-  static const double _gridSize = 1.0; // degrees
 
   GladePlusCatalogLoader(this.filePath);
 
-  String _gridKey(double ra, double dec) {
-    final raCell = (ra / _gridSize).floor();
-    final decCell = ((dec + 90) / _gridSize).floor();
-    return '$raCell,$decCell';
-  }
-
-  Future<List<GladePlusData>> loadAll() async {
-    if (_cachedData != null) return _cachedData!;
-
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw FileSystemException('GLADE+ catalog not found', filePath);
-    }
-
-    final lines = await file.readAsLines();
-    final galaxies = <GladePlusData>[];
-    _spatialIndex = {};
-
-    for (var i = 1; i < lines.length; i++) {
-      try {
-        final galaxy = GladePlusData.fromCsvLine(lines[i]);
-        galaxies.add(galaxy);
-
-        final key = _gridKey(galaxy.ra, galaxy.dec);
-        _spatialIndex!
-            .putIfAbsent(key, () => _SpatialGridCell())
-            .objects
-            .add(galaxy);
-      } catch (e) {
-        // GLADE+ carries ~22M entries; a single malformed line must not abort
-        // the load, and the rest of the catalog remains usable. FINE keeps a
-        // systemic format change visible.
-        developer.log(
-          'GLADE+ line $i parse failed; skipping: $e',
-          name: 'GladePlusCatalog',
-          level: 500,
-        );
-      }
-    }
-
-    _cachedData = galaxies;
-    return galaxies;
-  }
-
+  /// Galaxies within `radiusDegrees` of the given centre, nearest first.
+  ///
+  /// Runs off the calling isolate, so a caller on the UI isolate stays
+  /// responsive for the whole scan.
   Future<List<GladePlusData>> searchNearby({
     required double ra,
     required double dec,
     required double radiusDegrees,
     double? maxMagnitude,
+    int maxResults = CatalogRegionFilter.defaultMaxResults,
   }) async {
-    await loadAll();
-
-    if (_spatialIndex == null) return [];
-
-    final results = <GladePlusData>[];
-    final radiusSq = radiusDegrees * radiusDegrees;
-
-    final minRa = ra - radiusDegrees;
-    final maxRa = ra + radiusDegrees;
-    final minDec = dec - radiusDegrees;
-    final maxDec = dec + radiusDegrees;
-
-    final minRaCell = (minRa / _gridSize).floor();
-    final maxRaCell = (maxRa / _gridSize).floor();
-    final minDecCell = ((minDec + 90) / _gridSize).floor();
-    final maxDecCell = ((maxDec + 90) / _gridSize).floor();
-
-    for (var raCell = minRaCell; raCell <= maxRaCell; raCell++) {
-      for (var decCell = minDecCell; decCell <= maxDecCell; decCell++) {
-        var normalizedRaCell = raCell;
-        while (normalizedRaCell < 0) {
-          normalizedRaCell += 360;
-        }
-        while (normalizedRaCell >= 360) {
-          normalizedRaCell -= 360;
-        }
-
-        final key = '$normalizedRaCell,$decCell';
-        final cell = _spatialIndex![key];
-        if (cell == null) continue;
-
-        for (final galaxy in cell.objects) {
-          if (maxMagnitude != null && (galaxy.magnitude ?? 99) > maxMagnitude) {
-            continue;
-          }
-
-          final dRa = (galaxy.ra - ra) * math.cos(dec * math.pi / 180);
-          final dDec = galaxy.dec - dec;
-          final distSq = dRa * dRa + dDec * dDec;
-
-          if (distSq <= radiusSq) {
-            results.add(galaxy);
-          }
-        }
-      }
-    }
-
-    results.sort((a, b) {
-      final dRaA = (a.ra - ra) * math.cos(dec * math.pi / 180);
-      final dDecA = a.dec - dec;
-      final distA = dRaA * dRaA + dDecA * dDecA;
-
-      final dRaB = (b.ra - ra) * math.cos(dec * math.pi / 180);
-      final dDecB = b.dec - dec;
-      final distB = dRaB * dRaB + dDecB * dDecB;
-
-      return distA.compareTo(distB);
-    });
-
-    return results;
-  }
-
-  void clearCache() {
-    _cachedData = null;
-    _spatialIndex = null;
+    final filter = CatalogRegionFilter(
+      ra: ra,
+      dec: dec,
+      radiusDegrees: radiusDegrees,
+      maxMagnitude: maxMagnitude,
+      maxResults: maxResults,
+    );
+    final path = filePath;
+    final scan = await Isolate.run(() => scanGladePlusRegion(path, filter));
+    return scan.objects;
   }
 }
+
+/// The streaming body of [GladePlusCatalogLoader.searchNearby].
+///
+/// Top-level so it can be handed to `Isolate.run` with only sendable state.
+Future<CatalogRegionScan<GladePlusData>> scanGladePlusRegion(
+  String filePath,
+  CatalogRegionFilter filter,
+) => scanCatalogRegion<GladePlusData>(
+  filePath: filePath,
+  filter: filter,
+  parse: GladePlusData.fromCsvLine,
+  positionOf: (galaxy) => (ra: galaxy.ra, dec: galaxy.dec),
+  magnitudeOf: (galaxy) => galaxy.magnitude,
+  catalogName: 'GLADE+',
+);
