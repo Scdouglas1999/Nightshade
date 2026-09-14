@@ -3102,8 +3102,9 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_generate_filename(i
                                                                                struct wire_cst_list_prim_u_8_strict *telescope,
                                                                                struct wire_cst_list_prim_u_8_strict *extension);
 
-WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__imaging__api_generate_fits_thumbnail(struct wire_cst_list_prim_u_8_strict *file_path,
-                                                                                                     uint32_t max_size);
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_generate_fits_thumbnail(int64_t port_,
+                                                                                     struct wire_cst_list_prim_u_8_strict *file_path,
+                                                                                     uint32_t max_size);
 
 void frbgen_nightshade_bridge_wire__crate__api__storage__api_get_active_profile(int64_t port_);
 

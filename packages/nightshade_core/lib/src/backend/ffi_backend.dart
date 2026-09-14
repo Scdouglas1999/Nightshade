@@ -45,6 +45,11 @@ abstract class _FfiBackendBase implements NightshadeBackend {
   final _logger = Logger('FfiBackend');
   final NightshadeDatabase? _database;
 
+  /// Reads and writes the `.thumb.jpg` sidecars that keep `getImageThumbnail`
+  /// off the full-frame decode path. One instance per backend so concurrent
+  /// requests for the same frame share a single generation.
+  final ThumbnailSidecarService _thumbnailSidecars;
+
   /// Cached broadcast stream for events - allows multiple subscribers
   Stream<NightshadeEvent>? _cachedEventStream;
 
@@ -57,7 +62,11 @@ abstract class _FfiBackendBase implements NightshadeBackend {
   /// Whether this backend has been disposed
   bool _disposed = false;
 
-  _FfiBackendBase({NightshadeDatabase? database}) : _database = database;
+  _FfiBackendBase({
+    NightshadeDatabase? database,
+    ThumbnailSidecarService? thumbnailSidecars,
+  }) : _database = database,
+       _thumbnailSidecars = thumbnailSidecars ?? ThumbnailSidecarService();
 
   @override
   void dispose() {
@@ -136,7 +145,10 @@ class FfiBackend extends _FfiBackendBase
         NightshadeBackend,
         EnvironmentalStatusBackend,
         DomeStatusBackend {
-  FfiBackend({super.database});
+  /// [thumbnailSidecars] is a seam for tests that need to observe or stub
+  /// thumbnail generation without a live Rust bridge; production leaves it
+  /// null and gets the default service.
+  FfiBackend({super.database, super.thumbnailSidecars});
 
   /// Pure bridge conversion seams. They keep the native library out of mapper
   /// tests while production conversion stays centralized in

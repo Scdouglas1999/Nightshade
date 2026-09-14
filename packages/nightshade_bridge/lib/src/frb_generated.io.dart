@@ -13392,11 +13392,13 @@ class RustLibWire implements BaseWire {
             )
           >();
 
-  WireSyncRust2DartDco wire__crate__api__imaging__api_generate_fits_thumbnail(
+  void wire__crate__api__imaging__api_generate_fits_thumbnail(
+    int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
     int max_size,
   ) {
     return _wire__crate__api__imaging__api_generate_fits_thumbnail(
+      port_,
       file_path,
       max_size,
     );
@@ -13405,7 +13407,8 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__imaging__api_generate_fits_thumbnailPtr =
       _lookup<
         ffi.NativeFunction<
-          WireSyncRust2DartDco Function(
+          ffi.Void Function(
+            ffi.Int64,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Uint32,
           )
@@ -13416,10 +13419,7 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__imaging__api_generate_fits_thumbnail =
       _wire__crate__api__imaging__api_generate_fits_thumbnailPtr
           .asFunction<
-            WireSyncRust2DartDco Function(
-              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-              int,
-            )
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)
           >();
 
   void wire__crate__api__storage__api_get_active_profile(int port_) {

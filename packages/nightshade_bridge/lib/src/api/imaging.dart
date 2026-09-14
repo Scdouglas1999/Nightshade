@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import '../lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `auto_stretch_color_image`, `auto_stretch_image`, `camera_start_exposure_configured_opt`, `camera_start_exposure_opt`, `classify_exposure_failure`, `convert_config`, `convert_result`, `convert_stats`, `debayer_image`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_summary`, `display_data_to_rgba`, `format_sexagesimal`, `frame_metric_median`, `frame_stats_result`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `image_stats`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `sanitize_camera_id`, `set_horizon_keywords`, `set_pointing_keywords`, `sim_exposure_cancelled`, `store_captured_image_atomically`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `auto_stretch_color_image`, `auto_stretch_image`, `camera_start_exposure_configured_opt`, `camera_start_exposure_opt`, `classify_exposure_failure`, `convert_config`, `convert_result`, `convert_stats`, `debayer_image`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_summary`, `display_data_to_rgba`, `format_sexagesimal`, `frame_metric_median`, `frame_stats_result`, `generate_fits_thumbnail_jpeg`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `image_stats`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `sanitize_camera_id`, `set_horizon_keywords`, `set_pointing_keywords`, `sim_exposure_cancelled`, `store_captured_image_atomically`, `thumbnail_generation_gate`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `RawImageInfo`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from_frame_context`, `get_last_raw_image_info`
@@ -498,7 +498,17 @@ Uint8List apiDebayerImage({
 
 /// Generate thumbnail from FITS file
 /// Returns JPEG-encoded thumbnail data (~512x512 pixels)
-Uint8List apiGenerateFitsThumbnail({
+///
+/// Async and off-thread on purpose. This reads the whole FITS off disk,
+/// converts it to `u16`, downsamples, auto-stretches and JPEG-encodes it —
+/// hundreds of milliseconds of blocking I/O and CPU for a full-frame CMOS
+/// capture. It used to be `#[frb(sync)]`, which runs the whole of that on the
+/// Dart isolate that called it: the UI isolate. A frame strip asking for N
+/// thumbnails therefore froze the app for N serialised full-frame decodes,
+/// which is exactly what the owner saw when a night's Dashboard showed no
+/// thumbnails at all. The work now runs on the blocking pool and the caller
+/// awaits it, so the UI isolate stays free to paint.
+Future<Uint8List> apiGenerateFitsThumbnail({
   required String filePath,
   required int maxSize,
 }) => RustLib.instance.api.crateApiImagingApiGenerateFitsThumbnail(

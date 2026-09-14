@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/image_decode_size.dart';
+
 /// The NxM panel grid: one tile per [MosaicProjectPanel], laid out row-major to
 /// match the grid (`cols` wide), each showing the panel's status, captured
 /// frame count, and — once integrated — a thumbnail of its per-panel master.
@@ -196,12 +198,21 @@ class _PanelTile extends StatelessWidget {
             aspectRatio: 1,
             child: ClipRRect(
               borderRadius: NightshadeTokens.borderRadiusSm,
+              // `previewPngPath` is the panel master's full-frame preview,
+              // so the cell decodes at cell width rather than at 16 Mpx —
+              // times every panel in the mosaic.
               child: hasThumb
-                  ? Image.file(
-                      File(preview),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _Placeholder(status: panel.status),
+                  ? LayoutBuilder(
+                      builder: (context, constraints) => Image.file(
+                        File(preview),
+                        fit: BoxFit.cover,
+                        cacheWidth: thumbnailDecodeWidth(
+                          context,
+                          constraints.maxWidth,
+                        ),
+                        errorBuilder: (_, __, ___) =>
+                            _Placeholder(status: panel.status),
+                      ),
                     )
                   : _Placeholder(status: panel.status),
             ),

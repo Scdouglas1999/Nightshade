@@ -68,6 +68,19 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
         );
       }
 
+      // Sidecar first. `ThumbnailSidecarService` writes a `.thumb.jpg` beside
+      // every captured FITS, and reading that back is a ~30 KB file read
+      // instead of a full-frame FITS decode. This path used to go straight to
+      // the cold decode, so on the desktop a night's worth of frames cost one
+      // full decode per frame per navigation even though the cache was sitting
+      // right there on disk. The remote-mode HTTP handler has always read it
+      // first; now both backends agree.
+      final sidecarBytes = await _thumbnailSidecars.readSidecar(
+        dbImage.filePath,
+        stampedPath: await imagesDao.getThumbnailPath(imageId),
+      );
+      if (sidecarBytes != null) return sidecarBytes;
+
       // Check if file exists
       final file = File(dbImage.filePath);
       if (!await file.exists()) {
@@ -77,14 +90,16 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
         );
       }
 
-      // Generate thumbnail using Rust FFI function
-      // This reads the FITS file, downscales to ~512x512, auto-stretches, and encodes as JPEG
-      final jpegData = bridge_api.apiGenerateFitsThumbnail(
-        filePath: dbImage.filePath,
-        maxSize: 512,
+      // Cold path: no sidecar yet (a frame captured before sidecars existed, or
+      // one whose sidecar was deleted). The generator reads the FITS,
+      // downscales to ~512x512, auto-stretches and JPEG-encodes it on Rust's
+      // blocking pool — the binding is async, so none of that runs on this
+      // isolate — then caches the sidecar so this frame is cheap from now on.
+      return await _thumbnailSidecars.generateAndCacheSidecar(
+        imageId: imageId,
+        fitsPath: dbImage.filePath,
+        imagesDao: imagesDao,
       );
-
-      return Uint8List.fromList(jpegData);
     } catch (e) {
       throw _toNightshadeError(e, 'Failed to get image thumbnail');
     }
