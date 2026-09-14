@@ -87,6 +87,9 @@ class GladePlusData {
 class GladePlusCatalogLoader {
   final String filePath;
 
+  final CatalogRegionCache<GladePlusData> _cache =
+      CatalogRegionCache<GladePlusData>();
+
   GladePlusCatalogLoader(this.filePath);
 
   /// Galaxies within `radiusDegrees` of the given centre, nearest first.
@@ -107,10 +110,42 @@ class GladePlusCatalogLoader {
       maxMagnitude: maxMagnitude,
       maxResults: maxResults,
     );
+
+    final cached = _cache.lookup(
+      filter,
+      positionOf: _positionOf,
+      magnitudeOf: _magnitudeOf,
+    );
+    if (cached != null) {
+      return cached;
+    }
+
+    // Scan a little wide and magnitude-blind so the next frame's cone is
+    // served from memory instead of re-reading the catalog.
+    final cone = filter.padded();
     final path = filePath;
-    final scan = await Isolate.run(() => scanGladePlusRegion(path, filter));
-    return scan.objects;
+    final scan = await Isolate.run(() => scanGladePlusRegion(path, cone));
+    _cache.store(cone, scan);
+
+    return _cache.lookup(
+          filter,
+          positionOf: _positionOf,
+          magnitudeOf: _magnitudeOf,
+        ) ??
+        // The scan was truncated, so it is not cacheable and the padded cone
+        // cannot be trusted to contain the request. Answer from what it found.
+        scan.objects.where((object) {
+          final position = _positionOf(object);
+          return filter.accepts(
+            objRa: position.ra,
+            objDec: position.dec,
+            magnitude: _magnitudeOf(object),
+          );
+        }).toList();
   }
+
+  /// Drop the cached field, so a re-imported catalog file is re-read.
+  void clearCache() => _cache.clear();
 }
 
 /// The streaming body of [GladePlusCatalogLoader.searchNearby].
@@ -127,3 +162,8 @@ Future<CatalogRegionScan<GladePlusData>> scanGladePlusRegion(
   magnitudeOf: (galaxy) => galaxy.magnitude,
   catalogName: 'GLADE+',
 );
+
+({double ra, double dec}) _positionOf(GladePlusData galaxy) =>
+    (ra: galaxy.ra, dec: galaxy.dec);
+
+double? _magnitudeOf(GladePlusData galaxy) => galaxy.magnitude;

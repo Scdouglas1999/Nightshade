@@ -265,4 +265,98 @@ void main() {
       },
     );
   });
+
+  group('cached field reuse', () {
+    test(
+      'a later cone inside the scanned field is served from memory',
+      () async {
+        final path = await writeGladeCatalog([
+          '30.0,5.0,12.0,3000,1',
+          '30.05,5.0,13.0,3000,2',
+        ]);
+        final loader = GladePlusCatalogLoader(path);
+
+        final first = await loader.searchNearby(
+          ra: 30.0,
+          dec: 5.0,
+          radiusDegrees: 0.5,
+        );
+        expect(first.map((g) => g.pgc), [1, 2]);
+
+        // Delete the file. A second, narrower query can only succeed if it was
+        // answered from the cached field rather than by re-reading the catalog.
+        await File(path).delete();
+
+        final second = await loader.searchNearby(
+          ra: 30.01,
+          dec: 5.0,
+          radiusDegrees: 0.2,
+        );
+        expect(second.map((g) => g.pgc), [1, 2]);
+      },
+    );
+
+    test(
+      'a deeper magnitude request is not answered from a shallower cache',
+      () async {
+        final path = await writeGladeCatalog([
+          '30.0,5.0,12.0,3000,1',
+          '30.05,5.0,19.0,3000,2',
+        ]);
+        final loader = GladePlusCatalogLoader(path);
+
+        // The scanned field is magnitude-blind, so the faint row is cached and a
+        // deeper cutoff is still answered correctly.
+        expect(
+          (await loader.searchNearby(
+            ra: 30.0,
+            dec: 5.0,
+            radiusDegrees: 0.5,
+            maxMagnitude: 15.0,
+          )).map((g) => g.pgc),
+          [1],
+        );
+        expect(
+          (await loader.searchNearby(
+            ra: 30.0,
+            dec: 5.0,
+            radiusDegrees: 0.5,
+            maxMagnitude: 20.0,
+          )).map((g) => g.pgc),
+          [1, 2],
+        );
+      },
+    );
+
+    test('a cone outside the scanned field is re-read, not guessed', () async {
+      final path = await writeGladeCatalog([
+        '30.0,5.0,12.0,3000,1',
+        '120.0,-40.0,12.0,3000,2',
+      ]);
+      final loader = GladePlusCatalogLoader(path);
+
+      await loader.searchNearby(ra: 30.0, dec: 5.0, radiusDegrees: 0.5);
+      final elsewhere = await loader.searchNearby(
+        ra: 120.0,
+        dec: -40.0,
+        radiusDegrees: 0.5,
+      );
+
+      expect(elsewhere.map((g) => g.pgc), [2]);
+    });
+
+    test('clearCache forces the catalog to be read again', () async {
+      final path = await writeGladeCatalog(['30.0,5.0,12.0,3000,1']);
+      final loader = GladePlusCatalogLoader(path);
+
+      await loader.searchNearby(ra: 30.0, dec: 5.0, radiusDegrees: 0.5);
+      loader.clearCache();
+      await File(path).delete();
+
+      await expectLater(
+        loader.searchNearby(ra: 30.0, dec: 5.0, radiusDegrees: 0.5),
+        throwsA(isA<FileSystemException>()),
+      );
+    });
+  });
 }

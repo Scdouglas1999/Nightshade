@@ -92,6 +92,103 @@ class CatalogRegionFilter {
   /// Distance ordering key, nearest the cone centre first.
   double sortKey(double objRa, double objDec) =>
       _distanceSquared(objRa, objDec);
+
+  /// True angular separation from this cone's centre, degrees.
+  ///
+  /// The small-angle form above is fine for ranking inside one field but is not
+  /// safe for deciding whether one cone encloses another, so containment uses
+  /// the spherical identity instead.
+  double separationDegrees(double objRa, double objDec) {
+    const toRad = math.pi / 180;
+    final cosSeparation =
+        math.sin(dec * toRad) * math.sin(objDec * toRad) +
+        math.cos(dec * toRad) *
+            math.cos(objDec * toRad) *
+            math.cos((objRa - ra) * toRad);
+    return math.acos(cosSeparation.clamp(-1.0, 1.0)) / toRad;
+  }
+
+  /// Whether every object `other` could ask for is already inside this cone.
+  ///
+  /// Used to answer a query from a cached scan instead of re-reading the file.
+  /// A cone with a magnitude cut cannot serve a request for something fainter.
+  bool encloses(CatalogRegionFilter other) {
+    if (maxMagnitude != null &&
+        (other.maxMagnitude == null || other.maxMagnitude! > maxMagnitude!)) {
+      return false;
+    }
+    return separationDegrees(other.ra, other.dec) + other.radiusDegrees <=
+        radiusDegrees;
+  }
+
+  /// A wider, magnitude-blind version of this cone, for caching.
+  ///
+  /// Scanning slightly wide and without a magnitude cut means the next frame's
+  /// cone — the mount has drifted a little, and the pipeline's SNR-based
+  /// cutoff moves frame to frame — is still enclosed, so it is answered from
+  /// memory rather than by re-reading the catalog. The padded cone is still a
+  /// field, not a sky: at a half-degree request this is under two degrees.
+  CatalogRegionFilter padded() => CatalogRegionFilter(
+    ra: ra,
+    dec: dec,
+    radiusDegrees: radiusDegrees * 1.5 + 0.1,
+    maxResults: maxResults,
+  );
+}
+
+/// Single-entry memo for a streaming region scan.
+///
+/// Consecutive annotation queries walk the same field, because the mount is
+/// parked on a target. Without this, removing the whole-sky load would trade a
+/// freeze for a background re-read of a multi-gigabyte catalog on every frame.
+///
+/// A truncated scan is never cached: it does not honestly represent its cone.
+class CatalogRegionCache<T> {
+  CatalogRegionFilter? _cachedCone;
+  List<T>? _cachedObjects;
+
+  /// The subset of a cached scan that satisfies `filter`, or null on a miss.
+  List<T>? lookup(
+    CatalogRegionFilter filter, {
+    required ({double ra, double dec}) Function(T object) positionOf,
+    required double? Function(T object) magnitudeOf,
+  }) {
+    final cone = _cachedCone;
+    final objects = _cachedObjects;
+    if (cone == null || objects == null || !cone.encloses(filter)) {
+      return null;
+    }
+
+    final narrowed = objects.where((object) {
+      final position = positionOf(object);
+      return filter.accepts(
+        objRa: position.ra,
+        objDec: position.dec,
+        magnitude: magnitudeOf(object),
+      );
+    }).toList();
+    narrowed.sort((a, b) {
+      final pa = positionOf(a);
+      final pb = positionOf(b);
+      return filter
+          .sortKey(pa.ra, pa.dec)
+          .compareTo(filter.sortKey(pb.ra, pb.dec));
+    });
+    return narrowed;
+  }
+
+  void store(CatalogRegionFilter cone, CatalogRegionScan<T> scan) {
+    if (scan.truncated) {
+      return;
+    }
+    _cachedCone = cone;
+    _cachedObjects = scan.objects;
+  }
+
+  void clear() {
+    _cachedCone = null;
+    _cachedObjects = null;
+  }
 }
 
 /// Outcome of one streaming scan: the rows that matched, plus what the scan had

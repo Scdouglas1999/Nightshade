@@ -400,5 +400,6 @@ class AnnotationCatalog {
   void clearCache() {
     _ngcLoader?.clearCache();
     _ledaLoader?.clearCache();
+    _gladeLoader?.clearCache();
   }
 }

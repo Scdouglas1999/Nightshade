@@ -58,6 +58,16 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
     }
   }
 
+  /// The live texture, so a test can assert it is released rather than leaked.
+  @visibleForTesting
+  ui.Image? get debugDecodedImage => _decodedImage;
+
+  @override
+  void dispose() {
+    _decodedImage?.dispose();
+    super.dispose();
+  }
+
   Future<void> _decodeImage({Uint8List? stretchedData}) async {
     if (_isDecoding) return;
     _isDecoding = true;
@@ -96,12 +106,21 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
         height,
         ui.PixelFormat.rgba8888,
         (image) {
-          if (mounted) {
-            setState(() {
-              _decodedImage = image;
-              _isDecoding = false;
-            });
+          // A decoded ui.Image holds its texture outside the Dart heap, so a
+          // replaced one has to be released explicitly — dropping the
+          // reference leaked a full-resolution texture (65 MB at 4656x3520)
+          // for every frame the session captured. Same on the unmounted path:
+          // nothing else will ever hold this one.
+          if (!mounted) {
+            image.dispose();
+            _isDecoding = false;
+            return;
           }
+          setState(() {
+            _decodedImage?.dispose();
+            _decodedImage = image;
+            _isDecoding = false;
+          });
         },
         targetWidth: targetW,
         targetHeight: targetH,

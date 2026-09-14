@@ -166,6 +166,9 @@ class HyperLedaCatalogLoader {
   final String filePath;
   List<HyperLedaData>? _cachedData;
 
+  final CatalogRegionCache<HyperLedaData> _cache =
+      CatalogRegionCache<HyperLedaData>();
+
   HyperLedaCatalogLoader(this.filePath);
 
   /// Load all galaxies from the catalog
@@ -227,9 +230,38 @@ class HyperLedaCatalogLoader {
       maxMagnitude: maxMagnitude,
       maxResults: maxResults,
     );
+
+    final cached = _cache.lookup(
+      filter,
+      positionOf: _positionOf,
+      magnitudeOf: _magnitudeOf,
+    );
+    if (cached != null) {
+      return cached;
+    }
+
+    // Scan a little wide and magnitude-blind so the next frame's cone is
+    // served from memory instead of re-reading the catalog.
+    final cone = filter.padded();
     final path = filePath;
-    final scan = await Isolate.run(() => scanHyperLedaRegion(path, filter));
-    return scan.objects;
+    final scan = await Isolate.run(() => scanHyperLedaRegion(path, cone));
+    _cache.store(cone, scan);
+
+    return _cache.lookup(
+          filter,
+          positionOf: _positionOf,
+          magnitudeOf: _magnitudeOf,
+        ) ??
+        // The scan was truncated, so it is not cacheable and the padded cone
+        // cannot be trusted to contain the request. Answer from what it found.
+        scan.objects.where((object) {
+          final position = _positionOf(object);
+          return filter.accepts(
+            objRa: position.ra,
+            objDec: position.dec,
+            magnitude: _magnitudeOf(object),
+          );
+        }).toList();
   }
 
   /// Search galaxies by name
@@ -255,9 +287,11 @@ class HyperLedaCatalogLoader {
     return all.length;
   }
 
-  /// Clear cache
+  /// Drop everything cached — the scanned field and the whole-catalog list —
+  /// so a re-imported catalog file is read afresh.
   void clearCache() {
     _cachedData = null;
+    _cache.clear();
   }
 }
 
@@ -275,3 +309,8 @@ Future<CatalogRegionScan<HyperLedaData>> scanHyperLedaRegion(
   magnitudeOf: (galaxy) => galaxy.magnitude,
   catalogName: 'HyperLEDA',
 );
+
+({double ra, double dec}) _positionOf(HyperLedaData galaxy) =>
+    (ra: galaxy.ra, dec: galaxy.dec);
+
+double? _magnitudeOf(HyperLedaData galaxy) => galaxy.magnitude;
