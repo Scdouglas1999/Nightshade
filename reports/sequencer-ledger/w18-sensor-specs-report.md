@@ -247,10 +247,20 @@ Commands run unpiped in the worktree with
 | 1 | `dart format --output=none --set-exit-if-changed packages/nightshade_core packages/nightshade_app` | 0 |
 | 2 | `dart analyze` in `packages/nightshade_core` | 0 — zero errors, zero warnings. 16 pre-existing infos, none in a file this branch touches |
 | 3 | `dart analyze` in `packages/nightshade_app` | 0 — zero errors, zero warnings. 873 pre-existing infos (820 `deprecated_member_use` from the design-system wave); the only three that land in a file I edited (`smart_night_dialog.dart` h4/h5/outline) are verified present at `5b2235cc7` in lines I did not change |
-| 4 | `flutter test test/services test/providers test/models --concurrency=4` in `packages/nightshade_core` | 0 — 5794 passed, 4 pre-existing skips |
-| 5 | `flutter test test/screens/planner test/widgets test/screens/sequencer test/screens/settings test/screens/framing --concurrency=4` in `packages/nightshade_app` | 0 |
+| 4 | `flutter test test/services test/providers test/models --concurrency=4` in `packages/nightshade_core` | 0 — 5796 passed, 4 pre-existing skips |
+| 5 | `flutter test test/screens/planner test/widgets test/screens/sequencer test/screens/settings test/screens/framing --concurrency=4` in `packages/nightshade_app` | 1 — two pre-existing golden failures, proved identical at `5b2235cc7` (see below); everything else passes |
 | 6 | `flutter test test/headless_api/science_handlers_test.dart --concurrency=4` in `apps/desktop` | 0 — 9 passed |
 | 7 | `flutter build linux --release` in `apps/desktop`, at `5b2235cc7` and at the branch tip | 0 both |
+
+The two failures in gate 5 are `framing_hips_layer_wiring_test`
+(`goldens/framing_hips_layer_wiring.png`) and `framing_registration_test`
+(`goldens/framing_canvas_registered.png`), the Windows-captured goldens this
+repo's Linux runs have always failed. Proved pre-existing rather than asserted:
+checked out `5b2235cc7` in this worktree and ran both files, which produced
+byte-identical failures — `100.00%, 480000px` and `75.45%, 772584px`, the same
+numbers as at the tip. They are also off this branch's code path: the framing
+fall-through I added runs only when there is no live reading
+(`if (pixelsX == null)`), and both goldens render a connected camera.
 
 Two failures the change caused were found and fixed before the final run:
 `framing_fov_camera_churn_test` and `framing_fov_remembered_sensor_test` both
@@ -397,3 +407,17 @@ resolved, and per-field only where an empty field is the exception.
   name. Rather than pick one, the 2025 SKU is not claimed by any row, so it
   warns honestly. It wants a row of its own once the manual for it is published.
 * **The equipment profile field** described above for `w16-profiles`.
+
+## One more thing the reviewer should know
+
+`native/nightshade_native/target` in this worktree was a 48-byte TEXT file
+containing the path `/home/scdouglas/.cache/ns-worktrees/cargo-target` — an
+intended symlink that had not been made one, which made `cargo build` fail with
+"Not a directory". I replaced it with the symlink it was meant to be so the
+Linux release bundle could pick up `libnightshade_bridge.so`. The path is
+git-ignored, so it is not part of this branch; it is noted because the next
+agent to build in a fresh worktree will hit the same thing.
+
+No Rust was changed by this workstream, so both the before and after bundles
+were built against the same `libnightshade_bridge.so` from the wave's shared
+cargo target directory.

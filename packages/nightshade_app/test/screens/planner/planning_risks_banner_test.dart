@@ -144,6 +144,34 @@ void main() {
       );
     });
 
+    testWidgets('an empty risk list renders nothing', (tester) async {
+      await _pump(tester, specs: _ownersCamera, riskFactors: const []);
+      expect(find.byType(NightshadeBanner), findsNothing);
+    });
+
+    testWidgets('the field list reads as a sentence, capitalised', (
+      tester,
+    ) async {
+      // The owner's camera resolves everything from the published
+      // specification except nothing — so use one that is missing exactly one
+      // field: ZWO publishes no usable read noise for the ASI533MM Pro.
+      await _pump(
+        tester,
+        specs: _resolved('ASI533MM Pro', gain: 100),
+        riskFactors: [
+          sensorSpecCaveat(
+            field: SensorSpecField.readNoise,
+            cameraLabel: 'ZWO ASI533MM Pro',
+            estimate: 'an estimate',
+          ),
+        ],
+      );
+      expect(
+        find.textContaining('Read noise is not published for ZWO ASI533MM Pro'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('a malformed override is reported as its own problem', (
       tester,
     ) async {
