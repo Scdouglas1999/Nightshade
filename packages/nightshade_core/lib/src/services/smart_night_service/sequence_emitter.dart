@@ -123,25 +123,39 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     );
   }
 
-  /// Build a CameraExposureSpec from the bundled hardware catalog. If the
-  /// profile camera is unknown, fall back to the same conservative planning
-  /// estimate used by the shared exposure context.
+  /// Build a CameraExposureSpec for [profile] through the sensor-spec
+  /// resolution chain: the user's own entry, then the manufacturer's published
+  /// specification. The live camera and the remembered reading are out of
+  /// reach on this path — it runs off a profile with no provider container —
+  /// but neither reports read noise, full well or QE anyway.
+  ///
+  /// A field that misses at every tier falls back to the same conservative
+  /// planning estimate the shared exposure context uses, so the two agree.
   CameraExposureSpec _cameraSpecFromProfile(EquipmentProfileModel profile) {
-    final match = _hardwareSpecs.matchCamera(
-      cameraName: profile.cameraName,
-      cameraId: profile.cameraId,
-      gain: profile.defaultGain,
+    final specs = CameraSensorSpecResolver().resolve(
+      CameraSensorSpecInputs(
+        cameraName: profile.cameraName,
+        cameraId: profile.cameraId,
+        gain: profile.defaultGain,
+        overrides: _hardwareSpecs.overridesFor(
+          cameraName: profile.cameraName,
+          cameraId: profile.cameraId,
+          gain: profile.defaultGain,
+        ),
+      ),
     );
-    if (match != null) return match.exposureSpec;
-
-    // The EquipmentProfileModel doesn't carry per-gain noise data —
-    // Unknown cameras use conservative fallback values below.
-    return const CameraExposureSpec(
-      readNoiseE: 3.5,
-      fullWellE: 18000,
-      qePeak: 0.65,
+    return CameraExposureSpec(
+      readNoiseE: specs.readNoiseE?.value ?? _kUnknownCameraReadNoiseE,
+      fullWellE: specs.fullWellE?.value ?? _kUnknownCameraFullWellE,
+      qePeak: specs.qePeakFraction?.value ?? _kUnknownCameraQePeak,
     );
   }
+
+  /// Conservative stand-ins for a camera whose figures nothing publishes.
+  /// Kept in step with `session_optimizer_provider`'s planning estimates.
+  static const double _kUnknownCameraReadNoiseE = 3.5;
+  static const double _kUnknownCameraFullWellE = 18000;
+  static const double _kUnknownCameraQePeak = 0.65;
 
   /// Seconds of integration budget for one target: sampled time above
   /// [minAltitude] during tonight, capped by rise/set and optional budget.

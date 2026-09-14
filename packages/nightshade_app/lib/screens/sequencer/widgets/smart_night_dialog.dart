@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,11 +9,11 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../services/smart_night_plan_launcher.dart';
 import '../../../utils/authority_bound_dialog.dart';
+import '../../../widgets/camera_sensor_specs_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../equipment/dialogs/profile_editor_dialog.dart';
 
 part 'smart_night_dialog/inline_widgets.dart';
-part 'smart_night_dialog/missing_specs_dialog.dart';
 part 'smart_night_dialog/safety_watchdogs.dart';
 part 'smart_night_dialog/step_views.dart';
 
@@ -459,18 +458,18 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       var exposureContext =
           await ref.read(smartNightExposureContextProvider.future);
       if (!_isCurrentAuthority(backend, generation)) return false;
-      if (_shouldPromptForCameraSpecs(exposureContext)) {
+      final sensorSpecs = await ref.read(
+        activeCameraSensorSpecsProvider.future,
+      );
+      if (!_isCurrentAuthority(backend, generation)) return false;
+      if (_shouldPromptForCameraSpecs(sensorSpecs)) {
         if (!mounted || !_isCurrentAuthority(backend, generation)) return false;
-        final saved = await showDialog<bool>(
-          context: this.context,
-          builder: (_) => SmartNightMissingSpecsDialog(
-            cameraName: activeProfile.cameraName,
-            defaultGain: activeProfile.defaultGain,
-            colors: NightshadeColors.dark,
-          ),
+        final saved = await CameraSensorSpecsDialog.show(
+          this.context,
+          sensorSpecs,
         );
         if (!_isCurrentAuthority(backend, generation)) return false;
-        if (saved == true) {
+        if (saved) {
           ref.invalidate(smartNightExposureContextProvider);
           exposureContext =
               await ref.read(smartNightExposureContextProvider.future);

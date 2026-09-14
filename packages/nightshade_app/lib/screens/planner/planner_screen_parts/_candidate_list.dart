@@ -409,61 +409,33 @@ final _plannerNightWindowProvider = Provider.autoDispose<_PlannerNightWindow?>(
 
 /// The planner's risk caveats, as ONE statement of ONE problem.
 ///
-/// The scorer emits a caveat per missing sensor value, and the banner printed
-/// them verbatim, one after another:
+/// The scorer emits a caveat per sensor value it could not resolve, and the
+/// banner printed them verbatim, one after another:
 ///
 ///   "Camera read noise is not configured; using a conservative 3.5e- planning
 ///    estimate. Camera full well is not configured; using an 18,000e- planning
 ///    estimate. Camera QE is not configured; using a 65% planning estimate."
 ///
-/// Three sentences, one problem — the camera's sensor specs are not filled in —
-/// and the same remedy for all of them. 02 rule 4 allows one banner per
-/// problem and rule 5 says it once, so the sensor caveats collapse into a
-/// single sentence with the missing values named as chips, and anything the
-/// scorer raises that is NOT a sensor caveat still gets said.
-class _PlanningRisksBanner extends StatelessWidget {
+/// Three sentences, one problem, and — worse — that problem was usually not
+/// real: the values were sitting in the app's own sensor-spec chain, which the
+/// planner did not consult. Now they are resolved before the scorer runs, so a
+/// sensor caveat only appears for a figure that genuinely misses at every
+/// tier. When one does, 02 rule 4 (one banner per problem) and rule 5 (say it
+/// once) still apply: the caveats collapse into a single sentence that NAMES
+/// the camera, lists the fields, and offers the one action that fixes it.
+/// Anything the scorer raises that is not about sensor specs is still said.
+class _PlanningRisksBanner extends ConsumerWidget {
   const _PlanningRisksBanner({required this.riskFactors});
 
   final List<String> riskFactors;
 
-  /// Maps a scorer caveat to the sensor value it is about. The match is on the
-  /// caveat's subject, not its full text, so a reworded estimate does not
-  /// silently fall out of the group and become a fourth sentence again.
-  static const Map<String, String> _sensorSubjects = <String, String>{
-    'read noise': 'Read noise',
-    'full well': 'Full well',
-    'qe': 'QE',
-    'quantum efficiency': 'QE',
-    'pixel size': 'Pixel size',
-    'gain': 'Gain',
-  };
-
   @override
-  Widget build(BuildContext context) {
-    final missing = <String>[];
-    final others = <String>[];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sensorCaveats = riskFactors.where(isSensorSpecCaveat).toList();
+    final others =
+        riskFactors.where((caveat) => !isSensorSpecCaveat(caveat)).toList();
 
-    for (final caveat in riskFactors) {
-      final lower = caveat.toLowerCase();
-      final isSensorCaveat =
-          lower.contains('not configured') && lower.contains('camera');
-      String? subject;
-      if (isSensorCaveat) {
-        for (final entry in _sensorSubjects.entries) {
-          if (lower.contains(entry.key)) {
-            subject = entry.value;
-            break;
-          }
-        }
-      }
-      if (subject == null) {
-        others.add(caveat);
-      } else if (!missing.contains(subject)) {
-        missing.add(subject);
-      }
-    }
-
-    if (missing.isEmpty) {
+    if (sensorCaveats.isEmpty) {
       // Nothing to collapse: say what the scorer said.
       return NightshadeBanner(
         title: others.first,
@@ -472,19 +444,76 @@ class _PlanningRisksBanner extends StatelessWidget {
       );
     }
 
+    final specs = ref.watch(activeCameraSensorSpecsProvider).valueOrNull;
+    final missing = specs?.unresolvedFields ?? const <SensorSpecField>[];
+    final camera = specs?.databaseEntry?.model ?? specs?.reportedModel;
+
+    final String title;
+    if (camera == null) {
+      title = 'This profile has no camera, so exposures are estimated';
+    } else if (missing.length == SensorSpecField.values.length) {
+      title = 'No published sensor specs for $camera';
+    } else {
+      title = '${_fieldList(missing)} '
+          '${missing.length == 1 ? 'is' : 'are'} not published for $camera';
+    }
+
+    final message = [
+      'Scores use conservative estimates for '
+          '${missing.isEmpty ? 'them' : _fieldList(missing)}.',
+      ...others,
+    ].join(' · ');
+
     return NightshadeBanner(
       key: const ValueKey('planner_sensor_specs_banner'),
       tone: BannerTone.warning,
-      title: 'Camera sensor specs are not configured',
-      message: others.isEmpty
-          ? 'Scores use conservative estimates until you fill them in.'
-          : 'Scores use conservative estimates until you fill them in. '
-              '${others.join(' · ')}',
-      action: NightshadeButton(
-        label: 'Open camera specs',
-        variant: ButtonVariant.secondary,
-        size: ButtonSize.small,
-        onPressed: () => context.go('/equipment'),
+      title: title,
+      message: message,
+      action: specs == null
+          ? null
+          : CameraSensorSpecsAction(
+              specs: specs,
+              label: camera == null ? 'Open equipment' : 'Enter camera specs',
+            ),
+    );
+  }
+
+  /// "read noise, full well and QE" — an Oxford-comma-free list, because the
+  /// banner is one line and the fields are a set, not a sentence.
+  static String _fieldList(List<SensorSpecField> fields) {
+    final labels = fields.map((field) => field.label).toList();
+    if (labels.isEmpty) return '';
+    if (labels.length == 1) return labels.first;
+    final last = labels.removeLast();
+    return '${labels.join(', ')} and $last';
+  }
+}
+
+/// The one line on the Plan screen that says what sensor the exposure numbers
+/// above it were computed from, and where each figure came from.
+///
+/// The owner's report was that Plan called his camera's specs unknown while
+/// the app already had them. The fix is not only to resolve them — it is to
+/// say so on the screen that uses them, with the tier named: "3.8 µm" read off
+/// the camera and "3.8 µm" out of ZWO's manual are different claims, and only
+/// one of them describes the crop the driver is actually delivering. Tapping
+/// the row opens the correction dialog.
+class _SensorSpecsProvenanceRow extends ConsumerWidget {
+  const _SensorSpecsProvenanceRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final specs = ref.watch(activeCameraSensorSpecsProvider).valueOrNull;
+    if (specs == null || specs.isEmpty) return const SizedBox.shrink();
+
+    return NightshadeTooltip(
+      message: specs.provenanceSentence,
+      child: ListRow(
+        icon: LucideIcons.camera,
+        title: specs.valueSummary,
+        trailing: specs.originLabel,
+        onTap: () => CameraSensorSpecsDialog.show(context, specs),
+        showDivider: false,
       ),
     );
   }

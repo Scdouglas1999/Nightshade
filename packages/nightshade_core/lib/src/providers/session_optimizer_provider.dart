@@ -7,15 +7,17 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../database/daos/guide_rms_history_dao.dart';
-import '../database/daos/settings_dao.dart';
 import '../models/planning/target_suggestion.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/logging_service.dart';
+import '../services/science/science_camera_auto_config.dart';
 import '../services/smart_night/exposure_calculator.dart';
 import '../services/smart_night/hardware_specs_service.dart';
 import '../services/session_optimizer_service.dart';
 import '../services/smart_night_service.dart';
 import 'backend_provider.dart';
+import '../services/sensor_specs/camera_sensor_specs.dart';
+import 'camera_sensor_specs_provider.dart';
 import 'database_provider.dart';
 import 'equipment/filter_wheel_state_provider.dart';
 import 'profiles_provider.dart';
@@ -41,9 +43,14 @@ final hardwareSpecsServiceProvider = Provider<HardwareSpecsService>(
 /// Builds the Smart Night exposure context used by Plan Tonight and dashboard
 /// recommendations.
 ///
-/// Missing camera sensor/spec values are surfaced as caveats instead of being
-/// silently guessed. Missing telescope focal length or aperture disables the
-/// Smart Night path because the physics model cannot be made meaningful.
+/// Sensor values come from [activeCameraSensorSpecsProvider], the one
+/// resolution chain: the user's own entry, then the connected camera, then
+/// what that camera reported last time, then the manufacturer's published
+/// specification. Only a field that misses at every tier becomes a caveat, and
+/// that caveat names the camera it could not find the figure for.
+///
+/// Missing telescope focal length or aperture still disables the Smart Night
+/// path, because the physics model cannot be made meaningful without them.
 final smartNightExposureContextProvider = FutureProvider<SmartNightExposureContext?>((
   ref,
 ) async {
@@ -69,80 +76,108 @@ final smartNightExposureContextProvider = FutureProvider<SmartNightExposureConte
     return null;
   }
 
-  final rawSettings = await _loadSmartNightRigSettings(
-    backend,
-    localDao: backend is NetworkBackend ? null : ref.watch(settingsDaoProvider),
-  );
+  final rawSettings = await ref.watch(rigCameraSettingsProvider.future);
   final caveats = <String>[];
-  final hardwareOverrides = await _readCameraHardwareOverrides(
-    rawSettings,
-    caveats,
-  );
-  final hardwareSpecs = hardwareOverrides.isEmpty
-      ? ref.watch(hardwareSpecsServiceProvider)
-      : ref
-            .watch(hardwareSpecsServiceProvider)
-            .withCameraOverrides(hardwareOverrides);
-  final hardwareMatch = hardwareSpecs.matchCamera(
-    cameraName: profile?.cameraName,
-    cameraId: profile?.cameraId,
-    gain: profile?.defaultGain,
-  );
+  if (_cameraOverridesAreMalformed(rawSettings)) {
+    caveats.add(unreadableSensorOverridesCaveat);
+  }
 
-  final readNoise = _readDoubleSetting(
+  final sensorSpecs = await ref.watch(activeCameraSensorSpecsProvider.future);
+  final cameraLabel =
+      sensorSpecs.databaseEntry?.model ??
+      sensorSpecs.reportedModel ??
+      'this camera';
+
+  // The expert `smart_night.camera.*` / frozen `science.camera.*` keys are a
+  // second user-entered source, reachable only through settings and the
+  // headless API. They rank BELOW the per-camera override, which is the
+  // surface the camera sensor specs dialog writes and the one the Plan screen
+  // sends people to: a value the user just corrected for this camera must not
+  // be outranked by a global key they set for a different one.
+  final settingsReadNoise = _readDoubleSetting(
     rawSettings,
     'science.camera.read_noise_e',
   );
-  final fullWell = _readDoubleSetting(
+  final settingsFullWell = _readDoubleSetting(
     rawSettings,
     'smart_night.camera.full_well_e',
   );
-  final qePeak = _readDoubleSetting(rawSettings, 'smart_night.camera.qe_peak');
+  final settingsQePeak = _readDoubleSetting(
+    rawSettings,
+    'smart_night.camera.qe_peak',
+  );
   final gloverK = _readDoubleSetting(
     rawSettings,
     'smart_night.glover_k_factor',
   );
-  var pixelSize = opticalConfig?.pixelSize;
-  if (pixelSize == null || pixelSize <= 0) {
-    pixelSize = hardwareMatch?.pixelSizeMicrons;
-    if (pixelSize == null || pixelSize <= 0) {
-      pixelSize = 3.76;
-      caveats.add(
-        'Camera pixel size is unavailable; using a 3.76 micron planning estimate.',
-      );
-    }
-  }
 
-  final hardwareCamera = hardwareMatch?.exposureSpec;
-  final effectiveReadNoise = readNoise ?? hardwareCamera?.readNoiseE ?? 3.5;
-  if (readNoise == null && hardwareCamera == null) {
+  // `science.camera.read_noise_e` is auto-managed from the sensor specs unless
+  // the user froze it, so it only counts as their own value when frozen —
+  // otherwise the chain would be reading its own output back as an override.
+  final readNoiseIsUserFrozen =
+      rawSettings[ScienceCameraAutoConfig.autoManagedKey]?.toLowerCase() ==
+      'false';
+
+  final pixelSize =
+      opticalConfig?.pixelSize != null && opticalConfig!.pixelSize! > 0
+      ? opticalConfig.pixelSize!
+      : sensorSpecs.pixelSizeMicrons?.value;
+  final readNoise = _preferUserValue(
+    sensorSpecs.readNoiseE,
+    readNoiseIsUserFrozen ? settingsReadNoise : null,
+  );
+  final fullWell = _preferUserValue(sensorSpecs.fullWellE, settingsFullWell);
+  final qePeak = _preferUserValue(sensorSpecs.qePeakFraction, settingsQePeak);
+
+  if (pixelSize == null) {
     caveats.add(
-      'Camera read noise is not configured; using a conservative 3.5e- planning estimate.',
+      sensorSpecCaveat(
+        field: SensorSpecField.pixelSize,
+        cameraLabel: cameraLabel,
+        estimate: 'a $_kPlanningPixelSizeMicrons micron estimate',
+      ),
     );
   }
-
-  final effectiveFullWell = fullWell ?? hardwareCamera?.fullWellE ?? 18000.0;
-  if (fullWell == null && hardwareCamera == null) {
+  if (readNoise == null) {
     caveats.add(
-      'Camera full well is not configured; using an 18,000e- planning estimate.',
+      sensorSpecCaveat(
+        field: SensorSpecField.readNoise,
+        cameraLabel: cameraLabel,
+        estimate:
+            'a conservative ${_kPlanningReadNoiseE.toStringAsFixed(1)}e- '
+            'estimate',
+      ),
     );
   }
-
-  final effectiveQePeak = qePeak ?? hardwareCamera?.qePeak ?? 0.65;
-  if (qePeak == null && hardwareCamera == null) {
-    caveats.add('Camera QE is not configured; using a 65% planning estimate.');
+  if (fullWell == null) {
+    caveats.add(
+      sensorSpecCaveat(
+        field: SensorSpecField.fullWell,
+        cameraLabel: cameraLabel,
+        estimate: 'an 18,000e- estimate',
+      ),
+    );
+  }
+  if (qePeak == null) {
+    caveats.add(
+      sensorSpecCaveat(
+        field: SensorSpecField.qePeak,
+        cameraLabel: cameraLabel,
+        estimate: 'a ${(_kPlanningQePeak * 100).round()}% estimate',
+      ),
+    );
   }
 
   return SmartNightExposureContext(
     camera: CameraExposureSpec(
-      readNoiseE: effectiveReadNoise,
-      fullWellE: effectiveFullWell,
-      qePeak: effectiveQePeak.clamp(0.05, 1.0).toDouble(),
+      readNoiseE: readNoise ?? _kPlanningReadNoiseE,
+      fullWellE: fullWell ?? _kPlanningFullWellE,
+      qePeak: (qePeak ?? _kPlanningQePeak).clamp(0.05, 1.0).toDouble(),
     ),
     bortleClass: settings.bortleClass,
     focalLengthMm: focalLength,
     apertureMm: aperture,
-    pixelSizeMicrons: pixelSize,
+    pixelSizeMicrons: pixelSize ?? _kPlanningPixelSizeMicrons,
     availableFilterNames: effectiveFilters.isNotEmpty
         ? effectiveFilters
         : (profile?.filterNames ?? const []),
@@ -156,33 +191,41 @@ final smartNightExposureContextProvider = FutureProvider<SmartNightExposureConte
   );
 });
 
-Future<Map<String, String>> _loadSmartNightRigSettings(
-  NightshadeBackend backend, {
-  required SettingsDao? localDao,
-}) async {
-  if (backend is NetworkBackend) {
-    final values = await Future.wait([
-      backend.getScienceSettings(),
-      backend.getSmartNightSettings(),
-    ]);
-    return {...values[0], ...values[1]};
+/// Stand-ins used only when a value misses at every tier of the resolution
+/// chain, each paired with a caveat that says so. Chosen to be conservative
+/// rather than typical: a planning estimate that flatters the rig produces
+/// sub-exposures that clip.
+const double _kPlanningPixelSizeMicrons = 3.76;
+const double _kPlanningReadNoiseE = 3.5;
+const double _kPlanningFullWellE = 18000;
+const double _kPlanningQePeak = 0.65;
+
+/// Picks between the resolved value and a global expert setting.
+///
+/// A value the user entered for THIS camera wins outright. Otherwise the
+/// global setting wins if there is one, because a reading or a published
+/// figure is not a correction. Otherwise whatever resolved, and null when
+/// nothing did.
+double? _preferUserValue(
+  SensorSpecValue<double>? resolved,
+  double? globalSetting,
+) {
+  if (resolved?.origin == SensorSpecOrigin.userOverride) {
+    return resolved!.value;
   }
-  return localDao!.getAllSettings();
+  return globalSetting ?? resolved?.value;
 }
 
-Future<List<CameraHardwareSpec>> _readCameraHardwareOverrides(
-  Map<String, String> settings,
-  List<String> caveats,
-) async {
+/// Whether the saved camera overrides exist but cannot be parsed. The user
+/// needs to know their entry is being ignored.
+bool _cameraOverridesAreMalformed(Map<String, String> settings) {
   final raw = settings[HardwareSpecsService.cameraOverridesSettingKey];
-  if (raw == null || raw.trim().isEmpty) return const [];
+  if (raw == null || raw.trim().isEmpty) return false;
   try {
-    return HardwareSpecsService.cameraOverridesFromJson(jsonDecode(raw));
+    HardwareSpecsService.cameraOverridesFromJson(jsonDecode(raw));
+    return false;
   } catch (_) {
-    caveats.add(
-      'Camera hardware overrides could not be parsed; using bundled specs or planning estimates.',
-    );
-    return const [];
+    return true;
   }
 }
 

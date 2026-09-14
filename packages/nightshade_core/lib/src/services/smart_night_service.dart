@@ -13,6 +13,7 @@ import '../models/sequence/sequence_models.dart';
 import '../providers/profiles_provider.dart' show EquipmentProfileModel;
 import 'logging_service.dart';
 import 'pre_session_simulator.dart';
+import 'sensor_specs/camera_sensor_spec_resolver.dart';
 import 'session_optimizer_service.dart' show SmartNightExposureContext;
 import 'smart_night/dark_library_coverage.dart'
     show SmartNightFlatPlan, SmartNightFlatExposure;
@@ -843,32 +844,33 @@ class SmartNightService {
   /// Resolve the camera pixel size (µm) for [profile] WITHOUT a live
   /// exposure context.
   ///
-  /// Order of truth:
-  ///   1. The bundled hardware catalog match for the profile's camera —
-  ///      this is the camera's REAL physical pixel pitch.
-  ///   2. Otherwise `0`, a deliberate "unknown" sentinel.
+  /// Goes through [CameraSensorSpecResolver], so it sees the user's own entry
+  /// and then the manufacturer's published pitch for the profile's camera —
+  /// the same chain the Plan screen uses. It cannot see the live camera or the
+  /// remembered reading: this path runs off a profile alone, with no provider
+  /// container to read them from. The real value normally arrives via
+  /// `exposureContext.pixelSizeMicrons`, which does.
   ///
-  /// There is deliberately no hardcoded fallback pitch: a stand-in figure
-  /// (3.76µm, say) mis-scales the sky-limited exposure math for every camera
-  /// that does not have it. Returning `0` makes each caller's
-  /// `pixelSizeUm <= 0` guard fire loudly: [build] /
-  /// [buildSingleTargetSequence] throw a [SmartNightBuildException] naming
-  /// pixel size, and [previewTargetIntegration] returns null. The real
-  /// value normally arrives via `exposureContext.pixelSizeMicrons` (derived
-  /// from the bridge camera profile); this path only runs when no exposure
-  /// context is available AND the camera isn't in the catalog.
+  /// Returns `0` — a deliberate "unknown" sentinel — when nothing resolves.
+  /// There is no hardcoded fallback pitch: a stand-in figure (3.76µm, say)
+  /// mis-scales the sky-limited exposure math for every camera that does not
+  /// have it, so each caller's `pixelSizeUm <= 0` guard fires loudly instead.
+  /// [build] / [buildSingleTargetSequence] throw a [SmartNightBuildException]
+  /// naming pixel size, and [previewTargetIntegration] returns null.
   double _pixelSize(EquipmentProfileModel profile) {
-    final match = _hardwareSpecs.matchCamera(
-      cameraName: profile.cameraName,
-      cameraId: profile.cameraId,
-      gain: profile.defaultGain,
+    final specs = CameraSensorSpecResolver().resolve(
+      CameraSensorSpecInputs(
+        cameraName: profile.cameraName,
+        cameraId: profile.cameraId,
+        gain: profile.defaultGain,
+        overrides: _hardwareSpecs.overridesFor(
+          cameraName: profile.cameraName,
+          cameraId: profile.cameraId,
+          gain: profile.defaultGain,
+        ),
+      ),
     );
-    if (match != null && match.pixelSizeMicrons > 0) {
-      return match.pixelSizeMicrons;
-    }
-    // Genuinely unknown — fail loud via the caller's pixelSize guard rather
-    // than inventing a pitch.
-    return 0;
+    return specs.pixelSizeMicrons?.value ?? 0;
   }
 
   /// Map the strategy to the filter rotation that matters for this rig.

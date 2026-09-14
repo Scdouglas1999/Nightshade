@@ -163,33 +163,28 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
     cameraMessage = 'Camera is not connected. Connect it to compute FOV.';
   }
 
-  // Fall back to what this camera reported the last time it WAS connected.
+  // Fall through to the shared sensor-spec chain: what this camera reported
+  // the last time it WAS connected, then the manufacturer's published
+  // specification for the model, with anything the user entered on top.
+  //
   // Framing and mosaic planning happen indoors, ahead of the session, with the
   // rig unplugged; gating them on a live device made both unusable exactly
-  // when they are wanted. The values are the camera's own, not an assumption,
-  // and the message below says where they came from.
-  if (pixelsX == null && profile.cameraId != null) {
-    RememberedSensorSpec? remembered;
-    try {
-      remembered = await settingsDao.getRememberedSensorSpec(profile.cameraId!);
-    } catch (error, stack) {
-      developer.log(
-        'Could not read remembered sensor geometry for ${profile.cameraId}.',
-        name: 'Framing',
-        level: 900,
-        error: error,
-        stackTrace: stack,
-      );
-    }
-    if (remembered != null) {
-      pixelsX = remembered.sensorWidth;
-      pixelsY = remembered.sensorHeight;
-      pixelSizeMicrons = remembered.pixelSizeX;
-      sensorWidthMm = (pixelsX * remembered.pixelSizeX) / 1000;
-      sensorHeightMm = (pixelsY * remembered.pixelSizeY) / 1000;
-      cameraMessage =
-          'Sensor size remembered from the last time this camera was '
-          'connected. Connect it to confirm.';
+  // when they are wanted. The message below says which of those the numbers
+  // came from, so the preview never presents a published figure as a reading.
+  if (pixelsX == null) {
+    final resolved = await ref.watch(activeCameraSensorSpecsProvider.future);
+    final resolvedPitch = resolved.pixelSizeMicrons;
+    final resolvedWidth = resolved.sensorWidthPx;
+    final resolvedHeight = resolved.sensorHeightPx;
+    if (resolvedPitch != null &&
+        resolvedWidth != null &&
+        resolvedHeight != null) {
+      pixelsX = resolvedWidth.value;
+      pixelsY = resolvedHeight.value;
+      pixelSizeMicrons = resolvedPitch.value;
+      sensorWidthMm = pixelsX * pixelSizeMicrons / 1000;
+      sensorHeightMm = pixelsY * pixelSizeMicrons / 1000;
+      cameraMessage = _framingSensorProvenance(resolved);
     }
   }
 
@@ -226,6 +221,26 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
     message: cameraMessage,
   );
 });
+
+/// The sentence under the Framing equipment card when the geometry did not
+/// come off a live camera.
+///
+/// It names the tier, because "3.8 µm" read from the camera and "3.8 µm" from
+/// ZWO's manual are not the same claim: the first describes the crop the driver
+/// is delivering, the second the sensor's default mode.
+String _framingSensorProvenance(ResolvedCameraSensorSpecs specs) {
+  final provenance = specs.pixelSizeMicrons?.provenance;
+  if (provenance == null) return '';
+  final suffix = switch (specs.pixelSizeMicrons!.origin) {
+    SensorSpecOrigin.userOverride => '',
+    SensorSpecOrigin.connectedCamera => '',
+    SensorSpecOrigin.rememberedCamera => ' Connect it to confirm.',
+    SensorSpecOrigin.modelDatabase =>
+      ' Connect the camera once to use its own reading instead.',
+  };
+  final sentence = provenance[0].toUpperCase() + provenance.substring(1);
+  return 'Sensor size $sentence.$suffix';
+}
 
 /// Extract a human-readable device name from a raw device identifier.
 ///
