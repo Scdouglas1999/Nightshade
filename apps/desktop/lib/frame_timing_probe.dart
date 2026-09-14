@@ -68,8 +68,25 @@ void Function() startFrameTimingProbe({
   // A periodic timer, not a frame callback: the whole point is to report the
   // windows in which NO frame was produced, and a frame-driven report cannot
   // observe its own absence.
+  //
+  // The timer doubles as the isolate-responsiveness probe. It is scheduled on
+  // the UI isolate's event loop, so it cannot fire while something is holding
+  // that isolate: the gap between one report and the next, minus the window,
+  // IS the time the isolate spent unable to run anything at all.
+  final clock = Stopwatch()..start();
+  var previous = Duration.zero;
   final timer = Timer.periodic(window, (_) {
-    emit(frameTimingLine(frames, window, imageCache: ImageCacheReading.now()));
+    final elapsed = clock.elapsed;
+    final overrun = elapsed - previous - window;
+    previous = elapsed;
+    emit(
+      frameTimingLine(
+        frames,
+        window,
+        imageCache: ImageCacheReading.now(),
+        isolateOverrun: overrun.isNegative ? Duration.zero : overrun,
+      ),
+    );
     frames.clear();
   });
 
@@ -82,24 +99,34 @@ void Function() startFrameTimingProbe({
 /// Render one window's worth of [frames] as a single log line.
 ///
 /// ```text
-/// [frame-timing] window=5.0s frames=0 fps=0.0 imgCacheMB=0.0 imgCacheImages=0 imgCacheLive=0
-/// [frame-timing] window=5.0s frames=312 fps=62.4 buildAvgMs=0.8 rasterAvgMs=6.1 buildP95Ms=1.9 rasterP95Ms=11.4 imgCacheMB=3.4 imgCacheImages=118 imgCacheLive=24
+/// [frame-timing] window=5.0s frames=0 fps=0.0 blockedMs=0.0 imgCacheMB=0.0 imgCacheImages=0 imgCacheLive=0
+/// [frame-timing] window=5.0s frames=312 fps=62.4 buildAvgMs=0.8 rasterAvgMs=6.1 buildP95Ms=1.9 rasterP95Ms=11.4 blockedMs=0.0 imgCacheMB=3.4 imgCacheImages=118 imgCacheLive=24
 /// ```
 ///
 /// The zero case prints deliberately rather than staying silent: "the app
 /// produced no frames for five seconds" is the finding, and a silent probe is
-/// indistinguishable from a probe that failed to start. [imageCache] is
-/// appended to both cases when supplied, so a window with no frames still says
-/// what the cache was holding while nothing painted.
+/// indistinguishable from a probe that failed to start.
+///
+/// [isolateOverrun] is how much longer than [window] the report actually took
+/// to arrive, reported as `blockedMs`. The probe's timer lives on the UI
+/// isolate, so a late report is that isolate having been unable to run — the
+/// one number a frame count cannot give, because a blocked isolate produces no
+/// frames to count and an idle one produces none either. [imageCache] is
+/// appended to both cases when supplied, so a window in which nothing painted
+/// still says what the cache was holding.
 String frameTimingLine(
   List<FrameTiming> frames,
   Duration window, {
   ImageCacheReading? imageCache,
+  Duration? isolateOverrun,
 }) {
   final seconds = window.inMicroseconds / Duration.microsecondsPerSecond;
   final fps = (frames.length / seconds).toStringAsFixed(1);
   final head = '[frame-timing] window=${seconds}s frames=${frames.length}';
-  final tail = imageCache == null ? '' : ' $imageCache';
+  final blocked = isolateOverrun == null
+      ? ''
+      : ' blockedMs=${_ms(isolateOverrun.inMicroseconds.toDouble())}';
+  final tail = '$blocked${imageCache == null ? '' : ' $imageCache'}';
 
   if (frames.isEmpty) {
     return '$head fps=0.0$tail';
@@ -118,6 +145,9 @@ String frameTimingLine(
 
 void _stdout(String line) => stdout.writeln(line);
 
+String _ms(double micros) =>
+    (micros / Duration.microsecondsPerMillisecond).toStringAsFixed(1);
+
 class _Summary {
   final String averageMs;
   final String p95Ms;
@@ -135,7 +165,4 @@ class _Summary {
       _ms(sorted[rank - 1].toDouble()),
     );
   }
-
-  static String _ms(double micros) =>
-      (micros / Duration.microsecondsPerMillisecond).toStringAsFixed(1);
 }
