@@ -139,6 +139,18 @@ pub async fn api_start_polar_alignment(
     Ok(())
 }
 
+/// Above this the fitted axis says more about the measurement than the mount.
+///
+/// The unit is degrees of axis movement per arcminute of error in one of the
+/// three points. The default 15° step measures at about 0.50, a 10° step at
+/// 1.13 and a 30° step at 0.13 (pinned by
+/// `a_short_arc_multiplies_one_points_error_into_the_axis`), so this sits just
+/// above the default: a run with a SHORTER arc than the default gets told what
+/// its arc is costing it. Plate-solve error alone is a fraction of an
+/// arcminute and survives this; a mount that wanders arcminutes between points
+/// does not.
+const MAX_TRUSTWORTHY_AXIS_SENSITIVITY: f64 = 0.6;
+
 /// Internal function to run the polar alignment process
 pub(crate) async fn run_polar_alignment(
     camera_id: String,
@@ -172,6 +184,30 @@ pub(crate) async fn run_polar_alignment(
     }
 
     let mut solved_points: Vec<(f64, f64)> = Vec::new();
+
+    // The declination every rotation step holds, read ONCE.
+    //
+    // Three-point alignment measures a rotation about one axis, so the three
+    // points must lie on one small circle. Re-reading the mount's declination
+    // before each step and commanding *that* feeds every step's pointing error
+    // back into the trajectory: on the owner's rig the mount reported
+    // Dec 58.2744° at point 1 and 58.4058° at point 2, so point 3 was
+    // commanded 8 arcmin off point 1's circle. Over the short arc these runs
+    // use, 8 arcmin of declination is several degrees of fitted axis. Holding
+    // the first reading instead makes each step correct that drift rather than
+    // inherit it. A mount that cannot report its position falls back to the
+    // per-step read.
+    let hold_dec_degrees = match get_device_manager().mount_get_status(&mount_id).await {
+        Ok(status) => Some(status.declination),
+        Err(e) => {
+            tracing::warn!(
+                "Polar alignment: could not read the mount declination to hold across the \
+                 rotation steps ({}); each step will hold whatever it reads",
+                e
+            );
+            None
+        }
+    };
 
     // The field scale, read once for the run: the optics and the sensor do not
     // change between the three measurement frames. The pitch is asked of the
@@ -327,6 +363,7 @@ pub(crate) async fn run_polar_alignment(
                     rotate_east,
                     observer_longitude,
                     generation,
+                    hold_dec_degrees,
                 )
                 .await?
                 {
@@ -344,25 +381,53 @@ pub(crate) async fn run_polar_alignment(
     // Phase 2: Calculate center of rotation
     emit_polar_status("Calculating polar alignment error...", "adjusting", 3);
 
-    let (mut center_ra, mut center_dec) =
-        nightshade_sequencer::calculate_center_of_rotation(&solved_points);
+    let fit =
+        nightshade_sequencer::fit_rotation_axis(&solved_points, is_north).ok_or_else(|| {
+            let msg = "The three measurement points do not describe a rotation. The mount did not \
+             turn between them, or the same frame was solved three times."
+                .to_string();
+            emit_polar_status(&format!("Error: {}", msg), "error", 0);
+            msg
+        })?;
+    let (mut center_ra, mut center_dec) = (fit.ra_degrees, fit.dec_degrees);
     let pole_dec = if is_north { 90.0 } else { -90.0 };
 
+    // The axis is the ANSWER, but a three-point circle is exactly determined:
+    // there is no residual to report and the arc is the only thing standing
+    // between a point's error and the axis. Logging the lever arm alongside the
+    // answer is what turns "the axis came out 9° off" into a number the next
+    // run can act on.
     tracing::info!(
-        "Rotation center: RA={:.4}°, Dec={:.4}°",
+        "Rotation center: RA={:.4}°, Dec={:.4}° (circle radius {:.2}°, arc {:.1}°, \
+         one arcmin of error in one point moves this axis {:.2}°)",
         center_ra,
-        center_dec
+        center_dec,
+        fit.radius_degrees,
+        fit.arc_degrees,
+        fit.axis_degrees_per_arcmin
     );
+    if fit.axis_degrees_per_arcmin > MAX_TRUSTWORTHY_AXIS_SENSITIVITY {
+        tracing::warn!(
+            "Polar alignment measured over only {:.1}° of arc ({:.0}° steps). At that lever arm \
+             one arcminute of error in one point moves the fitted axis {:.2}°, so the reported \
+             error is dominated by measurement noise. Use a larger step size.",
+            fit.arc_degrees,
+            step_size,
+            fit.axis_degrees_per_arcmin
+        );
+    }
 
     // Geometric validation: check if calculated center is within 15° of expected pole
     let dec_diff = (center_dec - pole_dec).abs();
     if dec_diff > 15.0 {
         let error_msg = format!(
-            "Calculated rotation center (Dec={:.2}°) is {:.1}° away from expected pole (Dec={:.0}°). \
-            This suggests poor plate solves or insufficient mount rotation. \
-            Please ensure: 1) Clear view of pole area, 2) Mount rotates at least {}° between points, \
-            3) Plate solving is accurate. Try increasing step size or checking camera focus.",
-            center_dec, dec_diff, pole_dec, step_size
+            "The measured rotation axis (Dec={:.2}°) is {:.1}° from the celestial pole \
+            (Dec={:.0}°) — far more than any mount can be misaligned by. The three points \
+            spanned {:.1}° of arc, where one arcminute of error in a single point moves the \
+            fitted axis {:.2}°, so this is a measurement problem rather than an alignment \
+            one. Increase the step size (currently {:.0}°), check focus, and make sure the \
+            mount is only turning in RA between points.",
+            center_dec, dec_diff, pole_dec, fit.arc_degrees, fit.axis_degrees_per_arcmin, step_size
         );
         tracing::error!("{}", error_msg);
         emit_polar_status(&format!("Error: {}", error_msg), "error", 0);

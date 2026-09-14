@@ -409,7 +409,10 @@ mod tests {
     #[test]
     fn a_mount_report_becomes_a_degrees_hint() {
         let hint = polar_solve_hint_from_mount(2.0, 58.27).expect("a finite report is a hint");
-        assert!((hint.ra_degrees - 30.0).abs() < 1e-9, "hours must become degrees");
+        assert!(
+            (hint.ra_degrees - 30.0).abs() < 1e-9,
+            "hours must become degrees"
+        );
         assert!((hint.dec_degrees - 58.27).abs() < 1e-9);
     }
 
