@@ -436,10 +436,25 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
 
     try {
       final solver = ref.read(plateSolveServiceProvider);
+      // Hint from where the telescope IS, read at click time, not from where
+      // the operator wants it to be. The target is resolved once and then
+      // outlives every slew of the session: the owner's 03:21 solves hinted
+      // from coordinates hours and a polar alignment old, and ASTAP answered
+      // "No solution found" in a second. The mount's own report is the same
+      // source the automatic post-capture solve hints from, and it is right by
+      // construction. With no mount, the target is the only guess there is —
+      // and the native solver widens and then goes blind either way.
+      final mountState = ref.read(mountStateProvider);
+      final mountKnowsWhereItPoints =
+          mountState.connectionState == DeviceConnectionState.connected &&
+              mountState.ra != null &&
+              mountState.dec != null;
       final result = await solver.solveWithFallback(
         imagePath: imagePath,
-        hintRaHours: target.raHours,
-        hintDecDegrees: target.decDegrees,
+        // MountState reports RA in HOURS, which is what this parameter takes.
+        hintRaHours: mountKnowsWhereItPoints ? mountState.ra! : target.raHours,
+        hintDecDegrees:
+            mountKnowsWhereItPoints ? mountState.dec! : target.decDegrees,
         searchRadiusDegrees: 5.0,
       );
 
