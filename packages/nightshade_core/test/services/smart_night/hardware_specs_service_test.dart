@@ -135,17 +135,52 @@ void main() {
       expect(restored.gainPoints.first.readNoiseE, 4.4);
     });
 
-    test('a spec without gain points is refused, not silently accepted', () {
+    test('a spec with no gainPoints LIST at all is refused', () {
       expect(
         () => CameraHardwareSpec.fromJson({
           'model': 'Mystery Camera 42',
           'pixelSizeMicrons': 4.63,
-          'qePeak': 0.72,
           'defaultGain': 10,
-          'gainPoints': <Object>[],
         }),
         throwsA(isA<FormatException>()),
       );
+    });
+
+    test('an override may claim geometry and no noise figures', () {
+      // A user who opened the dialog to fix a pixel size must not come away
+      // having also asserted a read noise, so an empty gain-point list is
+      // legitimate and the noise fields stay unresolved here.
+      final spec = CameraHardwareSpec.fromJson({
+        'model': 'Mystery Camera 42',
+        'pixelSizeMicrons': 4.63,
+        'defaultGain': 10,
+        'gainPoints': <Object>[],
+      });
+      expect(spec.pixelSizeMicrons, 4.63);
+      expect(spec.qePeak, isNull);
+      expect(spec.gainPointFor(10), isNull);
+
+      final overrides = HardwareSpecsService(
+        cameraOverrides: [spec],
+      ).overridesFor(cameraName: 'Mystery Camera 42', gain: 10);
+      expect(overrides.pixelSizeMicrons, 4.63);
+      expect(overrides.readNoiseE, isNull);
+      expect(overrides.fullWellE, isNull);
+      expect(overrides.qePeakFraction, isNull);
+    });
+
+    test('a field the user left out is absent from the JSON', () {
+      const spec = CameraHardwareSpec(
+        model: 'Mystery Camera 42',
+        defaultGain: 10,
+        gainPoints: [
+          CameraGainPoint(gain: 10, readNoiseE: 2.1, fullWellE: 42000),
+        ],
+      );
+      final json = spec.toJson();
+      expect(json.containsKey('pixelSizeMicrons'), isFalse);
+      expect(json.containsKey('qePeak'), isFalse);
+      expect(CameraHardwareSpec.fromJson(json).pixelSizeMicrons, isNull);
     });
 
     test('overrides parse from a JSON list and reject a non-list', () {

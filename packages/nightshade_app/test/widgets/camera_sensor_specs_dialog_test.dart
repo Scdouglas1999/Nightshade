@@ -121,6 +121,80 @@ void main() {
     expect(point['fullWellE'], 42000);
   });
 
+  testWidgets('a geometry-only correction asserts no noise figures', (
+    tester,
+  ) async {
+    // Opening the dialog to fix a pixel size must not come away having also
+    // asserted a read noise. The row carries no gain points, so read noise,
+    // full well and QE stay with the tiers below and keep their own caveats.
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    await _pumpDialog(
+      tester,
+      specs: _unknownCamera,
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('camera-sensor-spec-pixel-size')),
+      '4.63',
+    );
+    await tester.tap(find.text('Save specs'));
+    await tester.pumpAndSettle();
+
+    final raw = await db.settingsDao.getSetting(
+      HardwareSpecsService.cameraOverridesSettingKey,
+    );
+    final override = (jsonDecode(raw!) as List).single as Map<String, dynamic>;
+    expect(override['pixelSizeMicrons'], 4.63);
+    expect(override['gainPoints'], isEmpty);
+    expect(override.containsKey('qePeak'), isFalse);
+
+    final resolved = CameraSensorSpecResolver().resolve(
+      CameraSensorSpecInputs(
+        cameraName: 'MysteryCam',
+        gain: 10,
+        overrides: HardwareSpecsService(
+          cameraOverrides: HardwareSpecsService.cameraOverridesFromJson(
+            jsonDecode(raw),
+          ),
+        ).overridesFor(cameraName: 'MysteryCam', gain: 10),
+      ),
+    );
+    expect(resolved.pixelSizeMicrons!.value, 4.63);
+    expect(resolved.pixelSizeMicrons!.origin, SensorSpecOrigin.userOverride);
+    expect(resolved.readNoiseE, isNull);
+    expect(resolved.qePeakFraction, isNull);
+  });
+
+  testWidgets('pressing save with nothing changed records nothing', (
+    tester,
+  ) async {
+    // The fields arrive prefilled from the published specification. Saving
+    // them unchanged would relabel ZWO's figures "the value you entered" and
+    // lose the gain they were quoted at.
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    await _pumpDialog(
+      tester,
+      specs: _publishedCamera,
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
+
+    await tester.tap(find.text('Save specs'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Change a value'), findsOneWidget);
+    expect(
+      await db.settingsDao.getSetting(
+        HardwareSpecsService.cameraOverridesSettingKey,
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('the dialog arrives prefilled with what resolved', (
     tester,
   ) async {
@@ -292,9 +366,12 @@ void main() {
       HardwareSpecsService.cameraOverridesSettingKey,
     );
     final override = (jsonDecode(raw!) as List).single as Map<String, dynamic>;
-    expect(override['pixelSizeMicrons'], 3.8);
-    expect(override['qePeak'], 0.6);
-    expect(override['sensorWidthPx'], 4656);
+    // Only the field the user touched, plus the pair read noise cannot be
+    // recorded without. Pixel size, QE and the geometry stay with the
+    // published specification and keep its provenance.
+    expect(override.containsKey('pixelSizeMicrons'), isFalse);
+    expect(override.containsKey('qePeak'), isFalse);
+    expect(override.containsKey('sensorWidthPx'), isFalse);
     final point = (override['gainPoints'] as List).single as Map;
     expect(point['gain'], 0);
     expect(point['readNoiseE'], 3.6);

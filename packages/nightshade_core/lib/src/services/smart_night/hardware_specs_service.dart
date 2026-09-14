@@ -37,8 +37,15 @@ class CameraGainPoint {
 class CameraHardwareSpec {
   final String model;
   final List<String> aliases;
-  final double pixelSizeMicrons;
-  final double qePeak;
+
+  /// Only the fields the user actually set are present.
+  ///
+  /// A user who opens the dialog to correct a pixel size must not come away
+  /// having also asserted a read noise. Every figure here is nullable so an
+  /// override can claim one value and leave the rest of the chain — the
+  /// published specification, or an honest caveat — to answer for the others.
+  final double? pixelSizeMicrons;
+  final double? qePeak;
   final int defaultGain;
   final List<CameraGainPoint> gainPoints;
 
@@ -51,18 +58,21 @@ class CameraHardwareSpec {
   const CameraHardwareSpec({
     required this.model,
     this.aliases = const [],
-    required this.pixelSizeMicrons,
-    required this.qePeak,
+    this.pixelSizeMicrons,
+    this.qePeak,
     required this.defaultGain,
-    required this.gainPoints,
+    this.gainPoints = const [],
     this.sensorWidthPx,
     this.sensorHeightPx,
   });
 
   factory CameraHardwareSpec.fromJson(Map<String, dynamic> json) {
+    // The key has to be there and has to be a list — a blob that does not even
+    // have the shape is corrupt, and the planner says so. An EMPTY list is
+    // different and legitimate: an override that corrects geometry only.
     final gainPointsJson = json['gainPoints'];
-    if (gainPointsJson is! List || gainPointsJson.isEmpty) {
-      throw const FormatException('Camera spec requires gainPoints');
+    if (gainPointsJson is! List) {
+      throw const FormatException('Camera spec requires a gainPoints list');
     }
     final aliasesJson = json['aliases'];
     return CameraHardwareSpec(
@@ -70,11 +80,8 @@ class CameraHardwareSpec {
       aliases: aliasesJson is List
           ? aliasesJson.map((value) => value.toString()).toList()
           : const [],
-      pixelSizeMicrons: _doubleValue(
-        json['pixelSizeMicrons'],
-        'pixelSizeMicrons',
-      ),
-      qePeak: _doubleValue(json['qePeak'], 'qePeak'),
+      pixelSizeMicrons: _optionalDoubleValue(json['pixelSizeMicrons']),
+      qePeak: _optionalDoubleValue(json['qePeak']),
       defaultGain: _intValue(json['defaultGain'], 'defaultGain'),
       gainPoints: gainPointsJson
           .map(
@@ -91,8 +98,8 @@ class CameraHardwareSpec {
   Map<String, dynamic> toJson() => {
     'model': model,
     'aliases': aliases,
-    'pixelSizeMicrons': pixelSizeMicrons,
-    'qePeak': qePeak,
+    if (pixelSizeMicrons != null) 'pixelSizeMicrons': pixelSizeMicrons,
+    if (qePeak != null) 'qePeak': qePeak,
     'defaultGain': defaultGain,
     'gainPoints': gainPoints.map((point) => point.toJson()).toList(),
     if (sensorWidthPx != null) 'sensorWidthPx': sensorWidthPx,
@@ -107,12 +114,13 @@ class CameraHardwareSpec {
   };
 
   /// The gain point at [gain], interpolated between the user's own points and
-  /// clamped to the ends of what they entered.
+  /// clamped to the ends of what they entered. Null when they entered none.
   ///
   /// Interpolation is legitimate here in a way it is not for the published
   /// database: these points are a curve the user supplied, and the values
   /// between two of their own measurements are the best answer available.
-  CameraGainPoint gainPointFor(int gain) {
+  CameraGainPoint? gainPointFor(int gain) {
+    if (gainPoints.isEmpty) return null;
     final points = [...gainPoints]..sort((a, b) => a.gain.compareTo(b.gain));
     for (final point in points) {
       if (point.gain == gain) return point;
@@ -212,8 +220,8 @@ class HardwareSpecsService {
       pixelSizeMicrons: spec.pixelSizeMicrons,
       sensorWidthPx: spec.sensorWidthPx,
       sensorHeightPx: spec.sensorHeightPx,
-      readNoiseE: point.readNoiseE,
-      fullWellE: point.fullWellE,
+      readNoiseE: point?.readNoiseE,
+      fullWellE: point?.fullWellE,
       qePeakFraction: spec.qePeak,
     );
   }
@@ -238,10 +246,16 @@ int? _optionalIntValue(Object? value) {
 }
 
 double _doubleValue(Object? value, String field) {
+  final parsed = _optionalDoubleValue(value);
+  if (parsed != null) return parsed;
+  throw FormatException('Camera spec requires numeric $field');
+}
+
+double? _optionalDoubleValue(Object? value) {
   if (value is num && value.isFinite) return value.toDouble();
   if (value is String) {
     final parsed = double.tryParse(value);
     if (parsed != null && parsed.isFinite) return parsed;
   }
-  throw FormatException('Camera spec requires numeric $field');
+  return null;
 }
