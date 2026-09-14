@@ -124,11 +124,9 @@ void main() {
       expect(lines, hasLength(1));
       expect(
         lines.single,
-        startsWith(
-          '[frame-timing] window=5.0s frames=0 '
-          'fps=0.0 imgCacheMB=',
-        ),
+        startsWith('[frame-timing] window=5.0s frames=0 fps=0.0 blockedMs='),
       );
+      expect(lines.single, contains('imgCacheMB='));
       expect(lines.single, contains('imgCacheImages='));
       expect(lines.single, contains('imgCacheLive='));
       // Inside the body, not addTearDown: the binding checks for pending
@@ -171,6 +169,73 @@ void main() {
       expect(reading.sizeBytes, cache.currentSizeBytes);
       expect(reading.imageCount, cache.currentSize);
       expect(reading.liveImageCount, cache.liveImageCount);
+    });
+  });
+
+  group('frameTimingLine isolate overrun', () {
+    // This is the number the thumbnail freeze needed and nothing had: a
+    // blocked UI isolate produces no frames, and neither does an idle one, so
+    // `frames=0` cannot tell them apart. A late report can only mean the
+    // isolate could not run the probe's own timer.
+    test('reports how far past the window the report arrived', () {
+      final line = frameTimingLine(
+        const [],
+        const Duration(seconds: 5),
+        isolateOverrun: const Duration(milliseconds: 8420),
+      );
+      expect(
+        line,
+        '[frame-timing] window=5.0s frames=0 fps=0.0 blockedMs=8420.0',
+      );
+    });
+
+    test('a punctual report says zero rather than omitting the field', () {
+      final line = frameTimingLine(
+        const [],
+        const Duration(seconds: 5),
+        isolateOverrun: Duration.zero,
+      );
+      expect(line, endsWith('blockedMs=0.0'));
+    });
+
+    test('omits the field entirely when no overrun is supplied', () {
+      final line = frameTimingLine(const [], const Duration(seconds: 5));
+      expect(line, isNot(contains('blockedMs')));
+    });
+
+    test('orders blockedMs before the cache section', () {
+      final line = frameTimingLine(
+        const [],
+        const Duration(seconds: 5),
+        isolateOverrun: const Duration(milliseconds: 120),
+        imageCache: const ImageCacheReading(
+          sizeBytes: 0,
+          imageCount: 0,
+          liveImageCount: 0,
+        ),
+      );
+      expect(
+        line,
+        '[frame-timing] window=5.0s frames=0 fps=0.0 blockedMs=120.0 '
+        'imgCacheMB=0.0 imgCacheImages=0 imgCacheLive=0',
+      );
+    });
+
+    testWidgets('the live probe always reports the field', (tester) async {
+      final lines = <String>[];
+      final stop = startFrameTimingProbe(
+        window: const Duration(seconds: 1),
+        emit: lines.add,
+        enabled: true,
+      );
+
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(lines, hasLength(1));
+      final blocked = RegExp(r'blockedMs=([0-9.]+)').firstMatch(lines.single);
+      expect(blocked, isNotNull);
+      expect(double.parse(blocked!.group(1)!), isNonNegative);
+      stop();
     });
   });
 
