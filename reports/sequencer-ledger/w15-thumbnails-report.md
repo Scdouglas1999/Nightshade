@@ -323,18 +323,24 @@ All commands unpiped, exit codes recorded. `TMPDIR=$HOME/.cache/ns-tmp/w15-thumb
 | Rust clippy | `cargo clippy --release -p nightshade_bridge --lib` | 0 | no new findings |
 | Rust fmt | `cargo fmt --check` (bridge) | 0 | clean for my files; see caveat below |
 | Rust tests (new) | `cargo test -p nightshade_bridge --lib fits_thumbnail` | 0 | 8 passed |
-| Dart format | `dart format --output=none --set-exit-if-changed packages/nightshade_core packages/nightshade_app packages/nightshade_bridge` | 0 | 3814 files, 0 changed |
+| Rust tests (full libs) | `cargo test -p nightshade_bridge -p nightshade_native --lib` | 0 | 721 passed (713 baseline + 8 new), 6 ignored; 202 passed |
+| Dart format | `dart format --output=none --set-exit-if-changed` on `packages/nightshade_core`, `packages/nightshade_app`, `packages/nightshade_bridge` | 0, 0, 0 | clean |
+| Dart format | `dart format --output=none --set-exit-if-changed apps/desktop` | **1** | 5 files drifted, **all 5 pre-existing at `5b2235cc7`** — see below. My two files in that package are clean. |
 | analyze (bridge) | `dart analyze` in `packages/nightshade_bridge` | 0 | No issues found |
 | analyze (core) | `dart analyze lib` in `packages/nightshade_core` | 0 | 2 infos, both pre-existing in `scheduler/rejection_labels.dart` |
-| analyze (app) | `dart analyze` in `packages/nightshade_app` | 0 | 873 infos, all pre-existing; none in a file I touched |
+| analyze (app) | `dart analyze` in `packages/nightshade_app` | 0 | 873 infos — the exact pre-existing baseline; **zero** errors or warnings |
 | analyze (desktop) | `dart analyze` in `apps/desktop` | 0 | 9 infos, all pre-existing |
-| tests (core) | `flutter test --exclude-tags golden --concurrency=4` | 0 | 6530 passed, 4 skipped |
-| tests (app) | `flutter test --exclude-tags golden --concurrency=4` | PENDING | |
-| tests (desktop, probe) | `flutter test test/frame_timing_probe_test.dart --concurrency=4` | 0 | 17 passed |
-| tests (desktop, sidecar HTTP) | `flutter test test/headless_api/thumbnail_sidecar_test.dart --concurrency=4` | 0 | 11 passed, unchanged |
+| tests (core) | `flutter test --exclude-tags golden --concurrency=4` | 0 | 6530 passed, 4 skipped (10 new) |
+| tests (app) | `flutter test --exclude-tags golden --concurrency=4` | 0 | 4407 passed (11 new) |
+| tests (desktop) | `flutter test --exclude-tags golden --concurrency=4` | 0 | 1284 passed (12 new) |
+| tests (desktop, sidecar HTTP) | `flutter test test/headless_api/thumbnail_sidecar_test.dart --concurrency=4` | 0 | 11 passed, behaviour unchanged |
 | Flutter bundle (BEFORE) | `flutter build linux --release` | 0 | bundle stashed and string-verified |
 | Flutter bundle (AFTER) | `flutter build linux --release` | 0 | bundle stashed and string-verified |
 | live repro | `drive_linux.py start/shot/wheel/click-xy/stop`, both bundles | 0 | see the tables above |
+
+The AFTER bundle measured above was built at `21d6db67d`; every commit after it touches
+only tests and this report (`git diff --name-only 21d6db67d HEAD` outside `reports/` and
+`*/test/*` is empty), so the measured binary is the tip's library code.
 
 `--exclude-tags golden` is the project's own gate (`ns-worktrees/final-verify.sh`); those
 goldens are captured on the Windows/CI host and fail on Linux. I created and modified no
