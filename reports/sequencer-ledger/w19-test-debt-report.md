@@ -129,7 +129,7 @@ replaced from Linux).
 | `dart analyze` (nightshade_app) — 873 issues, **0 errors/warnings** = documented baseline | 0 |
 | `dart analyze` (nightshade_ui) — 59 issues, **0 errors/warnings** | 0 |
 | `flutter test --concurrency=2` (nightshade_ui) — 538 passed | 0 |
-| `flutter test --concurrency=2` (nightshade_app) — **still running**, see note | n/a |
+| `flutter test --concurrency=2` (nightshade_app) — **4469 passed, "All tests passed!"** | 0 |
 | `flutter test <all 6 non-golden harness consumers>` (app, 28 tests) | 0 |
 | `flutter test test/golden/ --concurrency=2` (app, 20 tests, no env flag) | 0 |
 | `flutter test test/golden/design_gallery_golden_test.dart` (ui, 6 tests, no env flag) | 0 |
@@ -149,12 +149,14 @@ intentional edits, and **no** `assets/screenshots/` or `docs/design/goldens/` en
 
 ### Note on the full nightshade_app suite
 
-The package has 914 test files. The run was launched and reached **2333+ tests with zero
-failures**, but a concurrent workstream is running its own `flutter test` against
+The package has 914 test files. The run **completed: 4469 tests, "All tests passed!", exit 0**,
+with `git status --porcelain` empty immediately afterwards. It took many hours of wall clock
+because a concurrent workstream was running its own `flutter test` against
 `/home/scdouglas/Documents/Nightshade2` on the same memory-constrained box (3 competing
-`flutter_tester` processes throughout), which starved this run to roughly 7% of wall-clock CPU —
-flutter's own elapsed timer advanced 7 minutes over ~7 hours of wall time. It was left running
-rather than killed.
+`flutter_tester` processes throughout), starving this run to a small fraction of wall-clock CPU.
+
+The bound below was established while that run was still in flight and is retained because it
+explains why the result was never in doubt.
 
 That gap is bounded by construction, and the bound was verified rather than assumed. The only
 non-test-harness files this branch changes are two golden PNGs. The two harness files it does
@@ -173,7 +175,7 @@ nightshade_text_field_test.dart:      GoldenHarness.ensureFonts
 
 All 20 golden tests, all 6 app-side consumers above (28 tests), the two framing golden tests, and
 the entire nightshade_ui suite (538 tests, which includes the seventh consumer) were run to green
-with a clean tree. No test outside that set can reach the changed code.
+with a clean tree — and the full 4469-test app suite has since confirmed it.
 
 ## Deliberately left undone
 
@@ -184,8 +186,6 @@ with a clean tree. No test outside that set can reach the changed code.
 - **Did not un-tag the `matchesGoldenFile` tests** so they would run in CI. That would give real
   regression protection and the evidence suggests it is safe, but it is a policy change that
   should follow the Windows confirmation above rather than precede it. Flagged in the doc.
-- **The full `nightshade_app` suite did not finish** under the box contention described above
-  (2333+ tests, 0 failures at the time of writing). Worth a clean re-run when the box is quiet.
 - **Planetarium perceptual baselines untouched** — they are genuinely host-sensitive and carry a
   separate, pre-existing content backlog already documented in `docs/testing/golden-tests.md`.
 - `assets/screenshots/` and `docs/design/goldens/` PNGs left at their committed (Windows) content;
