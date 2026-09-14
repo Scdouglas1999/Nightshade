@@ -285,3 +285,216 @@ tree carries none of them. Anyone running that test locally should expect the sa
   as a plain text file holding the shared cargo path, which breaks a bare `cargo build`. Worked
   around with `CARGO_TARGET_DIR`; the tracked entry was NOT modified, so the tree stays clean. Worth
   a look by whoever owns worktree creation.
+
+---
+
+# Extension: the four other mispositioned `showMenu` sites
+
+Scope extended by the coordinator after w16 was green-lit. Same branch, same
+worktree. All four sites named in §4 addressed.
+
+## 10. Census — every place a `showMenu` `position` is built
+
+Eleven sites, not nine. Flutter's own `PopupMenuButton` and `DropdownButton` convert internally, so
+only hand-rolled `showMenu` calls can carry this defect.
+
+| # | Site | Before | Now |
+|---|---|---|---|
+| 1 | `equipment/widgets/profile_sidebar.dart` | BUGGY (w16) | helper, over the button |
+| 2 | `sequencer/widgets/sequence_tree_context_menu.dart:102` (node menu) | **BUGGY** | helper, at the cursor |
+| 3 | `sequencer/widgets/sequence_tree_context_menu.dart:367` (fold menu) | **BUGGY** | helper, at the cursor |
+| 4 | `planetarium/planetarium_screen/sheets.dart:105` (3 call sites feed it) | **BUGGY** | helper, at the cursor |
+| 5 | `equipment_screen/layout_rail.dart:319` | correct | helper, below the button |
+| 6 | `equipment/widgets/connected_device_card/actions_and_telemetry.dart:818` | correct | helper, below |
+| 7 | `equipment/widgets/discovery_panel/device_row_item.dart:423` | correct | helper, below |
+| 8 | `sequencer/widgets/sequence_toolbar/actions_and_estimate.dart:97` | correct | helper, below |
+| 9 | `shell/widgets/shell_help_popover.dart:63` | correct | helper, right-aligned rect |
+| 10 | `analytics/.../image_thumbnail_strip_parts/_thumbnail.dart:510` | correct | helper, 40x40 anchor |
+| 11 | `widgets/transient_alert_badge.dart:100` | latent-correct | **left as-is, documented** |
+
+## 11. The shared helper — yes, and why
+
+`packages/nightshade_ui/lib/src/utils/menu_position.dart`, exported from the barrel:
+
+    RelativeRect menuPositionFromRect(BuildContext, Rect globalAnchor)   // core
+    RelativeRect menuPositionFromPoint(BuildContext, Offset globalPoint) // cursor
+    RelativeRect menuPositionFromWidget(BuildContext anchorContext)      // over the control
+    RelativeRect menuPositionBelowWidget(BuildContext anchorContext)     // below the control
+
+This defect class earns a helper on every count: eleven sites, four of them wrong, all doing the
+same conversion, and the failure is **silent** — the menu appears, it works, it is merely in the
+wrong place, and it looks right in any test that mounts the widget at the window origin.
+
+The split of responsibility is the point. The helper owns only the **coordinate space** — the thing
+that kept being got wrong. Each call site keeps its own **anchor geometry** — at the cursor, over
+the control, below it, right-aligned — because those legitimately differ and centralising them
+would have forced a flag-per-caller API. `globalToLocal` is used rather than subtracting the
+overlay's origin so a transform between overlay and screen stays correct too.
+
+`menuPositionBelowWidget` exists because four sites independently wanted "drop below this control"
+and each had written the same four-line `localToGlobal(Offset(0, height))` pair.
+
+### Migration equivalence
+
+The migration is behaviour-preserving, verified per site by arithmetic, not by hope:
+
+* Sites 5-8 built `RelativeRect.fromLTRB(left, bottom, W - right, H - bottom)` from the button's
+  bottom edge — which is exactly `RelativeRect.fromRect(Rect.fromLTRB(l, b, r, b), overlay)`.
+  Identical.
+* Sites 8 and 9 used `bottom: 0` where the helper computes `H - top`. `_PopupMenuRouteLayout` never
+  reads `position.bottom` — it takes `y` from `position.top` and chooses the horizontal side from
+  `left` vs `right` — so this is inert.
+* Site 9 (help popover) keeps its right-alignment by passing a menu-wide anchor rect that *ends* at
+  the button's trailing edge, so `left`/`top`/`right` come out unchanged.
+* Site 10 keeps its deliberate 40x40 anchor (a frame tile is wide; anchoring on the whole tile
+  would let the menu right-align off the far edge of it), now a named constant.
+
+### Site 11, `transient_alert_badge` — chose NOT to migrate, and why
+
+It is built by `TitleBar`, which sits in the shell `Column` **above** the `ShellRoute` Navigator, so
+`showMenu` resolves the ROOT navigator whose overlay is the whole window at (0, 0): global
+coordinates already *are* overlay-local there, and it renders correctly today.
+
+Migrating is **not** free, which is the test the coordinator set. Its `right` argument is
+`offset.dx + size.width` — the button's right edge treated as if it were a distance from the
+window's right edge, which is incoherent but happens to keep `left < right` and so left-aligns the
+menu. The helper computes the real inset, which makes `left > right` for a badge near the right of
+the title bar and flips the menu to right-alignment. That is arguably better, but it is a visible
+change to the title bar with no live defect behind it, so the correct call was to leave it.
+
+It now carries a comment naming the assumption it depends on — that the badge stays outside the
+ShellRoute navigator — and saying to switch to `menuPositionBelowWidget` if it ever moves under the
+shell's routed content.
+
+## 12. Live before/after — 1920x1080, nav rail expanded AND collapsed
+
+The nav rail width is the term that exposes the double-add, so every measurement is taken at both
+rail widths. Right-click driven with `xdotool ... click 3` on the isolated Xvfb display `:91`
+(never `:0`); the harness has no secondary-click verb.
+
+**Sequencer node menu** (Take Exposures row, image px of a 1280-wide capture of the 1920 window):
+
+| | cursor | menu top-left | displacement |
+|---|---|---|---|
+| BEFORE, rail expanded (`shots/53`) | (408, 158) | (555, 190) | **(147, 32)** |
+| BEFORE, rail collapsed (`shots/55`) | (303, 158) | (346, 190) | **(43, 32)** |
+| AFTER, rail expanded (`shots/71`) | (408, 158) | (409, 161) | (1, 3) |
+| AFTER, rail collapsed (`shots/72`) | (303, 158) | (304, 161) | (1, 3) |
+
+The before-displacement's x term changed by exactly 104 px — the rail's own width change (146 → 42)
+— while its y term stayed at 32, the title-bar height. After, the displacement is the same in both
+rail states, which is the property that was broken.
+
+**Planetarium sky menu** — the cleanest case, because the cursor is held at the *same global point*
+while only the rail changes:
+
+| | cursor | menu top-left |
+|---|---|---|
+| BEFORE, rail collapsed (`shots/64`) | (660, 300) | (554, 331) — LEFT of the cursor |
+| BEFORE, rail expanded (`shots/65`) | (660, 300) | (658, 331) — moved **104 px** |
+| AFTER, rail collapsed (`shots/75`) | (660, 300) | (661, 302) |
+| AFTER, rail expanded (`shots/76`) | (660, 300) | (661, 302) — **unchanged** |
+
+Before, the menu moved 104 px with nothing but the nav rail changing, and sat left of the cursor
+because the bogus right inset flipped `_PopupMenuRouteLayout` into right-alignment. After, it is
+invariant to the shell chrome.
+
+**Gestures.** Right-click verified live for both screens at both rail widths, above. The fold-group
+menu and the long-press path are covered by widget tests; a synthetic long-press via
+`xdotool mousedown / sleep 0.9 / mouseup` on the desktop bundle did **not** open the node menu —
+the row's own drag/hover affordances take that gesture there — so long-press is NOT claimed as
+live-verified, only test-verified. **There is no keyboard path to either context menu**: both are
+`GestureDetector(onSecondaryTapUp / onLongPressStart)` with no `Shortcuts`/`Actions` entry and no
+context-menu key handler, so there was nothing to check. Worth noting as an accessibility gap, but
+it is not this workstream's defect.
+
+## 13. Tests
+
+`packages/nightshade_ui/test/menu_position_test.dart` (new, 8 cases) — the numeric guard on the one
+implementation. A nested `Navigator` inset by 0 / 64 / 220 px, covering all three public entry
+points plus a drift case asserting the anchor offset does not track the inset. With the
+`globalToLocal` conversion removed from the helper it fails **5/8**, each failure reporting a
+displacement exactly equal to the inset, and the drift case printing
+`[Offset(0.0, 8.0), Offset(220.0, 228.0)]`.
+
+`packages/nightshade_app/test/screens/sequencer/sequence_tree_context_menu_anchor_test.dart`
+(new, 7 cases) — the node menu at insets 0/64/220, long-press, the anchor-drift case, and the
+**fold-group menu** at insets 0/220. On the pre-fix maths it fails **5/7**: "it is 64.0 px off
+horizontally" at inset 64, "220.0 px off" at inset 220, drift `got [0.0, 220.0]`. The inset-0 cases
+pass on the broken code, which is exactly why the existing
+`sequence_tree_context_menu_test.dart` — which mounts at the window origin — never caught it.
+
+Two harness traps recorded in the test files: the menus are typed on private enums
+(`_TreeMenuAction`, `_FoldMenuAction`) so `find.byType` cannot name them and a
+`byWidgetPredicate((w) => w is PopupMenuItem)` is required; and the drift case must
+`pumpWidget(SizedBox.shrink())` between iterations, because at inset 0 a "tap outside" lands on the
+row itself and re-pumping over a still-animating popup route leaves nothing to measure.
+
+No widget test mounts the planetarium screen. Its own test file documents why — ~30 providers and a
+GPU sky renderer that loads shaders from disk — and the one line it now calls is covered
+numerically in `nightshade_ui` and verified live above.
+
+## 14. Verification — extension
+
+    dart format --output=none --set-exit-if-changed packages/nightshade_app   EXIT=0
+    dart format --output=none --set-exit-if-changed packages/nightshade_ui    EXIT=0
+    dart analyze  (packages/nightshade_app)                                  EXIT=0  873 issues
+      Exactly the 873-issue baseline the coordinator measured on `5b2235cc7`. All `info`
+      (`deprecated_member_use` from the Flutter 3.44 / pinned-CI drift); 0 error, 0 warning,
+      none in a file touched here.
+    dart analyze  (packages/nightshade_ui)                                   EXIT=0  59 issues
+      All `info`; 0 error, 0 warning.
+    flutter test test/screens/sequencer   --concurrency=4                    EXIT=0  (+771)
+    flutter test test/screens/planetarium --concurrency=4                    EXIT=0  (+156)
+    flutter test test/screens/equipment   --concurrency=4                    EXIT=0  (+173)
+    flutter test test/screens/shell       --concurrency=4                    EXIT=0  (+105)
+    flutter test test/screens/analytics   --concurrency=4                    EXIT=0  (+274)
+    flutter test test/widgets             --concurrency=4                    EXIT=0  (+311)
+    flutter test  (all of packages/nightshade_ui)                            EXIT=0  (+538)
+    flutter build linux --release                                            EXIT=0
+
+Bundle freshness for the live check was confirmed by mtime rather than a string grep — this change
+adds no user-facing strings: `libapp.so` 10:57:28 against the newest edited source at 10:55:29.
+
+## 15. Two pre-existing defects to record (NOT fixed, as instructed)
+
+### 15a. Two test files rewrite tracked assets on a PASSING run
+
+A test that mutates version-controlled files as a side effect of passing. Both were hit in this
+workstream and both had to be reverted by hand before committing; a run on CI or on a dirty tree
+will show them as spurious modifications, and a careless `git add -A` commits regenerated binaries
+nobody reviewed.
+
+* `packages/nightshade_app/test/golden/public_screenshots_test.dart` — a passing run rewrites
+  **12 files** in `assets/screenshots/`: `analytics.png`, `desktop-dashboard.png`, `equipment.png`,
+  `flat-wizard.png`, `framing.png`, `guiding.png`, `imaging.png`, `plan-tonight.png`,
+  `planetarium.png`, `sequencer.png`, `settings-equipment-profiles.png`, `weather.png`.
+* `packages/nightshade_ui/test/golden/design_gallery_golden_test.dart` — a passing run rewrites
+  **6 files** in `docs/design/goldens/`: `gallery-dark.png`, `gallery-light.png`,
+  `gallery-rednight.png`, `gallery-observatory-dark.png`, `gallery-observatory-light.png`,
+  `gallery-observatory-rednight.png`.
+
+Reverted here with `git checkout -- assets/screenshots/` and `git checkout -- docs/design/goldens/`;
+neither is in any commit on this branch. Note this also means the repo's committed screenshots
+differ from what the current code renders on Linux — the same host-dependence the project already
+knows about for Windows-captured goldens — so "the test rewrote them" is not by itself evidence of
+a UI regression. Whoever picks this up should decide whether these are generators that belong
+behind a flag (`--dart-define` or an env guard) rather than plain tests.
+
+### 15b. `native/nightshade_native/target` materialises as a plain file in a new worktree
+
+It is committed as a **symlink** (git mode `120000`, blob `db097f88e9cf68a6b953fa5b3485e379ad24713f`)
+pointing at the shared cargo dir `/home/scdouglas/.cache/ns-worktrees/cargo-target`. In this
+worktree it was checked out as a **regular 48-byte text file** containing that path as text, so
+cargo cannot create `target/release` inside it and any bare `cargo build` in the crate dies with:
+
+    error: failed to create directory `.../native/nightshade_native/target/release`
+    Caused by: Not a directory (os error 20)
+
+Worked around throughout by exporting
+`CARGO_TARGET_DIR=/home/scdouglas/.cache/ns-worktrees/cargo-target` — the same directory the symlink
+names — so the tracked entry was never modified and the tree stays clean. Two consequences for
+whoever owns worktree creation: a fresh agent worktree cannot build the Rust bridge without knowing
+this, and because the bridge is required at startup (`libnightshade_bridge.so could not be loaded,
+or it is stale`) that blocks every live verification. Likely `core.symlinks=false` or a
+symlink-less checkout in whatever creates these worktrees.
