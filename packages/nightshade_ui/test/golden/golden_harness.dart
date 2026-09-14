@@ -15,6 +15,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// not Ahem boxes) and write the rasterised frame as a PNG into
 /// `docs/design/goldens/` so the lead engineer can eyeball the rendered design
 /// language. The absolute output path is printed for each capture.
+///
+/// Writing those tracked PNGs is OPT-IN: set `NIGHTSHADE_CAPTURE_ASSETS=1` to
+/// refresh them. Without it the capture still runs in full but lands in a temp
+/// directory, so a plain `flutter test` leaves the working tree clean. See
+/// `docs/testing/golden-tests.md`.
 abstract final class GoldenHarness {
   GoldenHarness._();
 
@@ -108,17 +113,40 @@ abstract final class GoldenHarness {
     return Directory.current;
   }
 
-  /// The committed golden output directory (`<repo>/docs/design/goldens`),
-  /// created if absent.
+  /// Environment switch that sends captures to the tracked repo directory.
+  ///
+  /// A capture run rewrites files that are committed to the repository, so it
+  /// is opt-in: a plain `flutter test` must leave the working tree clean.
+  /// Mirrors the `NIGHTSHADE_LIVE_NETWORK` env gate already used by
+  /// `nightshade_core` for its opt-in live-fetch test.
+  static const captureEnvVar = 'NIGHTSHADE_CAPTURE_ASSETS';
+
+  /// Whether this run writes the tracked assets, i.e.
+  /// `NIGHTSHADE_CAPTURE_ASSETS=1` is set in the environment.
+  static bool get capturesToRepo => Platform.environment[captureEnvVar] == '1';
+
+  static Directory? _scratch;
+
+  /// The capture output directory.
+  ///
+  /// Under [capturesToRepo] this is the committed `docs/design/goldens/`;
+  /// otherwise it is a throwaway temp directory. The capture pipeline — render,
+  /// rasterise, PNG-encode, write, assert — runs identically either way, so the
+  /// tests keep proving a real non-empty image was produced without dirtying
+  /// tracked files.
   static Directory goldensDir() {
-    final dir = Directory('${repoRoot().path}/docs/design/goldens');
+    final dir = capturesToRepo
+        ? Directory('${repoRoot().path}/docs/design/goldens')
+        : (_scratch ??= Directory.systemTemp.createTempSync(
+            'nightshade-goldens-',
+          ));
     dir.createSync(recursive: true);
     return dir;
   }
 
   /// Pumps [child] under [theme] at a fixed logical [size], captures the
-  /// `RepaintBoundary` to a PNG, and writes it to
-  /// `docs/design/goldens/<fileName>`. Returns the written file.
+  /// `RepaintBoundary` to a PNG, and writes it to `<goldensDir>/<fileName>`.
+  /// Returns the written file.
   ///
   /// [pixelRatio] scales the raster resolution (2.0 = crisp retina capture).
   static Future<File> capture(

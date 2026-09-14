@@ -15,6 +15,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// `docs/design/goldens/`. These are review artifacts for the lead engineer, not
 /// pixel-diff guards — the test bodies assert only that a real, non-empty image
 /// was produced.
+///
+/// Writing the tracked PNGs (and the `assets/screenshots/` set) is OPT-IN: set
+/// `NIGHTSHADE_CAPTURE_ASSETS=1` to refresh them. Without it the capture still
+/// runs in full but lands in a temp directory, so a plain `flutter test` leaves
+/// the working tree clean. See `docs/testing/golden-tests.md`.
 abstract final class SurfaceGoldenHarness {
   SurfaceGoldenHarness._();
 
@@ -86,14 +91,51 @@ abstract final class SurfaceGoldenHarness {
     return Directory.current;
   }
 
+  /// Environment switch that sends captures to the tracked repo directory.
+  ///
+  /// A capture run rewrites files that are committed to the repository, so it
+  /// is opt-in: a plain `flutter test` must leave the working tree clean.
+  /// Mirrors the `NIGHTSHADE_LIVE_NETWORK` env gate already used by
+  /// `nightshade_core` for its opt-in live-fetch test.
+  static const captureEnvVar = 'NIGHTSHADE_CAPTURE_ASSETS';
+
+  /// Whether this run writes the tracked assets, i.e.
+  /// `NIGHTSHADE_CAPTURE_ASSETS=1` is set in the environment.
+  static bool get capturesToRepo => Platform.environment[captureEnvVar] == '1';
+
+  static Directory? _scratch;
+  static Directory? _screenshotScratch;
+
+  /// The capture output directory.
+  ///
+  /// Under [capturesToRepo] this is the committed `docs/design/goldens/`;
+  /// otherwise it is a throwaway temp directory. The capture pipeline — render,
+  /// rasterise, PNG-encode, write, assert — runs identically either way, so the
+  /// tests keep proving a real non-empty image was produced without dirtying
+  /// tracked files.
   static Directory goldensDir() {
-    final dir = Directory('${repoRoot().path}/docs/design/goldens');
+    final dir = capturesToRepo
+        ? Directory('${repoRoot().path}/docs/design/goldens')
+        : (_scratch ??=
+            Directory.systemTemp.createTempSync('nightshade-goldens-'));
+    dir.createSync(recursive: true);
+    return dir;
+  }
+
+  /// The public-screenshot output directory, gated exactly like [goldensDir]:
+  /// the committed `assets/screenshots/` only under [capturesToRepo], a
+  /// throwaway temp directory otherwise.
+  static Directory screenshotsDir() {
+    final dir = capturesToRepo
+        ? Directory('${repoRoot().path}/assets/screenshots')
+        : (_screenshotScratch ??=
+            Directory.systemTemp.createTempSync('nightshade-screenshots-'));
     dir.createSync(recursive: true);
     return dir;
   }
 
   /// Captures whatever is currently mounted under [boundaryKey] to
-  /// `docs/design/goldens/<fileName>` and returns the written file.
+  /// `<goldensDir>/<fileName>` and returns the written file.
   ///
   /// `RenderRepaintBoundary.toImage` and `Image.toByteData` are real
   /// (non-fake) async GPU/IO operations. Under the automated test binding's
