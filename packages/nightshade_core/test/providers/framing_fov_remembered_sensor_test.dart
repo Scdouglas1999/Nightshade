@@ -149,6 +149,51 @@ void main() {
     );
   });
 
+  test('a known camera model works before it is ever connected', () async {
+    // The tier below "remembered": a camera the app has never seen, but whose
+    // manufacturer publishes its geometry. Framing used to refuse this
+    // outright, which is what made the owner's Plan screen call an
+    // ASI1600MM-Cool's specs unknown on a fresh install.
+    final backend = MockBackend();
+    when(
+      () => backend.getCameraStatus(any()),
+    ).thenThrow(StateError('camera is not connected'));
+
+    final container = ProviderContainer(
+      overrides: [
+        inMemoryDatabaseOverride(),
+        backendProvider.overrideWith((ref) => _FixedBackend(ref, backend)),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 2,
+            name: 'Owner rig',
+            isActive: true,
+            cameraId: 'ASI1600MM-Cool',
+            cameraName: 'ASI1600MM-Cool',
+            focalLength: 530,
+            aperture: 106,
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final result = await container.read(framingFOVProvider.future);
+    expect(result.status, EquipmentStatus.ready);
+    // ZWO's ASI1600 manual: 4656 x 3520 at 3.8 um.
+    expect(result.equipment!.pixelsX, 4656);
+    expect(result.equipment!.pixelsY, 3520);
+    expect(result.equipment!.pixelSizeMicrons, 3.8);
+    expect(
+      result.message,
+      'Sensor size from the published specification for ZWO ASI1600MM. '
+      'Connect the camera once to use its own reading instead.',
+      reason:
+          'a published figure and a reading off the camera are different '
+          'claims, so the card must not present one as the other',
+    );
+  });
+
   test('fetching camera capabilities remembers the sensor', () async {
     final backend = MockBackend();
     when(() => backend.getCameraCapabilities(any())).thenAnswer(

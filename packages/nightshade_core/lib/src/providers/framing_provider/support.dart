@@ -227,19 +227,24 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
 ///
 /// It names the tier, because "3.8 µm" read from the camera and "3.8 µm" from
 /// ZWO's manual are not the same claim: the first describes the crop the driver
-/// is delivering, the second the sensor's default mode.
-String _framingSensorProvenance(ResolvedCameraSensorSpecs specs) {
-  final provenance = specs.pixelSizeMicrons?.provenance;
-  if (provenance == null) return '';
-  final suffix = switch (specs.pixelSizeMicrons!.origin) {
-    SensorSpecOrigin.userOverride => '',
-    SensorSpecOrigin.connectedCamera => '',
-    SensorSpecOrigin.rememberedCamera => ' Connect it to confirm.',
-    SensorSpecOrigin.modelDatabase =>
-      ' Connect the camera once to use its own reading instead.',
-  };
-  final sentence = provenance[0].toUpperCase() + provenance.substring(1);
-  return 'Sensor size $sentence.$suffix';
+/// is delivering, the second the sensor's default mode. Each tier also gets the
+/// action that would upgrade it.
+String? _framingSensorProvenance(ResolvedCameraSensorSpecs specs) {
+  final pitch = specs.pixelSizeMicrons;
+  if (pitch == null) return null;
+  switch (pitch.origin) {
+    case SensorSpecOrigin.connectedCamera:
+      // Live values need no explanation.
+      return null;
+    case SensorSpecOrigin.userOverride:
+      return 'Sensor size is the value you entered for this camera.';
+    case SensorSpecOrigin.rememberedCamera:
+      return 'Sensor size ${pitch.provenance}. Connect it to confirm.';
+    case SensorSpecOrigin.modelDatabase:
+      final model = specs.databaseEntry?.model ?? 'this camera';
+      return 'Sensor size from the published specification for $model. '
+          'Connect the camera once to use its own reading instead.';
+  }
 }
 
 /// Extract a human-readable device name from a raw device identifier.
