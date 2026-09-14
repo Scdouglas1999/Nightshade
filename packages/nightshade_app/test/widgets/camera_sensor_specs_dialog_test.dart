@@ -23,6 +23,13 @@ final _unknownCamera = CameraSensorSpecResolver().resolve(
   const CameraSensorSpecInputs(cameraName: 'MysteryCam', gain: 10),
 );
 
+/// A camera whose published specification is complete except for read noise:
+/// ZWO publishes only a best-case figure with no gain for the ASI533MM Pro, so
+/// the row omits it. The one empty field has to say why it is empty.
+final _partlyPublishedCamera = CameraSensorSpecResolver().resolve(
+  const CameraSensorSpecInputs(cameraName: 'ASI533MM Pro', gain: 100),
+);
+
 /// What it resolves for the owner's camera: every field already filled in from
 /// ZWO's published specification, so the dialog is a correction surface.
 final _publishedCamera = CameraSensorSpecResolver().resolve(
@@ -157,7 +164,27 @@ void main() {
     );
   });
 
-  testWidgets('an unpublished field says so instead of looking empty', (
+  testWidgets('the one unpublished field among many says why it is empty', (
+    tester,
+  ) async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    await _pumpDialog(
+      tester,
+      specs: _partlyPublishedCamera,
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
+
+    expect(_fieldText(tester, 'read-noise'), isEmpty);
+    expect(
+      find.textContaining('Not published for this camera'),
+      findsOneWidget,
+      reason: 'read noise is the only field ZWO does not publish here',
+    );
+  });
+
+  testWidgets('a camera with nothing published says it once, not six times', (
     tester,
   ) async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
@@ -169,10 +196,13 @@ void main() {
       overrides: [databaseProvider.overrideWithValue(db)],
     );
 
+    // The paragraph at the top carries it; six identical lines under six
+    // empty inputs would be filler.
     expect(
-      find.textContaining('Not published for this camera'),
-      findsWidgets,
+      find.textContaining('Nothing is published for MysteryCam'),
+      findsOneWidget,
     );
+    expect(find.textContaining('Not published for this camera'), findsNothing);
   });
 
   testWidgets('read noise without a gain is refused', (tester) async {

@@ -394,6 +394,74 @@ void main() {
     expect(context.camera.qePeak, 0.65);
   });
 
+  test('a correction saved after the first read reaches the planner', () async {
+    // The chain is only useful if it notices. A one-shot settings read left
+    // the Plan screen warning about a camera whose specs the user had just
+    // typed into the dialog, because the settings map behind the chain was
+    // already cached.
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+        _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Mystery rig',
+            cameraName: 'Acme SkyCam 9000',
+            focalLength: 500,
+            aperture: 100,
+            defaultGain: 120,
+            filterNames: ['L'],
+          ),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+
+    // A live listener, as a screen watching the provider would be: without
+    // one Riverpod has no reason to keep the settings stream subscribed.
+    final subscription = container.listen(
+      smartNightExposureContextProvider,
+      (_, __) {},
+    );
+    addTearDown(subscription.close);
+
+    final before = await container.read(
+      smartNightExposureContextProvider.future,
+    );
+    expect(before!.caveats, hasLength(4), reason: 'precondition: unknown');
+
+    await db.settingsDao.setSetting(
+      HardwareSpecsService.cameraOverridesSettingKey,
+      '[{"model":"Acme SkyCam 9000","aliases":[],"pixelSizeMicrons":4.63,'
+      '"qePeak":0.75,"defaultGain":120,"gainPoints":'
+      '[{"gain":120,"readNoiseE":2.1,"fullWellE":42000.0}],'
+      '"sensorWidthPx":4144,"sensorHeightPx":2822}]',
+    );
+
+    // No invalidation anywhere: the write reaches the planner through the
+    // settings table's own stream, which takes a few event-loop turns.
+    var after = before;
+    for (
+      var attempt = 0;
+      attempt < 100 && after.caveats.isNotEmpty;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      after = (await container.read(smartNightExposureContextProvider.future))!;
+    }
+    expect(after.caveats, isEmpty);
+    expect(after.pixelSizeMicrons, 4.63);
+    expect(after.camera.readNoiseE, 2.1);
+    expect(after.camera.fullWellE, 42000);
+    expect(after.camera.qePeak, 0.75);
+  });
+
   test('a malformed override blob is reported, not silently ignored', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     await db.settingsDao.setSetting(

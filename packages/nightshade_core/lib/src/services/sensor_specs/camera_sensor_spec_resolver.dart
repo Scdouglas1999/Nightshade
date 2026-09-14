@@ -382,9 +382,19 @@ class CameraSensorSpecResolver {
     return SensorSpecValue(
       value: figure.low,
       origin: SensorSpecOrigin.modelDatabase,
-      provenance:
+      provenance: switch (figure.kind) {
+        // The operating point is the whole point of these two: the reader has
+        // to be able to tell that the figure is not quoted at their gain.
+        PublishedFigureKind.atQuotedLabel =>
           'the published figure for $modelLabel, which the manufacturer '
-          'quotes only ${figure.operatingPointPhrase}',
+              'quotes only ${figure.operatingPointPhrase}',
+        PublishedFigureKind.unattributed =>
+          'the published figure for $modelLabel, which the manufacturer '
+              'quotes ${figure.operatingPointPhrase}',
+        PublishedFigureKind.atDriverGain || PublishedFigureKind.range =>
+          'the published figure for $modelLabel '
+              '${figure.operatingPointPhrase}',
+      },
     );
   }
 

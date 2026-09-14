@@ -150,20 +150,36 @@ class ResolvedCameraSensorSpecs {
     null => null,
   };
 
-  /// The provenance of every distinct source in play, joined into one
-  /// sentence, so a mixed set (geometry live, read noise published) says both.
+  /// Where every resolved value came from, as one labelled sentence per
+  /// distinct source phrase.
+  ///
+  /// Grouped by phrase and labelled with the fields it covers, rather than
+  /// collapsed to one line per tier. Collapsing by tier swallowed exactly the
+  /// clause that matters most: on a camera whose every figure comes from the
+  /// published specification, "the published pixel pitch" and "the published
+  /// read noise, which the manufacturer quotes only at 30 dB gain" are the
+  /// same tier and very different claims, and only the first was surviving.
   String get provenanceSentence {
-    final byOrigin = <SensorSpecOrigin, String>{};
+    final byPhrase = <String, List<SensorSpecField>>{};
     for (final field in SensorSpecField.values) {
       final value = this[field];
       if (value == null) continue;
-      byOrigin.putIfAbsent(value.origin, () => value.provenance);
+      byPhrase.putIfAbsent(value.provenance, () => []).add(field);
     }
-    if (byOrigin.isEmpty) return '';
-    final phrases = byOrigin.values.toList();
-    if (phrases.length == 1) return _capitalize('${phrases.first}.');
-    final last = phrases.removeLast();
-    return _capitalize('${phrases.join('; ')}; and $last.');
+    if (byPhrase.isEmpty) return '';
+    return byPhrase.entries
+        .map(
+          (entry) => _capitalize('${_fieldList(entry.value)}: ${entry.key}.'),
+        )
+        .join(' ');
+  }
+
+  /// "read noise, full well and QE", for a provenance clause.
+  static String _fieldList(List<SensorSpecField> fields) {
+    final labels = fields.map((field) => field.label).toList();
+    if (labels.length == 1) return labels.first;
+    final last = labels.removeLast();
+    return '${labels.join(', ')} and $last';
   }
 
   static String _capitalize(String value) =>
