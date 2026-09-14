@@ -3702,18 +3702,60 @@ pub fn api_debayer_image(
     Ok(debayer_image(width, height, data, pattern, algorithm))
 }
 
+/// How many FITS thumbnails may be generated at the same time.
+///
+/// One generation holds the frame in memory twice: the raw FITS buffer plus the
+/// `u16` copy it is converted into. For the ASI1600MM's 4656 x 3520 frames that
+/// is 32.8 MB each, so a surface asking for a whole night's thumbnails at once
+/// would start a hundred of those together and exhaust memory. Admitting four
+/// at a time keeps a modern imaging laptop's cores busy while capping the
+/// transient cost at roughly 260 MB.
+const THUMBNAIL_GENERATION_CONCURRENCY: usize = 4;
+
+fn thumbnail_generation_gate() -> &'static tokio::sync::Semaphore {
+    static GATE: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
+    GATE.get_or_init(|| tokio::sync::Semaphore::new(THUMBNAIL_GENERATION_CONCURRENCY))
+}
+
 /// Generate thumbnail from FITS file
 /// Returns JPEG-encoded thumbnail data (~512x512 pixels)
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_generate_fits_thumbnail(
+///
+/// Async and off-thread on purpose. This reads the whole FITS off disk,
+/// converts it to `u16`, downsamples, auto-stretches and JPEG-encodes it —
+/// hundreds of milliseconds of blocking I/O and CPU for a full-frame CMOS
+/// capture. It used to be `#[frb(sync)]`, which runs the whole of that on the
+/// Dart isolate that called it: the UI isolate. A frame strip asking for N
+/// thumbnails therefore froze the app for N serialised full-frame decodes,
+/// which is exactly what the owner saw when a night's Dashboard showed no
+/// thumbnails at all. The work now runs on the blocking pool and the caller
+/// awaits it, so the UI isolate stays free to paint.
+pub async fn api_generate_fits_thumbnail(
     file_path: String,
+    max_size: u32,
+) -> Result<Vec<u8>, NightshadeError> {
+    let _permit = thumbnail_generation_gate()
+        .acquire()
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("Thumbnail gate closed: {}", e)))?;
+
+    tokio::task::spawn_blocking(move || generate_fits_thumbnail_jpeg(&file_path, max_size))
+        .await
+        .map_err(|e| {
+            NightshadeError::OperationFailed(format!("Thumbnail task join error: {}", e))
+        })?
+}
+
+/// The blocking body of [`api_generate_fits_thumbnail`]. Never call this from
+/// an async context without `spawn_blocking`.
+fn generate_fits_thumbnail_jpeg(
+    file_path: &str,
     max_size: u32,
 ) -> Result<Vec<u8>, NightshadeError> {
     use nightshade_imaging::read_fits;
     use std::path::Path;
 
     // Read FITS file
-    let path = Path::new(&file_path);
+    let path = Path::new(file_path);
     let (image_data, _header) = read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {:?}", e)))?;
 

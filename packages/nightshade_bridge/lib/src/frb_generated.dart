@@ -819,7 +819,7 @@ abstract class RustLibApi extends BaseApi {
     required String extension_,
   });
 
-  Uint8List crateApiImagingApiGenerateFitsThumbnail({
+  Future<Uint8List> crateApiImagingApiGenerateFitsThumbnail({
     required String filePath,
     required int maxSize,
   });
@@ -6753,16 +6753,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Uint8List crateApiImagingApiGenerateFitsThumbnail({
+  Future<Uint8List> crateApiImagingApiGenerateFitsThumbnail({
     required String filePath,
     required int maxSize,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           var arg0 = cst_encode_String(filePath);
           var arg1 = cst_encode_u_32(maxSize);
           return wire.wire__crate__api__imaging__api_generate_fits_thumbnail(
+            port_,
             arg0,
             arg1,
           );

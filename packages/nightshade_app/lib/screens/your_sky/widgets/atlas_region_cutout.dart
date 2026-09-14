@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/image_decode_size.dart';
+
 /// Renders the co-added cutout for a region at its LATEST depth, keyed by
 /// region id via [atlasRegionCutoutProvider].
 ///
@@ -63,11 +65,21 @@ class _CutoutImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The same widget is the region card's small preview and the region detail
+    // screen's hero, so the decode size comes from the box rather than from a
+    // constant: the card gets a card-sized decode of a co-add that can be
+    // several thousand pixels across, the hero gets a hero-sized one.
+    return LayoutBuilder(builder: _buildImage);
+  }
+
+  Widget _buildImage(BuildContext context, BoxConstraints constraints) {
+    final cacheWidth = thumbnailDecodeWidth(context, constraints.maxWidth);
     final bytes = cutout.bytes;
     if (bytes != null) {
       return Image.memory(
         bytes,
         fit: fit,
+        cacheWidth: cacheWidth,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _missing(),
       );
@@ -79,6 +91,7 @@ class _CutoutImage extends StatelessWidget {
     return Image.file(
       File(path),
       fit: fit,
+      cacheWidth: cacheWidth,
       gaplessPlayback: true,
       errorBuilder: (context, error, stackTrace) => _missing(),
     );

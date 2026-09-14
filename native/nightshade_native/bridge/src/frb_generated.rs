@@ -3471,23 +3471,32 @@ fn wire__crate__api__imaging__api_generate_filename_impl(
     )
 }
 fn wire__crate__api__imaging__api_generate_fits_thumbnail_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     file_path: impl CstDecode<String>,
     max_size: impl CstDecode<u32>,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "api_generate_fits_thumbnail",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let api_file_path = file_path.cst_decode();
             let api_max_size = max_size.cst_decode();
-            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok =
-                    crate::api::imaging::api_generate_fits_thumbnail(api_file_path, api_max_size)?;
-                Ok(output_ok)
-            })())
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_generate_fits_thumbnail(
+                            api_file_path,
+                            api_max_size,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
@@ -33252,10 +33261,11 @@ mod io {
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_generate_fits_thumbnail(
+        port_: i64,
         file_path: *mut wire_cst_list_prim_u_8_strict,
         max_size: u32,
-    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__imaging__api_generate_fits_thumbnail_impl(file_path, max_size)
+    ) {
+        wire__crate__api__imaging__api_generate_fits_thumbnail_impl(port_, file_path, max_size)
     }
 
     #[unsafe(no_mangle)]

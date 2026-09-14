@@ -77,12 +77,20 @@ class _SubThumbnailState extends ConsumerState<_SubThumbnail> {
           ),
         ),
         error: (_, __) => _placeholder(),
+        // Decoded at cell width, not at the 512 px the backend encoded. A
+        // 500-sub night is 500 of these tiles.
         data: (bytes) => bytes.isEmpty
             ? _placeholder()
-            : Image.memory(
-                bytes,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(),
+            : LayoutBuilder(
+                builder: (context, constraints) => Image.memory(
+                  bytes,
+                  fit: BoxFit.cover,
+                  cacheWidth: thumbnailDecodeWidth(
+                    context,
+                    constraints.maxWidth,
+                  ),
+                  errorBuilder: (_, __, ___) => _placeholder(),
+                ),
               ),
       ),
     );

@@ -52,6 +52,16 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     }
   }
 
+  /// The rail tile's top corners. Both preview rungs share it so they cannot
+  /// drift apart.
+  static Widget _railClip(Widget child) => ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(NightshadeTokens.radiusLg),
+          topRight: Radius.circular(NightshadeTokens.radiusLg),
+        ),
+        child: child,
+      );
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -122,22 +132,26 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
 
                                 if (payload.bytes != null &&
                                     payload.bytes!.isNotEmpty) {
-                                  return ClipRRect(
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(
-                                          NightshadeTokens.radiusLg),
-                                      topRight: Radius.circular(
-                                          NightshadeTokens.radiusLg),
-                                    ),
-                                    child: Image.memory(
-                                      payload.bytes!,
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        NightshadeIcons.imageOff,
-                                        size: 32,
-                                        color: colors.textMuted,
+                                  // Decoded at cell width, not at the 512 px
+                                  // the backend encoded: this rail can hold a
+                                  // whole night of frames.
+                                  return _railClip(
+                                    LayoutBuilder(
+                                      builder: (context, constraints) =>
+                                          Image.memory(
+                                        payload.bytes!,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        cacheWidth: thumbnailDecodeWidth(
+                                          context,
+                                          constraints.maxWidth,
+                                        ),
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          NightshadeIcons.imageOff,
+                                          size: 32,
+                                          color: colors.textMuted,
+                                        ),
                                       ),
                                     ),
                                   );
@@ -147,22 +161,23 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                     isDisplayableImagePath(
                                         widget.image.filePath) &&
                                     !isRemoteMode) {
-                                  return ClipRRect(
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(
-                                          NightshadeTokens.radiusLg),
-                                      topRight: Radius.circular(
-                                          NightshadeTokens.radiusLg),
-                                    ),
-                                    child: Image.file(
-                                      File(widget.image.filePath),
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        NightshadeIcons.image,
-                                        size: 32,
-                                        color: colors.textMuted,
+                                  return _railClip(
+                                    LayoutBuilder(
+                                      builder: (context, constraints) =>
+                                          Image.file(
+                                        File(widget.image.filePath),
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        cacheWidth: thumbnailDecodeWidth(
+                                          context,
+                                          constraints.maxWidth,
+                                        ),
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          NightshadeIcons.image,
+                                          size: 32,
+                                          color: colors.textMuted,
+                                        ),
                                       ),
                                     ),
                                   );
