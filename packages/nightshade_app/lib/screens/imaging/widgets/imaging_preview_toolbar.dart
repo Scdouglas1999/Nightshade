@@ -665,12 +665,8 @@ class _CatalogOverlaySettingsButton extends ConsumerWidget {
         borderRadius: NightshadeTokens.borderRadiusXl,
         side: BorderSide(color: colors.border),
       ),
-      onSelected: (_) {},
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          height: 0,
+        _CatalogOverlayPopoverEntry(
           child: CatalogOverlayPopover(colors: colors),
         ),
       ],
@@ -681,10 +677,59 @@ class _CatalogOverlaySettingsButton extends ConsumerWidget {
       ),
       splashRadius: NightshadeTokens.iconSm,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(
-        width: NightshadeTokens.iconButtonSizeSm,
-        height: NightshadeTokens.iconButtonSizeSm,
+      // `PopupMenuButton.constraints` sizes the OPENED MENU, not this trigger —
+      // a 28 px tight box there was what clipped the popover. The 28 px square
+      // is set on the IconButton itself instead; `shrinkWrap` keeps Material's
+      // padded touch target from re-inflating it on desktop.
+      style: IconButton.styleFrom(
+        minimumSize: const Size.square(NightshadeTokens.iconButtonSizeSm),
+        fixedSize: const Size.square(NightshadeTokens.iconButtonSizeSm),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
+    );
+  }
+}
+
+/// Carries the live [CatalogOverlayPopover] inside the popup route.
+///
+/// A plain [PopupMenuItem] cannot host it: `enabled: false` halves the
+/// opacity of every icon inside and merges the whole panel into a single
+/// disabled `menuItem` semantics node — the switches and dropdown go dark and
+/// lose their own accessible names — while `enabled: true` lets the item's
+/// InkWell pop the route on any tap that misses a control. This entry hands
+/// the child to the menu untouched, so its controls keep their own semantics
+/// and the panel stays open while they are adjusted.
+class _CatalogOverlayPopoverEntry extends PopupMenuEntry<String> {
+  const _CatalogOverlayPopoverEntry({required this.child});
+
+  final Widget child;
+
+  /// Nominal only: the route measures every entry at layout time
+  /// (`_PopupMenuRoute.itemSizes`), so no entry height is ever read here.
+  @override
+  double get height => 0;
+
+  /// The panel returns no selectable value — it mutates providers directly.
+  @override
+  bool represents(String? value) => false;
+
+  @override
+  State<_CatalogOverlayPopoverEntry> createState() =>
+      _CatalogOverlayPopoverEntryState();
+}
+
+class _CatalogOverlayPopoverEntryState
+    extends State<_CatalogOverlayPopoverEntry> {
+  @override
+  Widget build(BuildContext context) {
+    // `_PopupMenu` wraps its entries in `IntrinsicWidth(stepWidth: 56)`, so
+    // every entry is tightened to the same 56-stepped width. The popover's
+    // `clampPanelWidth` answer (200–240) is not a 56 multiple; aligning the
+    // child inside the entry keeps the card at its designed width instead of
+    // being stretched to the menu's.
+    return Align(
+      alignment: AlignmentDirectional.topStart,
+      child: widget.child,
     );
   }
 }
