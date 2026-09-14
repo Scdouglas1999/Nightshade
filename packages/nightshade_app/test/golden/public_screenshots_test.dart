@@ -482,9 +482,7 @@ Future<void> _capture(
 
     final boundary = boundaryKey.currentContext!.findRenderObject()!
         as RenderRepaintBoundary;
-    final out = File(
-      '${SurfaceGoldenHarness.repoRoot().path}/assets/screenshots/$fileName',
-    );
+    final out = File('${SurfaceGoldenHarness.screenshotsDir().path}/$fileName');
     await tester.runAsync(() async {
       final image = await boundary.toImage(pixelRatio: 1);
       try {
