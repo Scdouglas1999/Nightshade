@@ -258,3 +258,166 @@ catalog file is read afresh.
 Four more tests cover it: a narrower later cone served from memory (proved by deleting
 the file first), a deeper magnitude cutoff still answered correctly, a cone outside the
 scanned field re-read rather than guessed, and `clearCache()` forcing a re-read.
+
+---
+
+## CHECKPOINT 3 — a SECOND freeze on the same trigger
+
+While verifying, I found a second defect of the same class, on the same
+success-gated path, that would have frozen the rig again seconds after the first fix
+landed. It had not been reached when the log went quiet, so it is not the cause of these
+three hangs — but it is reachable on every solved frame.
+
+`packages/nightshade_core/lib/src/services/science/default_science_backend/helpers.dart`
+`_catalogMatches` matched detected stars to catalog stars with a nested scan: **every**
+detected star against **every** projected catalog star. Reachable only with a non-null
+`WcsSolution`, i.e. only once a solve succeeds — the same gate as the catalog load. On
+the rig's numbers (4,341 detected stars; a catalog cone whose radius is
+`clamp(sqrt(w²+h²) × 0.65 + 0.3, 0.25, 8.0)` ≈ 1.1° and can hold tens of thousands of
+APASS rows) that is on the order of 10⁸ distance tests with a `sqrt` each, single
+threaded, logging nothing while it runs.
+
+Fixed by bucketing: a match must lie within `maxMatchPx`, so with cells that size only
+the nine cells around a detection can hold a candidate — same answer, O(n + m) work. The
+geometry is extracted to a public pure function,
+`packages/nightshade_core/lib/src/services/science/nearest_neighbour_matching.dart`
+(`matchNearestUnclaimed`), because the original lived in a `part` file behind private
+types and could not be tested. Candidate claiming is still keyed by the catalog star's
+id, not its index, so two coincident catalog rows still cannot both be matched — the
+behaviour the old code had.
+
+Its test asserts **equivalence, not just speed**: 40 randomised fields (with deliberately
+colliding keys) must return exactly what a brute-force reference returns, plus
+edge cases — a candidate exactly on the radius, double-claiming, shared keys, negative
+coordinates across the cell origin, degenerate input, and the parallel-array contract —
+and one scale test at the rig's 4,341 × 50,000 that must finish in under 5 s.
+
+## ONE THING TO CHECK ON THE RIG
+
+The chain requires the **annotation catalog (GLADE+) to be installed**:
+`annotation_service.dart:302-316` returns null unless
+`getAnnotationCatalogStatus().isInstalled`, and `annotation_pipeline.dart:456` gates on
+`isAvailable`. Confirm the file exists and is large — the size is the tell:
+
+    dir "%LOCALAPPDATA%\..\Roaming\...\catalogs"   (whatever annotationCatalogPath resolves to)
+
+If it is installed, the diagnosis is closed. If it is **not** installed, the GLADE+ load
+cannot have run, and the prime suspect becomes the `_catalogMatches` nested scan above
+(also fixed here) — which is WCS-gated in exactly the same way and needs no catalog
+install beyond the bundled HYG fallback.
+
+## VERIFICATION
+
+All commands unpiped, exit codes recorded.
+
+| gate | command | exit | result |
+|---|---|---|---|
+| Rust libs | `cargo test -p nightshade_bridge -p nightshade_native --lib` (`TMPDIR=$HOME/.cache/ns-tests`, `CARGO_TARGET_DIR=$HOME/.cache/ns-worktrees/cargo-target`) | **0** | 696 + 202 passed, 0 failed |
+| format | `dart format --output=none --set-exit-if-changed packages lib` | **0** | 4287 files, 0 changed |
+| analyze (planetarium lib) | `dart analyze lib` | 0 | No issues found |
+| analyze (core lib) | `dart analyze packages/nightshade_core/lib` | 0 | 2 infos, both pre-existing in `scheduler/rejection_labels.dart` |
+| analyze (app) | `cd packages/nightshade_app && dart analyze` | **0** | 873 infos, all pre-existing; none in any file I touched |
+| planetarium | `flutter test --exclude-tags golden --concurrency=3` | **0** | 638 passed (612 baseline + 26 new) |
+| core | `flutter test --exclude-tags golden --concurrency=3` | **0** | 6512 passed, 4 skipped |
+| app | `flutter test --exclude-tags golden --concurrency=3` | see below | |
+
+`--exclude-tags golden` is the project's own gate (`ns-worktrees/final-verify.sh`). Run
+without it, `test/benchmark/golden_compare_test.dart` fails with a 1.9-4.4% pixel delta on
+five checkpoints; those goldens are captured on the CI/Windows host and fail on Linux,
+which is why the repo excludes them. Nothing outside `catalogs/` in the planetarium
+package references `AnnotationCatalog`/`GladePlus`/`HyperLeda`, so the change cannot
+affect planetarium paint.
+
+### Windows-only / not executable here — stated plainly
+
+- **The fix itself is pure Dart** and runs identically on Linux and Windows, so unlike
+  most rig work there is no untested-platform gap in the change.
+- **I could not reproduce the freeze**, because it needs the owner's installed GLADE+
+  catalog and a frame that solves. The diagnosis rests on the code path plus the three
+  logs agreeing on the trigger; the regression tests pin the properties that make the
+  freeze impossible (answer proportional to the cone, calling isolate never starved,
+  matching not quadratic) rather than replaying the hang.
+- **No Rust was changed**, so the cargo run above is a baseline, not coverage of a change.
+  The `#[cfg(windows)]` paths in `hotplug.rs` (the `WM_DEVICECHANGE` window and pump) and
+  in the ASCOM wrappers are not compiled or executed on this host and remain untested
+  here, as always on this repo.
+- `ui.Image.dispose()` behaviour is engine-level and identical across desktop platforms;
+  the widget test exercises it under `flutter_test` on Linux.
+
+## STILL OPEN (identified, deliberately not fixed tonight)
+
+Dropped per the coordinator's re-prioritisation, recorded so they are not lost:
+
+1. **Serial rediscovery does not exclude ports a connected device owns.**
+   `native/.../vendor/lx200/discovery.rs:29-59` (and the Sky-Watcher / iOptron scanners)
+   open every enumerated port, including the COM4 the live NYX mount holds. On Windows the
+   second `CreateFile` fails fast with ACCESS_DENIED, and the LX200 scanner treats that as
+   "skip this port" (`:63-85`), so it did not cause this hang — but it is a real hazard for
+   a driver that shares the handle, and the scan is ~13-25 s of pointless probing per
+   bus event. A device-change storm ran full discovery back-to-back for five minutes
+   (23:43 → 23:48:50 in log 1).
+2. **Double heartbeat registration** for every device: `device_manager` auto-starts one at
+   the type's own interval and `api::heartbeat` immediately starts a second at 10 s
+   (`native:zwo_eaf:0` at 15 s then 10 s, 23:47:40.702 and .725; same for the camera,
+   mount and filter wheel). Real duplicate registration, unrelated to the freeze.
+3. **`api_read_fits_file` is a synchronous body in an `async fn`** with no
+   `spawn_blocking` (`native/.../bridge/src/api/imaging.rs:1484-1556`), and it returns a
+   65.6 MB RGBA buffer. The Dart agent's sweep found **7 of 9 call sites use only
+   `fits.width`/`fits.height`** — ~328 MB of transient allocation per frame to read two
+   integers. A `width`/`height`-only entry point would remove nearly all of it.
+   (`NetworkBackend` already has one: `getFitsDimensions`.)
+4. **`histogram256FromRawU16`** runs a 16.4M-iteration loop inside a synchronous Riverpod
+   `Provider` on the UI isolate (`services/imaging_service.dart:606-624`), watched during
+   build at `imaging_hud.dart:142` — a per-frame UI-thread stall.
+5. **`apiAutoStretchImage` is declared `#[frb(sync)]`** and is called with
+   `rawData.toList()` (`providers/auto_stretch_provider.dart:217-221`), blocking the UI
+   isolate and materialising a 16.4M-element `List<int>`. Gated off by default
+   (`auto_stretch_settings.dart:52`), so it only bites if the operator enables auto-stretch.
+6. **The science lane's blind solve bypasses the Dart single-flight gate** —
+   `default_science_backend.dart:56-63` calls `_backend.plateSolve` directly, which is why
+   two solves race for one frame and the Rust coalescer has to catch it. The annotation
+   path was already fixed for this; this one was missed.
+7. **DepthLock** (not in the Sep 10 build, so not these hangs): `source_mask`
+   (`native/.../imaging/src/depthlock/input.rs:366-372`) marks a disk per bright pixel by
+   scanning a bounding box — radius 12 is 625 inner iterations per saturated pixel, so a
+   moonlit or light-leaked 16 Mpx frame is 10⁸-10¹⁰ scattered writes, silent. Its
+   `#[frb(sync)]` `list_goals`/`status` also run on the UI isolate while the store mutex
+   is held across an fsync (`store.rs:362`, `:778-801`). Zero-goal guard is correctly in
+   place (`engine.rs:181`, `:297-300`), so it does nothing when no goal is configured.
+
+## DESIGN DECISIONS THAT DEVIATE FROM WHAT WAS THERE
+
+1. **A failing catalog query now surfaces instead of being swallowed.** The old
+   `AnnotationCatalog.loadAll` wrapped each catalog in `try { … } catch (e) { /* Continue
+   without GLADE+ */ }`, so a corrupt or vanished catalog produced a silent "0 objects" —
+   a statement about the sky rather than about the read. `searchNearby` now lets the error
+   out, where `annotation_pipeline.dart:457,510-519` already converts it to a typed
+   `AnnotationCatalogQueryException` and routes it to the pipeline's error state. That
+   path exists precisely for this and its own comment asks for this behaviour. The risk is
+   bounded: `_loadAnnotationCatalog` only constructs a loader for a catalog that reports
+   itself installed with a path, and the OpenNGC loader is null when the DSO catalog is
+   absent, so neither is reachable uninstalled.
+2. **`AnnotationCatalog.search(query)` and `count` were removed, not ported.** Both read
+   the whole merged sky through the `loadAll` that is gone, and nothing in the repo calls
+   either. Keeping them would have meant keeping the whole-sky merge alive behind a second
+   door. `findClosest` stays and now goes through the region query.
+3. **The scan is deliberately magnitude-blind and slightly wide** (`radius × 1.5 + 0.1`)
+   so the cached field survives the mount's drift and the pipeline's moving SNR-based
+   magnitude cutoff. Scanning exactly the requested cone would have been correct but would
+   have missed the cache on nearly every frame.
+4. **`matchNearestUnclaimed` is public API in `nightshade_core`** rather than a private
+   helper, because the code it replaced sat in a `part` file behind private types and was
+   therefore untestable. Exported from both barrels (`nightshade_core.dart` and
+   `nightshade_core_services.dart`).
+5. **The port-exclusion and lock-discipline work the original brief asked for is not
+   here.** The coordinator re-scoped mid-task to the freeze once the Sep 10 rollback
+   reproduced it; items 1, 2 and 5 of the original brief were explicitly dropped. Findings
+   for all of them are recorded above under "Cleared lines of inquiry" and "Still open" so
+   nothing was merely skipped.
+
+## COMMITS
+
+- `101866984` docs(w13): root cause of the live rig freeze — whole-sky GLADE+ load on the UI isolate
+- `847c02abd` fix(annotation): a half-degree query must not load the whole sky
+- `7d6e2709d` fix(imaging): release the frame texture, and cache the scanned field
+- `<this>` fix(science): star-to-catalog matching must not be quadratic
