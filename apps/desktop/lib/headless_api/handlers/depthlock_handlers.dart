@@ -69,14 +69,13 @@ class DepthLockHandlers {
     return 400;
   }
 
-  static String _depthLockErrorCode(String reason) => switch (
-    _depthLockErrorStatus(reason)
-  ) {
-    404 => 'depthlock_goal_not_found',
-    409 => 'depthlock_stale_revision',
-    503 => 'depthlock_unavailable',
-    _ => 'depthlock_invalid_request',
-  };
+  static String _depthLockErrorCode(String reason) =>
+      switch (_depthLockErrorStatus(reason)) {
+        404 => 'depthlock_goal_not_found',
+        409 => 'depthlock_stale_revision',
+        503 => 'depthlock_unavailable',
+        _ => 'depthlock_invalid_request',
+      };
 
   /// A required nested JSON object, named by its own field path on failure.
   static Map<String, dynamic> _requireObject(
@@ -297,11 +296,7 @@ class DepthLockHandlers {
   Future<Response> handleSkyRectangle(Request request) async {
     _logInfo('[API] POST /api/depthlock/reference/sky-rectangle');
     final payload = await readJsonObject(request);
-    final reference = _decode(
-      payload,
-      'reference',
-      ReferenceGeometry.fromJson,
-    );
+    final reference = _decode(payload, 'reference', ReferenceGeometry.fromJson);
     final rectangle = await _translating(
       () => _backend.depthLockSkyRectangle(
         reference: reference,

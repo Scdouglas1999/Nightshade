@@ -424,21 +424,27 @@ void main() {
       verify(() => backend.sequencerLoadJson(any())).called(1);
     });
 
-    test('a binding with no goal id is refused before the run starts', () async {
-      final response = await postLoad(
-        handlers,
-        smartExposureWireSequence(depthGoal: const {'revision': 3}),
-      );
+    test(
+      'a binding with no goal id is refused before the run starts',
+      () async {
+        final response = await postLoad(
+          handlers,
+          smartExposureWireSequence(depthGoal: const {'revision': 3}),
+        );
 
-      expect(response.statusCode, HttpStatus.badRequest);
-      final body = await issuesFrom(response);
-      final issues = body['issues'] as List;
-      expect(issues.single, containsPair('code', 'depth_goal_binding_invalid'));
-      expect(issues.single, containsPair('affectedNodeId', 'smart'));
-      // Serde would have read this as "unbound" and run the full count with
-      // nobody told the goal was dropped.
-      verifyNever(() => backend.sequencerLoadJson(any()));
-    });
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = await issuesFrom(response);
+        final issues = body['issues'] as List;
+        expect(
+          issues.single,
+          containsPair('code', 'depth_goal_binding_invalid'),
+        );
+        expect(issues.single, containsPair('affectedNodeId', 'smart'));
+        // Serde would have read this as "unbound" and run the full count with
+        // nobody told the goal was dropped.
+        verifyNever(() => backend.sequencerLoadJson(any()));
+      },
+    );
 
     test('a negative revision is refused', () async {
       final response = await postLoad(

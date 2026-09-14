@@ -275,7 +275,8 @@ class _FakeDepthLockBackend extends DisconnectedBackend {
     String flatPath,
     double scaleArcsec,
     double? pixelScaleArcsec,
-  })? floorRequest;
+  })?
+  floorRequest;
 
   @override
   Future<DepthLockFloorSuggestion> suggestDepthLockFloor({
@@ -308,17 +309,16 @@ class _FakeDepthLockBackend extends DisconnectedBackend {
   }
 
   @override
-  Future<DepthLockReferenceInfo> inspectDepthLockReference(
-    String path,
-  ) async => DepthLockReferenceInfo(
-    width: 4144,
-    height: 2822,
-    pixelType: 'u16',
-    monochrome: true,
-    geometry: definition().reference,
-    pixelScaleArcsec: 0.72,
-    acquisition: definition().acquisition,
-  );
+  Future<DepthLockReferenceInfo> inspectDepthLockReference(String path) async =>
+      DepthLockReferenceInfo(
+        width: 4144,
+        height: 2822,
+        pixelType: 'u16',
+        monochrome: true,
+        geometry: definition().reference,
+        pixelScaleArcsec: 0.72,
+        acquisition: definition().acquisition,
+      );
 
   @override
   Future<SkyRectangle> depthLockSkyRectangle({
@@ -353,7 +353,9 @@ void main() {
     backend = _FakeDepthLockBackend();
     container = createHeadlessTestContainer(
       overrides: [
-        backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -390,7 +392,10 @@ void main() {
 
       final read = await translateHandlerErrors(
         handlers.handleGetGoal(
-          Request('GET', Uri.parse('http://localhost/api/depthlock/goals/m42-ha')),
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/depthlock/goals/m42-ha'),
+          ),
           'm42-ha',
         ),
       );
@@ -472,10 +477,7 @@ void main() {
       expect(response.statusCode, HttpStatus.ok);
       final goal = (await bodyOf(response))['goal'] as Map;
       expect(goal['revision'], 1);
-      expect(
-        (goal['definition'] as Map)['automaticCompletion'],
-        isFalse,
-      );
+      expect((goal['definition'] as Map)['automaticCompletion'], isFalse);
     });
 
     test('a removal reports the goal is gone and it is', () async {
@@ -574,8 +576,13 @@ void main() {
 
       // A display-only read with no side effects: an unusable cap takes the
       // default rather than refusing to draw the chart at all.
-      for (final query in const ['', '?maxPoints=lots', '?maxPoints=1',
-        '?maxPoints=100000', '?maxPoints=-4']) {
+      for (final query in const [
+        '',
+        '?maxPoints=lots',
+        '?maxPoints=1',
+        '?maxPoints=100000',
+        '?maxPoints=-4',
+      ]) {
         backend.curveMaxPoints = null;
         await curveWith(query);
         expect(backend.curveMaxPoints, 60, reason: 'for "$query"');
@@ -640,7 +647,10 @@ void main() {
     test('an unknown goal is a 404 carrying the native reason', () async {
       final response = await translateHandlerErrors(
         handlers.handleGetGoal(
-          Request('GET', Uri.parse('http://localhost/api/depthlock/goals/nope')),
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/depthlock/goals/nope'),
+          ),
           'nope',
         ),
       );
@@ -727,41 +737,47 @@ void main() {
       expect(await bodyOf(response), containsPair('field', 'definition'));
     });
 
-    test('a reference with no solution refuses with the native reason', () async {
-      final response = await translateHandlerErrors(
-        handlers.handleSuggestFloor(
-          post('/api/depthlock/measurement/suggest-floor', {
-            'referencePath': '/data/m42/unsolved.fits',
-            'darkPath': '/data/masters/dark.fits',
-            'flatPath': '/data/masters/flat.fits',
-            'scaleArcsec': 6.0,
-          }),
-        ),
-      );
+    test(
+      'a reference with no solution refuses with the native reason',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleSuggestFloor(
+            post('/api/depthlock/measurement/suggest-floor', {
+              'referencePath': '/data/m42/unsolved.fits',
+              'darkPath': '/data/masters/dark.fits',
+              'flatPath': '/data/masters/flat.fits',
+              'scaleArcsec': 6.0,
+            }),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.badRequest);
-      final body = await bodyOf(response);
-      expect(body['code'], 'depthlock_invalid_request');
-      expect(
-        body['message'],
-        '/data/m42/unsolved.fits carries no undistorted TAN solution',
-      );
-    });
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = await bodyOf(response);
+        expect(body['code'], 'depthlock_invalid_request');
+        expect(
+          body['message'],
+          '/data/m42/unsolved.fits carries no undistorted TAN solution',
+        );
+      },
+    );
 
-    test('a floor suggestion without an aperture scale names the field', () async {
-      final response = await translateHandlerErrors(
-        handlers.handleSuggestFloor(
-          post('/api/depthlock/measurement/suggest-floor', {
-            'referencePath': '/data/m42/ref.fits',
-            'darkPath': '/data/masters/dark.fits',
-            'flatPath': '/data/masters/flat.fits',
-          }),
-        ),
-      );
+    test(
+      'a floor suggestion without an aperture scale names the field',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleSuggestFloor(
+            post('/api/depthlock/measurement/suggest-floor', {
+              'referencePath': '/data/m42/ref.fits',
+              'darkPath': '/data/masters/dark.fits',
+              'flatPath': '/data/masters/flat.fits',
+            }),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.badRequest);
-      expect(await bodyOf(response), containsPair('field', 'scaleArcsec'));
-    });
+        expect(response.statusCode, HttpStatus.badRequest);
+        expect(await bodyOf(response), containsPair('field', 'scaleArcsec'));
+      },
+    );
 
     test('a delete without a revision is refused before it deletes', () async {
       await seed();

@@ -160,12 +160,24 @@ extension MountDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/mount/site');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final latitudeDeg =
-        requireDouble(payload, 'latitudeDeg', min: -90, max: 90);
-    final longitudeDeg =
-        requireDouble(payload, 'longitudeDeg', min: -180, max: 180);
-    final elevationM =
-        optionalDouble(payload, 'elevationM', min: -500, max: 9000);
+    final latitudeDeg = requireDouble(
+      payload,
+      'latitudeDeg',
+      min: -90,
+      max: 90,
+    );
+    final longitudeDeg = requireDouble(
+      payload,
+      'longitudeDeg',
+      min: -180,
+      max: 180,
+    );
+    final elevationM = optionalDouble(
+      payload,
+      'elevationM',
+      min: -500,
+      max: 9000,
+    );
 
     final backend = container.read(deviceBackendProvider);
     await backend.mountSetSite(deviceId, latitudeDeg, longitudeDeg, elevationM);
@@ -191,8 +203,12 @@ extension MountDeviceHandlers on DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
     final utcUnixSeconds = requireInt(payload, 'utcUnixSeconds');
-    final utcOffsetHours =
-        requireDouble(payload, 'utcOffsetHours', min: -14, max: 14);
+    final utcOffsetHours = requireDouble(
+      payload,
+      'utcOffsetHours',
+      min: -14,
+      max: 14,
+    );
 
     final backend = container.read(deviceBackendProvider);
     await backend.mountSetTime(deviceId, utcUnixSeconds, utcOffsetHours);
