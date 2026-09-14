@@ -66,34 +66,37 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
       }
       if (projected.isEmpty) return fallback;
 
-      final usedCatalog = <String>{};
+      // Brightest first, so the strongest detections claim their catalog star.
       final sorted = detectedStars.toList(growable: false)
         ..sort((a, b) => b.snr.compareTo(a.snr));
+
+      // Bucketed rather than comparing every detection against every catalog
+      // star — see `matchNearestUnclaimed` for why that mattered on a rich
+      // field.
+      final paired = matchNearestUnclaimed(
+        sources: sorted
+            .map((detected) => (x: detected.x, y: detected.y))
+            .toList(growable: false),
+        candidates: projected
+            .map((star) => (x: star.x, y: star.y))
+            .toList(growable: false),
+        candidateKeys: projected.map((star) => star.id).toList(growable: false),
+        maxDistance: maxMatchPx,
+      );
+
       final matches = <_CatalogMatch>[];
-      for (final detected in sorted) {
-        _ProjectedCatalogStar? best;
-        var bestDist = maxMatchPx;
-        for (final catalogStar in projected) {
-          if (usedCatalog.contains(catalogStar.id)) continue;
-          final dx = detected.x - catalogStar.x;
-          final dy = detected.y - catalogStar.y;
-          final dist = math.sqrt(dx * dx + dy * dy);
-          if (dist <= bestDist) {
-            bestDist = dist;
-            best = catalogStar;
-          }
-        }
-        if (best != null) {
-          usedCatalog.add(best.id);
-          matches.add(
-            _CatalogMatch(
-              detected: detected,
-              catalogX: best.x,
-              catalogY: best.y,
-              catalogMag: best.mag,
-            ),
-          );
-        }
+      for (var i = 0; i < sorted.length; i++) {
+        final index = paired[i];
+        if (index == null) continue;
+        final star = projected[index];
+        matches.add(
+          _CatalogMatch(
+            detected: sorted[i],
+            catalogX: star.x,
+            catalogY: star.y,
+            catalogMag: star.mag,
+          ),
+        );
       }
       return (matches, cone.source);
     } catch (error, stack) {

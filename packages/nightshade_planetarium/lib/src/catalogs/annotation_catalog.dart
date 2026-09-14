@@ -265,10 +265,6 @@ class AnnotationCatalog {
   final HyperLedaCatalogLoader? _ledaLoader;
   final GladePlusCatalogLoader? _gladeLoader;
 
-  List<AnnotationObject>? _mergedCatalog;
-  Map<String, List<AnnotationObject>>? _spatialIndex;
-  static const double _gridSize = 1.0; // degrees
-
   AnnotationCatalog({
     OpenNgcCatalogLoader? ngcLoader,
     HyperLedaCatalogLoader? ledaLoader,
@@ -281,107 +277,17 @@ class AnnotationCatalog {
   bool get isAvailable =>
       _ngcLoader != null || _ledaLoader != null || _gladeLoader != null;
 
-  /// Build spatial index key from RA/Dec
-  String _gridKey(double ra, double dec) {
-    final raCell = (ra / _gridSize).floor();
-    final decCell = ((dec + 90) / _gridSize).floor();
-    return '$raCell,$decCell';
-  }
-
-  /// Load and merge catalogs
-  Future<List<AnnotationObject>> loadAll() async {
-    if (_mergedCatalog != null) return _mergedCatalog!;
-
-    final objects = <AnnotationObject>[];
-    final ngcByPosition = <String, AnnotationObject>{};
-
-    // Load OpenNGC first (higher priority for bright objects)
-    if (_ngcLoader != null) {
-      try {
-        final ngcData = await _ngcLoader.loadAll();
-        for (final dso in ngcData) {
-          final obj = AnnotationObject.fromOpenNgc(dso);
-          objects.add(obj);
-          // Index by position for deduplication
-          final posKey =
-              '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
-          ngcByPosition[posKey] = obj;
-        }
-      } catch (e) {
-        // Continue without OpenNGC
-      }
-    }
-
-    // Load HyperLEDA and merge/add
-    if (_ledaLoader != null) {
-      try {
-        final ledaData = await _ledaLoader.loadAll();
-        for (final galaxy in ledaData) {
-          final obj = AnnotationObject.fromHyperLeda(galaxy);
-
-          // Check for duplicate (within 0.02 degrees ≈ 1.2 arcmin)
-          final posKey =
-              '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
-          final existing = ngcByPosition[posKey];
-
-          if (existing != null) {
-            // Merge with existing OpenNGC object
-            final merged = AnnotationObject.merged(existing, obj);
-            // Replace the original
-            final index = objects.indexOf(existing);
-            if (index >= 0) {
-              objects[index] = merged;
-              ngcByPosition[posKey] = merged;
-            }
-          } else {
-            // Add new HyperLEDA object
-            objects.add(obj);
-          }
-        }
-      } catch (e) {
-        // Continue without HyperLEDA
-      }
-    }
-
-    // Load GLADE+ and merge/add
-    if (_gladeLoader != null) {
-      try {
-        final gladeData = await _gladeLoader.loadAll();
-        for (final galaxy in gladeData) {
-          final obj = AnnotationObject.fromGladePlus(galaxy);
-
-          final posKey =
-              '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
-          final existing = ngcByPosition[posKey];
-
-          if (existing != null) {
-            final merged = AnnotationObject.merged(existing, obj);
-            final index = objects.indexOf(existing);
-            if (index >= 0) {
-              objects[index] = merged;
-              ngcByPosition[posKey] = merged;
-            }
-          } else {
-            objects.add(obj);
-          }
-        }
-      } catch (e) {
-        // Continue without GLADE+
-      }
-    }
-
-    // Build spatial index
-    _spatialIndex = {};
-    for (final obj in objects) {
-      final key = _gridKey(obj.ra, obj.dec);
-      _spatialIndex!.putIfAbsent(key, () => []).add(obj);
-    }
-
-    _mergedCatalog = objects;
-    return objects;
-  }
-
-  /// Search objects near a coordinate
+  /// Objects within `radiusDegrees` of the given centre, brightest first.
+  ///
+  /// Each backing catalog is asked for that region only. The large galaxy
+  /// catalogs stream their files in a background isolate
+  /// (`catalog_region_scan.dart`), so peak memory is proportional to the
+  /// answer rather than to the catalog, and the caller's isolate never parses.
+  ///
+  /// The previous shape loaded and merged every catalog in full before
+  /// filtering. With GLADE+ installed (~22M rows) that meant a synchronous
+  /// multi-gigabyte parse on whichever isolate asked first — on the UI isolate
+  /// it never yielded again, which is how a solved frame froze the app.
   Future<List<AnnotationObject>> searchNearby({
     required double ra,
     required double dec,
@@ -389,81 +295,72 @@ class AnnotationCatalog {
     double? maxMagnitude,
     Set<AnnotationObjectType>? typeFilter,
   }) async {
-    await loadAll();
+    // Merge order is priority order: OpenNGC carries the better names and
+    // sizes for bright objects, so it lands first and the galaxy catalogs
+    // enrich its entries rather than displacing them.
+    final ordered = <AnnotationObject>[];
+    final indexByPosition = <String, int>{};
 
-    if (_spatialIndex == null) return [];
+    void merge(AnnotationObject object) {
+      final key = _positionKey(object);
+      final existing = indexByPosition[key];
+      if (existing == null) {
+        indexByPosition[key] = ordered.length;
+        ordered.add(object);
+        return;
+      }
+      ordered[existing] = AnnotationObject.merged(ordered[existing], object);
+    }
 
-    final results = <AnnotationObject>[];
-    final radiusSq = radiusDegrees * radiusDegrees;
-
-    // Calculate grid cells to search
-    final minRa = ra - radiusDegrees;
-    final maxRa = ra + radiusDegrees;
-    final minDec = dec - radiusDegrees;
-    final maxDec = dec + radiusDegrees;
-
-    final minRaCell = (minRa / _gridSize).floor();
-    final maxRaCell = (maxRa / _gridSize).floor();
-    final minDecCell = ((minDec + 90) / _gridSize).floor();
-    final maxDecCell = ((maxDec + 90) / _gridSize).floor();
-
-    // Search relevant grid cells
-    for (var raCell = minRaCell; raCell <= maxRaCell; raCell++) {
-      for (var decCell = minDecCell; decCell <= maxDecCell; decCell++) {
-        var normalizedRaCell = raCell;
-        while (normalizedRaCell < 0) {
-          normalizedRaCell += 360;
-        }
-        while (normalizedRaCell >= 360) {
-          normalizedRaCell -= 360;
-        }
-
-        final key = '$normalizedRaCell,$decCell';
-        final cell = _spatialIndex![key];
-        if (cell == null) continue;
-
-        for (final obj in cell) {
-          // Check magnitude filter
-          if (maxMagnitude != null && (obj.magnitude ?? 99) > maxMagnitude) {
-            continue;
-          }
-
-          // Check type filter
-          if (typeFilter != null && !typeFilter.contains(obj.type)) {
-            continue;
-          }
-
-          // Calculate angular distance
-          final dRa = (obj.ra - ra) * math.cos(dec * math.pi / 180);
-          final dDec = obj.dec - dec;
-          final distSq = dRa * dRa + dDec * dDec;
-
-          if (distSq <= radiusSq) {
-            results.add(obj);
-          }
-        }
+    if (_ngcLoader != null) {
+      final dsos = await _ngcLoader.searchNearby(
+        ra: ra,
+        dec: dec,
+        radiusDegrees: radiusDegrees,
+        maxMagnitude: maxMagnitude,
+      );
+      for (final dso in dsos) {
+        merge(AnnotationObject.fromOpenNgc(dso));
       }
     }
 
-    // Sort by magnitude (brightest first)
-    results.sort((a, b) {
-      final magA = a.magnitude ?? 99;
-      final magB = b.magnitude ?? 99;
-      return magA.compareTo(magB);
-    });
+    if (_ledaLoader != null) {
+      final galaxies = await _ledaLoader.searchNearby(
+        ra: ra,
+        dec: dec,
+        radiusDegrees: radiusDegrees,
+        maxMagnitude: maxMagnitude,
+      );
+      for (final galaxy in galaxies) {
+        merge(AnnotationObject.fromHyperLeda(galaxy));
+      }
+    }
 
+    if (_gladeLoader != null) {
+      final galaxies = await _gladeLoader.searchNearby(
+        ra: ra,
+        dec: dec,
+        radiusDegrees: radiusDegrees,
+        maxMagnitude: maxMagnitude,
+      );
+      for (final galaxy in galaxies) {
+        merge(AnnotationObject.fromGladePlus(galaxy));
+      }
+    }
+
+    final results = typeFilter == null
+        ? ordered
+        : ordered.where((obj) => typeFilter.contains(obj.type)).toList();
+    results.sort((a, b) => (a.magnitude ?? 99).compareTo(b.magnitude ?? 99));
     return results;
   }
 
-  /// Search objects by name
-  Future<List<AnnotationObject>> search(String query) async {
-    final all = await loadAll();
-    final q = query.toLowerCase();
-    return all.where((obj) {
-      if (obj.primaryName.toLowerCase().contains(q)) return true;
-      return obj.alternateNames.any((name) => name.toLowerCase().contains(q));
-    }).toList();
-  }
+  /// Deduplication key: position rounded to 0.01 deg (~36 arcsec), the
+  /// tolerance the merged catalogs were assembled with. Keyed through a map so
+  /// merging a colliding row is O(1) — it used to be `List.indexOf`, an O(n)
+  /// scan of the growing list per collision.
+  String _positionKey(AnnotationObject object) =>
+      '${object.ra.toStringAsFixed(2)},${object.dec.toStringAsFixed(2)}';
 
   /// Find the closest object to given coordinates
   Future<AnnotationObject?> findClosest({
@@ -499,16 +396,8 @@ class AnnotationCatalog {
     return closest;
   }
 
-  /// Get object count
-  Future<int> get count async {
-    final all = await loadAll();
-    return all.length;
-  }
-
-  /// Clear cache
+  /// Drop whatever the backing loaders have cached.
   void clearCache() {
-    _mergedCatalog = null;
-    _spatialIndex = null;
     _ngcLoader?.clearCache();
     _ledaLoader?.clearCache();
     _gladeLoader?.clearCache();

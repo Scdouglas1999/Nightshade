@@ -14,6 +14,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
 import '../plate_solve_service.dart';
 import '../../utils/utc_timestamp.dart';
+import 'nearest_neighbour_matching.dart';
 import 'photometric_catalog_service.dart';
 import 'science_backend.dart';
 

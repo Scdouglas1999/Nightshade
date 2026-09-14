@@ -1,6 +1,9 @@
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
+
+import 'catalog_region_scan.dart';
 
 /// HyperLEDA catalog data for deep galaxy annotation
 /// Contains ~3 million galaxies down to magnitude 20+
@@ -158,29 +161,15 @@ class HyperLedaData {
   }
 }
 
-/// Spatial grid cell for efficient lookups
-class _SpatialGridCell {
-  final List<HyperLedaData> objects = [];
-}
-
 /// HyperLEDA catalog loader with spatial indexing for fast coordinate queries
 class HyperLedaCatalogLoader {
   final String filePath;
   List<HyperLedaData>? _cachedData;
 
-  // Spatial index: 1-degree grid cells
-  Map<String, _SpatialGridCell>? _spatialIndex;
-  static const double _gridSize = 1.0; // degrees
+  final CatalogRegionCache<HyperLedaData> _cache =
+      CatalogRegionCache<HyperLedaData>();
 
   HyperLedaCatalogLoader(this.filePath);
-
-  /// Build spatial index key from RA/Dec
-  String _gridKey(double ra, double dec) {
-    final raCell = (ra / _gridSize).floor();
-    final decCell = ((dec + 90) / _gridSize)
-        .floor(); // Shift Dec to positive range
-    return '$raCell,$decCell';
-  }
 
   /// Load all galaxies from the catalog
   Future<List<HyperLedaData>> loadAll() async {
@@ -193,20 +182,11 @@ class HyperLedaCatalogLoader {
 
     final lines = await file.readAsLines();
     final galaxies = <HyperLedaData>[];
-    _spatialIndex = {};
 
     // Skip header line
     for (var i = 1; i < lines.length; i++) {
       try {
-        final galaxy = HyperLedaData.fromCsvLine(lines[i]);
-        galaxies.add(galaxy);
-
-        // Add to spatial index
-        final key = _gridKey(galaxy.ra, galaxy.dec);
-        _spatialIndex!
-            .putIfAbsent(key, () => _SpatialGridCell())
-            .objects
-            .add(galaxy);
+        galaxies.add(HyperLedaData.fromCsvLine(lines[i]));
       } catch (e) {
         // HyperLEDA carries malformed rows from upstream exports; a single
         // bad line must not abort the load. FINE surfaces a systemic format
@@ -229,79 +209,59 @@ class HyperLedaCatalogLoader {
     return all.where((g) => (g.magnitude ?? 99) <= maxMagnitude).toList();
   }
 
-  /// Search galaxies near a coordinate with radius in degrees
+  /// Galaxies within `radiusDegrees` of the given centre, nearest first.
+  ///
+  /// HyperLEDA is ~3 million rows, so this streams the file in a background
+  /// isolate and keeps only the rows inside the cone rather than loading the
+  /// catalog to filter it — see `catalog_region_scan.dart`. The by-name
+  /// helpers below still load the catalog, because a name lookup genuinely
+  /// has to consider every row.
   Future<List<HyperLedaData>> searchNearby({
     required double ra,
     required double dec,
     required double radiusDegrees,
     double? maxMagnitude,
+    int maxResults = CatalogRegionFilter.defaultMaxResults,
   }) async {
-    await loadAll(); // Ensure data is loaded
+    final filter = CatalogRegionFilter(
+      ra: ra,
+      dec: dec,
+      radiusDegrees: radiusDegrees,
+      maxMagnitude: maxMagnitude,
+      maxResults: maxResults,
+    );
 
-    if (_spatialIndex == null) return [];
-
-    final results = <HyperLedaData>[];
-    final radiusSq = radiusDegrees * radiusDegrees;
-
-    // Calculate grid cells to search
-    final minRa = ra - radiusDegrees;
-    final maxRa = ra + radiusDegrees;
-    final minDec = dec - radiusDegrees;
-    final maxDec = dec + radiusDegrees;
-
-    final minRaCell = (minRa / _gridSize).floor();
-    final maxRaCell = (maxRa / _gridSize).floor();
-    final minDecCell = ((minDec + 90) / _gridSize).floor();
-    final maxDecCell = ((maxDec + 90) / _gridSize).floor();
-
-    // Search relevant grid cells
-    for (var raCell = minRaCell; raCell <= maxRaCell; raCell++) {
-      for (var decCell = minDecCell; decCell <= maxDecCell; decCell++) {
-        // Handle RA wraparound
-        var normalizedRaCell = raCell;
-        while (normalizedRaCell < 0) {
-          normalizedRaCell += 360;
-        }
-        while (normalizedRaCell >= 360) {
-          normalizedRaCell -= 360;
-        }
-
-        final key = '$normalizedRaCell,$decCell';
-        final cell = _spatialIndex![key];
-        if (cell == null) continue;
-
-        for (final galaxy in cell.objects) {
-          // Check magnitude filter
-          if (maxMagnitude != null && (galaxy.magnitude ?? 99) > maxMagnitude) {
-            continue;
-          }
-
-          // Calculate angular distance (simplified for small angles)
-          final dRa = (galaxy.ra - ra) * math.cos(dec * math.pi / 180);
-          final dDec = galaxy.dec - dec;
-          final distSq = dRa * dRa + dDec * dDec;
-
-          if (distSq <= radiusSq) {
-            results.add(galaxy);
-          }
-        }
-      }
+    final cached = _cache.lookup(
+      filter,
+      positionOf: _positionOf,
+      magnitudeOf: _magnitudeOf,
+    );
+    if (cached != null) {
+      return cached;
     }
 
-    // Sort by distance from center
-    results.sort((a, b) {
-      final dRaA = (a.ra - ra) * math.cos(dec * math.pi / 180);
-      final dDecA = a.dec - dec;
-      final distA = dRaA * dRaA + dDecA * dDecA;
+    // Scan a little wide and magnitude-blind so the next frame's cone is
+    // served from memory instead of re-reading the catalog.
+    final cone = filter.padded();
+    final path = filePath;
+    final scan = await Isolate.run(() => scanHyperLedaRegion(path, cone));
+    _cache.store(cone, scan);
 
-      final dRaB = (b.ra - ra) * math.cos(dec * math.pi / 180);
-      final dDecB = b.dec - dec;
-      final distB = dRaB * dRaB + dDecB * dDecB;
-
-      return distA.compareTo(distB);
-    });
-
-    return results;
+    return _cache.lookup(
+          filter,
+          positionOf: _positionOf,
+          magnitudeOf: _magnitudeOf,
+        ) ??
+        // The scan was truncated, so it is not cacheable and the padded cone
+        // cannot be trusted to contain the request. Answer from what it found.
+        scan.objects.where((object) {
+          final position = _positionOf(object);
+          return filter.accepts(
+            objRa: position.ra,
+            objDec: position.dec,
+            magnitude: _magnitudeOf(object),
+          );
+        }).toList();
   }
 
   /// Search galaxies by name
@@ -327,9 +287,30 @@ class HyperLedaCatalogLoader {
     return all.length;
   }
 
-  /// Clear cache
+  /// Drop everything cached — the scanned field and the whole-catalog list —
+  /// so a re-imported catalog file is read afresh.
   void clearCache() {
     _cachedData = null;
-    _spatialIndex = null;
+    _cache.clear();
   }
 }
+
+/// The streaming body of [HyperLedaCatalogLoader.searchNearby].
+///
+/// Top-level so it can be handed to `Isolate.run` with only sendable state.
+Future<CatalogRegionScan<HyperLedaData>> scanHyperLedaRegion(
+  String filePath,
+  CatalogRegionFilter filter,
+) => scanCatalogRegion<HyperLedaData>(
+  filePath: filePath,
+  filter: filter,
+  parse: HyperLedaData.fromCsvLine,
+  positionOf: _positionOf,
+  magnitudeOf: _magnitudeOf,
+  catalogName: 'HyperLEDA',
+);
+
+({double ra, double dec}) _positionOf(HyperLedaData galaxy) =>
+    (ra: galaxy.ra, dec: galaxy.dec);
+
+double? _magnitudeOf(HyperLedaData galaxy) => galaxy.magnitude;
