@@ -25,24 +25,46 @@
 //! the position and temperature it was taken at, and nothing presents the
 //! figure as exact everywhere.
 //!
-//! # Why the scan's own run-up has to clear the gear, and how we can tell
+//! # What the scan's run-up actually buys, and when it is not enough
 //!
-//! Each scan point is approached deliberately, running `k` steps past the
-//! target and back. Putting `k` through the model above: approaching from
-//! below the optics land at `p + max(b - k, 0)` and from above at
-//! `p + min(k, b)`, so the difference the fits recover is
+//! Each point is approached deliberately, running `k` steps past the target
+//! and back. It is tempting to reason about that one approach in isolation and
+//! conclude the run-up must exceed `b`. It does not, because the scan is
+//! monotone: consecutive points are `step` apart, so the from-below pass
+//! reverses only `k - step` on each run-up and then drives `k` forward, and
+//! the from-above pass does the mirror image. Per point, the dead band is
+//! therefore paid down — or filled up — by a net `k - step`.
+//!
+//! What matters is whether the scan accumulates enough net reversal to take
+//! the dead band all the way to its limit before it reaches the points that
+//! set the vertex:
 //!
 //! ```text
-//! measured = b        when k >= b   (the run-up cleared the dead band)
-//! measured = 2k - b   when k <  b   (it did not)
+//! reversal budget = (k - step) * points per scan
 //! ```
 //!
-//! That second branch is the whole reason this module can refuse honestly.
-//! A run-up shorter than half the true backlash yields a NEGATIVE measurement,
-//! which no real backlash produces — and the same formula inverts to give the
-//! operator a usable lower bound, `b >= 2k - measured`. A run-up between
-//! `b/2` and `b` under-reports, which is why a result that crowds the run-up
-//! used to take it is reported at low confidence rather than as fact.
+//! Given a budget comfortably above `b`, the from-below pass sits at `d = 0`
+//! and the from-above pass saturates at `d = b`, so the fits recover exactly
+//! `b` — and they do so for any `k`, which is why `k` alone is not the test.
+//! Given a budget short of `b`, the from-above pass never fully fills the dead
+//! band and the measurement UNDER-reports. The vertex depends most on the
+//! points nearest focus, which sit around the middle of the scan and have seen
+//! only about half the budget, so a result above half the budget is reported
+//! at low confidence and a result above the whole budget is refused: the scan
+//! never reversed that far, so no honest reading of it produces that number.
+//!
+//! This was established by simulating a gear train of known width against the
+//! real routine (`instructions::tests::focuser_backlash`). An earlier version
+//! of this module reasoned from the isolated single approach, concluded the
+//! rule was `k >= b`, and would have refused a perfectly good measurement of
+//! the owner's 105 steps taken with a 40-step run-up.
+//!
+//! One thing the model rules out entirely: a NEGATIVE difference. `d` is
+//! confined to `[0, b]`, so the from-below optimum can never sit below the
+//! from-above one. A meaningfully negative result is therefore not a backlash
+//! at all — it says the two scans were not measuring the same focus, which is
+//! what focus drifting during the run, or a focuser not following its
+//! commands, looks like.
 
 use std::fmt;
 
@@ -75,12 +97,6 @@ const HIGH_CONFIDENCE_RESOLUTION_MULTIPLE: f64 = 3.0;
 /// The same, one band down.
 const MODERATE_CONFIDENCE_R_SQUARED: f64 = 0.90;
 const MODERATE_CONFIDENCE_RESOLUTION_MULTIPLE: f64 = 2.0;
-
-/// A result larger than this fraction of the run-up used to take it sits in
-/// the region where `measured = 2k - b` cannot be told apart from
-/// `measured = b`, so it is reported at low confidence with the advice to
-/// re-run with more clearance.
-const CLEARANCE_HEADROOM_FRACTION: f64 = 0.5;
 
 /// Which face of the dead band a scan's points were approached from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,8 +207,17 @@ pub struct BacklashAnalysisThresholds {
     pub min_star_count: u32,
     /// Minimum R² either fit may have.
     pub r_squared_threshold: f64,
-    /// The run-up `k` each point was approached with.
+    /// The run-up `k` each point was approached with. Recorded for
+    /// provenance; it is not itself the acceptance test.
     pub clearance_steps: i32,
+    /// How far the scan reversed the drive train in total: the widest dead
+    /// band it could possibly have taken up, and so a hard ceiling on any
+    /// figure it can produce.
+    pub reversal_budget_steps: i32,
+    /// The same, taken only as far as the middle of the scan, where the points
+    /// that set the vertex are. A result above this could be a floor rather
+    /// than the value.
+    pub reversal_budget_at_vertex_steps: i32,
 }
 
 /// How much the measurement is worth, given the evidence behind it.
@@ -247,6 +272,12 @@ pub struct FocuserBacklashCalibration {
     pub measured_at_position: i32,
     /// The run-up each scan point was approached with.
     pub clearance_steps: i32,
+    /// How far the scan reversed the drive train in total: a hard ceiling on
+    /// any figure it can produce.
+    pub reversal_budget_steps: i32,
+    /// The reversal accumulated by the middle of the scan, where the vertex is
+    /// set. A result above this could be a floor rather than the value.
+    pub reversal_budget_at_vertex_steps: i32,
     pub confidence: CalibrationConfidence,
     /// Plain-language grounds for the confidence, for the operator to read.
     pub confidence_reason: String,
@@ -338,22 +369,21 @@ pub enum CalibrationRefusal {
         vertex_difference: i32,
         scan_span: i32,
     },
-    /// A backlash larger than the run-up that measured it is geometrically
-    /// impossible: a run-up that clears the dead band always yields
-    /// `measured <= k`.
-    ExceedsClearance {
+    /// A backlash wider than the scan ever reversed the drive train. Nothing
+    /// in the scan could have taken up a dead band that big, so the number
+    /// did not come from one.
+    ExceedsReversalBudget {
         vertex_difference: i32,
+        reversal_budget_steps: i32,
         clearance_steps: i32,
     },
-    /// A meaningfully negative difference. No mechanical backlash produces
-    /// one; `measured = 2k - b` does, whenever the run-up was shorter than
-    /// half the real backlash — which also tells us how much is needed.
+    /// A meaningfully negative difference, which backlash cannot produce: the
+    /// dead-band takeup is confined to `[0, b]`, so the from-below optimum
+    /// cannot sit below the from-above one. Something changed between the two
+    /// scans.
     NegativeBeyondResolution {
         vertex_difference: i32,
         resolution_limit_steps: f64,
-        clearance_steps: i32,
-        /// Lower bound on the true backlash, from `b >= 2k - measured`.
-        implied_minimum_backlash: i32,
     },
 }
 
@@ -368,7 +398,7 @@ impl CalibrationRefusal {
             Self::PoorFit { .. } => "poor_fit",
             Self::VertexOutsideScan { .. } => "vertex_outside_scan",
             Self::ExceedsScanRange { .. } => "exceeds_scan_range",
-            Self::ExceedsClearance { .. } => "exceeds_clearance",
+            Self::ExceedsReversalBudget { .. } => "exceeds_reversal_budget",
             Self::NegativeBeyondResolution { .. } => "negative_beyond_resolution",
         }
     }
@@ -401,20 +431,19 @@ impl CalibrationRefusal {
                  covers, so at least one of them is not on the focus curve."
                     .to_string()
             }
-            Self::ExceedsClearance {
+            Self::ExceedsReversalBudget {
                 clearance_steps, ..
             } => format!(
-                "Raise the run-up above {} steps and run the calibration again.",
+                "Raise the run-up well above {} steps, or widen the scan, and run the \
+                 calibration again.",
                 clearance_steps
             ),
-            Self::NegativeBeyondResolution {
-                implied_minimum_backlash,
-                ..
-            } => format!(
-                "Raise the run-up to at least {} steps and run the calibration again — the \
-                 one used was too short to take up this focuser's backlash.",
-                implied_minimum_backlash
-            ),
+            Self::NegativeBeyondResolution { .. } => {
+                "Check that the focuser reaches the positions it is sent to, then run the \
+                 calibration again — ideally over a shorter span so focus cannot drift \
+                 between the two scans."
+                    .to_string()
+            }
         }
     }
 }
@@ -490,30 +519,25 @@ impl fmt::Display for CalibrationRefusal {
                 "The two directions disagree by {} steps across a scan only {} steps wide",
                 vertex_difference, scan_span
             ),
-            Self::ExceedsClearance {
+            Self::ExceedsReversalBudget {
                 vertex_difference,
-                clearance_steps,
+                reversal_budget_steps,
+                ..
             } => write!(
                 f,
-                "The measurement came out at {} steps, more than the {}-step run-up that took \
-                 it — which cannot happen if that run-up cleared the gear",
-                vertex_difference, clearance_steps
+                "The measurement came out at {} steps, but the scan only ever reversed the \
+                 drive train by {} — so nothing in it could have taken up a dead band that wide",
+                vertex_difference, reversal_budget_steps
             ),
             Self::NegativeBeyondResolution {
                 vertex_difference,
                 resolution_limit_steps,
-                clearance_steps,
-                implied_minimum_backlash,
             } => write!(
                 f,
-                "The measurement came out at {} steps — negative by more than the {:.0}-step \
-                 resolution of this scan, which only happens when the {}-step run-up was \
-                 shorter than half the real backlash. That puts this focuser's backlash at {} \
-                 steps or more",
-                vertex_difference,
-                resolution_limit_steps,
-                clearance_steps,
-                implied_minimum_backlash
+                "The two scans put focus {} steps apart in the order backlash cannot produce, \
+                 by more than the {:.0}-step resolution of this scan. Focus moved between the \
+                 two passes, or the focuser is not reaching the positions it is sent to",
+                vertex_difference, resolution_limit_steps
             ),
         }
     }
@@ -560,23 +584,16 @@ pub fn derive_backlash_calibration(
     }
 
     if f64::from(vertex_difference) < -resolution {
-        // b >= 2k - measured, straight from the k < b branch of the model in
-        // the module docs.
-        let implied = thresholds
-            .clearance_steps
-            .saturating_mul(2)
-            .saturating_sub(vertex_difference);
         return Err(CalibrationRefusal::NegativeBeyondResolution {
             vertex_difference,
             resolution_limit_steps: resolution,
-            clearance_steps: thresholds.clearance_steps,
-            implied_minimum_backlash: implied,
         });
     }
 
-    if vertex_difference > thresholds.clearance_steps {
-        return Err(CalibrationRefusal::ExceedsClearance {
+    if vertex_difference > thresholds.reversal_budget_steps {
+        return Err(CalibrationRefusal::ExceedsReversalBudget {
             vertex_difference,
+            reversal_budget_steps: thresholds.reversal_budget_steps,
             clearance_steps: thresholds.clearance_steps,
         });
     }
@@ -592,7 +609,7 @@ pub fn derive_backlash_calibration(
         vertex_difference,
         resolution,
         measurable,
-        thresholds.clearance_steps,
+        thresholds.reversal_budget_at_vertex_steps,
     );
 
     let measured_at_position = below.optimum_position;
@@ -606,6 +623,8 @@ pub fn derive_backlash_calibration(
         above,
         measured_at_position,
         clearance_steps: thresholds.clearance_steps,
+        reversal_budget_steps: thresholds.reversal_budget_steps,
+        reversal_budget_at_vertex_steps: thresholds.reversal_budget_at_vertex_steps,
         confidence,
         confidence_reason,
         context,
@@ -677,7 +696,7 @@ fn grade_confidence(
     vertex_difference: i32,
     resolution: f64,
     measurable: bool,
-    clearance_steps: i32,
+    reversal_budget_at_vertex_steps: i32,
 ) -> (CalibrationConfidence, String) {
     let worst_r_squared = below.r_squared.min(above.r_squared);
 
@@ -704,19 +723,20 @@ fn grade_confidence(
 
     let multiple = f64::from(vertex_difference).abs() / resolution;
 
-    // A result crowding the run-up that took it is the ambiguous branch of the
-    // model: `2k - b` and `b` overlap there, and only a longer run-up separates
-    // them.
-    if clearance_steps > 0
-        && f64::from(vertex_difference) > f64::from(clearance_steps) * CLEARANCE_HEADROOM_FRACTION
-    {
+    // The points that set the vertex sit around the middle of the scan, so a
+    // result above the reversal accumulated by then may be a floor rather than
+    // the value: the gear was still being taken up while the vertex was being
+    // measured. Under-reporting cannot be detected from one run — it produces
+    // a smaller number, and nothing in the data says how much smaller — so the
+    // honest move is to say the figure is bounded and ask for a bigger run-up.
+    if vertex_difference > reversal_budget_at_vertex_steps {
         return (
             CalibrationConfidence::Low,
             format!(
-                "{} steps is more than half the {}-step run-up used to measure it, so it could \
-                 also be a run-up that only partly cleared the gear. Re-run with a larger \
-                 run-up to confirm.",
-                vertex_difference, clearance_steps
+                "{} steps is as far as this scan had reversed the drive train ({} steps) by the \
+                 points that set the optimum, so the real figure could be larger. Re-run with a \
+                 larger run-up to confirm.",
+                vertex_difference, reversal_budget_at_vertex_steps
             ),
         );
     }
@@ -838,6 +858,9 @@ mod tests {
             min_star_count: 10,
             r_squared_threshold: 0.9,
             clearance_steps: 300,
+            // 300 + 12 * 30, and 300 + 5 * 30 by the middle of the scan.
+            reversal_budget_steps: 660,
+            reversal_budget_at_vertex_steps: 450,
         }
     }
 
@@ -988,41 +1011,70 @@ mod tests {
     }
 
     #[test]
-    fn a_negative_difference_beyond_the_resolution_limit_is_refused_with_the_run_up_it_needs() {
+    fn a_negative_difference_beyond_the_resolution_limit_is_refused_as_impossible() {
         let below = scan(ApproachDirection::FromBelow, RIG_FROM_BELOW, 6520, 0.99);
         let above = scan(ApproachDirection::FromAbove, RIG_FROM_ABOVE, 6595, 0.98);
-        let thresholds = BacklashAnalysisThresholds {
-            clearance_steps: 60,
-            ..thresholds()
-        };
-        let refusal = derive_backlash_calibration(below, above, thresholds, context())
+        let refusal = derive_backlash_calibration(below, above, thresholds(), context())
             .expect_err("-75 steps is not a backlash");
 
-        // b >= 2k - measured = 120 + 75.
+        // Backlash confines the dead-band takeup to [0, b], so the from-below
+        // optimum cannot sit below the from-above one. This says focus moved
+        // between the passes, or the focuser is not going where it is sent.
         assert_eq!(
             refusal,
             CalibrationRefusal::NegativeBeyondResolution {
                 vertex_difference: -75,
                 resolution_limit_steps: 50.0,
-                clearance_steps: 60,
-                implied_minimum_backlash: 195,
             }
         );
-        assert!(refusal.remedy().contains("195"), "{}", refusal.remedy());
+        assert!(
+            refusal.remedy().contains("reaches the positions"),
+            "{}",
+            refusal.remedy()
+        );
     }
 
+    /// A figure wider than the scan ever reversed the drive train did not come
+    /// out of that scan's gear.
     #[test]
-    fn a_result_larger_than_the_run_up_that_took_it_is_refused() {
+    fn a_result_wider_than_the_scan_reversed_the_drive_train_is_refused() {
         let below = scan(ApproachDirection::FromBelow, RIG_FROM_BELOW, 6620, 0.99);
         let above = scan(ApproachDirection::FromAbove, RIG_FROM_ABOVE, 6515, 0.98);
         let thresholds = BacklashAnalysisThresholds {
-            clearance_steps: 80,
+            clearance_steps: 40,
+            reversal_budget_steps: 80,
+            reversal_budget_at_vertex_steps: 55,
             ..thresholds()
         };
         let refusal = derive_backlash_calibration(below, above, thresholds, context())
-            .expect_err("105 steps cannot come out of an 80-step run-up");
+            .expect_err("105 steps cannot come out of a scan that reversed only 80");
 
-        assert_eq!(refusal.code(), "exceeds_clearance");
+        assert_eq!(refusal.code(), "exceeds_reversal_budget");
+    }
+
+    /// The correction the gear-train simulation forced: a run-up smaller than
+    /// the backlash is NOT in itself a reason to refuse. What matters is the
+    /// reversal the scan accumulates, and a 40-step run-up over 13 points at a
+    /// 30-step spacing accumulates 130 — enough to expose 105.
+    #[test]
+    fn a_run_up_smaller_than_the_backlash_still_measures_it_given_enough_points() {
+        let below = scan(ApproachDirection::FromBelow, RIG_FROM_BELOW, 6620, 0.99);
+        let above = scan(ApproachDirection::FromAbove, RIG_FROM_ABOVE, 6515, 0.98);
+        let thresholds = BacklashAnalysisThresholds {
+            clearance_steps: 40,
+            reversal_budget_steps: 400,
+            reversal_budget_at_vertex_steps: 190,
+            ..thresholds()
+        };
+        let calibration = derive_backlash_calibration(below, above, thresholds, context())
+            .expect("130 steps of reversal is enough to expose 105");
+
+        assert_eq!(calibration.steps, 105);
+        // Reported, and not held back by the modest run-up: 190 steps of
+        // reversal by the vertex clears 105 comfortably. Moderate rather than
+        // high only because these are the owner's hand-measured samples, whose
+        // 100-step from-below spacing resolves a vertex to no better than 50.
+        assert_eq!(calibration.confidence, CalibrationConfidence::Moderate);
     }
 
     #[test]
@@ -1136,11 +1188,11 @@ mod tests {
     }
 
     #[test]
-    fn a_result_crowding_its_run_up_is_reported_at_low_confidence_not_refused() {
+    fn a_result_crowding_the_scans_reversal_is_reported_at_low_confidence_not_refused() {
         let below = scan(ApproachDirection::FromBelow, RIG_FROM_BELOW, 6620, 0.99);
         let above = scan(ApproachDirection::FromAbove, RIG_FROM_ABOVE, 6515, 0.98);
         let thresholds = BacklashAnalysisThresholds {
-            clearance_steps: 120,
+            reversal_budget_at_vertex_steps: 90,
             ..thresholds()
         };
         let calibration = derive_backlash_calibration(below, above, thresholds, context())
@@ -1148,7 +1200,7 @@ mod tests {
 
         assert_eq!(calibration.steps, 105);
         assert_eq!(calibration.confidence, CalibrationConfidence::Low);
-        assert!(calibration.confidence_reason.contains("larger run-up"));
+        assert!(calibration.confidence_reason.contains("could be larger"));
     }
 
     #[test]

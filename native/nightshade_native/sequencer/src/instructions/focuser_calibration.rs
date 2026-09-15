@@ -31,13 +31,14 @@ fn default_calibration_steps_out() -> u32 {
     6
 }
 
-/// The run-up applied to every point. It must exceed the backlash it is
-/// trying to expose — see the model in [`crate::focuser_calibration`], where a
-/// run-up shorter than the dead band recovers `2k - b` instead of `b`. 400 is
-/// comfortably past every focuser measured on this rig (105 steps at 6600, 83
-/// at 2500) with room for a much worse drive train, and a run-up that turns
-/// out to be too short is refused with the figure it needs rather than
-/// reported as a measurement.
+/// The run-up applied to every point. What it has to be large enough for is
+/// the scan's REVERSAL BUDGET — `(clearance - step) * points`, the widest dead
+/// band the scan can take up; see the model in [`crate::focuser_calibration`].
+/// At the defaults here that is `(400 - 30) * 13 = 4810` steps, some forty
+/// times the worst backlash measured on this rig (105 steps at position 6600,
+/// 83 at 2500), which leaves room for a far coarser drive train. A budget that
+/// turns out to be too small for the focuser in front of it is refused or
+/// flagged, never quietly reported as a measurement.
 fn default_calibration_clearance_steps() -> i32 {
     400
 }
@@ -164,6 +165,13 @@ pub struct BacklashCalibrationPlan {
     pub travel_low_position: i32,
     pub travel_high_position: i32,
     pub estimated_duration_secs: f64,
+    /// How far the scan reverses the drive train in total, and so the widest
+    /// backlash it could possibly expose: `clearance + (points - 1) * step`.
+    pub reversal_budget_steps: i32,
+    /// The same, taken only as far as the middle of the scan, where the points
+    /// that set the vertex are. A result above this may be a floor rather than
+    /// the value.
+    pub reversal_budget_at_vertex_steps: i32,
 }
 
 /// Focuser move time the estimate assumes, per point, for the run-up plus the
@@ -211,6 +219,26 @@ pub fn plan_backlash_calibration(
     // 50 or less, so this is at most 101.
     let estimated_duration_secs = per_point * points as f64 * 2.0;
 
+    // How far the scan can reverse the drive train by the time it reaches a
+    // given point. The first run-up contributes `clearance`; from then on the
+    // run-up and the step to the next point net one `step_size` per point in
+    // the reversing direction. Taken over the whole scan that is the widest
+    // dead band the scan could have taken up, and taken to the middle — where
+    // the points that set the vertex are — it is the widest one it could have
+    // taken up in time to matter.
+    let points_i32 = i32::try_from(points).unwrap_or(i32::MAX);
+    let reversal_budget_steps = config.clearance_steps.saturating_add(
+        points_i32
+            .saturating_sub(1)
+            .saturating_mul(config.step_size),
+    );
+    let reversal_budget_at_vertex_steps = config.clearance_steps.saturating_add(
+        (points_i32 / 2)
+            .saturating_sub(1)
+            .max(0)
+            .saturating_mul(config.step_size),
+    );
+
     BacklashCalibrationPlan {
         points_per_scan: points,
         total_exposures,
@@ -219,6 +247,8 @@ pub fn plan_backlash_calibration(
         travel_low_position: low.saturating_sub(config.clearance_steps),
         travel_high_position: high.saturating_add(config.clearance_steps),
         estimated_duration_secs,
+        reversal_budget_steps,
+        reversal_budget_at_vertex_steps,
     }
 }
 
@@ -487,6 +517,8 @@ async fn run_both_scans(
         min_star_count: config.min_star_count,
         r_squared_threshold: config.r_squared_threshold,
         clearance_steps: config.clearance_steps,
+        reversal_budget_steps: plan.reversal_budget_steps,
+        reversal_budget_at_vertex_steps: plan.reversal_budget_at_vertex_steps,
     };
     let context = MeasurementContext {
         focuser_device_id: focuser_id.to_string(),
@@ -800,15 +832,20 @@ mod tests {
         assert!(positions[0] <= 6620 - 105);
     }
 
+    /// What has to be big enough is the reversal the whole scan accumulates,
+    /// not the single run-up — and it has to clear the backlash with room to
+    /// spare, or the result is only reported at low confidence.
     #[test]
-    fn the_default_run_up_clears_every_backlash_measured_on_the_rig() {
+    fn the_default_scan_reverses_far_enough_to_measure_the_rigs_backlash_confidently() {
         let config = BacklashCalibrationConfig::default();
+        let budget = plan_backlash_calibration(&config, 6620).reversal_budget_at_vertex_steps;
+
         // 105 steps at position 6600 (2026-09-14) and 83 at 2500 (2026-09-08).
         for backlash in [83, 105] {
             assert!(
-                config.clearance_steps > backlash * 2,
-                "a {}-step run-up leaves no headroom over {} steps of backlash",
-                config.clearance_steps,
+                budget > backlash,
+                "a {}-step reversal budget does not confidently clear {} steps of backlash",
+                budget,
                 backlash
             );
         }
@@ -825,6 +862,9 @@ mod tests {
         assert_eq!(plan.scan_high_position, 6800);
         assert_eq!(plan.travel_low_position, 6040);
         assert_eq!(plan.travel_high_position, 7200);
+        // 400 + 12 * 30, and 400 + 5 * 30 by the middle of the scan.
+        assert_eq!(plan.reversal_budget_steps, 760);
+        assert_eq!(plan.reversal_budget_at_vertex_steps, 550);
         assert!(plan.estimated_duration_secs > 0.0);
     }
 
@@ -978,20 +1018,19 @@ mod tests {
     #[test]
     fn the_outcome_wire_shape_tags_a_refusal_with_its_remedy() {
         let outcome =
-            BacklashCalibrationOutcome::refused(CalibrationRefusal::NegativeBeyondResolution {
-                vertex_difference: -75,
-                resolution_limit_steps: 15.0,
-                clearance_steps: 60,
-                implied_minimum_backlash: 195,
+            BacklashCalibrationOutcome::refused(CalibrationRefusal::ExceedsReversalBudget {
+                vertex_difference: 900,
+                reversal_budget_steps: 130,
+                clearance_steps: 40,
             });
         let json = serde_json::to_value(&outcome).expect("the outcome must serialise");
 
         assert_eq!(json["outcome"], "refused");
-        assert_eq!(json["refusal"]["code"], "negative_beyond_resolution");
+        assert_eq!(json["refusal"]["code"], "exceeds_reversal_budget");
         assert!(json["remedy"]
             .as_str()
             .expect("a remedy string")
-            .contains("195"));
+            .contains("40"));
         assert!(outcome.calibration().is_none());
     }
 }
