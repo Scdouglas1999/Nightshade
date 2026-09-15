@@ -74,3 +74,67 @@ fn test_validate_slew_position_ra_wraparound() {
     let result = validate_slew_position(0.1, 45.0, 23.9, 45.0, 1.0 / 60.0);
     assert!(result.is_err());
 }
+
+/// Regression: a slew that lands exactly on target must not be reported as a
+/// miss because the mount reads back in a different epoch than the target is
+/// held in.
+///
+/// The owner's OnStep mount, 2026-09-14: the sequence asked for NGC7380 at
+/// J2000 RA 22.7892h / Dec 58.1324°, the device layer precessed that to
+/// JNOW 22.8070h / 58.2738° on the way out, the mount arrived at 22.8069h /
+/// 58.2739° — within 0.4" — and the old validation compared the JNOW read-back
+/// against the J2000 target and failed by RA 16.00' / Dec 8.49'. Every sequence
+/// containing a target node died on its first slew. It could not show up in a
+/// simulator run because the simulator is exempt from the conversion, so both
+/// sides of that comparison were J2000 there.
+mod readback_frame {
+    use crate::instructions::slew::{validate_slew_position, SLEW_POSITION_TOLERANCE_DEG};
+
+    /// The measured numbers from that night.
+    const TARGET_J2000: (f64, f64) = (22.7892, 58.1324);
+    const TARGET_JNOW: (f64, f64) = (22.8070, 58.2738);
+    const MOUNT_REPORTED: (f64, f64) = (22.8069, 58.2739);
+
+    #[test]
+    fn comparing_a_jnow_readback_against_a_j2000_target_is_what_broke() {
+        let wrong = validate_slew_position(
+            TARGET_J2000.0,
+            TARGET_J2000.1,
+            MOUNT_REPORTED.0,
+            MOUNT_REPORTED.1,
+            SLEW_POSITION_TOLERANCE_DEG,
+        );
+        assert!(
+            wrong.is_err(),
+            "this is the defect being regressed against: the frames differ by ~22', so the \
+             mismatched comparison must fail — if this ever passes, the epoch policy changed \
+             and the fix in execute_slew needs revisiting"
+        );
+    }
+
+    #[test]
+    fn validating_in_the_mounts_own_frame_accepts_the_same_slew() {
+        validate_slew_position(
+            TARGET_JNOW.0,
+            TARGET_JNOW.1,
+            MOUNT_REPORTED.0,
+            MOUNT_REPORTED.1,
+            SLEW_POSITION_TOLERANCE_DEG,
+        )
+        .expect("a slew landing within 0.4\" of the commanded position must validate");
+    }
+
+    /// The fix must not blunt the check: a mount that really did stop short
+    /// still fails, even when both sides are in the same frame.
+    #[test]
+    fn a_genuine_miss_still_fails_in_the_correct_frame() {
+        let miss = validate_slew_position(
+            TARGET_JNOW.0,
+            TARGET_JNOW.1,
+            TARGET_JNOW.0 + 0.2, // 3° of RA short
+            TARGET_JNOW.1 + 1.0,
+            SLEW_POSITION_TOLERANCE_DEG,
+        );
+        assert!(miss.is_err(), "a 3-degree miss must still be reported");
+    }
+}

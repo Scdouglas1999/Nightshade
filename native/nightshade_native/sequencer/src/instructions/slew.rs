@@ -165,8 +165,46 @@ pub async fn execute_slew(
                                         ra, dec, actual_ra, actual_dec
                                     );
 
+                                    // Validate in the frame the mount REPORTS,
+                                    // not the J2000 frame the target is held in.
+                                    // The device layer precesses coordinates on
+                                    // the way out and leaves read-backs alone,
+                                    // so comparing the raw target against a
+                                    // read-back fails by the precession offset —
+                                    // 16.00' of RA and 8.49' of Dec measured on
+                                    // the owner's OnStep mount on 2026-09-14,
+                                    // against a 1' tolerance, on a slew that had
+                                    // in fact landed within 0.4". Every sequence
+                                    // with a target node died on its first slew.
+                                    let (expect_ra, expect_dec) = match ctx
+                                        .device_ops
+                                        .mount_readback_frame(mount_id, ra, dec)
+                                        .await
+                                    {
+                                        Ok(pair) => pair,
+                                        // Without the mount's frame there is no
+                                        // sound comparison to make. Say so
+                                        // rather than validating against the
+                                        // wrong frame and calling a good slew a
+                                        // failure.
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                "Slew position not validated: could not resolve the \
+                                                 mount's coordinate frame: {}",
+                                                e
+                                            );
+                                            if let Some(cb) = progress_callback {
+                                                cb(100.0, format!("Arrived at RA: {:.2}h, Dec: {:.1} deg", actual_ra, actual_dec));
+                                            }
+                                            return InstructionResult::success_with_message(format!(
+                                                "Slewed to RA: {:.4}h, Dec: {:.4} deg (not verified: {})",
+                                                actual_ra, actual_dec, e
+                                            ));
+                                        }
+                                    };
+
                                     if let Err(e) = validate_slew_position(
-                                        ra, dec, actual_ra, actual_dec,
+                                        expect_ra, expect_dec, actual_ra, actual_dec,
                                         SLEW_POSITION_TOLERANCE_DEG,
                                     ) {
                                         tracing::warn!("Slew position validation failed: {}", e);

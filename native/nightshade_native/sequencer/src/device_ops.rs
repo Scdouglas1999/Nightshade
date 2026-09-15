@@ -107,6 +107,30 @@ pub trait DeviceOps: Send + Sync {
     /// Get current mount coordinates (returns RA hours, Dec degrees)
     async fn mount_get_coordinates(&self, mount_id: &str) -> DeviceResult<(f64, f64)>;
 
+    /// Express a J2000 target in the SAME frame [`mount_get_coordinates`]
+    /// reports for this mount, so a commanded position can be compared against
+    /// a read-back one.
+    ///
+    /// The two are not interchangeable. Catalogue and plate-solve coordinates
+    /// are J2000, but real mounts want coordinates of date, so the device layer
+    /// precesses everything it SENDS (slew, sync) and deliberately leaves
+    /// everything it READS in the mount's own frame — the hour-angle maths
+    /// depends on of-date RA. In 2026 those frames are ~22' apart, which is far
+    /// outside any sane slew tolerance, so comparing one to the other reports a
+    /// perfectly good slew as a miss.
+    ///
+    /// Identity by default: the simulator and the test doubles store exactly
+    /// what they are given, which is also why this defect could never appear in
+    /// a simulator run. Only the real device layer overrides it.
+    async fn mount_readback_frame(
+        &self,
+        _mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<(f64, f64)> {
+        Ok((ra_hours, dec_degrees))
+    }
+
     /// Sync mount to coordinates
     async fn mount_sync(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64)
         -> DeviceResult<()>;
