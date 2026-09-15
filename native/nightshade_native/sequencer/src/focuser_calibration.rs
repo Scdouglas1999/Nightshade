@@ -29,35 +29,42 @@
 //!
 //! Each point is approached deliberately, running `k` steps past the target
 //! and back. It is tempting to reason about that one approach in isolation and
-//! conclude the run-up must exceed `b`. It does not, because the scan is
-//! monotone: consecutive points are `step` apart, so the from-below pass
-//! reverses only `k - step` on each run-up and then drives `k` forward, and
-//! the from-above pass does the mirror image. Per point, the dead band is
-//! therefore paid down — or filled up — by a net `k - step`.
+//! conclude that `k` must exceed `b`. It does not, because the scan is
+//! monotone. Take the from-below pass, whose points ascend by `step`: the move
+//! to `p - k` is only `k - step` BELOW the previous sample, so it adds
+//! `k - step` to `d`, and the move up to `p` then takes `k` off it. Per point,
+//! net, `d` falls by `step` — except on the first point, where `d` can be as
+//! high as `b` and the cap means the up-move leaves `max(b - k, 0)`. The
+//! from-above pass is the mirror image, filling `d` instead of draining it.
 //!
-//! What matters is whether the scan accumulates enough net reversal to take
-//! the dead band all the way to its limit before it reaches the points that
-//! set the vertex:
+//! So the reversal the scan has accumulated by its nth point is
 //!
 //! ```text
-//! reversal budget = (k - step) * points per scan
+//! reversal budget(n) = k + (n - 1) * step
 //! ```
 //!
-//! Given a budget comfortably above `b`, the from-below pass sits at `d = 0`
-//! and the from-above pass saturates at `d = b`, so the fits recover exactly
-//! `b` — and they do so for any `k`, which is why `k` alone is not the test.
-//! Given a budget short of `b`, the from-above pass never fully fills the dead
-//! band and the measurement UNDER-reports. The vertex depends most on the
-//! points nearest focus, which sit around the middle of the scan and have seen
-//! only about half the budget, so a result above half the budget is reported
-//! at low confidence and a result above the whole budget is refused: the scan
-//! never reversed that far, so no honest reading of it produces that number.
+//! and what matters is whether that reaches `b` before the scan reaches the
+//! points that set the vertex. Given a budget comfortably above `b`, the
+//! from-below pass sits at `d = 0` and the from-above pass saturates at
+//! `d = b`, so the fits recover exactly `b` — for any `k`, which is why `k`
+//! alone is not the test. Given a budget short of `b`, the from-above pass is
+//! still filling the dead band while it samples, and the measurement
+//! UNDER-reports.
 //!
-//! This was established by simulating a gear train of known width against the
-//! real routine (`instructions::tests::focuser_backlash`). An earlier version
-//! of this module reasoned from the isolated single approach, concluded the
-//! rule was `k >= b`, and would have refused a perfectly good measurement of
-//! the owner's 105 steps taken with a 40-step run-up.
+//! Under-reporting cannot be detected from a single run: it produces a
+//! SMALLER number and nothing in the data says how much smaller. So there are
+//! two bounds rather than one correction. Above `reversal_budget(points)` a
+//! figure is refused, because nothing in the scan could have taken up a dead
+//! band that wide. Above `reversal_budget(points / 2)` — the reversal in hand
+//! by the middle of the scan, where the vertex is set — it is reported at low
+//! confidence as possibly a floor rather than the value.
+//!
+//! All of this was established by simulating a gear train of known width
+//! against the real routine (`instructions::tests::focuser_backlash`). An
+//! earlier version of this module reasoned from the isolated single approach,
+//! concluded the rule was `k >= b`, and would have refused a perfectly good
+//! measurement of the owner's 105 steps taken with a 40-step run-up — which
+//! the simulation recovers as 102 at R² 0.995.
 //!
 //! One thing the model rules out entirely: a NEGATIVE difference. `d` is
 //! confined to `[0, b]`, so the from-below optimum can never sit below the
