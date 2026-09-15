@@ -208,92 +208,44 @@ pub async fn execute_exposure_with_renderer(
         config.duration_secs
     );
 
-    // Position-index is preferred over name because filter names are
-    // user-editable strings that can drift between profile and device
-    // (e.g. "Ha" vs "H-alpha"); the position is the wheel's stable
-    // hardware addressing.
-    if config
-        .filter
-        .as_deref()
-        .is_some_and(|name| !name.trim().is_empty())
-        || config.filter_index.is_some()
+    // Claim the imaging train (camera + filter wheel) for the wheel move and
+    // the filter-identity read that follows it, so a trigger-fired action
+    // cannot be part-way through its own filter move while this one runs.
+    //
+    // Unarbitrated, the two fought and both lost: on 2026-09-14 a trigger
+    // autofocus commanded the wheel to "L" while this burst was cycling
+    // Ha/SII/OIII, and autofocus then timed out after 120 s watching a healthy,
+    // idle wheel sit at "SII". Ordering matters too — this claim is taken
+    // BEFORE the wheel is commanded, not after, because a claim that starts at
+    // the exposure has already let the wheel move.
+    let filter_claim = match ImagingTrainClaimGuard::acquire(
+        ctx,
+        "the capture loop's filter change",
+        BURST_FILTER_CHANGE_EXPECTED_SECS,
+    )
+    .await
     {
-        if let Some(fw_id) = &ctx.filterwheel_id {
-            if let Some(index) = config.filter_index {
-                tracing::info!(
-                    "Changing to filter position: {} (name: {:?})",
-                    index,
-                    config.filter
-                );
-                if let Err(e) = ctx.device_ops.filterwheel_set_position(fw_id, index).await {
-                    return InstructionResult::failure(format!("Failed to change filter: {}", e));
-                }
-                let filter_name = match config.filter.as_deref() {
-                    Some(name) if !name.is_empty() => Some(name.to_string()),
-                    _ if !ctx.filter_focus_offsets.is_empty() => {
-                        match ctx.device_ops.filterwheel_get_names(fw_id).await {
-                            Ok(names) if index >= 0 => match names.get(index as usize) {
-                                Some(name) => Some(name.clone()),
-                                None => {
-                                    return InstructionResult::failure(format!(
-                                    "Filter position {} has no configured filter name for focus offset lookup",
-                                    index
-                                ));
-                                }
-                            },
-                            Ok(_) => {
-                                return InstructionResult::failure(format!(
-                                    "Invalid negative filter position {} for focus offset lookup",
-                                    index
-                                ));
-                            }
-                            Err(e) => {
-                                return InstructionResult::failure(format!(
-                                    "Failed to read filter names for focus offset lookup: {}",
-                                    e
-                                ));
-                            }
-                        }
-                    }
-                    _ => None,
-                };
-                if let Some(filter_name) = filter_name {
-                    if let Err(e) = apply_filter_focus_offset(&filter_name, ctx, None).await {
-                        return InstructionResult::failure(format!(
-                            "Focus offset failed for filter \"{}\": {}",
-                            filter_name, e
-                        ));
-                    }
-                }
-            } else if let Some(filter) = &config.filter {
-                tracing::info!("Changing to filter by name: {}", filter);
-                if let Err(e) = ctx
-                    .device_ops
-                    .filterwheel_set_filter_by_name(fw_id, filter)
-                    .await
-                {
-                    return InstructionResult::failure(format!("Failed to change filter: {}", e));
-                }
-                if let Err(e) = apply_filter_focus_offset(filter, ctx, None).await {
-                    return InstructionResult::failure(format!(
-                        "Focus offset failed for filter \"{}\": {}",
-                        filter, e
-                    ));
-                }
-            }
-        }
-    }
-
-    // Settle the filter identity ONCE for the whole burst, after the wheel has
-    // been commanded above so `observed_wheel_filter` reports the slot these
-    // frames are actually taken through. Every recording surface below reads
-    // this pair, so the filename, the FITS FILTER card and the
+        Ok(claim) => claim,
+        Err(cancelled) => return cancelled,
+    };
+    // Settle the filter identity ONCE for the whole burst, under the same claim
+    // that commanded the wheel, so `observed_wheel_filter` cannot read a slot
+    // some other action moved to in between. Every recording surface below
+    // reads this pair, so the filename, the FITS FILTER card and the
     // `captured_images` row cannot disagree about the same frame. Resolving
     // here rather than in the TakeExposure node covers the capture paths that
     // do not go through a node at all — the Flat Wizard's final flat burst most
     // of all, where a missing FILTER card makes the flats unmatchable to the
     // lights they were shot for.
-    let (frame_filter_name, frame_filter_index) = resolve_frame_filter(config, ctx).await;
+    let frame_filter = match apply_burst_filter(config, ctx).await {
+        Ok(()) => Ok(resolve_frame_filter(config, ctx).await),
+        Err(failure) => Err(failure),
+    };
+    filter_claim.release(ctx).await;
+    let (frame_filter_name, frame_filter_index) = match frame_filter {
+        Ok(pair) => pair,
+        Err(failure) => return failure,
+    };
 
     let (bin_x, bin_y) = match config.binning {
         Binning::One => (1, 1),
@@ -391,8 +343,8 @@ pub async fn execute_exposure_with_renderer(
         // frame late by its own exposure time.
         let exposure_started_at = chrono::Utc::now();
 
-        // Take the camera before exposing, waiting if a trigger-fired
-        // autofocus currently holds it.
+        // Take the imaging train before exposing, waiting if a trigger-fired
+        // action currently holds it.
         //
         // This is the mirror of the hold on the trigger side, and both halves
         // are needed. With only the trigger waiting for the capture loop, the
@@ -400,33 +352,16 @@ pub async fn execute_exposure_with_renderer(
         // same "No exposure is available to download" failure came back 20 s
         // later — the race had swapped ends, not closed. One claim, taken by
         // whoever gets there first, is what actually serialises them.
-        if let Some(trigger_state) = &ctx.trigger_state {
-            let mut announced = false;
-            loop {
-                if let Some(result) = ctx.check_cancelled() {
-                    return result;
-                }
-                let remaining = {
-                    let mut state = trigger_state.write().await;
-                    if state.try_claim_camera_for(config.duration_secs) {
-                        None
-                    } else {
-                        state.camera_busy_remaining_secs()
-                    }
-                };
-                let Some(remaining) = remaining else { break };
-                if !announced {
-                    announced = true;
-                    tracing::info!(
-                        "Holding the next {:.0}s exposure for ~{:.0}s: a trigger action is using \
-                         the camera",
-                        config.duration_secs,
-                        remaining
-                    );
-                }
-                tokio::time::sleep(Duration::from_millis(200)).await;
-            }
-        }
+        let frame_claim = match ImagingTrainClaimGuard::acquire(
+            ctx,
+            "the next exposure",
+            config.duration_secs,
+        )
+        .await
+        {
+            Ok(claim) => claim,
+            Err(cancelled) => return cancelled,
+        };
 
         // tokio::select! is the only way to honour cancellation during a
         // blocking exposure without driver support; the abort branch tells
@@ -445,9 +380,7 @@ pub async fn execute_exposure_with_renderer(
                         error
                     ),
                 }
-                if let Some(trigger_state) = &ctx.trigger_state {
-                    trigger_state.write().await.clear_camera_busy();
-                }
+                frame_claim.release(ctx).await;
                 return InstructionResult::cancelled("Exposure cancelled");
             }
             // Thread the frame type so shuttered cameras (Moravian, FLI, some
@@ -466,12 +399,10 @@ pub async fn execute_exposure_with_renderer(
             }
         };
         // The frame is off the camera (or failed): release the claim on both
-        // paths. A failure that returns without clearing would leave the hold
-        // to expire on its deadline, which is safe but delays the next
-        // trigger-fired autofocus for no reason.
-        if let Some(trigger_state) = &ctx.trigger_state {
-            trigger_state.write().await.clear_camera_busy();
-        }
+        // paths. A failure that returned without releasing would leave the hold
+        // to lapse on its expiry, which is safe but delays the next
+        // trigger-fired action for no reason.
+        frame_claim.release(ctx).await;
 
         let mut image_data = match exposure_result {
             Ok(data) => {
@@ -1015,4 +946,101 @@ pub async fn execute_exposure_with_renderer(
         })),
         hfr_values,
     }
+}
+
+/// Seconds a whole-burst filter change is expected to take, including the focus
+/// offset move that follows it.
+///
+/// An estimate only: it sizes the hold message a waiting trigger logs. A wheel
+/// that takes longer keeps the claim (see
+/// `IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS`) rather than handing the devices
+/// over mid-move.
+const BURST_FILTER_CHANGE_EXPECTED_SECS: f64 = 30.0;
+
+/// Command the wheel to this burst's filter and apply its focus offset.
+///
+/// Extracted from `execute_exposure_with_renderer` so the whole move has one
+/// entry and one exit and can therefore be wrapped in a single imaging-train
+/// claim; the several failure exits inside it are exactly why a single
+/// release point was needed.
+async fn apply_burst_filter(
+    config: &ExposureConfig,
+    ctx: &InstructionContext,
+) -> Result<(), InstructionResult> {
+    // Position-index is preferred over name because filter names are
+    // user-editable strings that can drift between profile and device
+    // (e.g. "Ha" vs "H-alpha"); the position is the wheel's stable
+    // hardware addressing.
+    if config
+        .filter
+        .as_deref()
+        .is_some_and(|name| !name.trim().is_empty())
+        || config.filter_index.is_some()
+    {
+        if let Some(fw_id) = &ctx.filterwheel_id {
+            if let Some(index) = config.filter_index {
+                tracing::info!(
+                    "Changing to filter position: {} (name: {:?})",
+                    index,
+                    config.filter
+                );
+                if let Err(e) = ctx.device_ops.filterwheel_set_position(fw_id, index).await {
+                    return Err(InstructionResult::failure(format!("Failed to change filter: {}", e)));
+                }
+                let filter_name = match config.filter.as_deref() {
+                    Some(name) if !name.is_empty() => Some(name.to_string()),
+                    _ if !ctx.filter_focus_offsets.is_empty() => {
+                        match ctx.device_ops.filterwheel_get_names(fw_id).await {
+                            Ok(names) if index >= 0 => match names.get(index as usize) {
+                                Some(name) => Some(name.clone()),
+                                None => {
+                                    return Err(InstructionResult::failure(format!(
+                                    "Filter position {} has no configured filter name for focus offset lookup",
+                                    index
+                                )));
+                                }
+                            },
+                            Ok(_) => {
+                                return Err(InstructionResult::failure(format!(
+                                    "Invalid negative filter position {} for focus offset lookup",
+                                    index
+                                )));
+                            }
+                            Err(e) => {
+                                return Err(InstructionResult::failure(format!(
+                                    "Failed to read filter names for focus offset lookup: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(filter_name) = filter_name {
+                    if let Err(e) = apply_filter_focus_offset(&filter_name, ctx, None).await {
+                        return Err(InstructionResult::failure(format!(
+                            "Focus offset failed for filter \"{}\": {}",
+                            filter_name, e
+                        )));
+                    }
+                }
+            } else if let Some(filter) = &config.filter {
+                tracing::info!("Changing to filter by name: {}", filter);
+                if let Err(e) = ctx
+                    .device_ops
+                    .filterwheel_set_filter_by_name(fw_id, filter)
+                    .await
+                {
+                    return Err(InstructionResult::failure(format!("Failed to change filter: {}", e)));
+                }
+                if let Err(e) = apply_filter_focus_offset(filter, ctx, None).await {
+                    return Err(InstructionResult::failure(format!(
+                        "Focus offset failed for filter \"{}\": {}",
+                        filter, e
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
 }

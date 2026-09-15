@@ -7,6 +7,21 @@ use super::*;
 
 // Autofocus instruction
 
+/// Result-data key set when autofocus stopped guiding for its sweep and could
+/// not prove guiding running again afterwards.
+///
+/// The distinction this key carries is the whole point of it. A trigger-fired
+/// autofocus that merely misses its curve fit costs the run slightly soft subs
+/// the operator can cull, so imaging continues on the last-good focus (see
+/// `executor::autofocus_trigger_continuation`). An autofocus that left the
+/// guider stopped costs the run EVERY subsequent frame: the mount is
+/// unguided, so each light trails. Both arrive here as
+/// `NodeStatus::Failure` with a "CRITICAL CLEANUP FAILURE" message, and
+/// without a machine-readable marker the caller cannot tell them apart —
+/// which is how a live run took three 180 s trailed frames (HFR 15.6 px
+/// against a 3.50 px limit) after its own log said the guider never came back.
+pub(crate) const AUTOFOCUS_GUIDING_NOT_RESTORED_KEY: &str = "autofocus_guiding_not_restored";
+
 /// Process-wide hardware admission for autofocus. Every entry path ultimately
 /// calls this module (standalone bridge, sequence node, recovery, meridian
 /// flip), so a single atomic gate prevents two callers from sweeping the same
@@ -365,6 +380,20 @@ pub(crate) async fn execute_autofocus_attempts(
         {
             return result;
         }
+        // A sweep whose cleanup could not prove guiding running again must not
+        // be repeated: the next attempt's exposures are taken on an unguided
+        // mount, and each one stops the guider again on entry. Surface the
+        // cleanup failure to the caller instead, which is the only party that
+        // can halt the run.
+        if result
+            .data
+            .as_ref()
+            .and_then(|data| data.get(AUTOFOCUS_GUIDING_NOT_RESTORED_KEY))
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
+        {
+            return result;
+        }
         if let Some(cb) = progress_callback {
             cb(
                 0.0,
@@ -401,6 +430,14 @@ pub(crate) async fn move_autofocus_filter(
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(DEFAULT_FILTER_WHEEL_TIMEOUT_SECS);
     sleep(Duration::from_millis(100)).await;
+    // Last position read back, so a timeout can say WHERE the wheel is instead
+    // of only where it isn't. A wheel that is idle at somebody else's slot and
+    // a wheel that never moved produce the same message otherwise, and the
+    // first is an arbitration bug while the second is broken hardware — the
+    // owner spent a night on the wrong one of those. The imaging-train claim
+    // makes the interleaving impossible; this makes it legible if it ever
+    // happens again through a path that does not take the claim.
+    let mut last_observed: Option<i32> = None;
     loop {
         match ctx
             .device_ops
@@ -408,7 +445,7 @@ pub(crate) async fn move_autofocus_filter(
             .await
         {
             Ok(position) if position == target_position => break,
-            Ok(_) => {}
+            Ok(position) => last_observed = Some(position),
             Err(error) => tracing::warn!(
                 "Error verifying autofocus filter move to {}: {}",
                 target_position,
@@ -416,11 +453,21 @@ pub(crate) async fn move_autofocus_filter(
             ),
         }
         if start.elapsed() > timeout {
-            return Err(format!(
-                "filter wheel did not reach position {} within {} seconds",
-                target_position,
-                timeout.as_secs()
-            ));
+            return Err(match last_observed {
+                Some(observed) => format!(
+                    "filter wheel did not reach position {} within {} seconds; it is sitting at \
+                     position {} — something else moved it",
+                    target_position,
+                    timeout.as_secs(),
+                    observed
+                ),
+                None => format!(
+                    "filter wheel did not reach position {} within {} seconds and its position \
+                     could not be read",
+                    target_position,
+                    timeout.as_secs()
+                ),
+            });
         }
         sleep(Duration::from_millis(200)).await;
     }
@@ -435,10 +482,12 @@ pub(crate) async fn resume_guiding_after_autofocus(
     result: InstructionResult,
 ) -> InstructionResult {
     if let Err(error) = ctx.device_ops.guider_start(1.0, 10.0, 60.0).await {
-        return append_autofocus_cleanup_failure(
+        return append_guiding_not_restored(
+            ctx,
             result,
             format!("failed to resume guiding after autofocus: {}", error),
-        );
+        )
+        .await;
     }
     match ctx.device_ops.guider_get_status().await {
         Ok(status) if status.is_guiding => {
@@ -447,18 +496,59 @@ pub(crate) async fn resume_guiding_after_autofocus(
             }
             result
         }
-        Ok(_) => append_autofocus_cleanup_failure(
-            result,
-            "guider accepted resume but did not report guiding".to_string(),
-        ),
-        Err(error) => append_autofocus_cleanup_failure(
-            result,
-            format!(
-                "could not verify guiding resumed after autofocus: {}",
-                error
-            ),
-        ),
+        Ok(_) => {
+            append_guiding_not_restored(
+                ctx,
+                result,
+                "guider accepted resume but did not report guiding".to_string(),
+            )
+            .await
+        }
+        Err(error) => {
+            append_guiding_not_restored(
+                ctx,
+                result,
+                format!(
+                    "could not verify guiding resumed after autofocus: {}",
+                    error
+                ),
+            )
+            .await
+        }
     }
+}
+
+/// Record a cleanup failure that left the guider stopped: stamp the
+/// [`AUTOFOCUS_GUIDING_NOT_RESTORED_KEY`] marker the caller branches on, and
+/// clear the trigger state's `guiding_enabled` latch.
+///
+/// Clearing the latch is not bookkeeping. The monitor's guide-poll block arms
+/// `guide_star_lost` from that latch, and PHD2 answers `is_guiding = true`
+/// whenever it is still emitting GuideStep frames — which it does while
+/// chasing a lost star with the offsets at ±57 px. Leaving the latch set
+/// therefore left the run believing guiding was healthy from the one device
+/// that could not tell it otherwise. The autofocus cleanup is the only place
+/// that KNOWS the guider was stopped and not proven back, so it is the place
+/// that must say so.
+async fn append_guiding_not_restored(
+    ctx: &InstructionContext,
+    result: InstructionResult,
+    failure: String,
+) -> InstructionResult {
+    if let Some(trigger_state) = &ctx.trigger_state {
+        trigger_state.write().await.set_guiding_enabled(false);
+    }
+    let mut result = append_autofocus_cleanup_failure(result, failure);
+    let mut metadata = match result.data.take() {
+        Some(serde_json::Value::Object(object)) => object,
+        _ => serde_json::Map::new(),
+    };
+    metadata.insert(
+        AUTOFOCUS_GUIDING_NOT_RESTORED_KEY.to_string(),
+        serde_json::Value::Bool(true),
+    );
+    result.data = Some(serde_json::Value::Object(metadata));
+    result
 }
 
 pub(crate) fn append_autofocus_cleanup_failure(

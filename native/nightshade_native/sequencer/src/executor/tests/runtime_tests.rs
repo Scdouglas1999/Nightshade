@@ -679,27 +679,38 @@ async fn camera_idle_wait_holds_for_an_exposure_then_releases() {
 
     // Nothing in flight: the action must not be delayed at all.
     let started = tokio::time::Instant::now();
-    claim_camera_for_trigger_action(&state, &cancelled, "autofocus").await;
+    let idle_token = claim_camera_for_trigger_action(&state, &cancelled, "autofocus")
+        .await
+        .expect("an idle imaging train must be claimable");
     assert!(
         started.elapsed() < std::time::Duration::from_millis(100),
         "an idle camera must not delay a trigger action"
     );
+    // Hand it back before simulating a frame. The old API let the capture loop
+    // overwrite a live trigger claim outright, which is the frame-destroying
+    // race the claim exists to close; the token-based API refuses instead, so
+    // the release has to be real.
+    state.write().await.release_imaging_train(idle_token);
 
     // A frame in flight holds the action until the frame releases it.
-    state.write().await.mark_camera_busy_for(30.0);
+    let frame_token = state
+        .write()
+        .await
+        .try_claim_imaging_train("the next exposure", 30.0)
+        .expect("an idle imaging train must be claimable");
     assert!(
         state
             .read()
             .await
-            .camera_busy_remaining_secs()
-            .is_some_and(|secs| secs > 30.0),
-        "the claim must cover the exposure plus download slack"
+            .imaging_train_hold()
+            .is_some_and(|hold| hold.expected_remaining_secs > 30.0),
+        "the claim's expected finish must cover the exposure plus download slack"
     );
 
     let release_state = state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        release_state.write().await.clear_camera_busy();
+        release_state.write().await.release_imaging_train(frame_token);
     });
 
     let started = tokio::time::Instant::now();
@@ -721,7 +732,11 @@ async fn camera_idle_wait_holds_for_an_exposure_then_releases() {
 async fn camera_idle_wait_releases_immediately_on_cancel() {
     let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
     let cancelled = Arc::new(AtomicBool::new(false));
-    state.write().await.mark_camera_busy_for(600.0);
+    state
+        .write()
+        .await
+        .try_claim_imaging_train("the next exposure", 600.0)
+        .expect("an idle imaging train must be claimable");
 
     let flag = cancelled.clone();
     tokio::spawn(async move {
@@ -737,16 +752,119 @@ async fn camera_idle_wait_releases_immediately_on_cancel() {
     );
 }
 
-/// The claim is a deadline, not a boolean, so a hold that is never
-/// released expires instead of blocking autofocus for the rest of the
-/// night.
+/// The claim lapses rather than latching, so a holder that died without
+/// releasing costs minutes, not the night.
 #[tokio::test]
-async fn camera_claim_expires_rather_than_wedging() {
+async fn imaging_train_claim_expires_rather_than_wedging() {
     let mut state = crate::triggers::TriggerState::new();
-    state.camera_busy_until_ms = Some(chrono::Utc::now().timestamp_millis() - 1);
+    state
+        .try_claim_imaging_train("the next exposure", 30.0)
+        .expect("an idle imaging train must be claimable");
+    let claim = state
+        .imaging_train_claim
+        .as_mut()
+        .expect("the claim was just installed");
+    claim.expires_at_ms = chrono::Utc::now().timestamp_millis() - 1;
     assert!(
-        state.camera_busy_remaining_secs().is_none(),
-        "a claim whose deadline has passed must read as free"
+        state.imaging_train_hold().is_none(),
+        "a claim past its hard expiry must read as free"
+    );
+}
+
+/// An estimate that runs a little long must NOT hand the devices over.
+///
+/// This is the measured defect the two-deadline design fixes. The old claim
+/// used `duration + 20 s` as both the estimate and the expiry, so a 180 s light
+/// whose readout overran released the camera while the sensor was still
+/// integrating; a drift-recenter trigger then started its own 5 s plate-solve
+/// exposure on the busy camera and failed on `did not complete within 65.0s
+/// timeout (5.0s requested exposure plus safety margin)` — a bound derived from
+/// its own request, with no relationship to the 180 s frame it was queued
+/// behind.
+#[tokio::test]
+async fn an_overrunning_exposure_keeps_the_imaging_train() {
+    let mut state = crate::triggers::TriggerState::new();
+    state
+        .try_claim_imaging_train("the next exposure", 180.0)
+        .expect("an idle imaging train must be claimable");
+
+    // Walk the clock past the 180 s + 20 s estimate, as a slow download does.
+    let claim = state
+        .imaging_train_claim
+        .as_mut()
+        .expect("the claim was just installed");
+    claim.expected_finish_ms = chrono::Utc::now().timestamp_millis() - 25_000;
+
+    let hold = state
+        .imaging_train_hold()
+        .expect("an overrunning holder still holds the imaging train");
+    assert_eq!(
+        hold.expected_remaining_secs, 0.0,
+        "the estimate has passed, and the hold says so honestly"
+    );
+    assert!(
+        hold.max_remaining_secs > 0.0,
+        "but the claim has NOT lapsed, so the camera cannot be taken mid-frame"
+    );
+    assert!(
+        state
+            .try_claim_imaging_train("recenter", 5.0)
+            .is_none(),
+        "a waiting trigger must not be handed a camera that is still exposing"
+    );
+}
+
+/// The claim covers the filter wheel as well as the camera, as one resource.
+///
+/// Arbitrating the camera alone is what produced the 2026-09-14 filter-wheel
+/// timeout: the autofocus trigger held the camera and commanded the wheel to
+/// "L" (position 0) while the capture loop had already commanded it to "SII"
+/// (position 5), and autofocus then polled a healthy, idle wheel for 120 s for
+/// a position nothing was going to move it to.
+#[tokio::test]
+async fn the_imaging_train_claim_covers_the_filter_wheel_too() {
+    let mut state = crate::triggers::TriggerState::new();
+    let token = state
+        .try_claim_imaging_train("autofocus", 600.0)
+        .expect("an idle imaging train must be claimable");
+    assert!(
+        state
+            .try_claim_imaging_train("the capture loop's filter change", 30.0)
+            .is_none(),
+        "the capture loop must not be able to move the wheel while autofocus holds the train"
+    );
+    state.release_imaging_train(token);
+    assert!(
+        state
+            .try_claim_imaging_train("the capture loop's filter change", 30.0)
+            .is_some(),
+        "and it must get the wheel the moment autofocus hands it back"
+    );
+}
+
+/// A stale release must not free somebody else's claim — doing so destroys
+/// exactly the frame the claim exists to protect.
+#[tokio::test]
+async fn a_stale_release_cannot_free_a_newer_claim() {
+    let mut state = crate::triggers::TriggerState::new();
+    let first = state
+        .try_claim_imaging_train("autofocus", 600.0)
+        .expect("an idle imaging train must be claimable");
+    state.release_imaging_train(first);
+    let second = state
+        .try_claim_imaging_train("the next exposure", 180.0)
+        .expect("the train is free again");
+    assert_ne!(first, second, "tokens are never reused");
+
+    state.release_imaging_train(first);
+    assert!(
+        state.imaging_train_hold().is_some(),
+        "a release presenting a stale token must do nothing"
+    );
+    state.release_imaging_train(second);
+    assert!(
+        state.imaging_train_hold().is_none(),
+        "the real holder's release works"
     );
 }
 
@@ -1254,12 +1372,16 @@ async fn every_camera_driving_trigger_action_waits_for_the_frame_in_flight() {
     let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
     let cancelled = Arc::new(AtomicBool::new(false));
     // The capture loop takes the claim for the frame it is exposing.
-    state.write().await.mark_camera_busy_for(15.0);
+    let frame_token = state
+        .write()
+        .await
+        .try_claim_imaging_train("the next exposure", 15.0)
+        .expect("an idle imaging train must be claimable");
 
     let release_state = state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        release_state.write().await.clear_camera_busy();
+        release_state.write().await.release_imaging_train(frame_token);
     });
 
     let label = camera_driving_trigger_action(&RecoveryAction::MeridianFlip(
@@ -1304,7 +1426,7 @@ async fn the_autofocus_skip_branch_hands_the_camera_back() {
         "autofocus drives the camera, so it claims it"
     );
     assert!(
-        state.read().await.camera_busy_remaining_secs().is_some(),
+        state.read().await.imaging_train_hold().is_some(),
         "the claim must actually be held while the action runs"
     );
 
@@ -1325,7 +1447,7 @@ async fn the_autofocus_skip_branch_hands_the_camera_back() {
     tokio::task::yield_now().await;
 
     assert!(
-        state.read().await.camera_busy_remaining_secs().is_none(),
+        state.read().await.imaging_train_hold().is_none(),
         "the skipped refocus must hand the camera back; a hold left to expire \
          blocks every frame for TRIGGER_CAMERA_CLAIM_SECS while the run still \
          reports itself as imaging"
@@ -1367,7 +1489,7 @@ async fn every_autofocus_device_gap_hands_the_camera_back() {
         tokio::task::yield_now().await;
 
         assert!(
-            state.read().await.camera_busy_remaining_secs().is_none(),
+            state.read().await.imaging_train_hold().is_none(),
             "the {expected} branch left the claim held; the capture loop would \
              block every frame until the ten-minute expiry"
         );
@@ -1395,7 +1517,7 @@ async fn every_camera_driving_action_hands_the_camera_back_on_a_silent_exit() {
         drop(claim);
         tokio::task::yield_now().await;
         assert!(
-            state.read().await.camera_busy_remaining_secs().is_none(),
+            state.read().await.imaging_train_hold().is_none(),
             "{action:?} exited without releasing the camera claim"
         );
 
@@ -1405,7 +1527,7 @@ async fn every_camera_driving_action_hands_the_camera_back_on_a_silent_exit() {
         claim = TriggerCameraClaim::acquire(&state, &cancelled, &action).await;
         claim.release().await;
         assert!(
-            state.read().await.camera_busy_remaining_secs().is_none(),
+            state.read().await.imaging_train_hold().is_none(),
             "{action:?} did not release explicitly"
         );
     }
@@ -1427,8 +1549,12 @@ async fn a_stale_release_cannot_steal_the_capture_loops_claim() {
 
     // The capture loop wins the free camera for its next 300 s light.
     assert!(
-        state.write().await.try_claim_camera_for(300.0),
-        "the camera must be free once the trigger action releases"
+        state
+            .write()
+            .await
+            .try_claim_imaging_train("the next exposure", 300.0)
+            .is_some(),
+        "the imaging train must be free once the trigger action releases"
     );
 
     // The guard falls out of scope at the end of the dispatch. It has nothing
@@ -1437,7 +1563,7 @@ async fn a_stale_release_cannot_steal_the_capture_loops_claim() {
     drop(claim);
     tokio::task::yield_now().await;
     assert!(
-        state.read().await.camera_busy_remaining_secs().is_some(),
+        state.read().await.imaging_train_hold().is_some(),
         "a stale release cleared the capture loop's own claim, which is exactly \
          how a light frame gets destroyed"
     );
@@ -1450,7 +1576,11 @@ async fn a_cancelled_wait_never_claims_and_never_releases() {
     let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
     let cancelled = Arc::new(AtomicBool::new(true));
     // The capture loop is mid-frame and keeps its claim throughout.
-    state.write().await.mark_camera_busy_for(300.0);
+    state
+        .write()
+        .await
+        .try_claim_imaging_train("the next exposure", 300.0)
+        .expect("an idle imaging train must be claimable");
 
     let claim = TriggerCameraClaim::acquire(&state, &cancelled, &RecoveryAction::Autofocus).await;
     assert!(
@@ -1461,7 +1591,7 @@ async fn a_cancelled_wait_never_claims_and_never_releases() {
     tokio::task::yield_now().await;
 
     assert!(
-        state.read().await.camera_busy_remaining_secs().is_some(),
+        state.read().await.imaging_train_hold().is_some(),
         "the cancelled action released a claim it never took"
     );
 }
@@ -1481,28 +1611,28 @@ async fn non_camera_actions_take_no_claim() {
         let claim = TriggerCameraClaim::acquire(&state, &cancelled, &action).await;
         assert!(!claim.is_held(), "{action:?} does not drive the camera");
         assert!(
-            state.read().await.camera_busy_remaining_secs().is_none(),
+            state.read().await.imaging_train_hold().is_none(),
             "{action:?} claimed the camera it never uses"
         );
     }
 }
 
 /// The guard's coverage is only real while it is the ONLY way the trigger
-/// dispatch hands the camera back: a hand-placed `clear_camera_busy()` per
-/// arm plus a comment claiming every exit is covered is a claim rather than a
-/// check, and one arm goes uncovered.
+/// dispatch hands the imaging train back: a hand-placed
+/// `release_imaging_train()` per arm plus a comment claiming every exit is
+/// covered is a claim rather than a check, and one arm goes uncovered.
 ///
 /// So check it: a bare release inside the dispatch is a release that some
 /// future early exit will route around.
 #[test]
 fn the_trigger_dispatch_releases_the_camera_only_through_the_guard() {
     let start_rs = include_str!("../start.rs");
-    let bare_releases = start_rs.matches("clear_camera_busy(").count();
+    let bare_releases = start_rs.matches("release_imaging_train(").count();
     assert_eq!(
         bare_releases, 0,
-        "executor/start.rs releases the camera claim directly in {bare_releases} place(s). \
-         Route it through `camera_claim.release().await` instead: a per-arm release only \
-         covers the exits someone remembered, and the autofocus device-missing branch is \
+        "executor/start.rs releases the imaging-train claim directly in {bare_releases} \
+         place(s). Route it through `camera_claim.release().await` instead: a per-arm release \
+         only covers the exits someone remembered, and the autofocus device-missing branch is \
          what happens when one is forgotten — ten minutes of blocked frames per firing."
     );
 }

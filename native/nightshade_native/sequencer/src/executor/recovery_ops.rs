@@ -93,10 +93,32 @@ pub(crate) async fn recover_guide_star(
 
     // Fast-path: maybe the guider already recovered on its own during the
     // recovery wait window. Issuing guider_start when already guiding can force
-    // an unnecessary re-calibration on some setups, so honour an existing lock.
+    // an unnecessary re-calibration on some setups, so honour an existing lock —
+    // but only a lock that is actually holding the star.
+    //
+    // `is_guiding` alone is not that. PHD2 reports guiding for as long as it is
+    // emitting GuideStep frames, including while it chases a star it has
+    // effectively lost: measured on the owner's rig at RA/Dec offsets of
+    // -56.8 / -54.4 px with SNR collapsed 126.7 → 11.8 and StarMass
+    // 2,962,797 → 5,902, all of it reported as `is_guiding: true`. Accepting
+    // that as recovered declares success, resumes the run and trails every
+    // frame.
+    //
+    // The bar is the one this function already applies to its own
+    // re-acquisition below — settled inside `REACQUIRE_SETTLE_PIXELS` — so the
+    // fast path cannot hold a worse situation to a laxer standard than a fresh
+    // start.
     if let Ok(status) = device_ops.guider_get_status().await {
-        if status.is_guiding {
+        if status.is_guiding && status.rms_total <= REACQUIRE_SETTLE_PIXELS {
             return AttemptOutcome::Succeeded;
+        }
+        if status.is_guiding {
+            tracing::warn!(
+                "[RECOVERY] Guider reports guiding but RMS is {:.1} px (limit {:.1} px) — \
+                 treating it as not guiding and re-acquiring",
+                status.rms_total,
+                REACQUIRE_SETTLE_PIXELS
+            );
         }
     }
 
@@ -120,15 +142,21 @@ pub(crate) async fn recover_guide_star(
         + std::time::Duration::from_secs_f64(REACQUIRE_SETTLE_TIMEOUT_SECS);
     while tokio::time::Instant::now() < deadline {
         match device_ops.guider_get_status().await {
-            Ok(status) if status.is_guiding => {
+            // Settled, not merely stepping. `rms_total` is in guide-camera
+            // PIXELS (PHD2 `RADistanceRaw`/`DECDistanceRaw`, quadrature-summed
+            // — see `Phd2GuideStats`), which is the same unit
+            // `REACQUIRE_SETTLE_PIXELS` and the GuidingFailed trigger's
+            // threshold are in. The old log line called it arcseconds.
+            Ok(status) if status.is_guiding && status.rms_total <= REACQUIRE_SETTLE_PIXELS => {
                 tracing::info!(
-                    "Guide star re-acquired: guiding active (RMS total={:.2}\")",
+                    "Guide star re-acquired: guiding settled (RMS total={:.2} px)",
                     status.rms_total
                 );
                 return AttemptOutcome::Succeeded;
             }
             Ok(_) => {
-                // Still settling; keep polling until the deadline.
+                // Not guiding, or guiding but not yet inside the settle bound;
+                // keep polling until the deadline.
             }
             Err(e) => {
                 // Transient status-read failure (e.g. PHD2 mid-calibration);
@@ -141,8 +169,8 @@ pub(crate) async fn recover_guide_star(
 
     AttemptOutcome::Failed {
         message: format!(
-            "Guide star did not re-lock within {:.0}s of re-acquisition",
-            REACQUIRE_SETTLE_TIMEOUT_SECS
+            "Guiding did not settle within {:.1} px in the {:.0}s after re-acquisition",
+            REACQUIRE_SETTLE_PIXELS, REACQUIRE_SETTLE_TIMEOUT_SECS
         ),
     }
 }

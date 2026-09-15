@@ -215,32 +215,168 @@ pub(super) fn mount_tracking_poll_verdict(
     (expected, just_lost)
 }
 
+/// The first-class [`crate::recovery::RecoveryCause`] a standard trigger maps
+/// to, or `None` for a trigger with no automatic recovery semantic (an
+/// operator-defined watchdog, FilterChange, and the rest).
+///
+/// A trigger with a cause can be handed to the recovery driver, which FREEZES
+/// THE NODE TREE for the length of its attempt ladder. That freeze is the part
+/// that matters: it is the only thing that stops the capture loop from taking
+/// more frames while a device the run depends on is known to be broken.
+///
+/// `guiding_failed` is here for exactly that reason. Its standard action is
+/// `Retry { max_attempts: 3 }`, and on the trigger side a `Retry` had no
+/// operation to re-run — it incremented a counter and logged "requested retry
+/// attempt 1/3" while the run went on exposing. Measured on 2026-09-14: the
+/// trigger fired at 02:59:10, 03:00:11 and 03:01:11 with guiding RMS far past
+/// its 2.0 px threshold, and three 180 s lights were taken across those two
+/// minutes. Every one was rejected.
+pub fn trigger_recovery_cause(trigger_id: &str) -> Option<crate::recovery::RecoveryCause> {
+    match trigger_id {
+        "guide_star_lost" | "guiding_failed" => Some(crate::recovery::RecoveryCause::GuideStarLost),
+        "mount_tracking_lost" | "on_tracking_limit_hit" => {
+            Some(crate::recovery::RecoveryCause::MountTrackingLost)
+        }
+        "weather_unsafe" | "humidity_threshold" | "temperature_limit" => {
+            Some(crate::recovery::RecoveryCause::WeatherUnsafe)
+        }
+        "focus_drift" => Some(crate::recovery::RecoveryCause::FocusDriftCritical),
+        _ => None,
+    }
+}
+
+/// Whether a trigger protects the RIG rather than the run's image quality, and
+/// so must keep evaluating while the run is paused.
+///
+/// A paused run used to have no trigger evaluation at all: the monitor loop
+/// returned early on any non-`Running` state, so weather, dawn, altitude and
+/// dome-shutter conditions went unwatched for as long as the pause lasted. That
+/// gap is what made a passive hold look unsafe, and it is why a reject storm on
+/// a supposedly unattended rig parked the mount instead of waiting.
+///
+/// The split is by consequence, not by severity:
+///   * Safety class — the sky, the Sun or the enclosure has turned against the
+///     rig. True whether or not a frame is being taken, and the operator's
+///     configured action (usually `ParkAndAbort`) is a decision they already
+///     made in advance about exactly this situation.
+///   * Everything else — focus drift, HFR, dither cadence, meridian flips,
+///     drift recentring, filter changes. All of these only mean something while
+///     frames are being taken, and firing them into a paused run would move the
+///     focuser or slew the mount under a hold placed for a human to inspect.
+pub fn is_safety_class_trigger(trigger_type: &TriggerType) -> bool {
+    match trigger_type {
+        TriggerType::WeatherUnsafe
+        | TriggerType::HumidityThreshold { .. }
+        | TriggerType::DomeShutterNotOpen
+        | TriggerType::DawnApproaching { .. }
+        | TriggerType::AltitudeLimit { .. }
+        | TriggerType::MountTrackingLost
+        | TriggerType::CloudArrivingIn { .. }
+        | TriggerType::CloudCoverThreshold { .. } => true,
+        // Deliberately NOT safety class. Named exhaustively rather than caught
+        // by a wildcard so a new trigger type has to be classified on purpose:
+        // a `_ => false` would silently leave a future roof/rain trigger
+        // unwatched during a hold, and a `_ => true` would let a future
+        // autofocus-ish trigger drive hardware under one.
+        TriggerType::HfrDegraded { .. }
+        | TriggerType::MeridianFlip { .. }
+        | TriggerType::GuidingFailed { .. }
+        | TriggerType::TemperatureShift { .. }
+        | TriggerType::FilterChange
+        | TriggerType::AutofocusInterval { .. }
+        | TriggerType::DitherInterval { .. }
+        | TriggerType::GuideStarLost
+        | TriggerType::FocusDrift { .. }
+        | TriggerType::DriftLimit { .. }
+        // A cloud OPENING is an invitation to resume, not a danger; the
+        // cloud-aware recovery layer auto-resumes from its own
+        // `PauseAndWaitForClear`, and it must not override a hold placed for a
+        // human to look at the rig.
+        | TriggerType::CloudOpeningIn { .. }
+        | TriggerType::TransparencyDropped { .. } => false,
+    }
+}
+
 /// How a non-auto-recoverable recovery escalation (an `AttemptOutcome::
-/// PauseForOperator`, e.g. from a consecutive-reject storm) must be handled,
-/// derived purely from operator presence.
+/// PauseForOperator`, e.g. from a consecutive-reject storm) must be handled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EscalationDisposition {
-    /// UNATTENDED rig: drive the safe-state sweep (park mount + close cover +
-    /// close dome) and fail the run. Never freeze the rig dome-open with
-    /// safety triggers disabled until dawn.
+    /// Drive the safe-state sweep (park mount + close cover + close dome) and
+    /// fail the run. Taken only when the operator has explicitly asked for it
+    /// via [`UnattendedEndPolicy::ParkAndClose`].
     SafeAbandon,
-    /// ATTENDED rig: passively pause and hand the run to the present operator
-    /// for inspection / resume (after restoring tracking).
+    /// Passively pause and hand the run to the operator for inspection /
+    /// resume (after restoring tracking). Nothing is moved or closed.
     PassivePause,
 }
 
-/// Decide how a `PauseForOperator` recovery escalation is handled, given
-/// whether an operator has declared presence.
+/// What a run is allowed to do to the hardware when recovery cannot fix the
+/// problem and there is nobody known to be watching.
 ///
-/// Factored out of the executor task so the safety decision is unit-testable
-/// on its own. The default — and the SAFE default — is "unattended"
-/// (`operator_present == false`), which must drive a safe abandonment rather
-/// than a passive, trigger-disabled, dome-open freeze.
-pub(super) fn recovery_escalation_disposition(operator_present: bool) -> EscalationDisposition {
-    if operator_present {
-        EscalationDisposition::PassivePause
-    } else {
+/// This replaces an inferred `operator_present` flag. That flag had no writer
+/// anywhere in the product — no bridge call, no API route, no setting — so it
+/// read `false` on every run, and "unattended" was therefore not a measurement
+/// but a constant. On 2026-09-14 that constant parked the owner's mount, closed
+/// up and declared the night abandoned while he was sitting at the telescope,
+/// from a reject storm whose own escalation message said "sequence paused for
+/// inspection. Resume once conditions clear."
+///
+/// There is no signal available here that distinguishes "nobody is present"
+/// from "present and watching": an HTTP client was polling the API every 25 s
+/// throughout that run and the desktop UI was open on his screen. A guess is
+/// not evidence, and an irreversible action must not rest on one. So the
+/// decision is the operator's, stated in advance, and the default is the
+/// action that can be undone with one button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum UnattendedEndPolicy {
+    /// DEFAULT. Hold the run for a human: freeze the node tree, restore
+    /// tracking, keep safety-class triggers armed (see the trigger monitor's
+    /// paused-state gate) and wait. No mount motion, no cover, no dome.
+    ///
+    /// The old code rejected a passive pause on the grounds that it left the
+    /// rig "dome+cover OPEN with safety monitoring OFF until dawn". That was
+    /// true, and it was a separate defect: the monitor returned early on any
+    /// non-`Running` state, so a Paused run had no weather, altitude or dawn
+    /// evaluation at all. Safety-class triggers now keep evaluating while
+    /// paused, so a hold is protected by the same rules an imaging run is, and
+    /// no longer needs a park to be safe.
+    #[default]
+    HoldForOperator,
+    /// Opt-in. Run the park → close cover → close dome sweep and fail the run.
+    /// For a genuinely remote rig whose owner would rather lose the night than
+    /// leave the optics open behind a hold.
+    ParkAndClose,
+}
+
+impl UnattendedEndPolicy {
+    /// Whether this policy permits the run to move or close hardware by itself.
+    pub fn may_safe_abandon(self) -> bool {
+        matches!(self, UnattendedEndPolicy::ParkAndClose)
+    }
+
+    /// Operator-facing name, used in the log line that records which policy
+    /// decided the outcome so a report never has to guess.
+    pub fn label(self) -> &'static str {
+        match self {
+            UnattendedEndPolicy::HoldForOperator => "hold for operator",
+            UnattendedEndPolicy::ParkAndClose => "park and close",
+        }
+    }
+}
+
+/// Decide how a `PauseForOperator` recovery escalation is handled.
+///
+/// Factored out of the executor task so the safety decision is unit-testable on
+/// its own. Every irreversible sweep in the recovery path — this escalation and
+/// the retry-ladder give-up branch — asks this one question, so there is no
+/// second path that parks under another name.
+pub(super) fn recovery_escalation_disposition(
+    policy: UnattendedEndPolicy,
+) -> EscalationDisposition {
+    if policy.may_safe_abandon() {
         EscalationDisposition::SafeAbandon
+    } else {
+        EscalationDisposition::PassivePause
     }
 }
 
@@ -380,40 +516,40 @@ pub(crate) struct RecoveryEscalationState<'a> {
 /// BEFORE the Paused `StateChanged`) and the SafeAbandon path (park+close →
 /// Failed, never a resumable Paused-untracked state).
 ///
-/// The disposition is derived live from `operator_present`:
-///   * UNATTENDED (default) → SafeAbandon: park mount, close cover+dome, FAIL.
-///   * ATTENDED → PassivePause: restore tracking, then flip to Paused.
+/// The disposition is derived live from the operator's
+/// [`UnattendedEndPolicy`]:
+///   * `HoldForOperator` (default) → PassivePause: restore tracking, flip to
+///     Paused, move nothing.
+///   * `ParkAndClose` (opt-in) → SafeAbandon: park mount, close cover+dome,
+///     FAIL.
 pub(super) async fn apply_recovery_escalation(
     s: &RecoveryEscalationState<'_>,
     ctx: &crate::recovery::RecoveryContext,
     pause_message: String,
     stop_tracking: bool,
 ) {
-    // Read operator-presence live: an operator declaring presence mid-session
-    // must take effect on THIS escalation. Default is UNATTENDED (false) — the
-    // safe assumption, because the unattended path is the one that can lose
-    // optics.
-    let operator_present = s.runtime_config.read().operator_present;
-    let disposition = recovery_escalation_disposition(operator_present);
+    // Read the policy live so an operator changing it mid-session takes effect
+    // on THIS escalation.
+    let policy = s.runtime_config.read().unattended_end_policy;
+    let disposition = recovery_escalation_disposition(policy);
 
     if disposition == EscalationDisposition::SafeAbandon {
-        // UNATTENDED reject-storm escalation is a SAFE ABANDONMENT, identical to
-        // the give-up branch: park the mount (the OTA can't track into the Sun at
-        // dawn), close the cover, close the dome (verified — see
-        // `park_and_close_safe_state`), then FAIL the run, which cancels the node
-        // tree.
+        // The operator has set `UnattendedEndPolicy::ParkAndClose`, so this
+        // escalation is a SAFE ABANDONMENT, identical to the give-up branch:
+        // park the mount (the OTA can't track into the Sun at dawn), close the
+        // cover, close the dome (verified — see `park_and_close_safe_state`),
+        // then FAIL the run, which cancels the node tree.
         //
-        // A passive Paused state is not an option here: the trigger monitor
-        // short-circuits on `state != Running` (it `continue`s), so the weather /
-        // altitude / dawn triggers stop evaluating while the node tree is never
-        // parked — leaving the rig dome+cover OPEN with safety monitoring OFF until
-        // dawn, where a rolling cloud / dew reject-storm can lose the optics.
+        // Only an explicit setting reaches here. Nothing about a reject storm
+        // is evidence that the rig is unattended, and this sweep is the one
+        // action in the recovery path that cannot be undone from the couch.
         tracing::error!(
-            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt{} on an UNATTENDED rig: {} — abandoning safely (park + close cover + close dome)",
+            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt{}: {} — operator policy is '{}', so abandoning safely (park + close cover + close dome)",
             ctx.cause,
             ctx.attempt_count,
             if ctx.attempt_count == 1 { "" } else { "s" },
-            pause_message
+            pause_message,
+            policy.label()
         );
         s.gave_up.store(true, Ordering::Relaxed);
         *s.current_recovery.write() = None;
@@ -485,7 +621,8 @@ pub(super) async fn apply_recovery_escalation(
             let mut prog = s.progress.write();
             prog.state = ExecutorState::Failed;
             prog.message = Some(format!(
-                "Unattended reject-storm: abandoned safely after {} attempt{}",
+                "{}: abandoned safely after {} attempt{} (park-and-close policy)",
+                ctx.cause.display_label(),
                 ctx.attempt_count,
                 if ctx.attempt_count == 1 { "" } else { "s" }
             ));
@@ -498,15 +635,17 @@ pub(super) async fn apply_recovery_escalation(
             aborted_by_user: false,
         });
     } else {
-        // ATTENDED rig — an operator has explicitly declared presence. Escalate
-        // to a real operator Pause: leave the node tree frozen (is_paused ==
-        // true from step 2) and flip to the same Paused state the operator's
-        // Pause command produces. This does NOT park-and-abort the rig (the
-        // present operator may want to inspect and resume) and does NOT
-        // auto-resume. The operator's Resume clears is_paused and flips back to
-        // Running.
+        // DEFAULT. Escalate to a real operator Pause: leave the node tree
+        // frozen (is_paused == true from step 2) and flip to the same Paused
+        // state the operator's Pause command produces. This does NOT
+        // park-and-abort the rig and does NOT auto-resume. The operator's
+        // Resume clears is_paused and flips back to Running.
+        //
+        // This is what the escalation message has always promised ("sequence
+        // paused for inspection. Resume once conditions clear"), and it is the
+        // action the run can be talked out of.
         tracing::warn!(
-            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt{} on an ATTENDED rig: {}",
+            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt{}: {} — holding the run for a human; nothing moved or closed",
             ctx.cause,
             ctx.attempt_count,
             if ctx.attempt_count == 1 { "" } else { "s" },

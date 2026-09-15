@@ -33,6 +33,27 @@ pub const FOCUS_DRIFT_WINDOW_MAX: usize = 100;
 /// late, and the cost of under-waiting is a destroyed frame and a dead run.
 pub const CAMERA_BUSY_DOWNLOAD_SLACK_SECS: f64 = 20.0;
 
+/// How far past its own expected finish an imaging-train claim survives before
+/// the token self-heals back to free.
+///
+/// This is deliberately NOT the same number as
+/// [`CAMERA_BUSY_DOWNLOAD_SLACK_SECS`], and keeping them apart is the fix for a
+/// measured defect. The old claim had one deadline doing both jobs: `exposure
+/// duration + 20 s` was simultaneously the estimate a waiter read AND the
+/// instant the token became free. So a 180 s light whose readout ran a little
+/// long handed the camera to a waiting trigger while the sensor was still
+/// integrating. The trigger then started its own 5 s plate-solve exposure on a
+/// busy camera and failed on a timeout of its own request plus margin —
+/// `Exposure on native:zwo:1 did not complete within 65.0s timeout` — a number
+/// with no relationship to the 180 s frame it was actually queued behind.
+///
+/// An estimate that is slightly wrong must not transfer ownership. So the
+/// expected finish is what a waiter reads to size its wait, and the hard expiry
+/// sits this much further out: long enough that no plausible readout, settle or
+/// USB stall releases the devices under their holder, short enough that a
+/// holder that panicked without releasing costs minutes rather than the night.
+pub const IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS: f64 = 300.0;
+
 #[cfg(test)]
 mod cross_run_target_hygiene_tests;
 #[cfg(test)]

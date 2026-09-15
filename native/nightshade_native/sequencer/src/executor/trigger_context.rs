@@ -318,12 +318,11 @@ pub(super) async fn cancel_and_wait_for_execution(
 /// we give up loudly rather than waiting silently.
 pub(super) const TRIGGER_ACTION_QUIESCE_MAX_SECS: u64 = 15 * 60;
 
-/// How long a trigger-fired camera action holds the camera claim before the
-/// claim expires on its own. Long enough for a full V-curve autofocus (15
-/// points at several seconds each, plus focuser travel) and short enough that
-/// an action which dies without releasing costs one hold, not the night. The
-/// action releases explicitly when it finishes, so this only governs the
-/// abnormal path.
+/// How long a trigger-fired camera action expects to hold the imaging train.
+/// Long enough for a full V-curve autofocus (15 points at several seconds each,
+/// plus focuser travel). The action releases explicitly when it finishes, so
+/// this is only an estimate a waiter reads; the claim itself survives an
+/// overrun (see `IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS`).
 pub(super) const TRIGGER_CAMERA_CLAIM_SECS: f64 = 10.0 * 60.0;
 
 /// RAII latch marking that a trigger recovery action is executing.
@@ -412,8 +411,8 @@ pub(super) fn camera_driving_trigger_action(action: &RecoveryAction) -> Option<&
 pub(super) async fn claim_camera_for_trigger_action(
     trigger_state: &Arc<RwLock<crate::triggers::TriggerState>>,
     is_cancelled: &Arc<AtomicBool>,
-    action: &str,
-) -> Option<i64> {
+    action: &'static str,
+) -> Option<u64> {
     let mut announced = false;
     loop {
         if is_cancelled.load(Ordering::Relaxed) {
@@ -424,29 +423,39 @@ pub(super) async fn claim_camera_for_trigger_action(
             return None;
         }
 
-        let (remaining, deadline_ms) = {
+        let (hold, token) = {
             let mut state = trigger_state.write().await;
-            if state.try_claim_camera_for(TRIGGER_CAMERA_CLAIM_SECS) {
-                (None, state.camera_busy_until_ms)
-            } else {
-                (state.camera_busy_remaining_secs(), None)
+            match state.try_claim_imaging_train(action, TRIGGER_CAMERA_CLAIM_SECS) {
+                Some(token) => (None, Some(token)),
+                None => (state.imaging_train_hold(), None),
             }
         };
 
-        let Some(remaining) = remaining else {
+        let Some(hold) = hold else {
             if announced {
-                tracing::info!("Camera free; running trigger-fired {} now", action);
+                tracing::info!(
+                    "Imaging train free; running trigger-fired {} now",
+                    action
+                );
             }
-            return deadline_ms;
+            return token;
         };
 
         if !announced {
             announced = true;
+            // The bound is derived from the in-flight operation, not fixed: the
+            // holder's own expected finish, and the claim's hard expiry as the
+            // worst case. A 180 s light is waited out as 180 s; a 5 s one as
+            // 5 s. The failure this replaces reported a 65 s timeout while
+            // queued behind a 180 s frame, a number that came from the waiter's
+            // own request and told the operator nothing.
             tracing::info!(
-                "Holding trigger-fired {} for ~{:.0}s: the capture loop is mid-exposure and \
-                 starting now would destroy the frame",
+                "Holding trigger-fired {} for ~{:.0}s ({} holds the camera and filter wheel; \
+                 at most {:.0}s): starting now would destroy the frame and fight for the wheel",
                 action,
-                remaining
+                hold.expected_remaining_secs,
+                hold.holder,
+                hold.max_remaining_secs
             );
         }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
@@ -500,9 +509,9 @@ pub(super) fn autofocus_trigger_skip_reason(
 /// protects.
 pub(super) struct TriggerCameraClaim {
     trigger_state: Option<Arc<RwLock<crate::triggers::TriggerState>>>,
-    /// The deadline this guard installed. Only a claim still carrying it is
-    /// ours to clear.
-    deadline_ms: Option<i64>,
+    /// The token this guard installed. Only the claim still carrying it is ours
+    /// to release.
+    token: Option<u64>,
     label: &'static str,
 }
 
@@ -519,15 +528,15 @@ impl TriggerCameraClaim {
         let Some(label) = camera_driving_trigger_action(action) else {
             return Self::unheld();
         };
-        let deadline_ms = claim_camera_for_trigger_action(trigger_state, is_cancelled, label).await;
-        if deadline_ms.is_none() {
+        let token = claim_camera_for_trigger_action(trigger_state, is_cancelled, label).await;
+        if token.is_none() {
             // Cancelled before the token was ours; there is nothing to give
-            // back and clearing anyway would steal someone else's claim.
+            // back and releasing anyway would steal someone else's claim.
             return Self::unheld();
         }
         Self {
             trigger_state: Some(trigger_state.clone()),
-            deadline_ms,
+            token,
             label,
         }
     }
@@ -535,7 +544,7 @@ impl TriggerCameraClaim {
     pub(super) fn unheld() -> Self {
         Self {
             trigger_state: None,
-            deadline_ms: None,
+            token: None,
             label: "",
         }
     }
@@ -548,30 +557,23 @@ impl TriggerCameraClaim {
     /// Hand the camera back now — the normal path, taken the moment the action
     /// is done with the sensor. Idempotent.
     pub(super) async fn release(&mut self) {
-        let (Some(state), Some(deadline_ms)) = (self.trigger_state.take(), self.deadline_ms.take())
-        else {
+        let (Some(state), Some(token)) = (self.trigger_state.take(), self.token.take()) else {
             return;
         };
-        let mut state = state.write().await;
-        if state.camera_busy_until_ms == Some(deadline_ms) {
-            state.clear_camera_busy();
-        }
+        state.write().await.release_imaging_train(token);
     }
 }
 
 impl Drop for TriggerCameraClaim {
     fn drop(&mut self) {
-        let (Some(state), Some(deadline_ms)) = (self.trigger_state.take(), self.deadline_ms.take())
-        else {
+        let (Some(state), Some(token)) = (self.trigger_state.take(), self.token.take()) else {
             return;
         };
         let label = self.label;
         // The lock is only ever held for a field write or two, so the
         // uncontended path is the normal one and the release is immediate.
         if let Ok(mut guard) = state.try_write() {
-            if guard.camera_busy_until_ms == Some(deadline_ms) {
-                guard.clear_camera_busy();
-            }
+            guard.release_imaging_train(token);
             return;
         }
         // Contended: hand the release to the runtime rather than blocking a
@@ -579,10 +581,7 @@ impl Drop for TriggerCameraClaim {
         match tokio::runtime::Handle::try_current() {
             Ok(handle) => {
                 handle.spawn(async move {
-                    let mut guard = state.write().await;
-                    if guard.camera_busy_until_ms == Some(deadline_ms) {
-                        guard.clear_camera_busy();
-                    }
+                    state.write().await.release_imaging_train(token);
                 });
             }
             Err(_) => tracing::error!(

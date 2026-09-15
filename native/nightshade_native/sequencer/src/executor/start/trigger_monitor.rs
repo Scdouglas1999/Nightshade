@@ -123,13 +123,28 @@ pub(super) async fn run_trigger_monitor_poll_loop(
         heartbeat = heartbeat.wrapping_add(1);
         let _ = heartbeat_tx.send(heartbeat);
 
-        // Pause/Stop must not fire triggers — paused sequences are explicitly
-        // "user is intervening" and Stopping is racing to terminate, so any
-        // recovery action here would conflict with the operator's intent.
+        // A PAUSED run still has a telescope under the open sky.
+        //
+        // This gate used to `continue` on every non-`Running` state, which meant
+        // a pause switched off weather, dawn, altitude and dome-shutter
+        // evaluation for as long as it lasted. That is why the recovery
+        // escalation refused to leave a run paused and parked the mount
+        // instead — it was choosing between two defects. So: while Paused the
+        // monitor keeps polling and keeps evaluating, but only safety-class
+        // triggers may act (see `is_safety_class_trigger`); an autofocus,
+        // dither, flip or recentre must never drive hardware under a hold a
+        // human placed to inspect the rig.
+        //
+        // `Recovering` is still skipped: the recovery driver owns the hardware
+        // for the length of its own bounded ladder and has its own meridian
+        // abort. Stopping / Failed / Completed / Idle are skipped as before —
+        // nothing there to protect or to conflict with.
         let current_state = *state_clone.read().await;
-        if current_state != ExecutorState::Running {
-            continue;
-        }
+        let paused_safety_only = match current_state {
+            ExecutorState::Running => false,
+            ExecutorState::Paused => true,
+            _ => continue,
+        };
 
         if is_cancelled_clone.load(Ordering::Relaxed) {
             break;
@@ -691,6 +706,33 @@ pub(super) async fn run_trigger_monitor_poll_loop(
             let fired = manager.check_all().await;
             fired
                 .into_iter()
+                // While paused, drop everything that is not protecting the rig
+                // itself. Filtering here rather than inside the dispatch keeps
+                // the guarantee in one readable place, and keeps the filtered
+                // trigger's cooldown ticking so it re-fires normally once the
+                // operator resumes.
+                .filter(|(trigger_id, _)| {
+                    if !paused_safety_only {
+                        return true;
+                    }
+                    match manager.get_trigger(trigger_id) {
+                        Some(trigger) => {
+                            let allowed = is_safety_class_trigger(&trigger.trigger_type);
+                            if !allowed {
+                                tracing::debug!(
+                                    "Trigger '{}' fired while the run is paused; not safety \
+                                     class, so it is not acted on until the run resumes",
+                                    trigger_id
+                                );
+                            }
+                            allowed
+                        }
+                        // A trigger that fired and was removed in the same tick
+                        // cannot be classified, and an unclassifiable trigger
+                        // must not drive hardware under a hold.
+                        None => false,
+                    }
+                })
                 .map(|(trigger_id, action)| {
                     let trigger_name = manager
                         .get_trigger(&trigger_id)
@@ -778,32 +820,15 @@ pub(super) async fn run_trigger_monitor_poll_loop(
 
             match &action {
                 RecoveryAction::Pause => {
-                    // Recovery Mode — promote
-                    // recovery-eligible Pause triggers to a
-                    // visible recovery loop. Today this is
-                    // `guide_star_lost`,
-                    // `mount_tracking_lost`, `weather_unsafe`,
-                    // and `focus_drift` — the four
-                    // standard-trigger ids that have a
-                    // first-class `RecoveryCause` mapping.
-                    // Other Pause triggers (operator-defined
-                    // custom watchdogs, FilterChange, etc.)
-                    // keep the legacy "pause for operator"
-                    // behaviour because they don't have an
-                    // automatic retry semantic.
-                    let recovery_cause: Option<crate::recovery::RecoveryCause> = match trigger_id
-                        .as_str()
-                    {
-                        "guide_star_lost" => Some(crate::recovery::RecoveryCause::GuideStarLost),
-                        "mount_tracking_lost" | "on_tracking_limit_hit" => {
-                            Some(crate::recovery::RecoveryCause::MountTrackingLost)
-                        }
-                        "weather_unsafe" | "humidity_threshold" | "temperature_limit" => {
-                            Some(crate::recovery::RecoveryCause::WeatherUnsafe)
-                        }
-                        "focus_drift" => Some(crate::recovery::RecoveryCause::FocusDriftCritical),
-                        _ => None,
-                    };
+                    // Recovery Mode — promote recovery-eligible Pause
+                    // triggers to a visible recovery loop. The mapping lives in
+                    // `trigger_recovery_cause` so the Retry arm below asks the
+                    // same question and cannot drift from this one. Other Pause
+                    // triggers (operator-defined custom watchdogs,
+                    // FilterChange, etc.) keep the legacy "pause for operator"
+                    // behaviour because they don't have an automatic retry
+                    // semantic.
+                    let recovery_cause = trigger_recovery_cause(&trigger_id);
 
                     if let Some(cause) = recovery_cause {
                         // Try to post a recovery request.
@@ -1301,9 +1326,73 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                 // generic fallback stands in when no specific
                                 // signal came back; the failure itself is already
                                 // encoded in the result's status.
+                                let failure_cost =
+                                    autofocus_trigger_failure_cost(af_result.data.as_ref());
                                 let reason = af_result
                                     .message
                                     .unwrap_or_else(|| "autofocus did not converge".to_string());
+
+                                if failure_cost
+                                    == AutofocusTriggerFailureCost::EveryFrameUnguided
+                                {
+                                    // The sweep stopped the guider and could not
+                                    // prove it back. Continuing here is what cost
+                                    // a clear night: three 180 s lights, every one
+                                    // trailed past the grader's limit, zero
+                                    // accepted. Halt semantics are an operator
+                                    // PAUSE — the node tree freezes, the burst
+                                    // loop's between-frame gate stops the next
+                                    // exposure, and nothing is moved or closed.
+                                    // Pausing is reversible by one button; parking
+                                    // is not, and a dead guider is not evidence
+                                    // about who is standing at the telescope.
+                                    //
+                                    // Safety-class triggers keep evaluating while
+                                    // Paused (see `paused_safety_only` in the
+                                    // monitor's state gate), so this hold is safe
+                                    // to leave in place unattended without the
+                                    // run parking on its own initiative.
+                                    let mut hold = autofocus_trigger_unguided_hold(
+                                        &trigger_id,
+                                        &trigger_name,
+                                        &reason,
+                                        position_after_af,
+                                    );
+                                    hold.decision.sequence_run_id =
+                                        *active_run_id_for_decisions.read();
+                                    let _ = decision_tx_for_lifecycle.send(hold.decision);
+                                    tracing::error!("{}", hold.operator_message);
+
+                                    // Drop the stale-focus latch so the trigger
+                                    // does not re-fire the moment the operator
+                                    // resumes and immediately re-stop the guider.
+                                    {
+                                        let mut ts = trigger_state_for_actions.write().await;
+                                        ts.clear_autofocus_invalidation();
+                                    }
+
+                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                    *state_clone.write().await = ExecutorState::Paused;
+                                    // The status API reads the progress snapshot,
+                                    // not this lock — stamping only the lock is
+                                    // what let a paused run report `running`. See
+                                    // mirror_paused_into_progress.
+                                    {
+                                        let mut prog = progress_for_triggers.write();
+                                        prog.state = ExecutorState::Paused;
+                                        prog.message = Some(
+                                            "Paused: autofocus left the guider stopped".to_string(),
+                                        );
+                                    }
+                                    let _ = event_tx_clone2
+                                        .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                        message: hold.operator_message,
+                                    });
+
+                                    fired_triggers.push((trigger_id, action));
+                                    continue;
+                                }
 
                                 let mut continuation = autofocus_trigger_continuation(
                                     &trigger_id,
@@ -1362,35 +1451,118 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                     }
                 }
                 RecoveryAction::Retry { max_attempts } => {
-                    let attempts = retry_attempts.entry(trigger_id.clone()).or_insert(0);
-                    if *attempts < *max_attempts {
-                        *attempts += 1;
-                        tracing::warn!(
-                            "Trigger '{}' requested retry attempt {}/{}",
-                            trigger_name,
-                            attempts,
-                            max_attempts
-                        );
+                    // A trigger firing is not a failed node, so there is no
+                    // operation for `Retry` to re-run here. What this arm used
+                    // to do was increment a counter, log "requested retry
+                    // attempt N/M", and let the run carry on exposing — so a
+                    // trigger that fires precisely because a device has stopped
+                    // working bought the run three more frames' worth of damage
+                    // before anything happened. On the owner's 2026-09-14 run
+                    // that was three 180 s lights, all rejected, while
+                    // 'Guiding Failure' counted 1/3, 2/3, 3/3.
+                    //
+                    // Where the trigger maps to a first-class RecoveryCause,
+                    // hand it to the recovery driver on the FIRST firing
+                    // instead. The driver freezes the node tree (so no further
+                    // frame starts), runs a real attempt ladder for that cause
+                    // — for guiding that is an actual re-acquisition, not a
+                    // status re-read — and honours the operator's retry budget,
+                    // which is what `max_attempts` was pretending to be.
+                    if let Some(cause) = trigger_recovery_cause(&trigger_id) {
+                        match recovery_request_tx.try_send(cause.clone()) {
+                            Ok(()) => {
+                                tracing::warn!(
+                                    "[RECOVERY] Trigger '{}' fired with a Retry action and maps \
+                                     to {:?}; handing it to the recovery driver so the node tree \
+                                     freezes instead of exposing through the failure",
+                                    trigger_name,
+                                    cause
+                                );
+                            }
+                            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                                // Already recovering or queued — the node tree
+                                // is frozen either way, which is the guarantee
+                                // this arm owes the run.
+                                tracing::warn!(
+                                    "[RECOVERY] Recovery channel full; dropping duplicate \
+                                     request from '{}'",
+                                    trigger_name
+                                );
+                            }
+                            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                                // Driver task ended. Fall back to a plain hold:
+                                // the run must still stop taking frames.
+                                tracing::error!(
+                                    "[RECOVERY] Recovery driver is gone; pausing the run for \
+                                     trigger '{}' rather than exposing through the failure",
+                                    trigger_name
+                                );
+                                is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                *state_clone.write().await = ExecutorState::Paused;
+                                {
+                                    let mut prog = progress_for_triggers.write();
+                                    prog.state = ExecutorState::Paused;
+                                    prog.message =
+                                        Some(format!("Paused: {} fired", trigger_name));
+                                }
+                                let _ = event_tx_clone2
+                                    .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                    message: format!(
+                                        "Trigger '{}' fired and automatic recovery is not \
+                                         available. The run is paused — no further frames will \
+                                         be taken until you resume.",
+                                        trigger_name
+                                    ),
+                                });
+                            }
+                        }
                     } else {
-                        tracing::error!(
-                            "Trigger '{}' exhausted {} retry attempts; pausing sequence",
-                            trigger_name,
-                            max_attempts
-                        );
-                        is_paused_for_triggers.store(true, Ordering::Relaxed);
-                        *state_clone.write().await = ExecutorState::Paused;
-                        // The status API is built from the progress snapshot, not from
-                        // this lock. Stamping only the lock is what let a paused run
-                        // keep reporting `running` — see mirror_paused_into_progress.
-                        progress_for_triggers.write().state = ExecutorState::Paused;
-                        let _ = event_tx_clone2
-                            .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
-                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                            message: format!(
-                                "Trigger '{}' exhausted {} retry attempts; sequence paused",
-                                trigger_name, max_attempts
-                            ),
-                        });
+                        // No automatic recovery exists for this trigger, so the
+                        // only honest thing the count can mean is "how many
+                        // firings the operator is willing to tolerate before the
+                        // run stops". Say that, rather than claiming a retry
+                        // that never happens.
+                        let attempts = retry_attempts.entry(trigger_id.clone()).or_insert(0);
+                        if *attempts < *max_attempts {
+                            *attempts += 1;
+                            tracing::warn!(
+                                "Trigger '{}' fired {}/{} times; it has no automatic recovery, \
+                                 so the run continues until the {} allowed firing{} are used",
+                                trigger_name,
+                                attempts,
+                                max_attempts,
+                                max_attempts,
+                                if *max_attempts == 1 { "" } else { "s" }
+                            );
+                        } else {
+                            tracing::error!(
+                                "Trigger '{}' fired more than its {} allowed times; pausing \
+                                 sequence",
+                                trigger_name,
+                                max_attempts
+                            );
+                            is_paused_for_triggers.store(true, Ordering::Relaxed);
+                            *state_clone.write().await = ExecutorState::Paused;
+                            // The status API is built from the progress snapshot, not from
+                            // this lock. Stamping only the lock is what let a paused run
+                            // keep reporting `running` — see mirror_paused_into_progress.
+                            {
+                                let mut prog = progress_for_triggers.write();
+                                prog.state = ExecutorState::Paused;
+                                prog.message =
+                                    Some(format!("Paused: {} kept firing", trigger_name));
+                            }
+                            let _ = event_tx_clone2
+                                .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                message: format!(
+                                    "Trigger '{}' fired more than the {} times allowed; sequence \
+                                     paused",
+                                    trigger_name, max_attempts
+                                ),
+                            });
+                        }
                     }
                 }
                 RecoveryAction::MeridianFlip(config) => {

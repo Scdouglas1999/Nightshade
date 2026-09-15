@@ -1,9 +1,65 @@
 //! [`TriggerState`] — the observed-condition snapshot trigger evaluation reads.
 
-use super::CAMERA_BUSY_DOWNLOAD_SLACK_SECS;
+use super::{CAMERA_BUSY_DOWNLOAD_SLACK_SECS, IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS};
 use crate::PierSide;
 use chrono::Utc;
 use std::time::Instant;
+
+/// An exclusive claim on the IMAGING TRAIN: the main camera and the filter
+/// wheel, arbitrated as one resource.
+///
+/// The two devices are one claim because every operation that contends for
+/// them takes both. The capture loop sets a filter and then exposes through it;
+/// a trigger-fired autofocus sets its own filter and then exposes through that;
+/// a meridian flip re-solves and restores the filter. Arbitrating the camera
+/// alone is what produced the 2026-09-14 failure: the autofocus trigger held
+/// the camera and commanded the wheel to "L" (position 0), the capture loop —
+/// blocked on the camera but having already commanded the wheel for its own
+/// frame — left it at "SII" (position 5), and autofocus then polled a healthy,
+/// idle, responsive wheel for 120 s waiting for a position nothing was going to
+/// move it to. The wheel was never broken; the arbitration was.
+///
+/// Borrowing is allowed and expected — an autofocus needs the wheel mid-burst —
+/// but a holder that moves the wheel MUST put it back before releasing, because
+/// the capture loop sets its filter once per burst and expects it to still be
+/// there for the next frame. `execute_autofocus_once` does this; so does the
+/// meridian-flip executor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImagingTrainClaim {
+    /// Identity of this claim. A release only takes effect if it presents the
+    /// token that is currently installed, so a late or duplicated release
+    /// cannot free somebody else's claim — which would destroy exactly the
+    /// frame the claim exists to protect.
+    pub token: u64,
+    /// Operator-facing name of the holder ("the capture loop", "autofocus"),
+    /// used in the hold messages a waiter logs.
+    pub holder: &'static str,
+    /// When the holder expects to be done, as Unix millis. This is the number a
+    /// waiter reads to size its wait and its own device timeouts; it is NOT
+    /// when the claim lapses.
+    pub expected_finish_ms: i64,
+    /// When the claim lapses regardless, as Unix millis: `expected_finish_ms`
+    /// plus [`IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS`]. Only the backstop for a
+    /// holder that died without releasing — see that constant for why it is not
+    /// the same instant as the expected finish.
+    pub expires_at_ms: i64,
+}
+
+/// What a waiter learns about a claim it could not take.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ImagingTrainHold {
+    /// Operator-facing name of the current holder.
+    pub holder: &'static str,
+    /// Seconds until the holder expects to be finished. Zero once that instant
+    /// has passed but the claim has not yet been released — the holder is
+    /// overrunning its estimate, which is precisely when the token must NOT
+    /// change hands.
+    pub expected_remaining_secs: f64,
+    /// Seconds until the claim lapses on its own. This is the bound on how long
+    /// a wait for this claim can last, derived from the in-flight operation
+    /// rather than fixed.
+    pub max_remaining_secs: f64,
+}
 
 pub(super) fn looks_like_tracking_limit_hit(state: &TriggerState) -> bool {
     if !state.mount_tracking_expected || !state.mount_tracking_lost {
@@ -106,23 +162,14 @@ pub struct TriggerState {
     /// is enabled (other trigger methods are not predictable in advance).
     pub meridian_flip_minutes_past: Option<f64>,
 
-    /// When the capture loop's in-flight exposure is expected to be finished
-    /// and downloaded, as a Unix-millis instant. `None` means no exposure is
-    /// in flight.
-    ///
-    /// A trigger recovery action that drives the camera itself — autofocus is
-    /// the one that fires on a timer — must not start while the capture loop is
-    /// mid-frame: its own exposures leave the capture loop nothing to download
-    /// ("No exposure is available to download"), which fails the exposure node
-    /// and takes the sequential parent and the run down with it, at frame 25 of
-    /// every run since that is the default autofocus cadence.
-    ///
-    /// This is a deadline rather than a boolean on purpose. A boolean that is
-    /// never cleared (a panic, an early return down a path nobody updated)
-    /// would block every future autofocus for the rest of the night; a
-    /// deadline in the past simply stops holding, so the failure mode of this
-    /// mechanism is an unheld autofocus, not a wedged run.
-    pub camera_busy_until_ms: Option<i64>,
+    /// The live exclusive claim on the imaging train, or `None` when it is
+    /// free. See [`ImagingTrainClaim`].
+    pub imaging_train_claim: Option<ImagingTrainClaim>,
+
+    /// Monotonic counter behind [`ImagingTrainClaim::token`]. Never reused
+    /// within a process, so a stale guard can never release a claim that has
+    /// since been taken by someone else.
+    pub(super) imaging_train_next_token: u64,
 
     /// Consecutive failed dithers. A single failure is noise; a run of them
     /// means guiding has stopped, which the operator should hear about even
@@ -319,7 +366,8 @@ impl Default for TriggerState {
             current_target_name: None,
             next_meridian_flip_time: None,
             meridian_flip_minutes_past: None,
-            camera_busy_until_ms: None,
+            imaging_train_claim: None,
+            imaging_train_next_token: 0,
             consecutive_dither_failures: 0,
             guiding_rms_history: None,
             guiding_enabled: false,
@@ -851,59 +899,84 @@ impl TriggerState {
         self.current_hour_angle = Some(hour_angle);
     }
 
-    /// Declare the camera busy for the next `duration_secs` of exposure plus
-    /// `CAMERA_BUSY_DOWNLOAD_SLACK_SECS` for the download, so a trigger action
-    /// that needs the camera waits instead of interleaving with the frame.
+    /// Take the imaging train (camera + filter wheel) for an operation the
+    /// holder expects to take `expected_secs`, if nobody else holds it.
     ///
-    /// The slack matters: the frame is not safe the instant the shutter
-    /// closes. The download is exactly when the destroyed-frame failure
-    /// appeared, because that is when the capture loop asks the camera for an
-    /// image the autofocus has already taken.
-    pub fn mark_camera_busy_for(&mut self, duration_secs: f64) {
-        let hold_secs = if duration_secs.is_finite() && duration_secs > 0.0 {
-            duration_secs + CAMERA_BUSY_DOWNLOAD_SLACK_SECS
+    /// Returns the claim token on success and `None` when it is already held.
+    /// Test-and-set happens under the single write lock the caller already
+    /// holds, which is what makes it safe: two independent "is the other one
+    /// busy?" flags cannot be tested and set without a race, and losing that
+    /// race is what destroys a frame.
+    ///
+    /// `expected_secs` is an estimate and is allowed to be wrong. Being wrong
+    /// delays a waiter's log line; it never transfers ownership. See
+    /// [`IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS`].
+    pub fn try_claim_imaging_train(
+        &mut self,
+        holder: &'static str,
+        expected_secs: f64,
+    ) -> Option<u64> {
+        if self.imaging_train_hold().is_some() {
+            return None;
+        }
+        // Readout and download are part of the operation: the frame is not safe
+        // the instant the shutter closes, and the download is exactly when the
+        // destroyed-frame failure appeared, because that is when the capture
+        // loop asks the camera for an image something else has already taken.
+        let expected = if expected_secs.is_finite() && expected_secs > 0.0 {
+            expected_secs + CAMERA_BUSY_DOWNLOAD_SLACK_SECS
         } else {
             CAMERA_BUSY_DOWNLOAD_SLACK_SECS
         };
-        self.camera_busy_until_ms =
-            Some(chrono::Utc::now().timestamp_millis() + (hold_secs * 1000.0) as i64);
+        let now_ms = Utc::now().timestamp_millis();
+        let expected_finish_ms = now_ms + (expected * 1000.0) as i64;
+        let token = self.imaging_train_next_token.wrapping_add(1);
+        self.imaging_train_next_token = token;
+        self.imaging_train_claim = Some(ImagingTrainClaim {
+            token,
+            holder,
+            expected_finish_ms,
+            expires_at_ms: expected_finish_ms
+                + (IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS * 1000.0) as i64,
+        });
+        Some(token)
     }
 
-    /// The frame is done (or gave up). Clear the hold immediately rather than
-    /// letting the deadline expire, so a trigger waiting on it starts now.
-    pub fn clear_camera_busy(&mut self) {
-        self.camera_busy_until_ms = None;
-    }
-
-    /// Take the camera for `duration_secs` if nobody else holds it, atomically.
-    /// Returns `false` when it is already claimed.
+    /// Hand the imaging train back. The operation is done (or gave up), so
+    /// release immediately rather than letting the claim lapse, and a waiter
+    /// starts now instead of sitting out the grace window.
     ///
-    /// The claim is one token shared by both users of the camera — the capture
-    /// loop's frames and the trigger-fired autofocus — because two independent
-    /// "is the other one busy?" flags cannot be tested and set without a race,
-    /// and losing that race is what destroys a frame. Testing and setting under
-    /// the single write lock the caller already holds is what makes it safe.
-    pub fn try_claim_camera_for(&mut self, duration_secs: f64) -> bool {
-        if self.camera_busy_remaining_secs().is_some() {
-            return false;
+    /// Identity-checked and therefore idempotent: a release presenting a token
+    /// that is no longer installed does nothing.
+    pub fn release_imaging_train(&mut self, token: u64) {
+        if self
+            .imaging_train_claim
+            .as_ref()
+            .is_some_and(|claim| claim.token == token)
+        {
+            self.imaging_train_claim = None;
         }
-        self.mark_camera_busy_for(duration_secs);
-        true
     }
 
-    /// Seconds until the in-flight exposure is expected to be downloaded, or
-    /// `None` if the camera is free. A deadline already in the past reads as
-    /// free — see [`TriggerState::camera_busy_until_ms`] for why this
-    /// self-heals rather than wedging.
-    pub fn camera_busy_remaining_secs(&self) -> Option<f64> {
-        let until = self.camera_busy_until_ms?;
-        let remaining_ms = until - chrono::Utc::now().timestamp_millis();
-        if remaining_ms <= 0 {
+    /// The live hold on the imaging train, or `None` when it is free.
+    ///
+    /// A claim past its hard expiry reads as free: the failure mode of this
+    /// mechanism is then a late autofocus, not a run wedged for the night by a
+    /// holder that panicked without releasing.
+    pub fn imaging_train_hold(&self) -> Option<ImagingTrainHold> {
+        let claim = self.imaging_train_claim.as_ref()?;
+        let now_ms = Utc::now().timestamp_millis();
+        let max_remaining_ms = claim.expires_at_ms - now_ms;
+        if max_remaining_ms <= 0 {
             return None;
         }
-        // i64 milliseconds -> f64 seconds; exposure holds are seconds to
-        // minutes, nowhere near the f64 mantissa limit.
-        Some(remaining_ms as f64 / 1000.0)
+        // i64 milliseconds -> f64 seconds; holds are seconds to minutes,
+        // nowhere near the f64 mantissa limit.
+        Some(ImagingTrainHold {
+            holder: claim.holder,
+            expected_remaining_secs: ((claim.expected_finish_ms - now_ms).max(0)) as f64 / 1000.0,
+            max_remaining_secs: max_remaining_ms as f64 / 1000.0,
+        })
     }
 
     /// Update the current pier side and clear `has_flipped_this_target` if

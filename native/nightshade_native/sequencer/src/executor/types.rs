@@ -195,25 +195,17 @@ pub struct RuntimeConfig {
     /// from the runtime config so a subsequent restart without an
     /// explicit re-seed runs without stale carry-over.
     pub pending_integration_carry_over: HashMap<String, HashMap<String, f64>>,
-    /// Whether a human operator is present and attending the rig.
+    /// What a run may do to the hardware when recovery cannot fix the problem
+    /// and no human has answered.
     ///
-    /// `false` (the `Default`) means UNATTENDED — the safe assumption, because
-    /// the unattended-night path is the one that can lose optics. This gates
-    /// how a non-auto-recoverable recovery escalation (e.g. a consecutive-
-    /// reject storm that resolves to `PauseForOperator`) is handled:
-    ///   * unattended (`false`) → the escalation is a SAFE ABANDONMENT: park
-    ///     the mount, close the cover, close the dome (the same sweep the
-    ///     give-up branch runs) and KEEP safety-class triggers protecting the
-    ///     rig. A frozen, dome-open, trigger-disabled rig is never left under
-    ///     the open sky until dawn.
-    ///   * attended (`true`) → the escalation is a passive operator Pause that
-    ///     leaves the rig in place so the present operator can inspect and
-    ///     resume.
+    /// Defaults to [`UnattendedEndPolicy::HoldForOperator`]: freeze the run,
+    /// restore tracking, keep safety-class triggers armed, move nothing. The
+    /// park → close cover → close dome sweep runs only when the operator has
+    /// explicitly selected [`UnattendedEndPolicy::ParkAndClose`].
     ///
-    /// Read live on every recovery escalation so an operator declaring
-    /// presence mid-session takes effect on the next escalation without a
-    /// restart.
-    pub operator_present: bool,
+    /// Read live on every recovery escalation and on the retry ladder's give-up
+    /// branch, so a change mid-session takes effect without a restart.
+    pub unattended_end_policy: super::UnattendedEndPolicy,
 }
 
 /// Commands that can be sent to the executor

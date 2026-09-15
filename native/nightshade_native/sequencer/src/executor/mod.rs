@@ -62,6 +62,12 @@ const DEFAULT_SAFETY_CHECK_INTERVAL_SECS: u64 = 30;
 pub const AUTOFOCUS_TRIGGER_CONTINUED_SUMMARY: &str =
     "Autofocus failed — continuing with last-good focus";
 
+/// Summary line of the decision row written when a trigger-fired autofocus
+/// stopped guiding for its sweep and could not prove guiding running again, so
+/// the run is held for the operator instead of exposing unguided.
+pub const AUTOFOCUS_TRIGGER_UNGUIDED_HOLD_SUMMARY: &str =
+    "Autofocus left the guider stopped — run held, no unguided frames";
+
 /// Default staleness window for the Dart weather verdict (Subsystem 2 step 3).
 /// The Dart side pushes the verdict on every 5-minute periodic evaluation plus
 /// on every alert/snooze change; 6 minutes gives the periodic push a full cycle
@@ -349,6 +355,97 @@ pub(crate) fn classify_dither_result(
         return DitherTriggerOutcome::SkippedNoGuider;
     }
     DitherTriggerOutcome::Failed
+}
+
+/// What a trigger-fired autofocus failure costs the run, and therefore what the
+/// run is allowed to do next.
+///
+/// Both variants arrive as the same `NodeStatus::Failure`; only the result data
+/// separates them (see
+/// [`crate::instructions::AUTOFOCUS_GUIDING_NOT_RESTORED_KEY`]).
+/// Collapsing them is what let a live run keep exposing 180 s lights after its
+/// own log had said `CRITICAL CLEANUP FAILURE: guider accepted resume but did
+/// not report guiding` — three frames, all trailed past the grader's limit, all
+/// rejected, zero accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AutofocusTriggerFailureCost {
+    /// The curve fit missed. The focuser is back where it started and the next
+    /// frames are at worst slightly soft — cullable in the morning, and cheaper
+    /// than spending the rest of a clear night stopped.
+    SoftFramesOnly,
+    /// The sweep stopped the guider and could not prove it running again. Every
+    /// subsequent light is taken on an unguided mount, so every subsequent
+    /// light trails. Nothing about waiting fixes this, and no further frame is
+    /// worth taking until a human or a guider restart resolves it.
+    EveryFrameUnguided,
+}
+
+/// Classify a failed trigger-fired autofocus from its result data.
+///
+/// Pure so the classification is testable without an executor; the marker is
+/// stamped by the autofocus cleanup itself, which is the only code that knows
+/// it stopped the guider and did not get it back.
+pub(crate) fn autofocus_trigger_failure_cost(
+    result_data: Option<&serde_json::Value>,
+) -> AutofocusTriggerFailureCost {
+    let guiding_not_restored = result_data
+        .and_then(|data| {
+            data.get(crate::instructions::AUTOFOCUS_GUIDING_NOT_RESTORED_KEY)
+        })
+        .and_then(serde_json::Value::as_bool)
+        == Some(true);
+    if guiding_not_restored {
+        AutofocusTriggerFailureCost::EveryFrameUnguided
+    } else {
+        AutofocusTriggerFailureCost::SoftFramesOnly
+    }
+}
+
+/// What the run records and tells the operator when a TRIGGER-fired autofocus
+/// stopped the guider and could not restart it.
+pub(crate) struct AutofocusUnguidedHold {
+    /// Replay row (`SystemEvent`) naming why the run stopped taking frames.
+    pub(crate) decision: crate::decision::DecisionEvent,
+    /// One-line notice for the run's error feed / push.
+    pub(crate) operator_message: String,
+}
+
+/// Build the hold record for a trigger autofocus that left the guider stopped.
+///
+/// Wording rule: say what the run DID (stopped taking frames), what it did NOT
+/// do (touch the mount), and what clears it (a human, or restarting the
+/// guider). The message the owner actually saw for this failure was `Change
+/// Filter failed: Operation cancelled`, which named neither the cause nor the
+/// consequence.
+pub(crate) fn autofocus_trigger_unguided_hold(
+    trigger_id: &str,
+    trigger_name: &str,
+    reason: &str,
+    position_after: Option<i32>,
+) -> AutofocusUnguidedHold {
+    let decision = crate::decision::DecisionEvent::new(
+        crate::decision::DecisionCategory::SystemEvent,
+        AUTOFOCUS_TRIGGER_UNGUIDED_HOLD_SUMMARY.to_string(),
+        serde_json::json!({
+            "trigger_id": trigger_id,
+            "trigger_name": trigger_name,
+            "reason": reason,
+            "focuser_position_after": position_after,
+            "held_for_operator": true,
+        }),
+    );
+
+    let operator_message = format!(
+        "Autofocus trigger '{trigger_name}' stopped guiding for its sweep and could not get it \
+         back ({reason}). The run is PAUSED before the next frame — an unguided light trails and \
+         would only be rejected. Nothing has been moved or closed. Restart guiding and press \
+         Resume."
+    );
+
+    AutofocusUnguidedHold {
+        decision,
+        operator_message,
+    }
 }
 
 /// What the run records and tells the operator when a TRIGGER-fired autofocus

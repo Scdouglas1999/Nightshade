@@ -440,3 +440,88 @@ impl InstructionContext {
         let _ = tx.send(event);
     }
 }
+
+/// Holds the imaging-train claim (main camera + filter wheel) for one
+/// instruction-side operation.
+///
+/// Every operation that drives the camera or the filter wheel — a burst's
+/// filter change, each frame, a ChangeFilter node, an autofocus's own filter
+/// move — takes this before touching either device, so the sequence's node tree
+/// and the trigger monitor's recovery actions cannot interleave on them. The
+/// trigger side takes the same claim through `TriggerCameraClaim`.
+///
+/// Release is explicit rather than `Drop`-based because releasing needs the
+/// async lock; every call site is written so the operation has one exit that
+/// reaches [`Self::release`]. A guard that is dropped without releasing is not
+/// a wedged run — the claim lapses on its own expiry — but it does cost the
+/// waiter that long, so the single-exit shape is the contract.
+///
+/// A context with no `trigger_state` (bridge one-shots, wizards, tests) has no
+/// run to arbitrate with, so the guard is unheld and every method is a no-op.
+#[must_use = "an imaging-train claim must be released, or waiters wait out its expiry"]
+pub(crate) struct ImagingTrainClaimGuard {
+    token: Option<u64>,
+}
+
+impl ImagingTrainClaimGuard {
+    /// Take the imaging train, waiting for whoever holds it.
+    ///
+    /// The wait is bounded by the current holder's claim expiry, which is
+    /// derived from the operation actually in flight rather than from a fixed
+    /// number — see `IMAGING_TRAIN_CLAIM_OVERRUN_GRACE_SECS`. Returns the
+    /// instruction's cancellation result if the run is cancelled while waiting,
+    /// so an operator Stop is never made to sit behind a 180 s frame.
+    pub(crate) async fn acquire(
+        ctx: &InstructionContext,
+        holder: &'static str,
+        expected_secs: f64,
+    ) -> Result<Self, InstructionResult> {
+        let Some(trigger_state) = &ctx.trigger_state else {
+            return Ok(Self { token: None });
+        };
+        let mut announced = false;
+        loop {
+            if let Some(result) = ctx.check_cancelled() {
+                return Err(result);
+            }
+            let (token, hold) = {
+                let mut state = trigger_state.write().await;
+                match state.try_claim_imaging_train(holder, expected_secs) {
+                    Some(token) => (Some(token), None),
+                    None => (None, state.imaging_train_hold()),
+                }
+            };
+            if let Some(token) = token {
+                if announced {
+                    tracing::info!("Imaging train free; {} proceeding", holder);
+                }
+                return Ok(Self { token: Some(token) });
+            }
+            if let Some(hold) = hold {
+                if !announced {
+                    announced = true;
+                    tracing::info!(
+                        "Holding {} for ~{:.0}s: {} is using the camera and filter wheel \
+                         (at most {:.0}s)",
+                        holder,
+                        hold.expected_remaining_secs,
+                        hold.holder,
+                        hold.max_remaining_secs
+                    );
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    /// Hand the imaging train back. Consumes the guard so it cannot be released
+    /// twice; the release is identity-checked on the token as well, so a stale
+    /// release can never free a claim that has since been taken by someone
+    /// else — which would destroy exactly the frame the claim protects.
+    pub(crate) async fn release(self, ctx: &InstructionContext) {
+        let (Some(token), Some(trigger_state)) = (self.token, &ctx.trigger_state) else {
+            return;
+        };
+        trigger_state.write().await.release_imaging_train(token);
+    }
+}

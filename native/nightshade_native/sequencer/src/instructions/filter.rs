@@ -10,8 +10,44 @@ use super::*;
 /// Default timeout for filter wheel change operations (in seconds)
 pub(crate) const DEFAULT_FILTER_WHEEL_TIMEOUT_SECS: u64 = 120;
 
-/// Execute filter change
+/// Seconds a ChangeFilter node is expected to take, covering the wheel move and
+/// the focus offset that follows it. An estimate that only sizes the hold
+/// message a waiter logs; a slow wheel keeps the claim rather than handing the
+/// devices over mid-move.
+const FILTER_CHANGE_EXPECTED_SECS: f64 = 30.0;
+
+/// Execute filter change.
+///
+/// Takes the imaging-train claim for the whole move. The wheel is shared with
+/// the capture loop and with trigger-fired actions that set their own filter,
+/// and unarbitrated those collide in a way that looks like broken hardware: on
+/// 2026-09-14 an autofocus trigger waited out its full 120 s timeout for a
+/// position while a healthy, idle, responsive wheel sat at the slot another
+/// caller had commanded. Nothing was wrong with the wheel.
 pub async fn execute_filter_change(
+    config: &FilterConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
+    let claim = match ImagingTrainClaimGuard::acquire(
+        ctx,
+        "a filter change",
+        FILTER_CHANGE_EXPECTED_SECS,
+    )
+    .await
+    {
+        Ok(claim) => claim,
+        Err(cancelled) => return cancelled,
+    };
+    let result = execute_filter_change_holding_train(config, ctx, progress_callback).await;
+    claim.release(ctx).await;
+    result
+}
+
+/// The filter change itself, with the imaging-train claim already held by
+/// [`execute_filter_change`]. Split out so the claim has exactly one release
+/// point across the move's many failure exits.
+async fn execute_filter_change_holding_train(
     config: &FilterConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,

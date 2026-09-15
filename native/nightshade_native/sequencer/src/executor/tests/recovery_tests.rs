@@ -433,28 +433,56 @@ fn run_recovery_attempt_consecutive_rejects_escalates_to_operator_pause() {
     }
 }
 
-/// The disposition that gates how a `PauseForOperator`
-/// escalation is handled. The SAFE default is "unattended": a rig nobody is
-/// watching MUST be abandoned safely (park + close), never passively frozen
-/// dome-open with safety triggers disabled until dawn. Only an explicitly
-/// present operator gets the passive Pause.
+/// The disposition that gates how a `PauseForOperator` escalation is handled.
+///
+/// The default must be the action that can be undone. An app that cannot tell
+/// whether a human is present — and nothing here can — must not park a mount on
+/// that guess: on 2026-09-14 this path parked the owner's mount, closed up and
+/// declared the night abandoned while he sat at the telescope.
 #[test]
-fn recovery_escalation_unattended_is_safe_abandon_attended_is_passive_pause() {
-    // The default RuntimeConfig is unattended (the safe default).
-    assert!(
-        !RuntimeConfig::default().operator_present,
-        "RuntimeConfig must default to UNATTENDED (operator_present == false)"
+fn recovery_escalation_defaults_to_holding_and_abandons_only_on_opt_in() {
+    assert_eq!(
+        RuntimeConfig::default().unattended_end_policy,
+        UnattendedEndPolicy::HoldForOperator,
+        "RuntimeConfig must default to holding the run, never to parking the mount"
     );
     assert_eq!(
-        recovery_escalation_disposition(false),
-        EscalationDisposition::SafeAbandon,
-        "an unattended reject-storm escalation must drive a safe abandonment, \
-         not a passive dome-open freeze"
-    );
-    assert_eq!(
-        recovery_escalation_disposition(true),
+        recovery_escalation_disposition(UnattendedEndPolicy::HoldForOperator),
         EscalationDisposition::PassivePause,
-        "an attended escalation passively pauses for the present operator"
+        "the default escalation holds the run for a human and moves nothing"
+    );
+    assert_eq!(
+        recovery_escalation_disposition(UnattendedEndPolicy::ParkAndClose),
+        EscalationDisposition::SafeAbandon,
+        "only an explicit park-and-close policy may abandon the night"
+    );
+}
+
+/// The reject-storm cause from the owner's run resolves to a `PauseForOperator`
+/// escalation whose own message promises a pause. Under the default policy the
+/// action must match that promise.
+#[tokio::test]
+async fn consecutive_reject_storm_escalation_promises_and_performs_a_pause() {
+    let ops: SharedDeviceOps = std::sync::Arc::new(ReacquireGuiderOps::new(false, true));
+    let outcome = run_recovery_attempt(
+        &crate::recovery::RecoveryCause::ConsecutiveRejectsExceeded,
+        &ops,
+        None,
+        &[],
+        &Arc::new(RwLock::new(crate::triggers::TriggerManager::new())),
+    )
+    .await;
+    let crate::recovery::AttemptOutcome::PauseForOperator { message } = outcome else {
+        panic!("a reject storm must escalate to PauseForOperator, got {outcome:?}");
+    };
+    assert!(
+        message.contains("paused"),
+        "the escalation message promises a pause: {message}"
+    );
+    assert_eq!(
+        recovery_escalation_disposition(RuntimeConfig::default().unattended_end_policy),
+        EscalationDisposition::PassivePause,
+        "and by default the run must actually pause rather than park"
     );
 }
 
@@ -593,7 +621,7 @@ async fn restore_tracking_after_recovery_noop_when_tracking_not_stopped() {
 /// tracking, and Resume exposed on a drifting mount. The verdict must reach
 /// the snapshot as well as the event.
 #[tokio::test]
-async fn attended_escalation_carries_a_failed_tracking_restore_into_progress_message() {
+async fn holding_escalation_carries_a_failed_tracking_restore_into_progress_message() {
     let ops_concrete =
         std::sync::Arc::new(ReacquireGuiderOps::new(false, true).with_tracking_failure());
     let ops: SharedDeviceOps = ops_concrete.clone();
@@ -602,9 +630,9 @@ async fn attended_escalation_carries_a_failed_tracking_restore_into_progress_mes
     let (event_tx, _rx) = broadcast::channel(32);
 
     let runtime = Arc::new(StdRwLock::new(RuntimeConfig {
-        // ATTENDED: an operator declared presence, so the escalation is the
+        // The default policy: hold the run for a human. This is the
         // passive-pause branch that restores tracking and hands the run back.
-        operator_present: true,
+        unattended_end_policy: UnattendedEndPolicy::HoldForOperator,
         recovery: crate::recovery::RecoveryRuntimeConfig {
             stop_tracking_during_recovery: true,
             ..Default::default()

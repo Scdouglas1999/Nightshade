@@ -426,16 +426,46 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
             );
             *recovery_driver_current.write() = None;
 
-            // when recovery exhausts on a real
-            // failure (NOT an operator abort), the rig is being
-            // abandoned mid-night. Leave hardware in a SAFE
-            // end-state before failing: park the mount (so the
-            // OTA can't track into the Sun at dawn) and close
-            // the cover + dome. Operator-aborts are skipped —
-            // the operator is present and may be intervening.
+            // Recovery exhausted on a real failure (NOT an operator abort).
+            // Whether the run may now park the mount and close up is the
+            // operator's standing decision, read from the same
+            // `UnattendedEndPolicy` the PauseForOperator escalation consults —
+            // there is exactly one gate on irreversible hardware action in the
+            // recovery path, so a park cannot reappear here under another name.
+            //
+            // Under the default `HoldForOperator` the run still ends (a
+            // 90-minute budget really is exhausted and the night needs a
+            // terminal event and a report), but it ends without moving
+            // anything. If the operator wants the mount parked at dawn on a
+            // remote rig, `ParkAndClose` is the setting that says so; the
+            // safety-class triggers (weather unsafe, dawn approaching, dome
+            // shutter) keep their own configured ParkAndAbort behaviour either
+            // way, so a rig in actual danger is still protected.
+            let end_policy = recovery_driver_runtime.read().unattended_end_policy;
             if !aborted_by_user {
                 recovery_driver_gave_up.store(true, Ordering::Relaxed);
-
+            }
+            if !aborted_by_user && !end_policy.may_safe_abandon() {
+                tracing::warn!(
+                    "[RECOVERY] Recovery exhausted for {:?} after {} attempt{}; operator policy \
+                     is '{}', so the run ends WITHOUT parking or closing anything. The mount has \
+                     not been moved.",
+                    ctx.cause,
+                    ctx.attempt_count,
+                    if ctx.attempt_count == 1 { "" } else { "s" },
+                    end_policy.label()
+                );
+                let _ = recovery_driver_event_tx.send(ExecutorEvent::Error {
+                    message: format!(
+                        "Recovery could not fix {} after {} attempt{}. The run has stopped. \
+                         Nothing has been parked or closed — check the rig when you can.",
+                        ctx.cause.display_label(),
+                        ctx.attempt_count,
+                        if ctx.attempt_count == 1 { "" } else { "s" }
+                    ),
+                });
+            }
+            if !aborted_by_user && end_policy.may_safe_abandon() {
                 // Single source of truth for the park → close
                 // cover → close dome safe-state sweep
                 // `device_ops::park_and_close_safe_state` is the single

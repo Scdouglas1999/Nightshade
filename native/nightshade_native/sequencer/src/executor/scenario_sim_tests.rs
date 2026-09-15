@@ -995,15 +995,17 @@ async fn scenario6c_exhaustion_with_stuck_mount_still_closes_roof_and_reports_un
 // recovery-driver closure) to a `PauseForOperator` escalation and assert the
 // SAFETY behaviour:
 //
-//   #2 (ATTENDED, operator_present == true): tracking MUST be re-enabled
+//   #2 (the DEFAULT `HoldForOperator` policy): tracking MUST be re-enabled
 //      (`mount_set_tracking:mount-1:true`) BEFORE the run flips to Paused —
 //      otherwise a Resume exposes on a non-tracking mount while the UI says
 //      "Running". This drives the real branch (not the helper in isolation), so
 //      deleting the restore call from the branch makes the test FAIL.
 //
-//   #1 (UNATTENDED, operator_present == false, the SAFE default): the escalation
-//      is a SAFE ABANDONMENT — park mount + close cover + close dome, end state
-//      Failed — never a resumable Paused-untracked freeze.
+//   #1 (`ParkAndClose`, which the operator must opt into): only then is the
+//      escalation a safe abandonment — park mount + close cover + close dome,
+//      end state Failed. Under the default this sweep must not run at all, and
+//      scenario 7c pins that: the owner's mount was parked from this path while
+//      he was standing at it.
 //
 // These use the same `ScriptedDeviceOps` (records `mount_set_tracking:id:enabled`,
 // `mount_park:id`, `cover_close:id`, `dome_close:id`) as the rest of this harness.
@@ -1024,11 +1026,11 @@ struct EscalationFixture {
     rx: super::broadcast::Receiver<super::ExecutorEvent>,
 }
 
-/// Build the fixture. `operator_present` chooses the disposition (false =
-/// unattended/SafeAbandon, true = attended/PassivePause).
-fn escalation_fixture(operator_present: bool) -> EscalationFixture {
+/// Build the fixture. `policy` chooses the disposition (`HoldForOperator` =
+/// PassivePause, `ParkAndClose` = SafeAbandon).
+fn escalation_fixture(policy: super::UnattendedEndPolicy) -> EscalationFixture {
     let rc = super::RuntimeConfig {
-        operator_present,
+        unattended_end_policy: policy,
         // Recovery entry stops tracking by default — that is the precondition
         // the restore exists to undo. Keep it on so `stop_tracking == true`.
         recovery: crate::recovery::RecoveryRuntimeConfig {
@@ -1072,7 +1074,7 @@ async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
         gave_up,
         tx,
         mut rx,
-    } = escalation_fixture(true);
+    } = escalation_fixture(super::UnattendedEndPolicy::HoldForOperator);
 
     // Listener: append a marker to the SHARED device-call log the instant the
     // Paused StateChanged lands. Because the branch awaits the tracking restore
@@ -1160,13 +1162,11 @@ async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
 }
 
 #[tokio::test]
-async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
-    // Drive the UNATTENDED escalation (the SAFE default,
-    // operator_present == false). It must NOT flip to a passive Paused freeze;
-    // it must run the safe-state sweep (park -> close cover -> close dome) and
-    // END the run as Failed, with the node tree cancelled. A resumable Paused
-    // here would leave the rig dome-open with safety triggers disabled until
-    // dawn.
+async fn scenario7b_park_and_close_policy_safe_abandons_no_resumable_paused() {
+    // Drive the escalation with the operator's explicit `ParkAndClose` policy.
+    // Only then may it run the safe-state sweep (park -> close cover -> close
+    // dome) and END the run as Failed with the node tree cancelled. Scenario 7c
+    // pins the default, where none of this is allowed to happen.
     let ops_concrete = Arc::new(ScriptedDeviceOps::new());
     let ops: SharedDeviceOps = ops_concrete.clone();
 
@@ -1179,7 +1179,7 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
         gave_up,
         tx,
         mut rx,
-    } = escalation_fixture(false);
+    } = escalation_fixture(super::UnattendedEndPolicy::ParkAndClose);
 
     // Drain events so the bounded channel never lags the sender.
     let drainer = tokio::spawn(async move { while rx.recv().await.is_ok() {} });
@@ -1208,7 +1208,7 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
     super::apply_recovery_escalation(
         &escalation_state,
         &ctx,
-        "Consecutive-reject storm: unattended".to_string(),
+        "Consecutive-reject storm: park-and-close policy".to_string(),
         true,
     )
     .await;
@@ -1221,13 +1221,13 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
     // The safe-state sweep ran in order: park -> close cover -> close dome.
     let park_idx = ops_concrete
         .index_of("mount_park:mount-1")
-        .unwrap_or_else(|| panic!("unattended escalation MUST park the mount; calls={calls:?}"));
+        .unwrap_or_else(|| panic!("the park-and-close policy MUST park the mount; calls={calls:?}"));
     let cover_idx = ops_concrete
         .index_of("cover_close:cover-1")
-        .unwrap_or_else(|| panic!("unattended escalation MUST close the cover; calls={calls:?}"));
+        .unwrap_or_else(|| panic!("the park-and-close policy MUST close the cover; calls={calls:?}"));
     let dome_idx = ops_concrete
         .index_of("dome_close:dome-1")
-        .unwrap_or_else(|| panic!("unattended escalation MUST close the dome; calls={calls:?}"));
+        .unwrap_or_else(|| panic!("the park-and-close policy MUST close the dome; calls={calls:?}"));
     assert!(
         park_idx < cover_idx && cover_idx < dome_idx,
         "safe-state order must be park -> cover -> dome: {calls:?}"
@@ -1238,15 +1238,128 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
     assert_eq!(
         *state.read().await,
         super::ExecutorState::Failed,
-        "unattended escalation must FAIL the run, never leave a resumable Paused"
+        "the park-and-close policy must FAIL the run, never leave a resumable Paused"
     );
     assert!(
         is_cancelled.load(Ordering::Relaxed),
-        "unattended escalation must cancel the node tree"
+        "the park-and-close policy must cancel the node tree"
     );
     assert!(
         gave_up.load(Ordering::Relaxed),
-        "unattended escalation must record give-up"
+        "the park-and-close policy must record give-up"
+    );
+}
+
+/// SCENARIO 7c — the owner's 2026-09-14 failure, as a regression test.
+///
+/// Verbatim from that night's log, 03:01:55:
+///
+/// ```text
+/// ERROR monitoring: [RECOVERY] Escalated ConsecutiveRejectsExceeded to operator
+///   Pause after 1 attempt on an UNATTENDED rig: ... - abandoning safely
+///   (park + close cover + close dome)
+/// monitoring: [RECOVERY] Parked mount 'native:onstep:COM4:115200' on unattended
+///   reject-storm abandonment (1 attempt)
+/// ```
+///
+/// He was sitting at the telescope. An HTTP client had been polling the API
+/// every 25 s all night and the desktop UI was open on his screen, so the
+/// "UNATTENDED" verdict was not a measurement — `operator_present` had no
+/// writer anywhere in the product and read `false` on every run.
+///
+/// Under the default policy this escalation must touch NO hardware: no park, no
+/// cover, no dome. It must restore tracking and leave a resumable Paused, which
+/// is what the escalation's own message ("sequence paused for inspection.
+/// Resume once conditions clear") had always promised.
+#[tokio::test]
+async fn scenario7c_default_policy_never_parks_on_a_reject_storm() {
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+
+    let EscalationFixture {
+        runtime,
+        state,
+        progress,
+        current,
+        is_cancelled,
+        gave_up,
+        tx,
+        mut rx,
+    } = escalation_fixture(super::UnattendedEndPolicy::default());
+
+    let drainer = tokio::spawn(async move { while rx.recv().await.is_ok() {} });
+
+    // The real numbers from that run: one attempt, then the escalation.
+    let mut ctx = crate::recovery::RecoveryContext::new(
+        RecoveryCause::ConsecutiveRejectsExceeded,
+        600.0,
+        5400.0,
+    );
+    ctx.attempt_count = 1;
+
+    let escalation_state = super::RecoveryEscalationState {
+        device_ops: &ops,
+        event_tx: &tx,
+        runtime_config: &runtime,
+        state: &state,
+        progress: &progress,
+        current_recovery: &current,
+        is_cancelled: &is_cancelled,
+        gave_up: &gave_up,
+        mount_id: Some("mount-1"),
+        cover_id: Some("cover-1"),
+        dome_id: Some("dome-1"),
+    };
+
+    super::apply_recovery_escalation(
+        &escalation_state,
+        &ctx,
+        "Consecutive image-grading rejects exceeded the limit — sequence paused for \
+         inspection. Resume once conditions clear."
+            .to_string(),
+        true,
+    )
+    .await;
+
+    drop(tx);
+    let _ = drainer.await;
+
+    let calls = ops_concrete.calls();
+    assert!(
+        ops_concrete.index_of("mount_park:mount-1").is_none(),
+        "the default policy must NEVER park the mount on a reject storm; calls={calls:?}"
+    );
+    assert!(
+        ops_concrete.index_of("cover_close:cover-1").is_none(),
+        "the default policy must NEVER close the cover on a reject storm; calls={calls:?}"
+    );
+    assert!(
+        ops_concrete.index_of("dome_close:dome-1").is_none(),
+        "the default policy must NEVER close the dome on a reject storm; calls={calls:?}"
+    );
+
+    // Tracking restored, so the operator's Resume does not expose on a drifting
+    // mount — recovery entry stopped it and the generic Resume does not.
+    assert!(
+        ops_concrete
+            .index_of("mount_set_tracking:mount-1:true")
+            .is_some(),
+        "the hold must restore tracking before handing the run back; calls={calls:?}"
+    );
+
+    // Resumable, not terminal.
+    assert_eq!(
+        *state.read().await,
+        super::ExecutorState::Paused,
+        "the default policy leaves a run the operator can resume"
+    );
+    assert!(
+        !is_cancelled.load(Ordering::Relaxed),
+        "holding must not cancel the node tree"
+    );
+    assert!(
+        !gave_up.load(Ordering::Relaxed),
+        "holding is not a give-up"
     );
 }
 
