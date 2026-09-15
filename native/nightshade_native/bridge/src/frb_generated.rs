@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1753179234;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1992707924;
 
 // Section: executor
 
@@ -6047,6 +6047,36 @@ fn wire__crate__api__phd2__api_phd2_stop_guiding_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok = crate::api::phd2::api_phd2_stop_guiding().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__imaging__api_plan_focuser_backlash_calibration_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    config_json: impl CstDecode<String>,
+    center_position: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_plan_focuser_backlash_calibration",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_config_json = config_json.cst_decode();
+            let api_center_position = center_position.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_plan_focuser_backlash_calibration(
+                            api_config_json,
+                            api_center_position,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -34205,6 +34235,19 @@ mod io {
         port_: i64,
     ) {
         wire__crate__api__phd2__api_phd2_stop_guiding_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_plan_focuser_backlash_calibration(
+        port_: i64,
+        config_json: *mut wire_cst_list_prim_u_8_strict,
+        center_position: i32,
+    ) {
+        wire__crate__api__imaging__api_plan_focuser_backlash_calibration_impl(
+            port_,
+            config_json,
+            center_position,
+        )
     }
 
     #[unsafe(no_mangle)]

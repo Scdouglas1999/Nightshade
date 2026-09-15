@@ -126,7 +126,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1753179234;
+  int get rustContentHash => -1992707924;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1195,6 +1195,11 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiPhd2ApiPhd2StopGuiding();
+
+  Future<String> crateApiImagingApiPlanFocuserBacklashCalibration({
+    required String configJson,
+    required int centerPosition,
+  });
 
   Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveBlind({
     required String filePath,
@@ -9805,6 +9810,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiPhd2ApiPhd2StopGuidingConstMeta =>
       const TaskConstMeta(debugName: "api_phd2_stop_guiding", argNames: []);
+
+  @override
+  Future<String> crateApiImagingApiPlanFocuserBacklashCalibration({
+    required String configJson,
+    required int centerPosition,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(configJson);
+          var arg1 = cst_encode_i_32(centerPosition);
+          return wire
+              .wire__crate__api__imaging__api_plan_focuser_backlash_calibration(
+                port_,
+                arg0,
+                arg1,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiImagingApiPlanFocuserBacklashCalibrationConstMeta,
+        argValues: [configJson, centerPosition],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiImagingApiPlanFocuserBacklashCalibrationConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_plan_focuser_backlash_calibration",
+        argNames: ["configJson", "centerPosition"],
+      );
 
   @override
   Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveBlind({

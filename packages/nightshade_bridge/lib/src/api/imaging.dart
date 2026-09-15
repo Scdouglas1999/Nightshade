@@ -55,6 +55,22 @@ Future<String> apiRunFocuserBacklashCalibration({
   configJson: configJson,
 );
 
+/// What a backlash calibration would cost, without running it: points per
+/// scan, total exposures, the range it scans, the total travel including the
+/// run-up either side, and an estimated duration.
+///
+/// The UI needs this to tell the operator what they are agreeing to — it needs
+/// stars, rough focus and a few minutes — so the estimate is worked out by the
+/// same code that will do the run rather than guessed again in Dart. Returns a
+/// [`nightshade_sequencer::instructions::BacklashCalibrationPlan`] as JSON.
+Future<String> apiPlanFocuserBacklashCalibration({
+  required String configJson,
+  required int centerPosition,
+}) => RustLib.instance.api.crateApiImagingApiPlanFocuserBacklashCalibration(
+  configJson: configJson,
+  centerPosition: centerPosition,
+);
+
 /// Ask a running backlash calibration to stop. The routine returns the focuser
 /// to where the operator left it before reporting the cancellation.
 Future<void> apiCancelFocuserBacklashCalibration() =>

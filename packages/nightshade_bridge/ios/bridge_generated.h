@@ -3428,6 +3428,10 @@ void frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_start_guiding(int
 
 void frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_stop_guiding(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_plan_focuser_backlash_calibration(int64_t port_,
+                                                                                               struct wire_cst_list_prim_u_8_strict *config_json,
+                                                                                               int32_t center_position);
+
 void frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_plate_solve_blind(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *file_path,
                                                                                    uint32_t *timeout_secs);
@@ -4651,6 +4655,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_get_next_frame_number);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_get_star_crops_from_last_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_live_stacking_config_default);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_plan_focuser_backlash_calibration);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_fits_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_fits_linear_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_xisf_file);

@@ -596,6 +596,40 @@ pub async fn api_run_focuser_backlash_calibration(
     })
 }
 
+/// What a backlash calibration would cost, without running it: points per
+/// scan, total exposures, the range it scans, the total travel including the
+/// run-up either side, and an estimated duration.
+///
+/// The UI needs this to tell the operator what they are agreeing to — it needs
+/// stars, rough focus and a few minutes — so the estimate is worked out by the
+/// same code that will do the run rather than guessed again in Dart. Returns a
+/// [`nightshade_sequencer::instructions::BacklashCalibrationPlan`] as JSON.
+pub async fn api_plan_focuser_backlash_calibration(
+    config_json: String,
+    center_position: i32,
+) -> Result<String, NightshadeError> {
+    use nightshade_sequencer::instructions::{
+        plan_backlash_calibration, validate_backlash_calibration_config, BacklashCalibrationConfig,
+    };
+
+    let config: BacklashCalibrationConfig =
+        serde_json::from_str(&config_json).map_err(|error| {
+            NightshadeError::InvalidParameter(format!(
+                "backlash calibration config is not valid: {}",
+                error
+            ))
+        })?;
+    validate_backlash_calibration_config(&config).map_err(NightshadeError::InvalidParameter)?;
+
+    let plan = plan_backlash_calibration(&config, center_position);
+    serde_json::to_string(&plan).map_err(|error| {
+        NightshadeError::OperationFailed(format!(
+            "backlash calibration plan could not be encoded: {}",
+            error
+        ))
+    })
+}
+
 /// Ask a running backlash calibration to stop. The routine returns the focuser
 /// to where the operator left it before reporting the cancellation.
 pub async fn api_cancel_focuser_backlash_calibration() -> Result<(), NightshadeError> {
