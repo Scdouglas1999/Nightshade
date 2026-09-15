@@ -28,16 +28,9 @@ pub fn try_admit_autofocus_run() -> Option<AutofocusRunGuard> {
         .map(|_| AutofocusRunGuard)
 }
 
-/// Execute autofocus using V-curve or curve fitting, acquiring the shared
-/// camera/focuser admission gate first.
-///
-/// Fail-fast: if the gate is already held, returns immediately with the
-/// "already running" error so the one-shot / REST layer can surface a typed
-/// `DeviceBusy`. Sequence NODES should use [execute_autofocus_for_node]
-/// instead, which waits for an in-flight run rather than aborting the run.
 /// A run-up exactly equal to the backlash leaves the gear train on the very
 /// edge of its dead band, where a step of motor slop puts the drawtube on the
-/// wrong face — so the run-up always clears the figure by a margin. A quarter
+/// wrong face — so the run-up always clears the figure by a margin: a quarter
 /// of it, but never less than one sweep step, and never less than
 /// [`MIN_RUN_UP_MARGIN_STEPS`] on a focuser whose steps are tiny.
 const RUN_UP_MARGIN_DIVISOR: i32 = 4;
@@ -132,6 +125,13 @@ fn final_run_up_position(
     }
 }
 
+/// Execute autofocus using V-curve or curve fitting, acquiring the shared
+/// camera/focuser admission gate first.
+///
+/// Fail-fast: if the gate is already held, returns immediately with the
+/// "already running" error so the one-shot / REST layer can surface a typed
+/// `DeviceBusy`. Sequence NODES should use [execute_autofocus_for_node]
+/// instead, which waits for an in-flight run rather than aborting the run.
 pub async fn execute_autofocus(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
