@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import '../lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `auto_stretch_color_image`, `auto_stretch_image`, `camera_start_exposure_configured_opt`, `camera_start_exposure_opt`, `classify_exposure_failure`, `convert_config`, `convert_result`, `convert_stats`, `debayer_image`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_summary`, `display_data_to_rgba`, `format_sexagesimal`, `frame_metric_median`, `frame_stats_result`, `generate_fits_thumbnail_jpeg`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `image_stats`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `sanitize_camera_id`, `set_horizon_keywords`, `set_pointing_keywords`, `sim_exposure_cancelled`, `store_captured_image_atomically`, `thumbnail_generation_gate`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `auto_stretch_color_image`, `auto_stretch_image`, `camera_start_exposure_configured_opt`, `camera_start_exposure_opt`, `classify_exposure_failure`, `convert_config`, `convert_result`, `convert_stats`, `debayer_image`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_summary`, `display_data_to_rgba`, `format_sexagesimal`, `frame_metric_median`, `frame_stats_result`, `generate_fits_thumbnail_jpeg`, `get_autofocus_cancel_token`, `get_backlash_calibration_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `image_stats`, `one_shot_focus_context`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `sanitize_camera_id`, `set_horizon_keywords`, `set_pointing_keywords`, `sim_exposure_cancelled`, `store_captured_image_atomically`, `thumbnail_generation_gate`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `RawImageInfo`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from_frame_context`, `get_last_raw_image_info`
@@ -27,6 +27,38 @@ Future<AutofocusResultApi> apiRunAutofocus({
 /// Cancel autofocus
 Future<void> apiCancelAutofocus() =>
     RustLib.instance.api.crateApiImagingApiCancelAutofocus();
+
+/// Measure this focuser's mechanical backlash by scanning focus twice, once
+/// approaching every point from below and once from above.
+///
+/// `config_json` is a [`nightshade_sequencer::instructions::BacklashCalibrationConfig`]
+/// and the returned string is a
+/// [`nightshade_sequencer::instructions::BacklashCalibrationOutcome`]. JSON on
+/// both sides deliberately: the outcome carries both scans' full point sets,
+/// both vertices, a confidence with its grounds and — when the scans cannot
+/// support a figure — a tagged refusal with a remedy. That is not a shape a
+/// flat FFI struct can carry, and keeping it as serde means the evidence the
+/// operator sees can grow without another round of bridge codegen.
+///
+/// A refusal comes back as `Ok`: the run happened and reached a conclusion,
+/// which is that no figure is warranted. `Err` is reserved for the run not
+/// happening — no camera, no focuser, a move that failed, a cancellation.
+/// Live progress arrives on the event stream as a focuser `PropertyChanged`
+/// with property `FocuserBacklashCalibrationProgress`.
+Future<String> apiRunFocuserBacklashCalibration({
+  required String deviceId,
+  required String cameraId,
+  required String configJson,
+}) => RustLib.instance.api.crateApiImagingApiRunFocuserBacklashCalibration(
+  deviceId: deviceId,
+  cameraId: cameraId,
+  configJson: configJson,
+);
+
+/// Ask a running backlash calibration to stop. The routine returns the focuser
+/// to where the operator left it before reporting the cancellation.
+Future<void> apiCancelFocuserBacklashCalibration() =>
+    RustLib.instance.api.crateApiImagingApiCancelFocuserBacklashCalibration();
 
 /// Start a camera exposure
 /// Returns progress updates via events, final image available via api_get_last_image
@@ -1140,6 +1172,17 @@ class AutofocusConfigApi {
   final int backlashIn;
   final int backlashOut;
 
+  /// Backlash this app measured on THIS focuser, from its stored
+  /// calibration. `None` when it has never been calibrated.
+  ///
+  /// Never gated on `backlash_comp_method`, unlike `backlash_in`. That
+  /// selector governs the overshoot moves during the sweep; this figure only
+  /// sizes the final run-up, which happens either way because best focus has
+  /// to be reached from the same side it was measured from. All this does is
+  /// make that unavoidable move shorter and aimed at a known clearance
+  /// instead of running all the way back to the sweep's start.
+  final int? measuredBacklashIn;
+
   const AutofocusConfigApi({
     required this.exposureTime,
     required this.stepSize,
@@ -1158,6 +1201,7 @@ class AutofocusConfigApi {
     required this.backlashCompMethod,
     required this.backlashIn,
     required this.backlashOut,
+    this.measuredBacklashIn,
   });
 
   @override
@@ -1178,7 +1222,8 @@ class AutofocusConfigApi {
       focuserSettleTimeMs.hashCode ^
       backlashCompMethod.hashCode ^
       backlashIn.hashCode ^
-      backlashOut.hashCode;
+      backlashOut.hashCode ^
+      measuredBacklashIn.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1201,7 +1246,8 @@ class AutofocusConfigApi {
           focuserSettleTimeMs == other.focuserSettleTimeMs &&
           backlashCompMethod == other.backlashCompMethod &&
           backlashIn == other.backlashIn &&
-          backlashOut == other.backlashOut;
+          backlashOut == other.backlashOut &&
+          measuredBacklashIn == other.measuredBacklashIn;
 }
 
 /// Autofocus result containing all data for display and analysis

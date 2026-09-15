@@ -206,6 +206,7 @@ typedef struct wire_cst_autofocus_config_api {
   struct wire_cst_list_prim_u_8_strict *backlash_comp_method;
   int32_t backlash_in;
   int32_t backlash_out;
+  int32_t *measured_backlash_in;
 } wire_cst_autofocus_config_api;
 
 typedef struct wire_cst_indi_autofocus_config_api {
@@ -2677,6 +2678,8 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_camera_start_exposu
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_autofocus(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_focuser_backlash_calibration(int64_t port_);
+
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_clear_device_image(int64_t port_,
                                                                                 struct wire_cst_list_prim_u_8_strict *device_id);
 
@@ -3488,6 +3491,11 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_autofocus(int64
                                                                            struct wire_cst_list_prim_u_8_strict *device_id,
                                                                            struct wire_cst_list_prim_u_8_strict *camera_id,
                                                                            struct wire_cst_autofocus_config_api *config);
+
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_focuser_backlash_calibration(int64_t port_,
+                                                                                              struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                                              struct wire_cst_list_prim_u_8_strict *camera_id,
+                                                                                              struct wire_cst_list_prim_u_8_strict *config_json);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_indi_autofocus(int64_t port_,
                                                                                 struct wire_cst_list_prim_u_8_strict *camera_id,
@@ -4623,6 +4631,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_camera_start_exposure);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_camera_start_exposure_configured);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_autofocus);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_focuser_backlash_calibration);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_clear_device_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_combine_master_frames);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_compute_fits_quality_maps);
@@ -4646,6 +4655,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_fits_linear_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_xisf_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_autofocus);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_focuser_backlash_calibration);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_indi_autofocus);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_fits_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_fits_from_last_capture);

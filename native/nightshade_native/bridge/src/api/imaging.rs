@@ -77,6 +77,100 @@ pub(crate) fn get_autofocus_cancel_token() -> &'static Arc<AtomicBool> {
     AUTOFOCUS_CANCEL_TOKEN.get_or_init(|| Arc::new(AtomicBool::new(false)))
 }
 
+/// The [`InstructionContext`] a one-shot focus operation driven from the API
+/// needs.
+///
+/// Standalone autofocus and focuser backlash calibration are both started by
+/// an operator with no producing sequence node, save no FITS frames and grade
+/// nothing, so every field outside the camera, the focuser, cancellation and
+/// the executor-event bridge is the honest empty value. Shared between the two
+/// entry points so they cannot drift apart — they drive the same hardware
+/// through the same instruction layer and must present it the same context.
+fn one_shot_focus_context(
+    camera_id: String,
+    focuser_id: String,
+    cancellation_token: Arc<AtomicBool>,
+    event_tx: tokio::sync::broadcast::Sender<nightshade_sequencer::ExecutorEvent>,
+    device_ops: nightshade_sequencer::SharedDeviceOps,
+) -> nightshade_sequencer::instructions::InstructionContext {
+    nightshade_sequencer::instructions::InstructionContext {
+        // One-shot bridge capture: no producing sequence node.
+        node_id: String::new(),
+        target_ra: None,
+        target_dec: None,
+        target_name: None,
+        target_rotation: None,
+        current_filter: None,
+        current_binning: nightshade_sequencer::Binning::One,
+        cancellation_token,
+        camera_id: Some(camera_id),
+        mount_id: None,
+        focuser_id: Some(focuser_id),
+        filterwheel_id: None,
+        dome_id: None,
+        rotator_id: None,
+        cover_calibrator_id: None,
+        save_path: None,
+        latitude: None,
+        longitude: None,
+        device_ops,
+        trigger_state: None,
+        filter_focus_offsets: std::collections::HashMap::new(),
+        event_tx: Some(event_tx),
+        recovery_request_tx: None,
+        // Image Grading: standalone autofocus from the API does
+        // not save FITS frames, so empty FITS-metadata defaults are
+        // honest here. The InstructionContext fields exist to be passed
+        // through to execute_exposure; execute_autofocus ignores them.
+        session_id: String::new(),
+        target_id: None,
+        mosaic_panel: None,
+        current_filter_index: None,
+        set_temp_c: None,
+        bayer_pattern: None,
+        observer_name: None,
+        site_elevation_m: None,
+        camera_make: None,
+        camera_model: None,
+        telescope_name: None,
+        telescope_focal_length_mm: None,
+        telescope_aperture_mm: None,
+        last_plate_solve: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        hfr_baseline: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        hfr_baseline_samples: std::sync::Arc::new(tokio::sync::RwLock::new(Vec::new())),
+        consecutive_rejects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        frames_accepted: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        default_quality_check: None,
+        reject_folder_path: None,
+        // defect map state. Standalone autofocus from
+        // the API does not save FITS frames so this is unused; pass an
+        // empty slot to satisfy the struct contract.
+        defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        // Forensics: standalone autofocus doesn't grade frames.
+        forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::VecDeque::new(),
+        )),
+        current_sky_brightness_mag: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        cloud_motion_snapshot: std::sync::Arc::new(tokio::sync::RwLock::new(
+            nightshade_sequencer::CloudMotionSnapshot::default(),
+        )),
+        current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        // Replay Debug — one-shot bridge API doesn't emit decisions.
+        decision_tx: None,
+        active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        // Standalone autofocus from the API is not driven by the node-runtime
+        // disconnect-retry loop, so this one-shot context owns a fresh,
+        // unshared flag (no recovery driver observes it here).
+        device_disconnect_recovery_pending: std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ),
+        // Dual-rig — standalone autofocus runs with no secondary coordination.
+        dither_barrier: None,
+    }
+}
+
 /// Autofocus configuration for API
 #[derive(Debug, Clone)]
 pub struct AutofocusConfigApi {
@@ -97,6 +191,16 @@ pub struct AutofocusConfigApi {
     pub backlash_comp_method: String,
     pub backlash_in: i32,
     pub backlash_out: i32,
+    /// Backlash this app measured on THIS focuser, from its stored
+    /// calibration. `None` when it has never been calibrated.
+    ///
+    /// Never gated on `backlash_comp_method`, unlike `backlash_in`. That
+    /// selector governs the overshoot moves during the sweep; this figure only
+    /// sizes the final run-up, which happens either way because best focus has
+    /// to be reached from the same side it was measured from. All this does is
+    /// make that unavoidable move shorter and aimed at a known clearance
+    /// instead of running all the way back to the sweep's start.
+    pub measured_backlash_in: Option<i32>,
 }
 
 /// A single focus data point (position and HFR)
@@ -249,6 +353,7 @@ pub async fn api_run_autofocus(
         } else {
             0
         },
+        measured_backlash_in: config.measured_backlash_in,
         ..AutofocusConfig::default()
     };
 
@@ -275,82 +380,13 @@ pub async fn api_run_autofocus(
         crate::util::executor_event_bridge::spawn_executor_event_bridge(get_state().clone());
     let progress_focuser_id = device_id.clone();
 
-    let ctx = InstructionContext {
-        // One-shot bridge capture: no producing sequence node.
-        node_id: String::new(),
-        target_ra: None,
-        target_dec: None,
-        target_name: None,
-        target_rotation: None,
-        current_filter: None,
-        current_binning: Binning::One,
-        cancellation_token: cancel_token.clone(),
-        camera_id: Some(camera_id),
-        mount_id: None,
-        focuser_id: Some(device_id),
-        filterwheel_id: None,
-        dome_id: None,
-        rotator_id: None,
-        cover_calibrator_id: None,
-        save_path: None,
-        latitude: None,
-        longitude: None,
+    let ctx = one_shot_focus_context(
+        camera_id,
+        device_id,
+        cancel_token.clone(),
+        event_tx.clone(),
         device_ops,
-        trigger_state: None,
-        filter_focus_offsets: std::collections::HashMap::new(),
-        event_tx: Some(event_tx.clone()),
-        recovery_request_tx: None,
-        // Image Grading: standalone autofocus from the API does
-        // not save FITS frames, so empty FITS-metadata defaults are
-        // honest here. The InstructionContext fields exist to be passed
-        // through to execute_exposure; execute_autofocus ignores them.
-        session_id: String::new(),
-        target_id: None,
-        mosaic_panel: None,
-        current_filter_index: None,
-        set_temp_c: None,
-        bayer_pattern: None,
-        observer_name: None,
-        site_elevation_m: None,
-        camera_make: None,
-        camera_model: None,
-        telescope_name: None,
-        telescope_focal_length_mm: None,
-        telescope_aperture_mm: None,
-        last_plate_solve: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        hfr_baseline: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        hfr_baseline_samples: std::sync::Arc::new(tokio::sync::RwLock::new(Vec::new())),
-        consecutive_rejects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
-        frames_accepted: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
-        frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
-        default_quality_check: None,
-        reject_folder_path: None,
-        // defect map state. Standalone autofocus from
-        // the API does not save FITS frames so this is unused; pass an
-        // empty slot to satisfy the struct contract.
-        defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        // Forensics: standalone autofocus doesn't grade frames.
-        forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
-            std::collections::VecDeque::new(),
-        )),
-        current_sky_brightness_mag: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        cloud_motion_snapshot: std::sync::Arc::new(tokio::sync::RwLock::new(
-            nightshade_sequencer::CloudMotionSnapshot::default(),
-        )),
-        current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        // Replay Debug — one-shot bridge API doesn't emit decisions.
-        decision_tx: None,
-        active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
-        // Standalone autofocus from the API is not driven by the node-runtime
-        // disconnect-retry loop, so this one-shot context owns a fresh,
-        // unshared flag (no recovery driver observes it here).
-        device_disconnect_recovery_pending: std::sync::Arc::new(
-            std::sync::atomic::AtomicBool::new(false),
-        ),
-        // Dual-rig — standalone autofocus runs with no secondary coordination.
-        dither_barrier: None,
-    };
+    );
 
     let progress_fn = |_: f64, detail: String| {
         if !detail.contains("\"type\":\"autofocus_progress\"") {
@@ -454,6 +490,117 @@ pub async fn api_cancel_autofocus() -> Result<(), NightshadeError> {
     tracing::info!("Cancelling autofocus...");
     let cancel_token = get_autofocus_cancel_token();
     cancel_token.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
+// Focuser backlash calibration
+
+/// Cancellation for a backlash calibration run.
+///
+/// Separate from the autofocus token even though the two share the hardware
+/// admission gate and can never run at once: cancelling the calibration from
+/// its own wizard must not read as cancelling an autofocus, in the UI or in
+/// the log.
+static BACKLASH_CALIBRATION_CANCEL_TOKEN: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
+fn get_backlash_calibration_cancel_token() -> &'static Arc<AtomicBool> {
+    BACKLASH_CALIBRATION_CANCEL_TOKEN.get_or_init(|| Arc::new(AtomicBool::new(false)))
+}
+
+/// Measure this focuser's mechanical backlash by scanning focus twice, once
+/// approaching every point from below and once from above.
+///
+/// `config_json` is a [`nightshade_sequencer::instructions::BacklashCalibrationConfig`]
+/// and the returned string is a
+/// [`nightshade_sequencer::instructions::BacklashCalibrationOutcome`]. JSON on
+/// both sides deliberately: the outcome carries both scans' full point sets,
+/// both vertices, a confidence with its grounds and — when the scans cannot
+/// support a figure — a tagged refusal with a remedy. That is not a shape a
+/// flat FFI struct can carry, and keeping it as serde means the evidence the
+/// operator sees can grow without another round of bridge codegen.
+///
+/// A refusal comes back as `Ok`: the run happened and reached a conclusion,
+/// which is that no figure is warranted. `Err` is reserved for the run not
+/// happening — no camera, no focuser, a move that failed, a cancellation.
+/// Live progress arrives on the event stream as a focuser `PropertyChanged`
+/// with property `FocuserBacklashCalibrationProgress`.
+pub async fn api_run_focuser_backlash_calibration(
+    device_id: String, // Focuser ID
+    camera_id: String,
+    config_json: String,
+) -> Result<String, NightshadeError> {
+    use nightshade_sequencer::instructions::{
+        execute_backlash_calibration_admitted, try_admit_autofocus_run,
+        validate_backlash_calibration_config, BacklashCalibrationConfig,
+    };
+
+    let config: BacklashCalibrationConfig =
+        serde_json::from_str(&config_json).map_err(|error| {
+            NightshadeError::InvalidParameter(format!(
+                "backlash calibration config is not valid: {}",
+                error
+            ))
+        })?;
+    validate_backlash_calibration_config(&config).map_err(NightshadeError::InvalidParameter)?;
+
+    // The calibration drives the same camera and focuser as a sweep, so it
+    // takes the autofocus admission gate rather than a gate of its own.
+    let guard = try_admit_autofocus_run().ok_or_else(|| NightshadeError::DeviceBusy {
+        device_id: device_id.clone(),
+        current_operation: "autofocus".to_string(),
+    })?;
+
+    // Only after admission, so a rejected second start cannot clear a pending
+    // cancellation belonging to the run that is already going.
+    let cancel_token = get_backlash_calibration_cancel_token();
+    cancel_token.store(false, Ordering::Relaxed);
+
+    tracing::info!(
+        "Starting focuser backlash calibration with camera {} and focuser {}",
+        camera_id,
+        device_id
+    );
+
+    let event_tx =
+        crate::util::executor_event_bridge::spawn_executor_event_bridge(get_state().clone());
+    let progress_focuser_id = device_id.clone();
+    let ctx = one_shot_focus_context(
+        camera_id,
+        device_id.clone(),
+        cancel_token.clone(),
+        event_tx.clone(),
+        create_unified_device_ops(),
+    );
+
+    let progress_fn = move |_: f64, detail: String| {
+        get_state().publish_equipment_event(
+            EquipmentEvent::PropertyChanged {
+                device_type: "focuser".to_string(),
+                device_id: progress_focuser_id.clone(),
+                property: "FocuserBacklashCalibrationProgress".to_string(),
+                value: detail,
+            },
+            EventSeverity::Info,
+        );
+    };
+
+    let outcome = execute_backlash_calibration_admitted(&config, &ctx, Some(&progress_fn), guard)
+        .await
+        .map_err(NightshadeError::OperationFailed)?;
+
+    serde_json::to_string(&outcome).map_err(|error| {
+        NightshadeError::OperationFailed(format!(
+            "backlash calibration finished but its result could not be encoded: {}",
+            error
+        ))
+    })
+}
+
+/// Ask a running backlash calibration to stop. The routine returns the focuser
+/// to where the operator left it before reporting the cancellation.
+pub async fn api_cancel_focuser_backlash_calibration() -> Result<(), NightshadeError> {
+    tracing::info!("Cancelling focuser backlash calibration...");
+    get_backlash_calibration_cancel_token().store(true, Ordering::Relaxed);
     Ok(())
 }
 
