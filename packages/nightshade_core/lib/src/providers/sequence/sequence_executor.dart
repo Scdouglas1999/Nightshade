@@ -36,6 +36,8 @@ import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
 import '../../database/daos/targets_dao.dart' show TargetsDao;
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
+import '../focuser_backlash_provider.dart'
+    show focuserBacklashOfferSessionProvider, savedFocuserBacklashProvider;
 // Sky-brightness poll reads the tracker via this
 // provider (defined in flat_wizard_provider since the tracker is
 // shared between flat-wizard and adaptive-exposure paths).

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../../models/focuser_backlash_calibration.dart';
 import '../database.dart';
 import '../tables/settings.dart';
 
@@ -80,6 +81,139 @@ class RememberedSensorSpec {
   @override
   int get hashCode =>
       Object.hash(sensorWidth, sensorHeight, pixelSizeX, pixelSizeY);
+}
+
+/// A focuser backlash figure this app measured, with the conditions it was
+/// measured in.
+///
+/// Backlash varies along the travel — the owner's ZWO EAF measured 105 steps
+/// near position 6600 and 83 near 2500 — so the position and temperature are
+/// part of the record, not decoration. A bare number would claim more than the
+/// measurement supports.
+class FocuserBacklashCalibrationRecord {
+  const FocuserBacklashCalibrationRecord({
+    required this.steps,
+    required this.measurable,
+    required this.resolutionLimitSteps,
+    required this.measuredAtPosition,
+    required this.temperatureCelsius,
+    required this.measuredAt,
+    required this.confidence,
+    required this.confidenceReason,
+    required this.appVersion,
+  });
+
+  /// Backlash in focuser steps. 0 means the two scans agreed to within their
+  /// own resolution: no backlash worth compensating, which is a result rather
+  /// than a missing value.
+  final int steps;
+
+  /// False when [steps] is 0 because nothing larger than
+  /// [resolutionLimitSteps] was detectable.
+  final bool measurable;
+
+  /// The smallest difference the scans behind this record could have told
+  /// apart.
+  final double resolutionLimitSteps;
+
+  /// Where in the travel this was measured.
+  final int measuredAtPosition;
+
+  /// Focuser temperature at the time, when the driver reported one.
+  final double? temperatureCelsius;
+
+  final DateTime measuredAt;
+
+  final FocuserBacklashConfidence confidence;
+
+  /// Native's plain-language grounds for [confidence], displayed verbatim.
+  final String confidenceReason;
+
+  /// The build that took the measurement.
+  final String appVersion;
+
+  /// Whether this record can be acted on. Anything else is treated as "never
+  /// measured" rather than applied to a focuser: a bad figure here silently
+  /// moves the drawtube on every future autofocus.
+  bool get isUsable =>
+      steps >= 0 &&
+      measuredAtPosition >= 0 &&
+      resolutionLimitSteps.isFinite &&
+      resolutionLimitSteps >= 0 &&
+      // A measurable backlash of zero steps is a contradiction, and so is an
+      // unmeasurable one with a figure attached.
+      measurable == (steps > 0) &&
+      (temperatureCelsius == null || temperatureCelsius!.isFinite);
+
+  Map<String, dynamic> toJson() => {
+    's': steps,
+    'm': measurable,
+    'rl': resolutionLimitSteps,
+    'p': measuredAtPosition,
+    if (temperatureCelsius != null) 't': temperatureCelsius,
+    'at': measuredAt.toUtc().toIso8601String(),
+    'c': confidence.wireValue,
+    'cr': confidenceReason,
+    'v': appVersion,
+  };
+
+  static FocuserBacklashCalibrationRecord? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final steps = json['s'];
+    final measurable = json['m'];
+    final resolutionLimit = json['rl'];
+    final position = json['p'];
+    final temperature = json['t'];
+    final confidence = FocuserBacklashConfidence.fromWire(json['c']);
+    if (steps is! num ||
+        measurable is! bool ||
+        resolutionLimit is! num ||
+        position is! num ||
+        confidence == null ||
+        (temperature != null && temperature is! num)) {
+      return null;
+    }
+    final record = FocuserBacklashCalibrationRecord(
+      steps: steps.toInt(),
+      measurable: measurable,
+      resolutionLimitSteps: resolutionLimit.toDouble(),
+      measuredAtPosition: position.toInt(),
+      temperatureCelsius: (temperature as num?)?.toDouble(),
+      measuredAt:
+          DateTime.tryParse(json['at'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      confidence: confidence,
+      confidenceReason: json['cr'] as String? ?? '',
+      appVersion: json['v'] as String? ?? '',
+    );
+    return record.isUsable ? record : null;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is FocuserBacklashCalibrationRecord &&
+      other.steps == steps &&
+      other.measurable == measurable &&
+      other.resolutionLimitSteps == resolutionLimitSteps &&
+      other.measuredAtPosition == measuredAtPosition &&
+      other.temperatureCelsius == temperatureCelsius &&
+      other.measuredAt == measuredAt &&
+      other.confidence == confidence &&
+      other.confidenceReason == confidenceReason &&
+      other.appVersion == appVersion;
+
+  @override
+  int get hashCode => Object.hash(
+    steps,
+    measurable,
+    resolutionLimitSteps,
+    measuredAtPosition,
+    temperatureCelsius,
+    measuredAt,
+    confidence,
+    confidenceReason,
+    appVersion,
+  );
 }
 
 @DriftAccessor(tables: [AppSettings])
@@ -295,6 +429,99 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
       _cameraSensorSpecsKey,
       jsonEncode({
         for (final entry in existing.entries) entry.key: entry.value.toJson(),
+      }),
+    );
+  }
+
+  // Measured focuser backlash -----------------------------------------------
+  //
+  // Keyed by focuser device id, like the sensor specs above and for the same
+  // reason: a dead band is a property of that drive train, not of whichever
+  // profile references it. It matters more here than there, because the
+  // existing `app_settings.backlash_compensation` / `af_backlash_in` values
+  // are GLOBAL — swap focusers and the old one's figure silently follows you
+  // onto the new gear train. Those fields keep their meaning; this store just
+  // does not reproduce the fault.
+
+  static const String _focuserBacklashCalibrationsKey =
+      'focuser_backlash_calibrations.v1';
+
+  /// How many focusers to remember. A rig has one, an owner of several OTAs
+  /// maybe four; the cap stops a long-lived install hoarding stale ids.
+  static const int _maxFocuserBacklashCalibrations = 8;
+
+  /// Every focuser's stored backlash measurement, keyed by device id.
+  Future<Map<String, FocuserBacklashCalibrationRecord>>
+  getFocuserBacklashCalibrations() async {
+    final raw = await getSetting(_focuserBacklashCalibrationsKey);
+    if (raw == null || raw.trim().isEmpty) return const {};
+    Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException {
+      // Corrupt value: report nothing measured. The alternative is guessing at
+      // a number that moves hardware.
+      return const {};
+    }
+    if (decoded is! Map) return const {};
+    final result = <String, FocuserBacklashCalibrationRecord>{};
+    decoded.forEach((key, value) {
+      if (key is! String) return;
+      final record = FocuserBacklashCalibrationRecord.fromJson(value);
+      if (record != null) result[key] = record;
+    });
+    return result;
+  }
+
+  /// The measurement stored for [focuserId], or null when this focuser has
+  /// never been calibrated. Never falls back to another focuser's figure.
+  Future<FocuserBacklashCalibrationRecord?> getFocuserBacklashCalibration(
+    String focuserId,
+  ) async {
+    if (focuserId.isEmpty) return null;
+    return (await getFocuserBacklashCalibrations())[focuserId];
+  }
+
+  /// Store what a calibration run measured. An unusable record is dropped
+  /// rather than overwriting a good one.
+  Future<void> saveFocuserBacklashCalibration(
+    String focuserId,
+    FocuserBacklashCalibrationRecord record,
+  ) async {
+    if (focuserId.isEmpty || !record.isUsable) return;
+    final existing = Map<String, FocuserBacklashCalibrationRecord>.from(
+      await getFocuserBacklashCalibrations(),
+    );
+    if (existing[focuserId] == record) return; // no write for an unchanged run
+    existing[focuserId] = record;
+    if (existing.length > _maxFocuserBacklashCalibrations) {
+      final byAge = existing.entries.toList()
+        ..sort((a, b) => b.value.measuredAt.compareTo(a.value.measuredAt));
+      existing
+        ..clear()
+        ..addEntries(byAge.take(_maxFocuserBacklashCalibrations));
+    }
+    await _writeFocuserBacklashCalibrations(existing);
+  }
+
+  /// Forget [focuserId]'s measurement — after a gear or motor change, where
+  /// the stored figure is worse than none.
+  Future<void> clearFocuserBacklashCalibration(String focuserId) async {
+    if (focuserId.isEmpty) return;
+    final existing = Map<String, FocuserBacklashCalibrationRecord>.from(
+      await getFocuserBacklashCalibrations(),
+    );
+    if (existing.remove(focuserId) == null) return;
+    await _writeFocuserBacklashCalibrations(existing);
+  }
+
+  Future<void> _writeFocuserBacklashCalibrations(
+    Map<String, FocuserBacklashCalibrationRecord> records,
+  ) async {
+    await setSetting(
+      _focuserBacklashCalibrationsKey,
+      jsonEncode({
+        for (final entry in records.entries) entry.key: entry.value.toJson(),
       }),
     );
   }

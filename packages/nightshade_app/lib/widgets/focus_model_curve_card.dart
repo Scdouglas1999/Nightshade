@@ -46,6 +46,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import 'focuser_backlash/focuser_backlash_offer.dart';
 part 'focus_model_curve_card/chart.dart';
 part 'focus_model_curve_card/actions.dart';
 part 'focus_model_curve_card/filter_offsets.dart';
@@ -236,6 +238,12 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
   }
 
   Future<void> _runAutofocus(BuildContext context, WidgetRef ref) async {
+    // The one shared backlash offer (`focuser_backlash_offer.dart`), so the
+    // empty state's "Run autofocus" makes the same offer as the focuser strip
+    // and the imaging focus panel. Declining continues straight into the run.
+    await offerBacklashCalibrationIfDue(context, ref);
+    if (!context.mounted) return;
+
     // We delegate to DeviceService.runAutofocus rather than calling the
     // backend autofocusStart endpoint directly: DeviceService resolves the
     // user's persisted afExposureTime / afStepSize / afInitialOffsetSteps

@@ -206,6 +206,11 @@ class AppSettingsState {
   final int afExposuresPerPoint;
   final String afBacklashCompMethod; // 'None', 'Overshoot', 'Absolute'
   final int afBacklashIn;
+
+  /// Whether to offer to measure this focuser's backlash: `ask` or `never`.
+  /// The operator can dismiss the offer for good — it must never become a
+  /// prompt that reappears every cold start.
+  final String focuserBacklashOfferMode;
   final String mountSiteSyncMode;
   final int afBacklashOut;
   final String
@@ -577,6 +582,7 @@ class AppSettingsState {
     this.afExposuresPerPoint = 1,
     this.afBacklashCompMethod = 'Overshoot',
     this.afBacklashIn = 0,
+    this.focuserBacklashOfferMode = 'ask',
     this.mountSiteSyncMode = 'ask',
     this.afBacklashOut = 0,
     this.afAutofocusFilterName = '',

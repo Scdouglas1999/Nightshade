@@ -547,6 +547,125 @@ async fn the_progress_payload_carries_the_fields_the_wizard_parses() {
     assert!(!result["result"]["calibration"]["steps"].is_null());
 }
 
+/// The result payload's field names, pinned by capturing a real run.
+///
+/// Dart parses these as REQUIRED — `FocuserBacklashResult.tryParse` returns
+/// null rather than a partial model if one is missing — so a rename here would
+/// not fail any Rust test and would silently leave the wizard unable to read
+/// its own result. This is the test that makes it fail here instead.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_result_payload_carries_every_field_dart_requires() {
+    let ops = Arc::new(BacklashFocuserOps::new(
+        SIMULATED_BACKLASH,
+        STARTING_POSITION,
+    ));
+    let ctx = calibration_context(ops).await;
+
+    let outcome = run_calibration(&test_config(400), &ctx)
+        .await
+        .expect("the calibration must run to a conclusion");
+    let json = serde_json::to_value(&outcome).expect("the outcome must serialise");
+
+    assert_eq!(json["outcome"], "measured");
+    let calibration = &json["calibration"];
+    for field in [
+        "steps",
+        "vertex_difference",
+        "measurable",
+        "resolution_limit_steps",
+        "below",
+        "above",
+        "measured_at_position",
+        "clearance_steps",
+        "reversal_budget_steps",
+        "reversal_budget_at_vertex_steps",
+        "confidence",
+        "confidence_reason",
+        "context",
+    ] {
+        assert!(
+            !calibration[field].is_null(),
+            "the calibration payload is missing {field}"
+        );
+    }
+    for scan in ["below", "above"] {
+        for field in [
+            "approach",
+            "points",
+            "optimum_position",
+            "r_squared",
+            "method",
+        ] {
+            assert!(
+                !calibration[scan][field].is_null(),
+                "the {scan} scan is missing {field}"
+            );
+        }
+        assert!(!calibration[scan]["points"][0]["position"].is_null());
+        assert!(!calibration[scan]["points"][0]["hfr"].is_null());
+        assert!(!calibration[scan]["points"][0]["star_count"].is_null());
+    }
+    for field in [
+        "focuser_device_id",
+        "taken_at",
+        "temperature_celsius",
+        "app_version",
+    ] {
+        assert!(
+            !calibration["context"][field].is_null(),
+            "the measurement context is missing {field}"
+        );
+    }
+    // `confidence` is a lower-case discriminant the UI maps to a band.
+    assert!(
+        ["high", "moderate", "low"].contains(&calibration["confidence"].as_str().unwrap_or("")),
+        "unexpected confidence discriminant {}",
+        calibration["confidence"]
+    );
+    assert_eq!(calibration["below"]["approach"], "from_below");
+    assert_eq!(calibration["above"]["approach"], "from_above");
+}
+
+/// The plan payload, same reasoning: Dart parses every field as required so it
+/// can state the run's cost before the operator agrees to it.
+#[test]
+fn the_plan_payload_carries_every_field_dart_requires() {
+    let plan = plan_backlash_calibration(&test_config(400), 6620);
+    let json = serde_json::to_value(plan).expect("the plan must serialise");
+
+    for field in [
+        "points_per_scan",
+        "total_exposures",
+        "scan_low_position",
+        "scan_high_position",
+        "travel_low_position",
+        "travel_high_position",
+        "estimated_duration_secs",
+        "reversal_budget_steps",
+        "reversal_budget_at_vertex_steps",
+    ] {
+        assert!(
+            !json[field].is_null(),
+            "the plan payload is missing {field}"
+        );
+    }
+}
+
+/// Dart matches this phrase to decide when to offer the calibration again: two
+/// landing-verification failures in a row on one focuser is the signature of an
+/// uncalibrated or changed drive train. Rewording the sentence without the
+/// constant would silently retire that offer.
+#[test]
+fn the_landing_verification_failure_phrase_is_the_one_dart_matches() {
+    assert_eq!(
+        crate::instructions::LANDING_VERIFICATION_FAILURE_PHRASE,
+        "but the frame taken there measures HFR",
+        "Dart's autofocusLandingVerificationFailureMarker matches this exact phrase \
+         (packages/nightshade_core/lib/src/providers/focuser_backlash_provider.dart); \
+         change both or neither"
+    );
+}
+
 /// The gate itself: a calibration must refuse to start while an autofocus
 /// holds the camera and focuser, rather than driving them underneath it.
 #[tokio::test(flavor = "multi_thread")]

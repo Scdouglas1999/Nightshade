@@ -4,6 +4,9 @@ import '../providers/equipment_provider.dart';
 import '../providers/equipment/device_type_registry.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/backend_provider.dart';
+import '../providers/database_provider.dart' show settingsDaoProvider;
+import '../providers/focuser_backlash_provider.dart'
+    show focuserBacklashOfferSessionProvider;
 import '../providers/sequence_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
@@ -11,6 +14,7 @@ import '../providers/ui_notification_provider.dart';
 import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
 import '../providers/current_screen_provider.dart';
+import '../providers/app_version_provider.dart';
 import '../providers/autofocus_progress_provider.dart';
 import '../providers/unified_discovery_provider.dart';
 import 'smart_notification_service.dart';
@@ -34,6 +38,7 @@ import 'phd2_status_poll.dart';
 import 'predictive_af_service.dart';
 import 'switch_channel_service.dart';
 import 'device_service_lifecycle.dart';
+import '../models/focuser_backlash_calibration.dart';
 import '../models/mount_site_reconciliation.dart';
 import '../providers/mount_site_provider.dart';
 
@@ -53,6 +58,7 @@ part 'device_service/profile_connections.dart';
 part 'device_service/mount_controls.dart';
 part 'device_service/focuser_rotator_controls.dart';
 part 'device_service/autofocus_controls.dart';
+part 'device_service/focuser_backlash_calibration.dart';
 part 'device_service/filter_wheel_controls.dart';
 part 'device_service/guiding_sequencer_controls.dart';
 
@@ -184,6 +190,27 @@ class DeviceService {
 
   bool get isAutofocusRunning => _isAutofocusRunning;
 
+  /// Guard against a backlash calibration overlapping an autofocus sweep or
+  /// another calibration: both drive the same camera and focuser.
+  bool _isFocuserBacklashCalibrationRunning = false;
+
+  bool get isFocuserBacklashCalibrationRunning =>
+      _isFocuserBacklashCalibrationRunning;
+
+  /// The build stamped into a calibration record, so a stored figure can be
+  /// traced to the version that measured it.
+  ///
+  /// [appVersionProvider] throws when it has not been overridden, which is
+  /// every test bench. An unstamped record is honest; a made-up version is
+  /// not, so the fallback is blank rather than a plausible number.
+  String _appVersionForCalibrationRecord() {
+    try {
+      return _ref.read(appVersionProvider).toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
   DeviceService(this._ref, this._backend) {
     _temperaturePoller = CameraTemperaturePoller(ref: _ref, backend: _backend);
     _warmupController = CameraWarmupController(ref: _ref, backend: _backend);
@@ -293,6 +320,9 @@ class DeviceService {
     _environmentPollTimer = null;
     if (_isAutofocusRunning) {
       await _cancelAutofocus();
+    }
+    if (_isFocuserBacklashCalibrationRunning) {
+      await _cancelFocuserBacklashCalibration();
     }
     _focuserVerifyGeneration++;
     _rotatorVerifyGeneration++;
@@ -486,6 +516,24 @@ class DeviceService {
     ),
   );
   Future<void> cancelAutofocus() => _trackInFlight(_cancelAutofocus);
+
+  /// Measure the connected focuser's backlash. A refusal comes back in the
+  /// result; an exception means the run could not happen at all.
+  Future<FocuserBacklashResult> calibrateFocuserBacklash({
+    int? centerPosition,
+  }) => _trackInFlight(
+    () => _calibrateFocuserBacklash(centerPosition: centerPosition),
+  );
+
+  Future<void> cancelFocuserBacklashCalibration() =>
+      _trackInFlight(_cancelFocuserBacklashCalibration);
+
+  /// What a calibration run would cost, before agreeing to it.
+  Future<FocuserBacklashCalibrationPlan> planFocuserBacklashCalibration({
+    int? centerPosition,
+  }) => _trackInFlight(
+    () => _planFocuserBacklashCalibration(centerPosition: centerPosition),
+  );
   Future<void> setFilterWheelPosition(int position) =>
       _trackInFlight(() => _setFilterWheelPosition(position));
   Future<void> setFilterWheelNames(List<String> names) =>

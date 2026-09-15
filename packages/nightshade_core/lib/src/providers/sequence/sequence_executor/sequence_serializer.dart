@@ -6,6 +6,8 @@ import '../../../models/imaging/imaging_models.dart';
 import '../../../models/sequence/sequence_models.dart';
 import '../../../models/settings/app_settings.dart' show SafetyFailMode;
 import '../../profiles_provider.dart' show activeEquipmentProfileProvider;
+import '../../focuser_backlash_provider.dart'
+    show measuredFocuserBacklashStepsProvider;
 import '../../meridian_flip_provider.dart';
 import '../../settings_provider.dart';
 import '../sequencer_defaults.dart';
@@ -218,6 +220,14 @@ class SequenceSerializer {
       'focuser_settle_time_ms': settings.focuserSettleTimeMs,
       'backlash_compensation': backlashEnabled ? settings.backlashIn : 0,
       'backlash_out_compensation': backlashEnabled ? settings.backlashOut : 0,
+      // NOT gated on `backlashEnabled`. That selector governs the overshoot
+      // moves during the sweep; this figure sizes only the FINAL run-up onto
+      // best focus, which happens either way because focus has to be reached
+      // from the side the curve was measured from. See the doc comment on
+      // `measured_backlash_in` in
+      // `native/nightshade_native/sequencer/src/lib.rs`: a figure the operator
+      // typed into `backlash_compensation` still outranks this one.
+      'measured_backlash_in': _ref.read(measuredFocuserBacklashStepsProvider),
       'disable_guiding_during_af': settings.disableGuidingDuringAf,
       'max_duration_secs': maxDurationSecs,
     };

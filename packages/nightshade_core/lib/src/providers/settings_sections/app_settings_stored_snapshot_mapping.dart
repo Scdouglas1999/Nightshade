@@ -264,6 +264,8 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       // reintroduced the shipped guess for any profile whose row is
       // missing, which is exactly the fresh-install case.
       afBacklashIn: _parseInt(allSettings['af_backlash_in'], 0),
+      focuserBacklashOfferMode:
+          allSettings['focuser_backlash_offer_mode']?.toString() ?? 'ask',
       mountSiteSyncMode:
           allSettings['mount_site_sync_mode']?.toString() ?? 'ask',
       afBacklashOut: _parseInt(allSettings['af_backlash_out'], 0),
@@ -650,6 +652,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'af_exposures_per_point': s.afExposuresPerPoint.toString(),
       'af_backlash_comp_method': s.afBacklashCompMethod,
       'af_backlash_in': s.afBacklashIn.toString(),
+      'focuser_backlash_offer_mode': s.focuserBacklashOfferMode,
       'mount_site_sync_mode': s.mountSiteSyncMode,
       'af_backlash_out': s.afBacklashOut.toString(),
       'af_autofocus_filter_name': s.afAutofocusFilterName,

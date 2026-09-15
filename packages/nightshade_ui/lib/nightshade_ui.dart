@@ -67,6 +67,8 @@ export 'src/widgets/accessible_icon_button.dart';
 export 'src/widgets/design_system_gallery.dart';
 export 'src/widgets/design_reference_board.dart';
 export 'src/widgets/empty_state.dart';
+// The one V-curve chart (autofocus overlay + focuser backlash calibration)
+export 'src/widgets/focus/v_curve_chart.dart';
 
 // PHD2 Widgets
 export 'src/widgets/phd2/guide_star_view.dart';

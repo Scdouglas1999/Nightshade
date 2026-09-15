@@ -226,6 +226,7 @@ class _PendingAutofocusBackend extends DisconnectedBackend {
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+    int? measuredBacklashIn,
   }) {
     this.gain = gain;
     this.offset = offset;

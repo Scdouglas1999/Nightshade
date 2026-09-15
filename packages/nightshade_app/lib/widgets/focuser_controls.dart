@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../utils/snackbar_helper.dart';
+import 'focuser_backlash/focuser_backlash_offer.dart';
 
 /// Reusable widget for focuser movement controls and autofocus.
 ///
@@ -33,6 +34,7 @@ class FocuserControls extends ConsumerStatefulWidget {
 class _FocuserControlsState extends ConsumerState<FocuserControls> {
   bool _isRunningAutofocus = false;
   bool _isMoving = false;
+  bool _isOfferingCalibration = false;
   ProviderSubscription<DeviceService>? _serviceSubscription;
 
   @override
@@ -46,6 +48,7 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
           setState(() {
             _isRunningAutofocus = false;
             _isMoving = false;
+            _isOfferingCalibration = false;
           });
         }
       },
@@ -101,12 +104,31 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
     }
   }
 
+  /// The autofocus button, which may stop to offer a backlash measurement
+  /// first.
+  ///
+  /// The offer is not the run: the button keeps its resting label while the
+  /// dialog is open, and [_isOfferingCalibration] swallows a second tap rather
+  /// than stacking a second offer. Declining proceeds into [_startAutofocus]
+  /// immediately — see `focuser_backlash_offer.dart`.
   Future<void> _runAutofocus() async {
-    if (_isRunningAutofocus ||
+    if (_isOfferingCalibration ||
+        _isRunningAutofocus ||
         _isMoving ||
         ref.read(deviceServiceProvider).isAutofocusRunning) {
       return;
     }
+    setState(() => _isOfferingCalibration = true);
+    try {
+      await runWithBacklashOffer(context, ref, proceed: _startAutofocus);
+    } finally {
+      if (mounted) {
+        setState(() => _isOfferingCalibration = false);
+      }
+    }
+  }
+
+  Future<void> _startAutofocus() async {
     final service = ref.read(deviceServiceProvider);
     setState(() => _isRunningAutofocus = true);
     try {
@@ -158,8 +180,11 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
     final focuserMoving = focuserState.isMoving || _isMoving;
     final canMove = _isConnected && !focuserMoving && !autofocusRunning;
     final canHalt = _isConnected && (focuserMoving || autofocusRunning);
-    final canAutofocus =
-        _isConnected && cameraConnected && !focuserMoving && !autofocusRunning;
+    final canAutofocus = _isConnected &&
+        cameraConnected &&
+        !focuserMoving &&
+        !autofocusRunning &&
+        !_isOfferingCalibration;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -324,10 +324,45 @@ abstract class DeviceBackend {
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+
+    /// Backlash this app measured on [deviceId], from its stored calibration,
+    /// or null when it has never been calibrated. Never overrides
+    /// [backlashIn]: a figure the operator typed outranks a measured one.
+    int? measuredBacklashIn,
   });
 
   /// Cancel autofocus
   Future<void> autofocusCancel();
+
+  /// Measure the focuser's backlash by scanning focus twice, approaching
+  /// every point from below on one pass and from above on the other.
+  ///
+  /// Returns the outcome JSON native produced, unaltered — the evidence, the
+  /// confidence with its grounds, or a tagged refusal with the remedy already
+  /// worded for the operator. It travels as JSON rather than as a parsed model
+  /// so the remote hop and the headless route relay exactly what the routine
+  /// concluded, and [FocuserBacklashResult.tryParse] stays the single place
+  /// that reads it.
+  ///
+  /// A refusal comes back here, not as an exception: the run happened and
+  /// reached a conclusion, which is that no figure is warranted. An exception
+  /// means the run could not happen.
+  Future<String> focuserBacklashCalibrationStart({
+    required String deviceId,
+    required String cameraId,
+    required String configJson,
+  });
+
+  /// Ask a running backlash calibration to stop. The routine returns the
+  /// focuser to where the operator left it before reporting the cancellation.
+  Future<void> focuserBacklashCalibrationCancel();
+
+  /// What a backlash calibration would cost, without running it, as the plan
+  /// JSON native produced.
+  Future<String> focuserBacklashCalibrationPlan({
+    required String configJson,
+    required int centerPosition,
+  });
 
   // Filter wheel control
 

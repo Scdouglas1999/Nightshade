@@ -148,6 +148,15 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // launch cannot bake factory defaults into the run while the real settings
     // are still loading in the background.
     await _ref.read(globalMeridianFlipSettingsProvider.notifier).ensureLoaded();
+
+    // The measured focuser backlash every autofocus config carries
+    // (`measured_backlash_in`) is read synchronously out of a FutureProvider,
+    // and it is read twice below: once per Autofocus node in the tree, and
+    // once for the trigger-fired refocus config. Resolving it here covers
+    // both, so a start that outran the DB cannot push a run with no figure and
+    // then land focus on the wrong face of the gear train all night.
+    await _ref.read(savedFocuserBacklashProvider.future);
+
     final json = _serializer.sequenceToJson(sequence);
     await backend.sequencerLoadJson(json);
 
@@ -253,6 +262,14 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // config, and say so nowhere. Failure propagates — with the operator's
     // settings unknown there is nothing honest to seed.
     await _ref.read(appSettingsProvider.future);
+
+    // Same reason, for the measured focuser backlash the autofocus config
+    // below carries: it is read synchronously out of a FutureProvider, and
+    // this method is also reachable on its own (the headless native start
+    // calls `seedRuntimeConfigForNativeStart`), so awaiting it here rather
+    // than only in `_startNativeExecution` is what keeps every entry point
+    // from pushing a refocus config with no figure in it.
+    await _ref.read(savedFocuserBacklashProvider.future);
 
     // The meridian-flip push below serializes this provider. `ensureLoaded`
     // waits for the DB/remote-host snapshot, so a start that never visited the

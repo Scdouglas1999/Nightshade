@@ -33,6 +33,18 @@ pub fn try_admit_autofocus_run() -> Option<AutofocusRunGuard> {
 /// wrong face — so the run-up always clears the figure by a margin: a quarter
 /// of it, but never less than one sweep step, and never less than
 /// [`MIN_RUN_UP_MARGIN_STEPS`] on a focuser whose steps are tiny.
+/// The phrase that identifies a landing-verification failure — autofocus
+/// moving to the fitted position and then measuring a materially worse HFR
+/// there.
+///
+/// Held as a constant because Dart matches on it: two of these in a row on the
+/// same focuser is the signature of an uncalibrated or changed drive train, and
+/// is what re-opens the offer to measure its backlash
+/// (`packages/nightshade_core/lib/src/providers/focuser_backlash_provider.dart`,
+/// `autofocusLandingVerificationFailureMarker`). Rewording the sentence without
+/// this constant would silently stop that offer from ever appearing again.
+pub const LANDING_VERIFICATION_FAILURE_PHRASE: &str = "but the frame taken there measures HFR";
+
 const RUN_UP_MARGIN_DIVISOR: i32 = 4;
 const MIN_RUN_UP_MARGIN_STEPS: i32 = 10;
 
@@ -1164,10 +1176,14 @@ pub(crate) async fn execute_autofocus_once(
                     tolerance
                 );
                 return InstructionResult::failure(format!(
-                    "Autofocus moved to {} but the frame taken there measures HFR {:.2}, \
+                    "Autofocus moved to {} {} {:.2}, \
                      against the curve's {:.2} (tolerance {:.2}x). The focuser did not end up \
                      where the curve was measured.",
-                    best_position, measured, best_hfr, tolerance
+                    best_position,
+                    LANDING_VERIFICATION_FAILURE_PHRASE,
+                    measured,
+                    best_hfr,
+                    tolerance
                 ));
             }
         }
