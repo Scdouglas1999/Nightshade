@@ -53,12 +53,12 @@ pub use all_sky_polar::*;
 pub use checkpoint::*;
 // Replay Debug — hoist the decision types so the bridge can use
 // them without pathing through `nightshade_sequencer::decision::…`.
-pub use depth_goal::{
-    DepthGoalBinding, DepthGoalCompletion, DepthGoalOps, DepthGoalVerdict, SharedDepthGoalOps,
-};
 pub use decision::{
     emit_decision, DecisionCategory, DecisionEvent, DecisionReceiver, DecisionSender,
     DEFAULT_DECISION_CHANNEL_CAPACITY,
+};
+pub use depth_goal::{
+    DepthGoalBinding, DepthGoalCompletion, DepthGoalOps, DepthGoalVerdict, SharedDepthGoalOps,
 };
 pub use device_ops::*;
 pub use dual_rig::{

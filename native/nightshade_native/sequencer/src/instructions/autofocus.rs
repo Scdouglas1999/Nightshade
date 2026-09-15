@@ -35,6 +35,26 @@ pub fn try_admit_autofocus_run() -> Option<AutofocusRunGuard> {
 /// "already running" error so the one-shot / REST layer can surface a typed
 /// `DeviceBusy`. Sequence NODES should use [execute_autofocus_for_node]
 /// instead, which waits for an in-flight run rather than aborting the run.
+/// Where the final move must start from so that best focus is reached moving
+/// UPWARD — the same direction every sweep point was measured in.
+///
+/// The run-up must clear the focuser's mechanical backlash. `backlash_in` is
+/// the operator's figure and is frequently 0 (it is hardware-specific and the
+/// app cannot measure it), so this never relies on it alone: it also runs back
+/// at least one sweep step, and at least to the sweep's own start, which is
+/// below best focus by construction and inside ground the focuser has just
+/// covered. Overshooting further than necessary costs one extra move.
+fn final_run_up_position(
+    best_position: i32,
+    sweep_start: i32,
+    backlash_in: i32,
+    step_size: i32,
+) -> i32 {
+    best_position
+        .saturating_sub(backlash_in.max(step_size).max(1))
+        .min(sweep_start)
+}
+
 pub async fn execute_autofocus(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
@@ -944,63 +964,58 @@ pub(crate) async fn execute_autofocus_once(
             cb(95.0, format!("Moving to best focus: {}", best_position));
         }
 
-        let last_position = positions[positions.len() - 1];
-        if backlash.is_needed(last_position, best_position) {
-            let (intermediate, final_pos) =
-                backlash.calculate_approach(last_position, best_position);
+        // EVERY sweep point is measured while moving UP: `calculate_positions`
+        // starts at `start - steps_out * step_size` and steps outward. So the
+        // fitted minimum is expressed in the "approached from below" frame, and
+        // it is only true focus if the focuser arrives there the same way.
+        //
+        // The sweep always ends at its far extreme, so a direct move to best
+        // focus arrives DOWNWARD — the opposite face of the gear's backlash.
+        // Measured on the owner's ZWO EAF on 2026-09-14: the from-below optimum
+        // was 6620 and the from-above optimum 6515, so landing from above left
+        // the optics 105 steps out and the same commanded 6620 measured
+        // HFR 5.60 instead of 2.94. Stars were visibly donut-shaped while the
+        // curve and its reported HFR looked perfect.
+        //
+        // So the final approach is ALWAYS a run-up from below, regardless of
+        // travel direction and regardless of whether the operator has entered a
+        // backlash figure. The run-up only has to EXCEED the mechanical
+        // backlash; overshooting further costs one extra move and nothing else,
+        // and it never leaves the span the sweep just traversed.
+        let run_up_from = final_run_up_position(
+            best_position,
+            start_position,
+            config.backlash_compensation,
+            config.step_size,
+        );
 
-            if let Some(overshoot) = intermediate {
-                tracing::info!(
-                    "Final move with backlash: overshoot to {}, then {}",
-                    overshoot,
-                    final_pos
-                );
+        tracing::info!(
+            "Final approach: run up from {} to {} so focus is reached moving in the \
+             same direction the sweep measured it",
+            run_up_from,
+            best_position
+        );
 
-                if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
-                    return InstructionResult::failure(format!(
-                        "Failed to move focuser (final backlash): {}",
-                        e
-                    ));
-                }
-                if let Err(e) =
-                    wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
-                {
-                    return InstructionResult::failure(e);
-                }
-            }
+        if let Err(e) = ctx
+            .device_ops
+            .focuser_move_to(&focuser_id, run_up_from)
+            .await
+        {
+            return InstructionResult::failure(format!(
+                "Failed to move focuser (final run-up): {}",
+                e
+            ));
+        }
+        if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
+            return InstructionResult::failure(e);
+        }
 
-            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
-                return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
-            }
-        } else {
-            // The sweep always ends at its far extreme and best focus is back
-            // inside it, so this move always reverses direction. With no
-            // in-compensation configured the focuser stops wherever its own
-            // mechanical slack leaves it — short of the target by that
-            // focuser's backlash, the same amount after every run. Backlash
-            // is a property of the operator's hardware and this app cannot
-            // measure it, but staying silent about a known, constant offset
-            // is how an operator ends up nudging focus by hand every night
-            // without knowing why.
-            if best_position < last_position && backlash.backlash_in_steps == 0 {
-                tracing::info!(
-                    "Final move {} -> {} reverses direction and autofocus backlash-in is 0, \
-                     so the focuser lands short of {} by whatever slack it has. If focus reads \
-                     soft by a consistent number of steps after every run, that number is the \
-                     backlash to enter.",
-                    last_position,
-                    best_position,
-                    best_position
-                );
-            }
-
-            if let Err(e) = ctx
-                .device_ops
-                .focuser_move_to(&focuser_id, best_position)
-                .await
-            {
-                return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
-            }
+        if let Err(e) = ctx
+            .device_ops
+            .focuser_move_to(&focuser_id, best_position)
+            .await
+        {
+            return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
         }
 
         if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
@@ -1010,12 +1025,87 @@ pub(crate) async fn execute_autofocus_once(
             return result;
         }
 
+        // Measure what we ACTUALLY landed on, and report that.
+        //
+        // `best_hfr` is the fitted curve's predicted minimum — a property of the
+        // model, not of the focuser's final state. Reporting it as the outcome
+        // is how a run that left the stars visibly donut-shaped still announced
+        // a near-perfect curve: nothing ever looked through the telescope after
+        // the final move. One frame closes that gap, and it is the only number
+        // here an operator can check against their own screen.
+        let verified_hfr = {
+            let mut abort_guard =
+                CameraExposureAbortGuard::new(ctx.device_ops.clone(), camera_id.clone());
+            let exposure_result = ctx
+                .device_ops
+                .camera_start_exposure(
+                    &camera_id,
+                    config.exposure_duration,
+                    config.gain,
+                    config.offset,
+                    bin_x,
+                    bin_y,
+                )
+                .await;
+            abort_guard.disarm();
+            match exposure_result {
+                Ok(image_data) => Some(
+                    calculate_hfr_with_crops(
+                        &image_data,
+                        config.outer_crop_ratio,
+                        config.inner_crop_ratio,
+                        config.use_brightest_n_stars,
+                    )
+                    .hfr,
+                ),
+                // A failed verification frame is not a failed focus run: the
+                // curve fit and the move both succeeded. Say the check could
+                // not be made rather than discarding a good result.
+                Err(e) => {
+                    tracing::warn!("Autofocus could not verify the landing: {}", e);
+                    None
+                }
+            }
+        };
+
+        // The landing is only trusted if it is within the configured tolerance
+        // of what the curve promised. A landing materially worse than the fit
+        // means the focuser did not end up where the curve was measured —
+        // backlash, slip, or a focuser that ignored the command — and that is a
+        // failure the operator must see, not a success with a quiet number.
+        if let Some(measured) = verified_hfr {
+            let tolerance = config.failure_hfr_tolerance_ratio.max(1.0);
+            if best_hfr > 0.0 && measured > best_hfr * tolerance {
+                tracing::warn!(
+                    "Autofocus landed at {} measuring HFR {:.2}, worse than the fitted {:.2} \
+                     by more than the {:.2}x tolerance",
+                    best_position,
+                    measured,
+                    best_hfr,
+                    tolerance
+                );
+                return InstructionResult::failure(format!(
+                    "Autofocus moved to {} but the frame taken there measures HFR {:.2}, \
+                     against the curve's {:.2} (tolerance {:.2}x). The focuser did not end up \
+                     where the curve was measured.",
+                    best_position, measured, best_hfr, tolerance
+                ));
+            }
+        }
+
+        let reported_hfr = verified_hfr.unwrap_or(best_hfr);
+        let hfr_note = if verified_hfr.is_some() {
+            "measured"
+        } else {
+            "predicted; verification frame failed"
+        };
+
         if let Some(cb) = progress_callback {
             cb(
                 100.0,
                 format!(
-                    "Complete: pos {}, HFR {:.2}, R² {:.3}",
-                    best_position, best_hfr, r_squared
+                    "Complete: pos {}, HFR {:.2} ({}), R² {:.3}",
+                    best_position, reported_hfr, hfr_note, r_squared
                 ),
             );
         }
@@ -1023,11 +1113,11 @@ pub(crate) async fn execute_autofocus_once(
         InstructionResult {
             status: NodeStatus::Success,
             message: Some(format!(
-                "Autofocus complete: position {}, HFR {:.2}, R² {:.3}",
-                best_position, best_hfr, r_squared
+                "Autofocus complete: position {}, HFR {:.2} ({}), R² {:.3}",
+                best_position, reported_hfr, hfr_note, r_squared
             )),
             data: serde_json::to_value(&af_result).ok(),
-            hfr_values: vec![best_hfr],
+            hfr_values: vec![reported_hfr],
         }
     };
 
@@ -1266,5 +1356,59 @@ pub(crate) fn calculate_hfr_with_crops(
         star_count,
         unmeasurable_star_count,
         star_crops,
+    }
+}
+
+#[cfg(test)]
+mod final_approach_tests {
+    use super::final_run_up_position;
+
+    /// The owner's rig on 2026-09-14: sweep 6250..6850 (start 6550, 4 steps of
+    /// 75), fit 6620, `af_backlash_in` 0. Measured on hardware that night, the
+    /// EAF's backlash here was ~105 steps, so the run-up has to clear that.
+    /// Landing straight down measured HFR 5.60; running up from below, 2.94.
+    #[test]
+    fn runs_up_past_measured_backlash_even_when_the_operator_set_none() {
+        let run_up = final_run_up_position(6620, 6250, 0, 75);
+        assert!(
+            run_up <= 6620 - 105,
+            "run-up {} does not clear the 105-step backlash measured on the rig",
+            run_up
+        );
+        assert_eq!(run_up, 6250, "should fall back to the sweep start");
+    }
+
+    /// An operator-supplied backlash larger than the sweep still wins: the
+    /// run-up goes below the sweep start rather than being clamped up to it.
+    #[test]
+    fn a_large_operator_backlash_overrides_the_sweep_start() {
+        assert_eq!(final_run_up_position(6620, 6250, 500, 75), 6120);
+    }
+
+    /// Always strictly below best focus, so the final leg always travels
+    /// upward — the direction the sweep measured in.
+    #[test]
+    fn always_lands_moving_upward() {
+        for (best, start, backlash, step) in [
+            (6620, 6250, 0, 75),
+            (100, 100, 0, 1),
+            (5000, 4000, 0, 0),
+            (0, 0, 0, 0),
+        ] {
+            let run_up = final_run_up_position(best, start, backlash, step);
+            assert!(
+                run_up < best || best == i32::MIN,
+                "run_up {} must be below best {} so the last move goes up",
+                run_up,
+                best
+            );
+        }
+    }
+
+    /// A best focus at the very bottom of the sweep still gets a run-up; the
+    /// sweep start alone would be a no-op move.
+    #[test]
+    fn best_at_the_sweep_floor_still_runs_up() {
+        assert_eq!(final_run_up_position(6250, 6250, 0, 75), 6175);
     }
 }
