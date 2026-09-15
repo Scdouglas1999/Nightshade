@@ -74,6 +74,7 @@ pub const AUTOFOCUS_TRIGGER_UNGUIDED_HOLD_SUMMARY: &str =
 /// of slack before a missed push is treated as a dead feed.
 const DEFAULT_WEATHER_VERDICT_STALENESS_SECS: u64 = 360;
 
+mod failure_cause;
 mod monitoring;
 mod preflight;
 mod recovery_ops;

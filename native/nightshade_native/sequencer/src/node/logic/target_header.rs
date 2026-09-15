@@ -595,9 +595,9 @@ fn trigger_observer_ctx(
 /// Log and publish the refusal to evaluate a target trigger, and hand back the
 /// status the caller returns.
 ///
-/// The refusal has to leave the log. `InstructionFailed` is the one channel the
-/// run's terminal handler drains for `SequenceFailed { error }`
-/// (`executor::preflight::last_instruction_failure`), and the bridge already
+/// The refusal has to leave the log. `InstructionFailed` is one of the two
+/// channels the run's terminal handler drains for `SequenceFailed { error }`
+/// (`executor::failure_cause::run_failure_report`), and the bridge already
 /// re-publishes it as a mid-run `SequencerEvent::Error`. Publishing here is
 /// therefore what puts the reason on `/api/sequencer/status`, in the run's
 /// `statsJson.errorMessages` and in the Session Report — instead of the

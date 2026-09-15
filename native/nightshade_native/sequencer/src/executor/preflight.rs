@@ -326,29 +326,6 @@ pub(super) fn collect_subtree_names(node: &dyn Node, out: &mut Vec<String>) {
     }
 }
 
-/// Drain `rx` and return the reason from the most recent
-/// [`ExecutorEvent::InstructionFailed`], formatted for the operator.
-///
-/// Non-blocking by construction: the events were all sent before the node tree
-/// returned, so they are already buffered. `Lagged` is skipped rather than
-/// treated as end-of-stream — we want the newest reason, and lagging only ever
-/// discards older ones.
-pub(crate) fn last_instruction_failure(
-    rx: &mut broadcast::Receiver<ExecutorEvent>,
-) -> Option<String> {
-    let mut reason = None;
-    loop {
-        match rx.try_recv() {
-            Ok(ExecutorEvent::InstructionFailed { node_name, message }) => {
-                reason = Some(format!("{}: {}", node_name, message));
-            }
-            Ok(_) => {}
-            Err(broadcast::error::TryRecvError::Lagged(_)) => {}
-            Err(_) => return reason,
-        }
-    }
-}
-
 /// Operator-facing sentence naming the instructions a run could not reach.
 pub(super) fn unreachable_instructions_message(names: &[String]) -> String {
     let count = names.len();

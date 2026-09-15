@@ -26,6 +26,7 @@ import '../../services/safe_rig_service.dart';
 import '../../services/smart_night/guide_rms_collector.dart';
 import '../../services/capture_preview_loader.dart';
 import '../../services/logging_service.dart';
+import '../../utils/remote_path.dart';
 import 'log_rate_limiter.dart';
 import '../thumbnail_sidecar_provider.dart';
 import '../backend_provider.dart';
@@ -272,21 +273,36 @@ class SequenceExecutor {
   /// below has a defined set of stragglers it is protecting against.
   final Set<Future<void>> _inFlightFrameRegistrations = <Future<void>>{};
 
-  /// What the grader ruled — and what the camera actually reported — for
-  /// frames whose `ExposureCompleted` has not arrived yet, keyed by the frame
-  /// index all three events carry.
+  /// Frames the grader has already ruled on — and that the run record has
+  /// therefore already counted — whose `ExposureCompleted` has not arrived yet,
+  /// keyed by the frame index all three events carry.
   ///
   /// `FrameAccepted` / `FrameRejected` are the only events that know whether a
-  /// frame was kept and the only ones carrying the capture truth the FITS
-  /// header was written from, and native emits them BEFORE the
-  /// `ExposureCompleted` the run stats and the preview are published from.
-  /// Without this carry the run record recorded EVERY frame as accepted —
-  /// `framesRejected` was structurally 0 for every night — and the preview was
-  /// stamped with literals instead of the exposure that produced it.
+  /// frame was kept, the only ones carrying the capture truth the FITS header
+  /// was written from, and the only ones EVERY producer emits: native emits one
+  /// per frame it saves, from the exposure instruction, whether that instruction
+  /// was reached through a TakeExposure node or a Smart Exposure one. They are
+  /// consequently where the run's frame counters are incremented (see
+  /// `_recordGradedFrame`).
   ///
-  /// Entries are removed as they are consumed and cleared whenever a new node
-  /// starts, so a frame whose `ExposureCompleted` never arrives cannot strand a
-  /// verdict on a later frame of a later node.
+  /// `ExposureCompleted` cannot carry that job. The executor synthesises it in
+  /// `native/nightshade_native/sequencer/src/executor/start/progress_callback.rs`
+  /// only for nodes present in `exposure_node_metadata`, which
+  /// `executor/start.rs` builds from `NodeType::TakeExposure` alone, and only
+  /// when the node's frame index ADVANCES. A Smart Exposure node satisfies
+  /// neither condition — it is absent from the map, and its delegated
+  /// single-frame bursts report frame 1 of 1 over and over — so a whole night
+  /// on the owner's rig emitted not one `ExposureCompleted`, and
+  /// `GET /api/sequencer/status` answered `framesCaptured: 0, framesRejected: 0`
+  /// for ten minutes while the grader was writing its third reject to disk.
+  ///
+  /// An entry here therefore means "already counted": the `ExposureCompleted`
+  /// that follows consumes it for the preview stamp and adds nothing to the
+  /// counters, while a frame that reaches `ExposureCompleted` with NO entry was
+  /// never graded (a run with no save path emits no grader event at all) and is
+  /// counted there instead. Entries are cleared whenever a new node starts, so
+  /// a frame whose `ExposureCompleted` never arrives cannot strand a verdict on
+  /// a later frame of a later node.
   final Map<int, ({bool accepted, FrameCapture capture})> _gradedFrames =
       <int, ({bool accepted, FrameCapture capture})>{};
 

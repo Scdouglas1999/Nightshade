@@ -1102,18 +1102,18 @@ impl DeviceOps for UnifiedDeviceOps {
         //
         // Gathered by the shared helper so this is the same header every other
         // production solve path writes.
-        let hints = crate::api::plate_solve::gather_solve_hints().await;
-        hints.log_scale("Plate solve");
-        let focal_length_mm = hints.focal_length_mm;
-        let pixel_size = hints.pixel_size_um;
-        let binning = hints.binning;
+        let scale = crate::api::plate_solve::gather_solve_hints().await;
+        scale.log_scale("Plate solve");
+        let focal_length_mm = scale.hints.focal_length_mm;
+        let pixel_size = scale.hints.pixel_size_um;
+        let binning = scale.hints.binning;
         // The header is written for ASTAP to read; the same number also goes
         // out as an explicit `-fov` argument, because a header card is a hope
         // and an argument is an instruction. `hint_scale` from the caller wins
         // when it is a real measurement.
         let scale_hint = hint_scale
             .filter(|s| s.is_finite() && *s > 0.0)
-            .or_else(|| hints.arcsec_per_px());
+            .or_else(|| scale.arcsec_per_px());
 
         // Save the image data to the temp file first
         let header = FitsWriteHeader {
@@ -1185,6 +1185,18 @@ impl DeviceOps for UnifiedDeviceOps {
 
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_path);
+
+        // What this rig's own optics measure, remembered for the next solve.
+        // A run whose profile carries no focal length gets exactly one blind
+        // sweep and is hinted from then on — which is the difference between
+        // the drift-recenter that timed out on 2026-09-15 and one that solves
+        // in under a second. Recorded only from a solve that reported success
+        // AND a usable scale; a failed solve measures nothing.
+        if let Ok(solved) = result.as_ref() {
+            if solved.success {
+                scale.record_measured_scale(solved.pixel_scale);
+            }
+        }
 
         result
             .map(|r| PlateSolveResult {

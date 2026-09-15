@@ -252,6 +252,24 @@ impl Default for SolveHints {
     }
 }
 
+/// Plate scale in arcsec per UNBINNED pixel, per camera id, as measured by the
+/// most recent successful solve on that camera.
+///
+/// Normalised to unbinned on the way in and scaled back up on the way out, so
+/// one remembered number serves every binning the rig images at.
+///
+/// Process-global for the same reason [`ACTIVE_SOLVER_PREF`] is: the solve call
+/// sites sit deep in the call stack with nowhere to thread a parameter. Session
+/// lifetime only — the first solve after a restart still has to sweep, and
+/// promoting this to the durable profile store is the obvious next step. It is
+/// not a substitute for the focal length: an operator who enters the real focal
+/// length gets the computed scale, which is authoritative and binning-exact.
+///
+/// [`ACTIVE_SOLVER_PREF`]: nightshade_imaging
+static MEASURED_PLATE_SCALE: std::sync::LazyLock<
+    std::sync::RwLock<std::collections::HashMap<String, f64>>,
+> = std::sync::LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+
 impl SolveHints {
     /// Stamp the scale cards onto a FITS header, using the same keywords and
     /// the same binning convention as a saved capture
@@ -276,10 +294,9 @@ impl SolveHints {
     /// solver turns into a field size.
     ///
     /// This is the value the solver is handed as `-fov`. It stayed unused for
-    /// three waves: the wizard computed it, logged it in [`log_scale`], and
-    /// then called a solve that took no scale argument.
-    ///
-    /// [`log_scale`]: SolveHints::log_scale
+    /// three waves: the wizard computed it, logged it in
+    /// [`SolveScale::log_scale`], and then called a solve that took no scale
+    /// argument.
     pub(crate) fn arcsec_per_px(&self) -> Option<f64> {
         let focal = self.focal_length_mm.filter(|f| f.is_finite() && *f > 0.0)?;
         let (pitch_x, _) = self.pixel_size_um?;
@@ -287,31 +304,164 @@ impl SolveHints {
         let scale = 206.264_806 * binned_pitch / focal;
         scale.is_finite().then_some(scale).filter(|s| *s > 0.0)
     }
+}
 
-    /// A blind scale sweep is not an error and logs no warning of its own, so
-    /// without this line the fast reliable case and the slow unreliable one
-    /// look identical afterwards.
+/// One solve's field-scale facts, the camera they were read from, and what an
+/// earlier solve on that camera measured.
+///
+/// [`SolveHints`] is a bridged type and stays exactly the set of cards that go
+/// into the FITS header. This wraps it with the two things a header has no slot
+/// for: WHICH camera the pitch came from, and the scale this rig's own optics
+/// have already been measured at.
+#[derive(Debug, Clone)]
+pub(crate) struct SolveScale {
+    /// The cards the frame's header is stamped from.
+    pub(crate) hints: SolveHints,
+    /// The camera [`SolveHints::pixel_size_um`] was read from, when one was
+    /// resolved. Also the key a measurement is remembered under.
+    pub(crate) camera_id: Option<String>,
+    /// Plate scale in arcsec per UNBINNED pixel, as MEASURED by an earlier
+    /// successful solve on [`Self::camera_id`] this session.
+    ///
+    /// The weaker of the two sources and only consulted when the profile
+    /// cannot supply a focal length — but it is a real measurement of the rig
+    /// in front of the operator rather than a number typed into a form, and it
+    /// was the one available on the night this was written: the owner's first
+    /// solve measured 0.7877"/px on a sensor reporting 3.8 um, i.e. 995 mm,
+    /// while every later solve that night was still told nothing and had to
+    /// sweep for the scale. One of those sweeps is what made the
+    /// drift-recenter time out.
+    measured_arcsec_per_px: Option<f64>,
+}
+
+impl SolveScale {
+    /// The scale to hand this solve, in arcsec per pixel of the frame as
+    /// taken: computed from the optics when the profile can supply them, else
+    /// carried over from what this camera's last solve measured.
+    pub(crate) fn arcsec_per_px(&self) -> Option<f64> {
+        self.hints
+            .arcsec_per_px()
+            .or_else(|| self.remembered_arcsec_per_px())
+    }
+
+    /// The scale an earlier solve on this camera MEASURED, scaled to the
+    /// binning this frame was taken at.
+    fn remembered_arcsec_per_px(&self) -> Option<f64> {
+        let unbinned = self
+            .measured_arcsec_per_px
+            .filter(|s| s.is_finite() && *s > 0.0)?;
+        let scale = unbinned * f64::from(self.hints.binning.0.max(1));
+        scale.is_finite().then_some(scale).filter(|s| *s > 0.0)
+    }
+
+    /// The focal length this rig's measured scale implies, for operator-facing
+    /// copy. `None` unless both a measurement and a pitch are in hand.
+    fn implied_focal_length_mm(&self) -> Option<f64> {
+        let unbinned = self
+            .measured_arcsec_per_px
+            .filter(|s| s.is_finite() && *s > 0.0)?;
+        let (pitch_x, _) = self.hints.pixel_size_um?;
+        let focal = 206.264_806 * pitch_x / unbinned;
+        focal.is_finite().then_some(focal).filter(|f| *f > 0.0)
+    }
+
+    /// Remember what a successful solve measured, so the next solve on this
+    /// camera can be told the scale instead of sweeping for it.
+    ///
+    /// Recorded per camera and normalised to unbinned. A solve whose scale was
+    /// already computed from the optics is recorded too: it costs nothing and
+    /// keeps the memory warm for a later run whose profile has been edited.
+    pub(crate) fn record_measured_scale(&self, solved_arcsec_per_px: f64) {
+        let Some(camera_id) = self.camera_id.as_deref() else {
+            return;
+        };
+        if !solved_arcsec_per_px.is_finite() || solved_arcsec_per_px <= 0.0 {
+            return;
+        }
+        let unbinned = solved_arcsec_per_px / f64::from(self.hints.binning.0.max(1));
+        if !unbinned.is_finite() || unbinned <= 0.0 {
+            return;
+        }
+        MEASURED_PLATE_SCALE
+            .write()
+            .expect("measured-scale RwLock")
+            .insert(camera_id.to_string(), unbinned);
+    }
+
+    /// Three outcomes, and they are genuinely different situations — a hint
+    /// computed from the optics, a hint carried over from what this rig's own
+    /// solve measured, and no hint at all.
+    ///
+    /// The warning branch names ONLY what is actually missing. It used to
+    /// print "(focal length unknown, pixel pitch unknown)" whenever either was
+    /// absent, so a rig whose camera was reporting 3.8 um was told both were
+    /// unknown and the operator had nothing to act on.
     pub(crate) fn log_scale(&self, context: &str) {
-        match (self.focal_length_mm, self.pixel_size_um) {
-            (Some(focal), Some((pitch_x, _))) => tracing::info!(
+        if let (Some(focal), Some((pitch_x, _))) =
+            (self.hints.focal_length_mm, self.hints.pixel_size_um)
+        {
+            tracing::info!(
                 "{} scale hint: focal length {:.1} mm, pixel pitch {:.2} um \
                  ({:.2}\"/px unbinned)",
                 context,
                 focal,
                 pitch_x,
                 206.264_806 * pitch_x / focal
-            ),
-            _ => tracing::warn!(
-                "{} has no field-scale hint (focal length {}, pixel pitch {}); the \
-                 solver must search for the scale, which is slower and can fail on a field it \
-                 would otherwise solve. Set the telescope focal length on the active equipment \
-                 profile.",
+            );
+            return;
+        }
+
+        if let Some(scale) = self.remembered_arcsec_per_px() {
+            tracing::info!(
+                "{} scale hint {:.4}\"/px, MEASURED by an earlier solve on camera {}{}. No \
+                 focal length is set on the active equipment profile; set it and the scale is \
+                 computed exactly instead of carried over.",
                 context,
-                self.focal_length_mm
-                    .map_or_else(|| "unknown".to_string(), |v| format!("{v:.1} mm")),
-                self.pixel_size_um
-                    .map_or_else(|| "unknown".to_string(), |(x, _)| format!("{x:.2} um")),
+                scale,
+                self.camera_id.as_deref().unwrap_or("(unknown)"),
+                self.implied_focal_length_mm()
+                    .map_or_else(String::new, |focal| format!(
+                        " (implying a focal length of {focal:.0} mm)"
+                    )),
+            );
+            return;
+        }
+
+        // Naming ONLY the absent input is the whole point of this branch. The
+        // old copy printed "(focal length unknown, pixel pitch unknown)"
+        // whenever either was missing, so a rig whose camera was reporting
+        // 3.8 um was told both were unknown and the operator had nothing to
+        // act on. Each arm therefore says what is missing, where it comes
+        // from, and what is already in hand.
+        let missing = self.missing_scale_input();
+        tracing::warn!(
+            "{} has no field-scale hint: {missing}. The solver must search for the scale, \
+             which is slower and can fail on a field it would otherwise solve. The first \
+             successful solve on this camera is remembered and hints every solve after it.",
+            context,
+        );
+    }
+
+    /// Which of the two scale inputs this solve is missing, as an
+    /// operator-facing clause. Only reached when at least one is absent.
+    fn missing_scale_input(&self) -> String {
+        match (self.hints.focal_length_mm, self.hints.pixel_size_um) {
+            (None, None) => "no telescope focal length (no active equipment profile, or none \
+                             set on it) and no pixel pitch (no camera resolved, or its driver \
+                             reports none)"
+                .to_string(),
+            (None, Some((pitch_x, _))) => format!(
+                "no telescope focal length on the active equipment profile — the camera's \
+                 {pitch_x:.2} um pitch on its own cannot give a scale. Set the focal length \
+                 there"
             ),
+            (Some(focal), None) => format!(
+                "no pixel pitch (no camera resolved, or its driver reports none) — the \
+                 profile's {focal:.1} mm focal length on its own cannot give a scale. Connect \
+                 the imaging camera, or name it on the active profile"
+            ),
+            // Both present is the computed branch above.
+            (Some(_), Some(_)) => unreachable!("handled by the computed branch"),
         }
     }
 }
@@ -323,7 +473,7 @@ impl SolveHints {
 /// `unified_device_ops::plate_solve` and the polar-alignment frames — so none
 /// of them can quietly go back to solving blind. A camera that cannot be
 /// queried is logged and skipped, never guessed at.
-pub(crate) async fn gather_solve_hints() -> SolveHints {
+pub(crate) async fn gather_solve_hints() -> SolveScale {
     gather_solve_hints_for_camera(None).await
 }
 
@@ -333,27 +483,81 @@ pub(crate) async fn gather_solve_hints() -> SolveHints {
 /// The pitch has to come from the camera that took the frame: stamping the
 /// profile camera's pitch onto a frame from a different sensor would hand the
 /// solver a confidently wrong scale, which is worse than handing it none.
-pub(crate) async fn gather_solve_hints_for_camera(camera_id: Option<&str>) -> SolveHints {
-    let mut hints = SolveHints::default();
+pub(crate) async fn gather_solve_hints_for_camera(camera_id: Option<&str>) -> SolveScale {
+    let mut scale = SolveScale {
+        hints: SolveHints::default(),
+        camera_id: None,
+        measured_arcsec_per_px: None,
+    };
+    let hints = &mut scale.hints;
 
-    let Some(profile) = crate::get_state().get_profile().await else {
-        return hints;
+    // The two facts are read from two independent sources and neither gates the
+    // other. An absent profile used to return here, before the camera was even
+    // looked at, so a rig with no saved profile reported "pixel pitch unknown"
+    // about a sensor that was connected and answering every other caller in the
+    // app. The pitch is the camera's to report, not the profile's.
+    let profile = crate::get_state().get_profile().await;
+
+    hints.focal_length_mm = profile
+        .as_ref()
+        .map(|p| p.telescope_focal_length)
+        .filter(|focal| focal.is_finite() && *focal > 0.0);
+
+    // The camera that took the frame, in order of how well each source knows
+    // it: the caller's own, then the profile's imaging camera, then the one
+    // camera that is actually connected.
+    //
+    // That last rung is not a nicety. `profile.camera_id` is unset on a rig
+    // whose devices were connected from the Equipment screen without being
+    // saved into the profile, and this function used to give up there — so on
+    // 2026-09-15 the owner's every solve was told "pixel pitch unknown" while
+    // the camera it was imaging through was reporting 3.8 um to every other
+    // caller in the app.
+    //
+    // Exactly one connected camera, though. Two means guessing which sensor
+    // the frame came off, and the pitch of the WRONG sensor is a confidently
+    // wrong scale — worse than none, as this module's own note above says.
+    let resolved_camera_id = match camera_id {
+        Some(id) => Some(id.to_string()),
+        None => match profile.as_ref().and_then(|p| p.camera_id.clone()) {
+            Some(id) => Some(id),
+            None => {
+                let connected: Vec<String> = crate::get_state()
+                    .get_devices_by_type(DeviceType::Camera)
+                    .await
+                    .into_iter()
+                    .filter(|d| d.connection_state == ConnectionState::Connected)
+                    .map(|d| d.device_id)
+                    .collect();
+                match connected.as_slice() {
+                    [only] => {
+                        tracing::debug!(
+                            "Plate solve: no imaging camera on the active profile; reading the \
+                             pixel pitch from the one connected camera '{}'",
+                            only
+                        );
+                        Some(only.clone())
+                    }
+                    [] => None,
+                    many => {
+                        tracing::debug!(
+                            "Plate solve: no imaging camera on the active profile and {} \
+                             cameras are connected; solving without a pixel-scale hint rather \
+                             than guessing which sensor took the frame",
+                            many.len()
+                        );
+                        None
+                    }
+                }
+            }
+        },
     };
 
-    hints.focal_length_mm =
-        Some(profile.telescope_focal_length).filter(|focal| focal.is_finite() && *focal > 0.0);
-
-    let camera_id = match camera_id {
-        Some(id) => id,
-        None => {
-            let Some(id) = profile.camera_id.as_deref() else {
-                return hints;
-            };
-            id
-        }
+    let Some(camera_id) = resolved_camera_id else {
+        return scale;
     };
 
-    match crate::api::devices::camera::get_camera_status(camera_id.to_string()).await {
+    match crate::api::devices::camera::get_camera_status(camera_id.clone()).await {
         Ok(status) => {
             // 0.0 is a driver saying "I don't know", not a pitch.
             if status.pixel_size_x > 0.0 && status.pixel_size_y > 0.0 {
@@ -371,7 +575,14 @@ pub(crate) async fn gather_solve_hints_for_camera(camera_id: Option<&str>) -> So
         ),
     }
 
-    hints
+    scale.measured_arcsec_per_px = MEASURED_PLATE_SCALE
+        .read()
+        .expect("measured-scale RwLock")
+        .get(&camera_id)
+        .copied();
+    scale.camera_id = Some(camera_id);
+
+    scale
 }
 
 /// Plate solve result
@@ -1362,7 +1573,7 @@ mod solve_coalescing_tests {
 
 #[cfg(test)]
 mod solve_hint_tests {
-    use super::SolveHints;
+    use super::{SolveHints, SolveScale};
     use nightshade_imaging::FitsHeader;
 
     /// `XPIXSZ` is the *binned* pitch — that is the number a solver turns into
@@ -1426,6 +1637,203 @@ mod solve_hint_tests {
             }
             .arcsec_per_px(),
             None
+        );
+    }
+
+    /// The scale the app can DERIVE when the profile carries no focal length:
+    /// what this rig's own last solve measured.
+    ///
+    /// The owner's numbers from 2026-09-15 — a solve that measured 0.7877"/px
+    /// on an ASI1600MM reporting 3.8 um, i.e. 995 mm — because every solve
+    /// after that one was still told nothing and had to sweep for the scale,
+    /// and one of those sweeps is what made the drift-recenter time out.
+    #[test]
+    fn a_measured_scale_hints_the_next_solve_when_the_profile_has_no_focal_length() {
+        let scale = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: None,
+                pixel_size_um: Some((3.8, 3.8)),
+                binning: (1, 1),
+            },
+            camera_id: Some("native:zwo:1".to_string()),
+            measured_arcsec_per_px: None,
+        };
+        assert_eq!(
+            scale.arcsec_per_px(),
+            None,
+            "nothing has been measured yet, so there is nothing to carry over"
+        );
+
+        scale.record_measured_scale(0.7877);
+        let next = SolveScale {
+            measured_arcsec_per_px: super::MEASURED_PLATE_SCALE
+                .read()
+                .expect("measured-scale RwLock")
+                .get("native:zwo:1")
+                .copied(),
+            ..scale.clone()
+        };
+        let hinted = next
+            .arcsec_per_px()
+            .expect("the next solve on this camera is hinted");
+        assert!(
+            (hinted - 0.7877).abs() < 1e-9,
+            "the measurement carries over verbatim at the binning it was taken at, got {hinted}"
+        );
+        let implied = next
+            .implied_focal_length_mm()
+            .expect("a measured scale plus a known pitch implies a focal length");
+        assert!(
+            (implied - 995.0).abs() < 1.0,
+            "0.7877\"/px at 3.8 um is a 995 mm scope, got {implied}"
+        );
+    }
+
+    /// The warning must name what is MISSING, and only that.
+    ///
+    /// The first version of this branch printed "(focal length unknown, pixel
+    /// pitch unknown)" whenever either input was absent, so a rig whose camera
+    /// was reporting 3.8 um was told both were unknown. The replacement was
+    /// then caught on a live run saying "this run knows the telescope focal
+    /// length" about the one input it did not have — the same lie, inverted.
+    #[test]
+    fn the_warning_names_only_the_absent_input() {
+        // No way to assert on `tracing` output here without a subscriber, so
+        // the arms are asserted through the same match the warning uses.
+        let pitch_only = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: None,
+                pixel_size_um: Some((3.8, 3.8)),
+                binning: (1, 1),
+            },
+            camera_id: Some("pitch-only-camera".to_string()),
+            measured_arcsec_per_px: None,
+        };
+        assert_eq!(
+            pitch_only.missing_scale_input(),
+            "no telescope focal length on the active equipment profile — the camera's 3.80 um \
+             pitch on its own cannot give a scale. Set the focal length there"
+        );
+
+        let focal_only = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: Some(995.0),
+                pixel_size_um: None,
+                binning: (1, 1),
+            },
+            camera_id: None,
+            measured_arcsec_per_px: None,
+        };
+        assert!(
+            focal_only
+                .missing_scale_input()
+                .starts_with("no pixel pitch"),
+            "got: {}",
+            focal_only.missing_scale_input()
+        );
+        assert!(
+            focal_only.missing_scale_input().contains("995.0 mm"),
+            "the input it DOES have is stated as held, not as missing"
+        );
+
+        let neither = SolveScale {
+            hints: SolveHints::default(),
+            camera_id: None,
+            measured_arcsec_per_px: None,
+        };
+        let text = neither.missing_scale_input();
+        assert!(text.starts_with("no telescope focal length"), "got: {text}");
+        assert!(text.contains("and no pixel pitch"), "got: {text}");
+    }
+
+    /// Binning is not baked into the memory: a 2x2 frame is hinted at twice
+    /// the sampling the 1x1 solve measured.
+    #[test]
+    fn a_measured_scale_rescales_to_the_binning_of_the_frame() {
+        let one_by_one = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: None,
+                pixel_size_um: Some((3.8, 3.8)),
+                binning: (1, 1),
+            },
+            camera_id: Some("bin-test-camera".to_string()),
+            measured_arcsec_per_px: None,
+        };
+        one_by_one.record_measured_scale(0.7877);
+        let remembered = super::MEASURED_PLATE_SCALE
+            .read()
+            .expect("measured-scale RwLock")
+            .get("bin-test-camera")
+            .copied();
+
+        let two_by_two = SolveScale {
+            hints: SolveHints {
+                binning: (2, 2),
+                ..one_by_one.hints.clone()
+            },
+            measured_arcsec_per_px: remembered,
+            ..one_by_one.clone()
+        };
+        let hinted = two_by_two.arcsec_per_px().expect("hinted at 2x2");
+        assert!(
+            (hinted - 1.5754).abs() < 1e-6,
+            "a 2x2 frame samples at twice the 1x1 scale, got {hinted}"
+        );
+    }
+
+    /// The operator's own focal length is authoritative: a measurement never
+    /// overrides the computed scale.
+    #[test]
+    fn the_computed_scale_outranks_a_measured_one() {
+        let scale = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: Some(600.0),
+                pixel_size_um: Some((3.76, 3.76)),
+                binning: (1, 1),
+            },
+            camera_id: Some("computed-wins-camera".to_string()),
+            measured_arcsec_per_px: Some(9.99),
+        };
+        let hinted = scale.arcsec_per_px().expect("computed from the optics");
+        assert!(
+            (hinted - 1.292_59).abs() < 1e-4,
+            "600 mm at 3.76 um is 1.29\"/px; the stale 9.99 must not win, got {hinted}"
+        );
+    }
+
+    /// A failed solve measures nothing, and a solve with no camera resolved has
+    /// nowhere to record a measurement.
+    #[test]
+    fn nothing_usable_is_remembered_from_nothing_usable() {
+        let no_camera = SolveScale {
+            hints: SolveHints::default(),
+            camera_id: None,
+            measured_arcsec_per_px: None,
+        };
+        no_camera.record_measured_scale(1.0);
+        assert!(
+            !super::MEASURED_PLATE_SCALE
+                .read()
+                .expect("measured-scale RwLock")
+                .values()
+                .any(|v| (*v - 1.0).abs() < f64::EPSILON),
+            "a solve with no camera resolved must not write under some other key"
+        );
+
+        let camera = SolveScale {
+            camera_id: Some("rejects-garbage-camera".to_string()),
+            ..no_camera
+        };
+        for garbage in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            camera.record_measured_scale(garbage);
+        }
+        assert_eq!(
+            super::MEASURED_PLATE_SCALE
+                .read()
+                .expect("measured-scale RwLock")
+                .get("rejects-garbage-camera"),
+            None,
+            "a non-finite or non-positive scale is not a measurement"
         );
     }
 

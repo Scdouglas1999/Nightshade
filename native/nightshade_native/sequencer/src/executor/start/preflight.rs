@@ -193,15 +193,35 @@ impl SequenceExecutor {
                     "Plate-solve preflight: a solver is installed but no ASTAP star catalog was \
                  detected. ASTAP needs a star database installed separately from astap.exe."
                 );
-                // This is a setup issue, not a crash — but it WILL break every
-                // target centering, so surface it clearly and tell the operator
-                // exactly how to fix it before the night is wasted.
-                let _ = self.event_tx.send(ExecutorEvent::Error {
-                    message: "Plate-solve setup: no ASTAP star database found. ASTAP needs a star \
-                          catalog installed separately from astap.exe — download one (e.g. the \
-                          D80 or H18 .290 database) and put it next to astap.exe, or set its \
-                          folder in Settings → Plate Solving. Until then, target centering in \
-                          this sequence will fail."
+                // A setup advisory on the WARNING channel, not the error one.
+                //
+                // It rode `ExecutorEvent::Error`, which is what made it a
+                // run-level ERROR in the log and a red Errors entry in the
+                // Session Report — the same mis-routing the `Warning` variant
+                // was added for, and the same one the meridian-flip advisory
+                // above already uses it to avoid. It is also only ever an
+                // advisory by construction: the sentence next to it says so
+                // ("a warning rather than a hard block so a valid solve-field
+                // / non-standard catalog setup is not falsely rejected"), and
+                // `CenterTarget`'s own fail-closed error is the real gate.
+                //
+                // The copy is hedged to match. This check can only report what
+                // it FOUND, and on 2026-09-15 it found nothing on a rig where
+                // ASTAP was solving to 0.17" — see `detect_astap_catalog`,
+                // which now resolves the executable before searching. An
+                // advisory that predicts failure in the indicative ("centering
+                // in this sequence will fail") and is then contradicted by the
+                // run it warned about teaches the operator to skip the next
+                // one.
+                let _ = self.event_tx.send(ExecutorEvent::Warning {
+                    message: "Plate-solve setup: no ASTAP star catalog was found next to the \
+                          detected ASTAP executable, in the folder set in Settings → Plate \
+                          Solving, or in the usual install locations. If you are solving with \
+                          ASTAP, centering needs a star database installed separately from \
+                          astap.exe — download one (e.g. the D80 or H18 .290 database) and put \
+                          it next to astap.exe, or point Settings → Plate Solving at its \
+                          folder. If centering is already solving on this rig, the catalog is \
+                          somewhere this check does not look and you can ignore this."
                         .to_string(),
                 });
             }

@@ -208,10 +208,32 @@ class _ReportBody extends ConsumerWidget {
           // A run the operator stopped is not a failed run. The cancellation
           // notice is dropped from Errors (and stated plainly instead) only for
           // that outcome — a run that failed on its own keeps every message.
+          // WHY the run ended, above the cascade it ended in. The Errors list
+          // is everything the run reported in order, and reading it top-down
+          // is how an operator came to believe a cancelled filter change had
+          // ended his night. This states the answer first.
+          if (_failureCause != null) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+                title: 'Why it ended',
+                icon: LucideIcons.alertOctagon,
+                colors: colors,
+                titleColor: colors.error),
+            const SizedBox(height: 8),
+            SelectableText(
+              runFailureMessage(_failureCause!),
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textPrimary),
+            ),
+            if (report.rejectFolder != null) ...[
+              const SizedBox(height: 8),
+              _muted('Rejected frames: ${report.rejectFolder}'),
+            ],
+          ],
           if (_errorMessages.isNotEmpty) ...[
             const SizedBox(height: 20),
             _SectionTitle(
-                title: 'Errors',
+                title: _failureCause == null ? 'Errors' : 'Everything reported',
                 icon: LucideIcons.xCircle,
                 colors: colors,
                 titleColor: colors.error),
@@ -582,6 +604,14 @@ class _ReportBody extends ConsumerWidget {
   /// notice that a Stop always produces. See [runErrorMessagesFor].
   List<String> get _errorMessages =>
       runErrorMessagesFor(report.status, report.errorMessages);
+
+  /// The cause to headline, or null when there is nothing to explain.
+  ///
+  /// Suppressed on an operator stop for the same reason the cancellation notice
+  /// is dropped from Errors: a run the operator stopped did not fail, and
+  /// heading it "Why it ended" with a teardown message would say it did.
+  String? get _failureCause =>
+      _wasStoppedByOperator ? null : report.terminalCause;
 
   List<Widget> _buildErrorList() {
     return [
