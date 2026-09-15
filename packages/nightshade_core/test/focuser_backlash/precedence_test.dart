@@ -9,6 +9,7 @@ void main() {
     test('a non-zero afBacklashIn wins outright', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 350,
+        operatorCompensationEnabled: true,
         measured: recordFor(),
       );
 
@@ -22,6 +23,7 @@ void main() {
     test('it wins even with nothing measured', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 350,
+        operatorCompensationEnabled: true,
         measured: null,
       );
 
@@ -45,6 +47,7 @@ void main() {
     test('105 steps from the measurement, with its provenance', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: recordFor(),
       );
 
@@ -59,6 +62,7 @@ void main() {
       () {
         final effective = resolveEffectiveFocuserBacklash(
           operatorEnteredSteps: 0,
+          operatorCompensationEnabled: true,
           measured: recordFor(),
         );
 
@@ -76,6 +80,7 @@ void main() {
     test('a driver with no thermometer still names date and position', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: recordFor(temperature: null),
       );
 
@@ -86,6 +91,7 @@ void main() {
     test('a figure measured elsewhere in the travel says where', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: recordFor(steps: 83, position: 2500, temperature: 9.0),
       );
 
@@ -98,6 +104,7 @@ void main() {
     test('no measurable backlash resolves to none', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: recordFor(steps: 0, measurable: false),
       );
 
@@ -110,6 +117,7 @@ void main() {
     test('and it says so, with the resolution it was measured against', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: recordFor(steps: 0, measurable: false),
       );
 
@@ -123,6 +131,7 @@ void main() {
     test('an untouched setting and an uncalibrated focuser give none', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: null,
       );
 
@@ -135,11 +144,73 @@ void main() {
     test('an unusable record is treated as never measured', () {
       final effective = resolveEffectiveFocuserBacklash(
         operatorEnteredSteps: 0,
+        operatorCompensationEnabled: true,
         measured: recordFor(steps: -40),
       );
 
       expect(effective.origin, FocuserBacklashOrigin.none);
       expect(effective.steps, 0);
+    });
+  });
+
+  group('compensation switched off', () {
+    // With `af_backlash_comp_method` = "None" the wire config already sends
+    // `backlash_compensation: 0`, so a figure the operator typed never reaches
+    // the engine. Reporting it as in force would be untrue, and would hide the
+    // measured figure that IS applied — `measured_backlash_in` is ungated,
+    // because it sizes the final run-up rather than the sweep's overshoots.
+    test('a typed figure that is switched off is not reported as in force', () {
+      final effective = resolveEffectiveFocuserBacklash(
+        operatorEnteredSteps: 200,
+        operatorCompensationEnabled: false,
+        measured: null,
+      );
+
+      expect(effective.origin, FocuserBacklashOrigin.none);
+      expect(effective.steps, 0);
+      expect(effective.switchedOffOperatorSteps, 200);
+      expect(effective.provenance, contains('switched off'));
+    });
+
+    test('the measured figure applies while theirs is switched off', () {
+      final effective = resolveEffectiveFocuserBacklash(
+        operatorEnteredSteps: 200,
+        operatorCompensationEnabled: false,
+        measured: recordFor(steps: 105),
+      );
+
+      expect(effective.origin, FocuserBacklashOrigin.measured);
+      expect(effective.steps, 105);
+      // And their figure is still named, so a surface can say why the number
+      // beside it is not the one being used.
+      expect(effective.switchedOffOperatorSteps, 200);
+    });
+
+    test(
+      'switching compensation off changes nothing when they typed no figure',
+      () {
+        final effective = resolveEffectiveFocuserBacklash(
+          operatorEnteredSteps: 0,
+          operatorCompensationEnabled: false,
+          measured: recordFor(steps: 105),
+        );
+
+        expect(effective.origin, FocuserBacklashOrigin.measured);
+        expect(effective.steps, 105);
+        expect(effective.switchedOffOperatorSteps, isNull);
+      },
+    );
+
+    test('a figure in force reports nothing switched off', () {
+      final effective = resolveEffectiveFocuserBacklash(
+        operatorEnteredSteps: 200,
+        operatorCompensationEnabled: true,
+        measured: recordFor(steps: 105),
+      );
+
+      expect(effective.origin, FocuserBacklashOrigin.operatorEntered);
+      expect(effective.steps, 200);
+      expect(effective.switchedOffOperatorSteps, isNull);
     });
   });
 
@@ -152,6 +223,7 @@ void main() {
 
     final effective = resolveEffectiveFocuserBacklash(
       operatorEnteredSteps: 0,
+      operatorCompensationEnabled: true,
       measured: calibration.toRecord(),
     );
 

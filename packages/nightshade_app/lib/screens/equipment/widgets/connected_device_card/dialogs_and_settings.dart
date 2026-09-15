@@ -177,7 +177,10 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
 
     bool tempComp = settings.tempCompensation;
     var coefficientText = settings.tempCoefficient.toString();
-    var backlashText = settings.backlashCompensation.toString();
+    // `afBacklashIn`, the figure every path to the focuser actually reads;
+    // `backlashCompensation` is persisted and displayed but operationally
+    // unread. See the note in `_BacklashSettingRow`.
+    var backlashText = settings.afBacklashIn.toString();
     // Bumped when a measured figure is adopted, so the field's key changes and
     // it rebuilds showing the new `initialValue`. A controller would be the
     // obvious alternative, but nothing here outlives the dialog's exit
@@ -234,13 +237,15 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                             isSaving = true;
                           });
                           try {
-                            await ref
-                                .read(appSettingsProvider.notifier)
-                                .setFocuserCompensationConfig(
-                                  tempCompensation: tempComp,
-                                  tempCoefficient: coeff,
-                                  backlashCompensation: backlash,
-                                );
+                            final notifier = ref.read(
+                              appSettingsProvider.notifier,
+                            );
+                            await notifier.setAfBacklashIn(backlash);
+                            await notifier.setFocuserCompensationConfig(
+                              tempCompensation: tempComp,
+                              tempCoefficient: coeff,
+                              backlashCompensation: backlash,
+                            );
                             if (!context.mounted) return;
                             Navigator.pop(context);
                             if (pageContext.mounted) {

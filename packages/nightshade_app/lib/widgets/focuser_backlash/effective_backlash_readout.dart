@@ -64,6 +64,19 @@ class EffectiveBacklashReadout extends ConsumerWidget {
                 NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
+        // A figure they typed that the compensation-method switch is zeroing
+        // before it reaches the engine. Said plainly, because the field
+        // immediately above shows that number and would otherwise read as
+        // being in force.
+        if (effective.switchedOffOperatorSteps case final int switchedOff) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'The $switchedOff steps above is switched off by the backlash '
+            'compensation method in Autofocus settings, so it is not being '
+            'applied.',
+            style: NightshadeTypography.caption.copyWith(color: colors.warning),
+          ),
+        ],
         if (effective.origin == FocuserBacklashOrigin.operatorEntered &&
             saved != null) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),

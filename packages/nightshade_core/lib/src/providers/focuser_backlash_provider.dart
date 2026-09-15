@@ -42,8 +42,17 @@ final effectiveFocuserBacklashProvider = Provider<EffectiveFocuserBacklash>((
       provenance: 'the saved settings are still loading',
     );
   }
+  final resolved = settings.requireValue;
   return resolveEffectiveFocuserBacklash(
-    operatorEnteredSteps: settings.requireValue.afBacklashIn,
+    operatorEnteredSteps: resolved.afBacklashIn,
+    // The same switch `sequence_serializer` and `autofocus_controls` already
+    // honour when they build the wire config: with compensation off the
+    // operator's figure is zeroed before native sees it, so it is not in force
+    // and must not be reported as though it were.
+    operatorCompensationEnabled: !resolved.afBacklashCompMethod
+        .trim()
+        .toLowerCase()
+        .contains('none'),
     measured: saved.valueOrNull,
   );
 });

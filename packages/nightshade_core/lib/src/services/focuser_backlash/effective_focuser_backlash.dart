@@ -22,6 +22,7 @@ class EffectiveFocuserBacklash {
     required this.origin,
     required this.provenance,
     this.record,
+    this.switchedOffOperatorSteps,
   });
 
   /// Backlash in focuser steps, 0 when [origin] is
@@ -39,6 +40,15 @@ class EffectiveFocuserBacklash {
   /// [FocuserBacklashOrigin.measured].
   final FocuserBacklashCalibrationRecord? record;
 
+  /// A figure the operator typed that is NOT being applied because they have
+  /// switched backlash compensation off, so `af_backlash_comp_method` zeroes it
+  /// before it reaches the engine.
+  ///
+  /// Null whenever their figure is in force, or when there is none. It exists
+  /// so a surface can say "your 200 steps is switched off" rather than quietly
+  /// reporting a different number than the field above it shows.
+  final int? switchedOffOperatorSteps;
+
   /// Whether there is a figure to size a run-up from.
   bool get hasFigure => origin != FocuserBacklashOrigin.none;
 }
@@ -53,34 +63,52 @@ const String _operatorProvenance = 'the value you entered';
 /// wins outright — measuring never overwrites a number somebody typed.
 /// [measured] is consulted only when they have left theirs at 0.
 ///
+/// [operatorCompensationEnabled] is `af_backlash_comp_method` being anything
+/// other than "None". It has to be here, and not assumed true, because that is
+/// the switch Dart already honours when it builds the wire config: with
+/// compensation off it sends `backlash_compensation: 0`, so the operator's
+/// figure never reaches the engine and claiming it is in force would be a
+/// straight untruth. The measured figure is unaffected — it rides
+/// `measured_backlash_in`, which is ungated, because it sizes the final run-up
+/// rather than the sweep's overshoot moves.
+///
 /// A measured record of 0 steps ([FocuserBacklashCalibrationRecord.measurable]
 /// false) resolves to [FocuserBacklashOrigin.none]: "no backlash larger than
 /// the scans could resolve" is a real result, and it is not a figure to size a
 /// run-up from.
 EffectiveFocuserBacklash resolveEffectiveFocuserBacklash({
   required int operatorEnteredSteps,
+  required bool operatorCompensationEnabled,
   required FocuserBacklashCalibrationRecord? measured,
 }) {
-  if (operatorEnteredSteps > 0) {
+  if (operatorEnteredSteps > 0 && operatorCompensationEnabled) {
     return EffectiveFocuserBacklash(
       steps: operatorEnteredSteps,
       origin: FocuserBacklashOrigin.operatorEntered,
       provenance: _operatorProvenance,
     );
   }
+  // Their figure is set but switched off. Carried through every branch below
+  // so the surface can say so instead of reporting a different number than the
+  // field beside it shows.
+  final switchedOff = operatorEnteredSteps > 0 ? operatorEnteredSteps : null;
   if (measured == null || !measured.isUsable) {
-    return const EffectiveFocuserBacklash(
+    return EffectiveFocuserBacklash(
       steps: 0,
       origin: FocuserBacklashOrigin.none,
-      provenance:
-          'this focuser has not been measured and you have not entered a '
-          'figure',
+      switchedOffOperatorSteps: switchedOff,
+      provenance: switchedOff == null
+          ? 'this focuser has not been measured and you have not entered a '
+                'figure'
+          : 'the figure you entered is switched off and this focuser has not '
+                'been measured',
     );
   }
   if (!measured.measurable) {
     return EffectiveFocuserBacklash(
       steps: 0,
       origin: FocuserBacklashOrigin.none,
+      switchedOffOperatorSteps: switchedOff,
       provenance:
           'no backlash larger than '
           '${_formatSteps(measured.resolutionLimitSteps)} steps was '
@@ -92,6 +120,7 @@ EffectiveFocuserBacklash resolveEffectiveFocuserBacklash({
     origin: FocuserBacklashOrigin.measured,
     provenance: _measuredPhrase(measured),
     record: measured,
+    switchedOffOperatorSteps: switchedOff,
   );
 }
 

@@ -189,4 +189,47 @@ void main() {
       },
     );
   });
+
+  // The defect this test exists for: the field and the button used to write
+  // `backlashCompensation`, which nothing operational reads — every path to the
+  // focuser takes its figure from `afBacklashIn`. Adopting a measured value
+  // therefore changed the number on screen and nothing else, which is the
+  // worst possible outcome for a feature about honesty.
+  testWidgets('a typed figure switched off is named as not being applied', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      effective: EffectiveFocuserBacklash(
+        steps: 105,
+        origin: FocuserBacklashOrigin.measured,
+        provenance: 'measured on 2026-09-14 at position 6620, 14.5 °C',
+        record: record105(),
+        switchedOffOperatorSteps: 200,
+      ),
+      saved: record105(),
+    );
+
+    expect(
+      find.textContaining('200 steps above is switched off'),
+      findsOneWidget,
+    );
+    // And the figure actually in force is still stated.
+    expect(find.textContaining('105 steps'), findsWidgets);
+  });
+
+  testWidgets('a figure in force says nothing about being switched off', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      effective: const EffectiveFocuserBacklash(
+        steps: 200,
+        origin: FocuserBacklashOrigin.operatorEntered,
+        provenance: 'the value you entered',
+      ),
+    );
+
+    expect(find.textContaining('switched off'), findsNothing);
+  });
 }

@@ -257,8 +257,16 @@ class _BacklashSettingRowState extends ConsumerState<_BacklashSettingRow> {
   @override
   void initState() {
     super.initState();
+    // `afBacklashIn` and NOT `backlashCompensation`, which this field used to
+    // edit. Nothing operational reads `backlashCompensation` — it is persisted,
+    // synced to a remote client and displayed, and that is all; every path to
+    // the focuser (`sequence_serializer`, `autofocus_controls`, the runtime
+    // push-down) takes its figure from `afBacklashIn`. So the field was editing
+    // a number that changed nothing, and it now sits beside a readout that
+    // states the figure actually in force — two different numbers under one
+    // label would be worse than either.
     _controller = TextEditingController(
-      text: widget.settings.backlashCompensation.toString(),
+      text: widget.settings.afBacklashIn.toString(),
     );
   }
 
@@ -271,7 +279,11 @@ class _BacklashSettingRowState extends ConsumerState<_BacklashSettingRow> {
   void _apply(String value) {
     final parsed = int.tryParse(value);
     if (parsed == null) return;
-    ref.read(appSettingsProvider.notifier).setBacklashCompensation(parsed);
+    final notifier = ref.read(appSettingsProvider.notifier);
+    notifier.setAfBacklashIn(parsed);
+    // Kept in step so the legacy setting cannot sit behind showing a
+    // contradictory number anywhere it is still surfaced.
+    notifier.setBacklashCompensation(parsed);
   }
 
   void _useMeasured(int steps) {
