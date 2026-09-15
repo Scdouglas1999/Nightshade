@@ -2430,8 +2430,7 @@ mod tests {
             "a discovered-but-unconfigured exe is the exe the search must probe around"
         );
         assert_eq!(
-            super::catalog_search_fallback(Some(configured.clone()), Some(discovered), None)
-                .0,
+            super::catalog_search_fallback(Some(configured.clone()), Some(discovered), None).0,
             Some(configured),
             "what the operator configured still wins"
         );
@@ -2468,8 +2467,9 @@ mod tests {
         // Nothing configured; the exe is only what the module discovered.
         let (resolved_exe, resolved_catalog) =
             super::catalog_search_fallback(None, Some(exe), None);
-        let info = super::detect_astap_catalog(resolved_exe.as_deref(), resolved_catalog.as_deref())
-            .expect("a catalog beside a discovered exe must be found");
+        let info =
+            super::detect_astap_catalog(resolved_exe.as_deref(), resolved_catalog.as_deref())
+                .expect("a catalog beside a discovered exe must be found");
         assert_eq!(info.name, "D80");
         assert_eq!(info.path, temp);
 

@@ -397,7 +397,9 @@ impl SolveScale {
     /// absent, so a rig whose camera was reporting 3.8 um was told both were
     /// unknown and the operator had nothing to act on.
     pub(crate) fn log_scale(&self, context: &str) {
-        if let (Some(focal), Some((pitch_x, _))) = (self.hints.focal_length_mm, self.hints.pixel_size_um) {
+        if let (Some(focal), Some((pitch_x, _))) =
+            (self.hints.focal_length_mm, self.hints.pixel_size_um)
+        {
             tracing::info!(
                 "{} scale hint: focal length {:.1} mm, pixel pitch {:.2} um \
                  ({:.2}\"/px unbinned)",
@@ -425,28 +427,42 @@ impl SolveScale {
             return;
         }
 
-        let missing = match (self.hints.focal_length_mm, self.hints.pixel_size_um) {
-            (None, None) => "neither the telescope focal length (no active equipment profile, \
-                             or none set on it) nor the pixel pitch (no camera resolved, or \
-                             its driver reports none)"
+        // Naming ONLY the absent input is the whole point of this branch. The
+        // old copy printed "(focal length unknown, pixel pitch unknown)"
+        // whenever either was missing, so a rig whose camera was reporting
+        // 3.8 um was told both were unknown and the operator had nothing to
+        // act on. Each arm therefore says what is missing, where it comes
+        // from, and what is already in hand.
+        let missing = self.missing_scale_input();
+        tracing::warn!(
+            "{} has no field-scale hint: {missing}. The solver must search for the scale, \
+             which is slower and can fail on a field it would otherwise solve. The first \
+             successful solve on this camera is remembered and hints every solve after it.",
+            context,
+        );
+    }
+
+    /// Which of the two scale inputs this solve is missing, as an
+    /// operator-facing clause. Only reached when at least one is absent.
+    fn missing_scale_input(&self) -> String {
+        match (self.hints.focal_length_mm, self.hints.pixel_size_um) {
+            (None, None) => "no telescope focal length (no active equipment profile, or none \
+                             set on it) and no pixel pitch (no camera resolved, or its driver \
+                             reports none)"
                 .to_string(),
             (None, Some((pitch_x, _))) => format!(
-                "the telescope focal length; the camera reports a {pitch_x:.2} um pitch"
+                "no telescope focal length on the active equipment profile — the camera's \
+                 {pitch_x:.2} um pitch on its own cannot give a scale. Set the focal length \
+                 there"
             ),
             (Some(focal), None) => format!(
-                "the pixel pitch (no camera resolved, or its driver reports none); the profile \
-                 gives a focal length of {focal:.1} mm"
+                "no pixel pitch (no camera resolved, or its driver reports none) — the \
+                 profile's {focal:.1} mm focal length on its own cannot give a scale. Connect \
+                 the imaging camera, or name it on the active profile"
             ),
             // Both present is the computed branch above.
             (Some(_), Some(_)) => unreachable!("handled by the computed branch"),
-        };
-        tracing::warn!(
-            "{} has no field-scale hint: this run knows {missing}. The solver must search for \
-             the scale, which is slower and can fail on a field it would otherwise solve. The \
-             first successful solve on this camera is remembered and hints every solve after \
-             it.",
-            context,
-        );
+        }
     }
 }
 
@@ -475,12 +491,17 @@ pub(crate) async fn gather_solve_hints_for_camera(camera_id: Option<&str>) -> So
     };
     let hints = &mut scale.hints;
 
-    let Some(profile) = crate::get_state().get_profile().await else {
-        return scale;
-    };
+    // The two facts are read from two independent sources and neither gates the
+    // other. An absent profile used to return here, before the camera was even
+    // looked at, so a rig with no saved profile reported "pixel pitch unknown"
+    // about a sensor that was connected and answering every other caller in the
+    // app. The pitch is the camera's to report, not the profile's.
+    let profile = crate::get_state().get_profile().await;
 
-    hints.focal_length_mm =
-        Some(profile.telescope_focal_length).filter(|focal| focal.is_finite() && *focal > 0.0);
+    hints.focal_length_mm = profile
+        .as_ref()
+        .map(|p| p.telescope_focal_length)
+        .filter(|focal| focal.is_finite() && *focal > 0.0);
 
     // The camera that took the frame, in order of how well each source knows
     // it: the caller's own, then the profile's imaging camera, then the one
@@ -498,7 +519,7 @@ pub(crate) async fn gather_solve_hints_for_camera(camera_id: Option<&str>) -> So
     // wrong scale — worse than none, as this module's own note above says.
     let resolved_camera_id = match camera_id {
         Some(id) => Some(id.to_string()),
-        None => match profile.camera_id.clone() {
+        None => match profile.as_ref().and_then(|p| p.camera_id.clone()) {
             Some(id) => Some(id),
             None => {
                 let connected: Vec<String> = crate::get_state()
@@ -1666,6 +1687,63 @@ mod solve_hint_tests {
             (implied - 995.0).abs() < 1.0,
             "0.7877\"/px at 3.8 um is a 995 mm scope, got {implied}"
         );
+    }
+
+    /// The warning must name what is MISSING, and only that.
+    ///
+    /// The first version of this branch printed "(focal length unknown, pixel
+    /// pitch unknown)" whenever either input was absent, so a rig whose camera
+    /// was reporting 3.8 um was told both were unknown. The replacement was
+    /// then caught on a live run saying "this run knows the telescope focal
+    /// length" about the one input it did not have — the same lie, inverted.
+    #[test]
+    fn the_warning_names_only_the_absent_input() {
+        // No way to assert on `tracing` output here without a subscriber, so
+        // the arms are asserted through the same match the warning uses.
+        let pitch_only = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: None,
+                pixel_size_um: Some((3.8, 3.8)),
+                binning: (1, 1),
+            },
+            camera_id: Some("pitch-only-camera".to_string()),
+            measured_arcsec_per_px: None,
+        };
+        assert_eq!(
+            pitch_only.missing_scale_input(),
+            "no telescope focal length on the active equipment profile — the camera's 3.80 um \
+             pitch on its own cannot give a scale. Set the focal length there"
+        );
+
+        let focal_only = SolveScale {
+            hints: SolveHints {
+                focal_length_mm: Some(995.0),
+                pixel_size_um: None,
+                binning: (1, 1),
+            },
+            camera_id: None,
+            measured_arcsec_per_px: None,
+        };
+        assert!(
+            focal_only
+                .missing_scale_input()
+                .starts_with("no pixel pitch"),
+            "got: {}",
+            focal_only.missing_scale_input()
+        );
+        assert!(
+            focal_only.missing_scale_input().contains("995.0 mm"),
+            "the input it DOES have is stated as held, not as missing"
+        );
+
+        let neither = SolveScale {
+            hints: SolveHints::default(),
+            camera_id: None,
+            measured_arcsec_per_px: None,
+        };
+        let text = neither.missing_scale_input();
+        assert!(text.starts_with("no telescope focal length"), "got: {text}");
+        assert!(text.contains("and no pixel pitch"), "got: {text}");
     }
 
     /// Binning is not baked into the memory: a 2x2 frame is hinted at twice

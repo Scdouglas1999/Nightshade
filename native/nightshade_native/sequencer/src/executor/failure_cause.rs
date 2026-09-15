@@ -20,7 +20,7 @@
 //! and none of it reached him.
 //!
 //! The rule, then: **an operation cancelled because the run is already failing
-//! is never the failure reason.** See [`run_failure_cause`].
+//! is never the failure reason.** See [`run_failure_report`].
 
 use crate::executor::types::ExecutorEvent;
 use tokio::sync::broadcast;
@@ -231,9 +231,11 @@ mod tests {
             vec![ExecutorEvent::Error {
                 message: REJECT_STORM.to_string(),
             }],
-            Some("2 instructions in this sequence are attached to an instruction that cannot \
+            Some(
+                "2 instructions in this sequence are attached to an instruction that cannot \
                   hold children"
-                .to_string()),
+                    .to_string(),
+            ),
         );
 
         assert!(
@@ -272,8 +274,7 @@ mod tests {
     fn an_abort_a_node_reported_itself_is_still_a_fault() {
         let report = drain(
             vec![ExecutorEvent::Error {
-                message: "Dither failed after frame 3/8: No active guider configured"
-                    .to_string(),
+                message: "Dither failed after frame 3/8: No active guider configured".to_string(),
             }],
             None,
         );

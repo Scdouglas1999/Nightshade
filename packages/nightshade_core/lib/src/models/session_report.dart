@@ -348,6 +348,20 @@ class SessionReport {
   /// — see [SequenceRunStats.warningMessages]. Empty when none were recorded.
   final List<String> warningMessages;
 
+  /// Why the run in this session ended badly, when one did — the FIRST real
+  /// fault, never a teardown step the cancellation cascade tripped over. Null
+  /// for a session whose runs did not fail.
+  ///
+  /// [errorMessages] is the whole cascade in the order it happened; this is the
+  /// one line in it that answers "what do I fix". Chosen natively by
+  /// `executor::failure_cause` and persisted on
+  /// [SequenceRunStats.terminalCause].
+  final String? terminalCause;
+
+  /// The directory this session's rejected frames were moved into, when
+  /// anything was rejected. What an operator opens next after a reject storm.
+  final String? rejectFolder;
+
   /// When the report was generated.
   final DateTime generatedAt;
 
@@ -371,6 +385,8 @@ class SessionReport {
     required this.notes,
     required this.errorMessages,
     this.warningMessages = const [],
+    this.terminalCause,
+    this.rejectFolder,
     required this.generatedAt,
   });
 

@@ -28,6 +28,8 @@ SessionReport _fakeReport({
   List<SessionTargetReport>? targets,
   List<String> errors = const [],
   List<String> warnings = const [],
+  String? terminalCause,
+  String? rejectFolder,
 }) {
   final t = targets ??
       [
@@ -84,6 +86,8 @@ SessionReport _fakeReport({
     notes: null,
     errorMessages: errors,
     warningMessages: warnings,
+    terminalCause: terminalCause,
+    rejectFolder: rejectFolder,
     generatedAt: DateTime.utc(2026, 1, 2, 2),
   );
 }
@@ -362,7 +366,75 @@ void main() {
       _fakeReport(status: 'failed', errors: const ['Sequence cancelled']),
     );
 
+    // No cause was chosen for this run, so the list keeps its own heading.
     expect(find.text('Errors'), findsOneWidget);
     expect(find.text('Sequence cancelled'), findsOneWidget);
+  });
+
+  // Reading the Errors list top-down is how the owner came to believe a
+  // cancelled filter change had ended his night. The cause goes above it.
+  group('a failed run leads with why it ended', () {
+    const rejectStorm =
+        'Image grading: 3 consecutive rejects (limit 3). Sequence paused for '
+        'inspection.';
+
+    testWidgets('the cause is headlined above the cascade', (tester) async {
+      await _pump(
+        tester,
+        _fakeReport(
+          status: 'failed',
+          terminalCause: rejectStorm,
+          rejectFolder: r'C:\Images\NGC7380\Reject',
+          errors: const [
+            rejectStorm,
+            'Change Filter failed: Operation cancelled',
+          ],
+        ),
+      );
+
+      expect(find.text('Why it ended'), findsOneWidget);
+      expect(
+        find.text(r'Rejected frames: C:\Images\NGC7380\Reject'),
+        findsOneWidget,
+        reason: 'the folder is what the operator opens next',
+      );
+      // The cascade keeps its own heading, renamed so it does not read as a
+      // competing list of candidate causes.
+      expect(find.text('Everything reported'), findsOneWidget);
+      expect(find.text('Errors'), findsNothing);
+
+      final causeY = tester.getTopLeft(find.text('Why it ended')).dy;
+      final cascadeY = tester.getTopLeft(find.text('Everything reported')).dy;
+      expect(
+        causeY,
+        lessThan(cascadeY),
+        reason: 'the answer comes before the list it was chosen from',
+      );
+    });
+
+    testWidgets('a completed run headlines nothing', (tester) async {
+      await _pump(tester, _fakeReport());
+
+      expect(find.text('Why it ended'), findsNothing);
+    });
+
+    testWidgets('a run the operator stopped did not fail', (tester) async {
+      await _pump(
+        tester,
+        _fakeReport(
+          status: 'stopped',
+          terminalCause: 'Change Filter failed: Operation cancelled',
+          errors: const ['Sequence cancelled'],
+        ),
+      );
+
+      expect(
+        find.text('Why it ended'),
+        findsNothing,
+        reason:
+            'a stopped run is not a failed one, and its teardown message is '
+            'not a cause',
+      );
+    });
   });
 }

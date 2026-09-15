@@ -149,6 +149,7 @@ class SessionReportService {
 
     final errors = await _collectErrorMessages(session);
     final warnings = await _collectWarningMessages(session);
+    final failure = await _collectFailureFacts(session);
 
     return SessionReport(
       sessionId: session.id,
@@ -170,6 +171,8 @@ class SessionReportService {
       notes: session.notes,
       errorMessages: errors,
       warningMessages: warnings,
+      terminalCause: failure.cause,
+      rejectFolder: failure.rejectFolder,
       generatedAt: DateTime.now(),
     );
   }
@@ -501,6 +504,32 @@ class SessionReportService {
       }
     }
     return out;
+  }
+
+  /// The run's chosen cause and its reject folder, off the same per-run JSON
+  /// blob the error and warning lists come from.
+  ///
+  /// First writer wins for the cause: when a session spans several runs, the
+  /// earliest failure is the one that explains the session, exactly as the
+  /// earliest fault is the one that explains a run. The reject folder takes the
+  /// last, which is the directory the most recent reject actually landed in.
+  Future<({String? cause, String? rejectFolder})> _collectFailureFacts(
+    ImagingSession session,
+  ) async {
+    final runs = await _findRelatedSequenceRuns(session);
+    String? cause;
+    String? rejectFolder;
+    for (final run in runs) {
+      final parsed = _tryDecodeStats(run.statsJson);
+      if (parsed == null) continue;
+      final runCause = parsed['terminalCause'];
+      if (cause == null && runCause is String && runCause.isNotEmpty) {
+        cause = runCause;
+      }
+      final folder = parsed['rejectFolder'];
+      if (folder is String && folder.isNotEmpty) rejectFolder = folder;
+    }
+    return (cause: cause, rejectFolder: rejectFolder);
   }
 
   /// Pull non-fatal warnings ([SequenceRunStats.warningMessages]) from
