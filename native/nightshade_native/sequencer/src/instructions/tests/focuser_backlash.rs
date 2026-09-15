@@ -466,6 +466,87 @@ async fn run_calibration(
     execute_backlash_calibration_admitted(config, ctx, None, guard).await
 }
 
+/// The progress payload Dart parses, pinned by capturing it from a real run.
+///
+/// `FocuserBacklashProgressData.tryParse` keys on `type` and reads these exact
+/// field names; a rename here is invisible to the Rust compiler and silently
+/// leaves the wizard's chart empty.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_progress_payload_carries_the_fields_the_wizard_parses() {
+    let ops = Arc::new(BacklashFocuserOps::new(
+        SIMULATED_BACKLASH,
+        STARTING_POSITION,
+    ));
+    let ctx = calibration_context(ops).await;
+    let frames = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let collector = {
+        let frames = Arc::clone(&frames);
+        move |_: f64, detail: String| {
+            frames
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(detail);
+        }
+    };
+
+    let guard = admit_autofocus_run_waiting(Duration::from_secs(600))
+        .await
+        .expect("the autofocus gate must free up within the test deadline");
+    execute_backlash_calibration_admitted(&test_config(400), &ctx, Some(&collector), guard)
+        .await
+        .expect("the calibration must run to a conclusion");
+
+    let frames = frames.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let parsed: Vec<serde_json::Value> = frames
+        .iter()
+        .map(|frame| serde_json::from_str(frame).expect("every frame must be JSON"))
+        .collect();
+
+    let sample = parsed
+        .iter()
+        .find(|frame| {
+            frame["type"] == "focuser_backlash_progress" && frame["phase"] == "from_below"
+        })
+        .expect("a from-below sample frame");
+    for field in [
+        "point",
+        "total_points",
+        "position",
+        "hfr",
+        "star_count",
+        "scan_range",
+        "points",
+    ] {
+        assert!(
+            !sample[field].is_null(),
+            "the progress frame is missing {field}: {sample}"
+        );
+    }
+    assert!(!sample["scan_range"]["min"].is_null());
+    assert!(!sample["scan_range"]["max"].is_null());
+    assert!(!sample["points"][0]["position"].is_null());
+    assert!(!sample["points"][0]["hfr"].is_null());
+
+    assert!(
+        parsed
+            .iter()
+            .any(|frame| frame["phase"] == "from_above"
+                && frame["type"] == "focuser_backlash_progress"),
+        "the second scan must report progress under its own phase"
+    );
+    assert!(
+        parsed.iter().any(|frame| frame["phase"] == "analysing"),
+        "the fit needs its own phase — it is the pause after the last exposure"
+    );
+
+    let result = parsed
+        .iter()
+        .find(|frame| frame["type"] == "focuser_backlash_result")
+        .expect("a terminal result frame");
+    assert_eq!(result["result"]["outcome"], "measured");
+    assert!(!result["result"]["calibration"]["steps"].is_null());
+}
+
 /// The gate itself: a calibration must refuse to start while an autofocus
 /// holds the camera and focuser, rather than driving them underneath it.
 #[tokio::test(flavor = "multi_thread")]
