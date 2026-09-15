@@ -24,6 +24,9 @@ mod executor;
 pub mod expressions;
 pub mod flat_wizard;
 pub mod focus_prediction;
+// Measuring a focuser's mechanical backlash instead of asking the operator
+// for a figure the app has never been able to work out for itself.
+pub mod focuser_calibration;
 pub mod instructions;
 pub mod meridian;
 pub mod meridian_events;
@@ -72,6 +75,11 @@ pub use executor::*;
 pub use expressions::{
     catalog::catalog_json, interpolate, interpolate_optional, EvaluationFrame, InterpolationError,
     TemplatePart, VariableEntry, VariableGroup, VariableValue,
+};
+pub use focuser_calibration::{
+    derive_backlash_calibration, resolution_limit_steps, ApproachDirection,
+    BacklashAnalysisThresholds, CalibrationConfidence, CalibrationRefusal, DirectionalScan,
+    FocuserBacklashCalibration, MeasurementContext,
 };
 pub use instructions::*;
 pub use meridian_events::*;
@@ -1981,9 +1989,20 @@ pub struct AutofocusConfig {
     pub offset: Option<i32>,
     #[serde(default)]
     pub binning: Binning,
-    /// Backlash compensation in focuser steps.
+    /// Backlash compensation in focuser steps, as the OPERATOR entered it.
+    /// Zero means they have not entered one.
     #[serde(default = "default_af_backlash_compensation")]
     pub backlash_compensation: i32,
+    /// Backlash this app measured on the focuser this run is about to drive,
+    /// from a stored per-focuser calibration. `None` when that focuser has
+    /// never been calibrated.
+    ///
+    /// This never overrides [`AutofocusConfig::backlash_compensation`]: a
+    /// figure the operator typed outranks one we measured. It only sizes the
+    /// final run-up when they have left theirs at the shipped 0, which is the
+    /// case this exists for.
+    #[serde(default)]
+    pub measured_backlash_in: Option<i32>,
     /// Whether the autofocus engine may use temperature prediction.
     #[serde(default = "default_af_use_temperature_prediction")]
     pub use_temperature_prediction: bool,
@@ -2149,6 +2168,7 @@ impl Default for AutofocusConfig {
             offset: None,
             binning: Binning::One,
             backlash_compensation: default_af_backlash_compensation(),
+            measured_backlash_in: None,
             use_temperature_prediction: default_af_use_temperature_prediction(),
             max_star_count_change: default_af_max_star_count_change(),
             outlier_rejection_sigma: default_af_outlier_rejection_sigma(),
@@ -2172,11 +2192,7 @@ impl Default for AutofocusConfig {
 impl From<&AutofocusConfig> for crate::autofocus::AutofocusConfig {
     fn from(config: &AutofocusConfig) -> Self {
         Self {
-            method: match config.method {
-                AutofocusMethod::VCurve => crate::autofocus::AutofocusMethod::VCurve,
-                AutofocusMethod::Quadratic => crate::autofocus::AutofocusMethod::Quadratic,
-                AutofocusMethod::Hyperbolic => crate::autofocus::AutofocusMethod::Hyperbolic,
-            },
+            method: config.method.into(),
             step_size: config.step_size,
             steps_out: config.steps_out,
             exposure_duration: config.exposure_duration,
@@ -2196,6 +2212,19 @@ pub enum AutofocusMethod {
     VCurve,
     Quadratic,
     Hyperbolic,
+}
+
+/// The wire enum and the curve-fitting engine's enum are deliberately
+/// separate types — one is a serde contract with Dart, the other is internal
+/// to [`crate::autofocus`] — so the crossing is spelled out once, here.
+impl From<AutofocusMethod> for crate::autofocus::AutofocusMethod {
+    fn from(method: AutofocusMethod) -> Self {
+        match method {
+            AutofocusMethod::VCurve => Self::VCurve,
+            AutofocusMethod::Quadratic => Self::Quadratic,
+            AutofocusMethod::Hyperbolic => Self::Hyperbolic,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
