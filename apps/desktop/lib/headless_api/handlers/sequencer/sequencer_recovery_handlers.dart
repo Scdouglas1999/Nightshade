@@ -29,11 +29,19 @@ extension _SequencerRecovery on SequencerHandlers {
     return jsonOk({'status': 'abort_requested'});
   }
 
-  /// Push updated recovery defaults from a remote settings UI. All five
-  /// fields are required; the Rust side validates positivity gates and
-  /// returns a structured InvalidParameter on a non-positive interval /
+  /// Push updated recovery defaults from a remote settings UI. The five
+  /// original fields are required; the Rust side validates positivity gates
+  /// and returns a structured InvalidParameter on a non-positive interval /
   /// duration. We surface those via the existing translateHandlerErrors
   /// middleware.
+  ///
+  /// `parkAndCloseWhenRecoveryGivesUp` is OPTIONAL and defaults to `false`,
+  /// which is also its meaning in the native config: an older client that does
+  /// not send it gets the safe behaviour (hold the run, move nothing) rather
+  /// than a 400. Requiring it would have made a mobile companion on the
+  /// previous build unable to save recovery settings at all, and defaulting a
+  /// missing value to "park the mount" is exactly the inference this field
+  /// exists to remove.
   Future<Response> _handleSequencerUpdateRecoveryConfig(Request request) async {
     _logInfo('[API] POST /api/sequencer/recovery/update-config');
     final payload = await readJsonObject(request);
@@ -48,6 +56,8 @@ extension _SequencerRecovery on SequencerHandlers {
       payload,
       'audibleAlertWhenEntered',
     );
+    final parkAndCloseWhenRecoveryGivesUp =
+        optionalBool(payload, 'parkAndCloseWhenRecoveryGivesUp') ?? false;
 
     final backend = container.read(sequencerBackendProvider);
     await backend.updateRecoveryConfig(
@@ -56,6 +66,7 @@ extension _SequencerRecovery on SequencerHandlers {
       stopTrackingDuringRecovery: stopTrackingDuringRecovery,
       abortOnMeridian: abortOnMeridian,
       audibleAlertWhenEntered: audibleAlertWhenEntered,
+      parkAndCloseWhenRecoveryGivesUp: parkAndCloseWhenRecoveryGivesUp,
     );
     return jsonOk({'status': 'ok'});
   }

@@ -15247,12 +15247,14 @@ impl SseDecode for crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
         let mut var_stopTrackingDuringRecovery = <bool>::sse_decode(deserializer);
         let mut var_abortOnMeridian = <bool>::sse_decode(deserializer);
         let mut var_audibleAlertWhenEntered = <bool>::sse_decode(deserializer);
+        let mut var_parkAndCloseWhenRecoveryGivesUp = <bool>::sse_decode(deserializer);
         return crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
             retry_interval_secs: var_retryIntervalSecs,
             max_duration_secs: var_maxDurationSecs,
             stop_tracking_during_recovery: var_stopTrackingDuringRecovery,
             abort_on_meridian: var_abortOnMeridian,
             audible_alert_when_entered: var_audibleAlertWhenEntered,
+            park_and_close_when_recovery_gives_up: var_parkAndCloseWhenRecoveryGivesUp,
         };
     }
 }
@@ -19941,6 +19943,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::sequencer::runtime_config::Re
                 .into_dart(),
             self.abort_on_meridian.into_into_dart().into_dart(),
             self.audible_alert_when_entered.into_into_dart().into_dart(),
+            self.park_and_close_when_recovery_gives_up
+                .into_into_dart()
+                .into_dart(),
         ]
         .into_dart()
     }
@@ -24462,6 +24467,7 @@ impl SseEncode for crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
         <bool>::sse_encode(self.stop_tracking_during_recovery, serializer);
         <bool>::sse_encode(self.abort_on_meridian, serializer);
         <bool>::sse_encode(self.audible_alert_when_entered, serializer);
+        <bool>::sse_encode(self.park_and_close_when_recovery_gives_up, serializer);
     }
 }
 
@@ -28580,6 +28586,9 @@ mod io {
                 stop_tracking_during_recovery: self.stop_tracking_during_recovery.cst_decode(),
                 abort_on_meridian: self.abort_on_meridian.cst_decode(),
                 audible_alert_when_entered: self.audible_alert_when_entered.cst_decode(),
+                park_and_close_when_recovery_gives_up: self
+                    .park_and_close_when_recovery_gives_up
+                    .cst_decode(),
             }
         }
     }
@@ -31255,6 +31264,7 @@ mod io {
                 stop_tracking_during_recovery: Default::default(),
                 abort_on_meridian: Default::default(),
                 audible_alert_when_entered: Default::default(),
+                park_and_close_when_recovery_gives_up: Default::default(),
             }
         }
     }
@@ -39073,6 +39083,7 @@ mod io {
         stop_tracking_during_recovery: bool,
         abort_on_meridian: bool,
         audible_alert_when_entered: bool,
+        park_and_close_when_recovery_gives_up: bool,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

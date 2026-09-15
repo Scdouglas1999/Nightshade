@@ -781,6 +781,7 @@ class DisconnectedBackend
     required bool stopTrackingDuringRecovery,
     required bool abortOnMeridian,
     required bool audibleAlertWhenEntered,
+    required bool parkAndCloseWhenRecoveryGivesUp,
   }) async {
     _throwNotConnected();
   }

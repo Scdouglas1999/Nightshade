@@ -714,7 +714,10 @@ pub fn evaluate(
         .any(|f| f.frame_id.is_empty() || !ids.insert(&f.frame_id))
     {
         return (
-            DepthReport::unavailable("Two exposures share an identity, or one has none; re-measure the goal", 0),
+            DepthReport::unavailable(
+                "Two exposures share an identity, or one has none; re-measure the goal",
+                0,
+            ),
             None,
         );
     }
@@ -746,7 +749,10 @@ pub fn evaluate(
     let provenance = &frames[0].provenance_digest;
     if provenance.is_empty() || frames.iter().any(|f| &f.provenance_digest != provenance) {
         return (
-            DepthReport::unavailable("The exposures were not all calibrated with the same masters; re-measure the goal", n),
+            DepthReport::unavailable(
+                "The exposures were not all calibrated with the same masters; re-measure the goal",
+                n,
+            ),
             None,
         );
     }
@@ -811,12 +817,12 @@ pub fn evaluate(
         Err(e) => return (DepthReport::unavailable(e, n), None),
     };
     if !consistent(&a, &b) {
-        report.reason = "Crossed once, but the two halves of the evidence disagree; still collecting".into();
+        report.reason =
+            "Crossed once, but the two halves of the evidence disagree; still collecting".into();
         return (report, None);
     }
     report.state = DepthState::ConfirmationPending;
-    report.reason =
-        "Reached provisionally; waiting for 16 later exposures to confirm".into();
+    report.reason = "Reached provisionally; waiting for 16 later exposures to confirm".into();
     let admitted = candidate.cloned().unwrap_or_else(|| Candidate {
         frame_ids: frames.iter().map(|f| f.frame_id.clone()).collect(),
         latest_acquired_at_ms: frames.last().expect("minimum frames").acquired_at_ms,
@@ -834,7 +840,10 @@ pub fn evaluate(
         || discovery.iter().map(|f| f.acquired_at_ms).max() != Some(admitted.latest_acquired_at_ms)
     {
         return (
-            DepthReport::unavailable("The provisional crossing no longer matches its evidence; re-measure the goal", n),
+            DepthReport::unavailable(
+                "The provisional crossing no longer matches its evidence; re-measure the goal",
+                n,
+            ),
             None,
         );
     }
@@ -857,12 +866,10 @@ pub fn evaluate(
         match summarize(spec, &later) {
             Ok(c) if consistent(&discovery_summary, &c) && quantile(&c.scores, 0.25) > 3.0 => {
                 report.state = DepthState::Achieved;
-                report.reason =
-                    "Reached and confirmed by 16 later exposures".into();
+                report.reason = "Reached and confirmed by 16 later exposures".into();
             }
             Ok(_) => {
-                report.reason =
-                    "Later exposures do not confirm it; still collecting".into();
+                report.reason = "Later exposures do not confirm it; still collecting".into();
                 return (report, None);
             }
             Err(e) => return (DepthReport::unavailable(e, n), None),

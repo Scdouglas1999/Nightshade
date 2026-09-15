@@ -462,12 +462,18 @@ class RecoveryConfigUpdate {
   final bool abortOnMeridian;
   final bool audibleAlertWhenEntered;
 
+  /// Off by default. See
+  /// `RecoveryRuntimeConfig::park_and_close_when_recovery_gives_up` for why
+  /// this is an explicit operator decision and never an inference.
+  final bool parkAndCloseWhenRecoveryGivesUp;
+
   const RecoveryConfigUpdate({
     required this.retryIntervalSecs,
     required this.maxDurationSecs,
     required this.stopTrackingDuringRecovery,
     required this.abortOnMeridian,
     required this.audibleAlertWhenEntered,
+    required this.parkAndCloseWhenRecoveryGivesUp,
   });
 
   @override
@@ -476,7 +482,8 @@ class RecoveryConfigUpdate {
       maxDurationSecs.hashCode ^
       stopTrackingDuringRecovery.hashCode ^
       abortOnMeridian.hashCode ^
-      audibleAlertWhenEntered.hashCode;
+      audibleAlertWhenEntered.hashCode ^
+      parkAndCloseWhenRecoveryGivesUp.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -487,5 +494,7 @@ class RecoveryConfigUpdate {
           maxDurationSecs == other.maxDurationSecs &&
           stopTrackingDuringRecovery == other.stopTrackingDuringRecovery &&
           abortOnMeridian == other.abortOnMeridian &&
-          audibleAlertWhenEntered == other.audibleAlertWhenEntered;
+          audibleAlertWhenEntered == other.audibleAlertWhenEntered &&
+          parkAndCloseWhenRecoveryGivesUp ==
+              other.parkAndCloseWhenRecoveryGivesUp;
 }

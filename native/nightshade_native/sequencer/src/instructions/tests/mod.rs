@@ -98,6 +98,10 @@ struct ScriptedDomeRotatorOps {
     guiding: AtomicBool,
     guider_stop_calls: AtomicU32,
     guider_start_calls: AtomicU32,
+    /// When true, `guider_start` returns Ok but the guider never reports
+    /// guiding — PHD2's behaviour on the owner's 2026-09-14 run, and the
+    /// failure the autofocus cleanup calls CRITICAL.
+    guider_resume_never_guides: bool,
     guider_calibration: Option<GuidingCalibration>,
     /// W1 daylight gate — value returned by `mount_is_parked`. Defaults to
     /// `false` (matching NullDeviceOps); the parked-rig gate test sets it
@@ -175,6 +179,7 @@ impl ScriptedDomeRotatorOps {
             guiding: AtomicBool::new(false),
             guider_stop_calls: AtomicU32::new(0),
             guider_start_calls: AtomicU32::new(0),
+            guider_resume_never_guides: false,
             guider_calibration: None,
             saved_frame_contexts: Mutex::new(Vec::new()),
             saved_frame_paths: Mutex::new(Vec::new()),
@@ -271,6 +276,15 @@ impl ScriptedDomeRotatorOps {
 
     fn with_active_cover_calibrator_id(mut self, id: &str) -> Self {
         self.active_cover_calibrator_id = Some(id.to_string());
+        self
+    }
+
+    /// A guider that accepts `guider_start` and then never reports guiding.
+    /// Measured on the owner's rig: PHD2 kept emitting GuideStep frames (so
+    /// `is_guiding` answered true for the run's other pollers) while the
+    /// offsets sat at RA -56.8 px / Dec -54.4 px and SNR fell 126.7 -> 11.8.
+    fn with_guider_resume_that_never_guides(mut self) -> Self {
+        self.guider_resume_never_guides = true;
         self
     }
 
@@ -551,7 +565,9 @@ impl DeviceOps for ScriptedDomeRotatorOps {
     }
     async fn guider_start(&self, _sp: f64, _st: f64, _sto: f64) -> DeviceResult<()> {
         self.guider_start_calls.fetch_add(1, Ordering::SeqCst);
-        self.guiding.store(true, Ordering::SeqCst);
+        if !self.guider_resume_never_guides {
+            self.guiding.store(true, Ordering::SeqCst);
+        }
         Ok(())
     }
     async fn guider_stop(&self) -> DeviceResult<()> {

@@ -253,6 +253,32 @@ pub struct RecoveryRuntimeConfig {
     /// the existing `criticalAlertPlayer` path so the user setting is
     /// unified with the rest of the critical-event audio policy.
     pub audible_alert_when_entered: bool,
+    /// When true, a recovery that cannot fix the problem parks the mount,
+    /// closes the cover and closes the dome before failing the run.
+    ///
+    /// `false` (the `Default`) is the only safe default, and the reason is not
+    /// a preference. The code this replaces decided the same question by
+    /// inferring whether a human was present, from a `RuntimeConfig` flag that
+    /// had no writer anywhere in the product — no bridge call, no API route, no
+    /// setting — so it read "nobody is here" on every run. On 2026-09-14 that
+    /// inference parked the owner's mount, closed up and declared the night
+    /// abandoned over a reject storm, while he was sitting at the telescope
+    /// with an HTTP client polling the API every 25 s and the desktop UI open on
+    /// his screen.
+    ///
+    /// Nothing available here can tell "unattended" from "attended and
+    /// watching", and an app that cannot tell must not take an irreversible
+    /// action on the guess. Parking a mount and closing an enclosure is that
+    /// kind of action; holding the run is not. So this is the operator's
+    /// standing decision, made in advance, and it is off until they make it.
+    ///
+    /// Turning it on is a real choice for a remote rig: it costs the rest of the
+    /// night in exchange for never leaving the optics open behind a hold. Note
+    /// that it is NOT the rig's only protection either way — the safety-class
+    /// triggers (weather unsafe, dawn approaching, dome shutter) keep their own
+    /// configured `ParkAndAbort` behaviour, and now keep evaluating while a run
+    /// is paused.
+    pub park_and_close_when_recovery_gives_up: bool,
 }
 
 impl Default for RecoveryRuntimeConfig {
@@ -263,6 +289,7 @@ impl Default for RecoveryRuntimeConfig {
             stop_tracking_during_recovery: true,
             abort_on_meridian: true,
             audible_alert_when_entered: true,
+            park_and_close_when_recovery_gives_up: false,
         }
     }
 }

@@ -19407,14 +19407,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RecoveryConfigUpdate dco_decode_recovery_config_update(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return RecoveryConfigUpdate(
       retryIntervalSecs: dco_decode_f_64(arr[0]),
       maxDurationSecs: dco_decode_f_64(arr[1]),
       stopTrackingDuringRecovery: dco_decode_bool(arr[2]),
       abortOnMeridian: dco_decode_bool(arr[3]),
       audibleAlertWhenEntered: dco_decode_bool(arr[4]),
+      parkAndCloseWhenRecoveryGivesUp: dco_decode_bool(arr[5]),
     );
   }
 
@@ -24735,12 +24736,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_stopTrackingDuringRecovery = sse_decode_bool(deserializer);
     var var_abortOnMeridian = sse_decode_bool(deserializer);
     var var_audibleAlertWhenEntered = sse_decode_bool(deserializer);
+    var var_parkAndCloseWhenRecoveryGivesUp = sse_decode_bool(deserializer);
     return RecoveryConfigUpdate(
       retryIntervalSecs: var_retryIntervalSecs,
       maxDurationSecs: var_maxDurationSecs,
       stopTrackingDuringRecovery: var_stopTrackingDuringRecovery,
       abortOnMeridian: var_abortOnMeridian,
       audibleAlertWhenEntered: var_audibleAlertWhenEntered,
+      parkAndCloseWhenRecoveryGivesUp: var_parkAndCloseWhenRecoveryGivesUp,
     );
   }
 
@@ -29814,6 +29817,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.stopTrackingDuringRecovery, serializer);
     sse_encode_bool(self.abortOnMeridian, serializer);
     sse_encode_bool(self.audibleAlertWhenEntered, serializer);
+    sse_encode_bool(self.parkAndCloseWhenRecoveryGivesUp, serializer);
   }
 
   @protected

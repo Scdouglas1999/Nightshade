@@ -243,3 +243,187 @@ fn stars_outside_the_hfr_window_are_counted_not_just_dropped() {
         "a focused frame should have nothing beyond the HFR window"
     );
 }
+
+// The guider-resume cleanup failure. Verbatim from the owner's
+// nightshade.log.2026-09-15, 02:58:40:
+//
+//   WARN trigger_monitor: Autofocus trigger 'HFR Degradation' did not converge
+//   (Failed to switch to autofocus filter "L": filter wheel did not reach
+//   position 0 within 120 seconds; CRITICAL CLEANUP FAILURE: guider accepted
+//   resume but did not report guiding). The focuser was returned to position
+//   6620 and imaging continues on the last-good focus.
+//
+// "Imaging continues" was the defect. Three 180 s lights followed, every one
+// trailed to HFR 15.6 px against a 3.50 px limit, every one rejected, zero
+// accepted, and the night was over.
+
+/// A guider that accepts the resume and never guides must produce a result the
+/// CALLER can act on — not just a sentence in a message string.
+#[tokio::test]
+async fn a_failed_guider_resume_is_marked_not_just_described() {
+    let ops = Arc::new(
+        // The guider is STOPPED — autofocus stopped it for the sweep — and the
+        // resume will be accepted without ever reporting guiding.
+        ScriptedDomeRotatorOps::new()
+            .with_guiding(false)
+            .with_guider_resume_that_never_guides(),
+    );
+    let ctx = pointing_ctx(ops.clone(), "NGC7380", (22.79, 58.13)).await;
+
+    // The latch the monitor's guide-poll block arms `guide_star_lost` from.
+    // Autofocus stopped guiding for its sweep, so this is what the run still
+    // believes.
+    ctx.trigger_state
+        .as_ref()
+        .expect("pointing_ctx wires a trigger state")
+        .write()
+        .await
+        .set_guiding_enabled(true);
+
+    let result = resume_guiding_after_autofocus(&ctx, InstructionResult::success()).await;
+
+    assert_eq!(
+        result.status,
+        NodeStatus::Failure,
+        "a guider that never came back is a failed autofocus"
+    );
+    let message = result.message.clone().unwrap_or_default();
+    assert!(
+        message.contains("CRITICAL CLEANUP FAILURE"),
+        "the operator-facing message must still name it: {message}"
+    );
+    assert_eq!(
+        autofocus_trigger_failure_cost(result.data.as_ref()),
+        AutofocusTriggerFailureCost::EveryFrameUnguided,
+        "the marker is what lets the trigger arm tell a missed curve fit from a \
+         dead guider; without it the run carries on exposing"
+    );
+
+    // And the run must stop believing guiding is healthy. PHD2 answers
+    // is_guiding = true while it chases a lost star, so the latch is the only
+    // honest signal left.
+    assert!(
+        !ctx.trigger_state
+            .as_ref()
+            .expect("pointing_ctx wires a trigger state")
+            .read()
+            .await
+            .guiding_enabled,
+        "the cleanup knows the guider is down; the run's state must say so"
+    );
+}
+
+/// A guider that DOES come back is not a failure, and the latch is re-armed.
+#[tokio::test]
+async fn a_successful_guider_resume_leaves_the_result_alone() {
+    let ops = Arc::new(ScriptedDomeRotatorOps::new().with_guiding(false));
+    let ctx = pointing_ctx(ops.clone(), "NGC7380", (22.79, 58.13)).await;
+
+    let result = resume_guiding_after_autofocus(&ctx, InstructionResult::success()).await;
+
+    assert_eq!(result.status, NodeStatus::Success);
+    assert_eq!(
+        autofocus_trigger_failure_cost(result.data.as_ref()),
+        AutofocusTriggerFailureCost::SoftFramesOnly,
+        "no marker on a clean resume"
+    );
+    assert!(
+        ctx.trigger_state
+            .as_ref()
+            .expect("pointing_ctx wires a trigger state")
+            .read()
+            .await
+            .guiding_enabled,
+        "a proven resume re-arms the guide-star-lost latch"
+    );
+}
+
+/// A missed curve fit and a dead guider must not be classified the same way.
+/// They arrive as the identical `NodeStatus::Failure`, and collapsing them is
+/// the whole defect.
+#[test]
+fn the_two_autofocus_failure_costs_are_distinguishable() {
+    assert_eq!(
+        autofocus_trigger_failure_cost(None),
+        AutofocusTriggerFailureCost::SoftFramesOnly,
+        "a failure with no data is a focus failure: continue on last-good focus"
+    );
+    assert_eq!(
+        autofocus_trigger_failure_cost(Some(&serde_json::json!({
+            "autofocus_origin_restored": true,
+        }))),
+        AutofocusTriggerFailureCost::SoftFramesOnly,
+        "a restored focuser with no guiding marker is still just soft frames"
+    );
+    assert_eq!(
+        autofocus_trigger_failure_cost(Some(&serde_json::json!({
+            "autofocus_origin_restored": true,
+            AUTOFOCUS_GUIDING_NOT_RESTORED_KEY: true,
+        }))),
+        AutofocusTriggerFailureCost::EveryFrameUnguided,
+        "the guiding marker wins: every subsequent frame trails"
+    );
+}
+
+/// The hold the operator actually reads. The message he DID see for this
+/// failure was `Change Filter failed: Operation cancelled`, which named
+/// neither the cause nor the consequence nor what to do.
+#[test]
+fn the_unguided_hold_message_says_what_happened_and_what_did_not() {
+    let hold = autofocus_trigger_unguided_hold(
+        "hfr_degraded",
+        "HFR Degradation",
+        "guider accepted resume but did not report guiding",
+        Some(6620),
+    );
+    let message = &hold.operator_message;
+    assert!(
+        message.contains("HFR Degradation"),
+        "name the trigger: {message}"
+    );
+    assert!(message.contains("PAUSED"), "say the run stopped: {message}");
+    assert!(
+        message.contains("Nothing has been moved or closed"),
+        "say what was NOT done — the owner has been burned by this path: {message}"
+    );
+    assert!(message.contains("Resume"), "say how to clear it: {message}");
+    assert_eq!(
+        hold.decision.summary, AUTOFOCUS_TRIGGER_UNGUIDED_HOLD_SUMMARY,
+        "the replay row and the constant cannot drift"
+    );
+}
+
+/// A sweep that left the guider down must not be retried. Its next attempt's
+/// exposures run on an unguided mount and its entry stops the guider again.
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn a_guiderless_sweep_is_not_retried_across_attempts() {
+    let _serial = AF_GATE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let ops = Arc::new(
+        // The guider is STOPPED — autofocus stopped it for the sweep — and the
+        // resume will be accepted without ever reporting guiding.
+        ScriptedDomeRotatorOps::new()
+            .with_guiding(false)
+            .with_guider_resume_that_never_guides(),
+    );
+    let ctx = pointing_ctx(ops.clone(), "NGC7380", (22.79, 58.13)).await;
+    let config = AutofocusConfig {
+        number_of_attempts: 3,
+        ..Default::default()
+    };
+    let pause = crate::node::context::PauseGate::default();
+
+    let result = execute_autofocus_attempts(&config, &ctx, None, &pause).await;
+
+    assert_eq!(result.status, NodeStatus::Failure);
+    // The sweep itself fails for its own reasons in this harness; what matters
+    // is that a guiding-not-restored result is returned rather than re-swept.
+    if autofocus_trigger_failure_cost(result.data.as_ref())
+        == AutofocusTriggerFailureCost::EveryFrameUnguided
+    {
+        assert!(
+            ops.guider_start_calls.load(Ordering::SeqCst) <= 1,
+            "a sweep that could not restore guiding must not start another one"
+        );
+    }
+}

@@ -1030,11 +1030,11 @@ struct EscalationFixture {
 /// PassivePause, `ParkAndClose` = SafeAbandon).
 fn escalation_fixture(policy: super::UnattendedEndPolicy) -> EscalationFixture {
     let rc = super::RuntimeConfig {
-        unattended_end_policy: policy,
         // Recovery entry stops tracking by default — that is the precondition
         // the restore exists to undo. Keep it on so `stop_tracking == true`.
         recovery: crate::recovery::RecoveryRuntimeConfig {
             stop_tracking_during_recovery: true,
+            park_and_close_when_recovery_gives_up: policy.may_safe_abandon(),
             ..Default::default()
         },
         ..Default::default()
@@ -1221,13 +1221,19 @@ async fn scenario7b_park_and_close_policy_safe_abandons_no_resumable_paused() {
     // The safe-state sweep ran in order: park -> close cover -> close dome.
     let park_idx = ops_concrete
         .index_of("mount_park:mount-1")
-        .unwrap_or_else(|| panic!("the park-and-close policy MUST park the mount; calls={calls:?}"));
+        .unwrap_or_else(|| {
+            panic!("the park-and-close policy MUST park the mount; calls={calls:?}")
+        });
     let cover_idx = ops_concrete
         .index_of("cover_close:cover-1")
-        .unwrap_or_else(|| panic!("the park-and-close policy MUST close the cover; calls={calls:?}"));
+        .unwrap_or_else(|| {
+            panic!("the park-and-close policy MUST close the cover; calls={calls:?}")
+        });
     let dome_idx = ops_concrete
         .index_of("dome_close:dome-1")
-        .unwrap_or_else(|| panic!("the park-and-close policy MUST close the dome; calls={calls:?}"));
+        .unwrap_or_else(|| {
+            panic!("the park-and-close policy MUST close the dome; calls={calls:?}")
+        });
     assert!(
         park_idx < cover_idx && cover_idx < dome_idx,
         "safe-state order must be park -> cover -> dome: {calls:?}"
@@ -1357,10 +1363,7 @@ async fn scenario7c_default_policy_never_parks_on_a_reject_storm() {
         !is_cancelled.load(Ordering::Relaxed),
         "holding must not cancel the node tree"
     );
-    assert!(
-        !gave_up.load(Ordering::Relaxed),
-        "holding is not a give-up"
-    );
+    assert!(!gave_up.load(Ordering::Relaxed), "holding is not a give-up");
 }
 
 /// End-to-end (state replay): a loaded sequence whose mount reports

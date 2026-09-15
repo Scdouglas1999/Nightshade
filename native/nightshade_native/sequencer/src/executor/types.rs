@@ -195,17 +195,6 @@ pub struct RuntimeConfig {
     /// from the runtime config so a subsequent restart without an
     /// explicit re-seed runs without stale carry-over.
     pub pending_integration_carry_over: HashMap<String, HashMap<String, f64>>,
-    /// What a run may do to the hardware when recovery cannot fix the problem
-    /// and no human has answered.
-    ///
-    /// Defaults to [`UnattendedEndPolicy::HoldForOperator`]: freeze the run,
-    /// restore tracking, keep safety-class triggers armed, move nothing. The
-    /// park → close cover → close dome sweep runs only when the operator has
-    /// explicitly selected [`UnattendedEndPolicy::ParkAndClose`].
-    ///
-    /// Read live on every recovery escalation and on the retry ladder's give-up
-    /// branch, so a change mid-session takes effect without a restart.
-    pub unattended_end_policy: super::UnattendedEndPolicy,
 }
 
 /// Commands that can be sent to the executor

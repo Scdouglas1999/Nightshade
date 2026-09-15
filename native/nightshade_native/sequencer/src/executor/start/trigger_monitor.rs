@@ -1332,9 +1332,7 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                     .message
                                     .unwrap_or_else(|| "autofocus did not converge".to_string());
 
-                                if failure_cost
-                                    == AutofocusTriggerFailureCost::EveryFrameUnguided
-                                {
+                                if failure_cost == AutofocusTriggerFailureCost::EveryFrameUnguided {
                                     // The sweep stopped the guider and could not
                                     // prove it back. Continuing here is what cost
                                     // a clear night: three 180 s lights, every one
@@ -1502,8 +1500,7 @@ pub(super) async fn run_trigger_monitor_poll_loop(
                                 {
                                     let mut prog = progress_for_triggers.write();
                                     prog.state = ExecutorState::Paused;
-                                    prog.message =
-                                        Some(format!("Paused: {} fired", trigger_name));
+                                    prog.message = Some(format!("Paused: {} fired", trigger_name));
                                 }
                                 let _ = event_tx_clone2
                                     .send(ExecutorEvent::StateChanged(ExecutorState::Paused));

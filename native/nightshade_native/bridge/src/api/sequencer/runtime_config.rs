@@ -646,6 +646,10 @@ pub struct RecoveryConfigUpdate {
     pub stop_tracking_during_recovery: bool,
     pub abort_on_meridian: bool,
     pub audible_alert_when_entered: bool,
+    /// Off by default. See
+    /// `RecoveryRuntimeConfig::park_and_close_when_recovery_gives_up` for why
+    /// this is an explicit operator decision and never an inference.
+    pub park_and_close_when_recovery_gives_up: bool,
 }
 
 /// Operator pressed "Try Now" on the Run Dashboard banner — punch through
@@ -696,12 +700,13 @@ pub async fn api_sequencer_update_recovery_config(
         )));
     }
     tracing::info!(
-        "[API] Recovery: update config interval={:.0}s, max_duration={:.0}s, stop_track={}, abort_meridian={}, audible={}",
+        "[API] Recovery: update config interval={:.0}s, max_duration={:.0}s, stop_track={}, abort_meridian={}, audible={}, park_and_close_on_give_up={}",
         update.retry_interval_secs,
         update.max_duration_secs,
         update.stop_tracking_during_recovery,
         update.abort_on_meridian,
         update.audible_alert_when_entered,
+        update.park_and_close_when_recovery_gives_up,
     );
     let config = nightshade_sequencer::recovery::RecoveryRuntimeConfig {
         retry_interval_secs: update.retry_interval_secs,
@@ -709,6 +714,7 @@ pub async fn api_sequencer_update_recovery_config(
         stop_tracking_during_recovery: update.stop_tracking_during_recovery,
         abort_on_meridian: update.abort_on_meridian,
         audible_alert_when_entered: update.audible_alert_when_entered,
+        park_and_close_when_recovery_gives_up: update.park_and_close_when_recovery_gives_up,
     };
     let mut executor = get_sequence_executor().write().await;
     executor.update_recovery_config(config).await;

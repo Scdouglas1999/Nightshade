@@ -29,16 +29,13 @@ pub async fn execute_filter_change(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let claim = match ImagingTrainClaimGuard::acquire(
-        ctx,
-        "a filter change",
-        FILTER_CHANGE_EXPECTED_SECS,
-    )
-    .await
-    {
-        Ok(claim) => claim,
-        Err(cancelled) => return cancelled,
-    };
+    let claim =
+        match ImagingTrainClaimGuard::acquire(ctx, "a filter change", FILTER_CHANGE_EXPECTED_SECS)
+            .await
+        {
+            Ok(claim) => claim,
+            Err(cancelled) => return cancelled,
+        };
     let result = execute_filter_change_holding_train(config, ctx, progress_callback).await;
     claim.release(ctx).await;
     result

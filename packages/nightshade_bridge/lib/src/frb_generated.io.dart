@@ -6519,6 +6519,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.audible_alert_when_entered = cst_encode_bool(
       apiObj.audibleAlertWhenEntered,
     );
+    wireObj.park_and_close_when_recovery_gives_up = cst_encode_bool(
+      apiObj.parkAndCloseWhenRecoveryGivesUp,
+    );
   }
 
   @protected
@@ -23128,6 +23131,9 @@ final class wire_cst_recovery_config_update extends ffi.Struct {
 
   @ffi.Bool()
   external bool audible_alert_when_entered;
+
+  @ffi.Bool()
+  external bool park_and_close_when_recovery_gives_up;
 }
 
 final class wire_cst_observer_location extends ffi.Struct {

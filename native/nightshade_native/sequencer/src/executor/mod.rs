@@ -389,9 +389,7 @@ pub(crate) fn autofocus_trigger_failure_cost(
     result_data: Option<&serde_json::Value>,
 ) -> AutofocusTriggerFailureCost {
     let guiding_not_restored = result_data
-        .and_then(|data| {
-            data.get(crate::instructions::AUTOFOCUS_GUIDING_NOT_RESTORED_KEY)
-        })
+        .and_then(|data| data.get(crate::instructions::AUTOFOCUS_GUIDING_NOT_RESTORED_KEY))
         .and_then(serde_json::Value::as_bool)
         == Some(true);
     if guiding_not_restored {

@@ -313,21 +313,17 @@ pub enum EscalationDisposition {
 /// What a run is allowed to do to the hardware when recovery cannot fix the
 /// problem and there is nobody known to be watching.
 ///
-/// This replaces an inferred `operator_present` flag. That flag had no writer
-/// anywhere in the product — no bridge call, no API route, no setting — so it
-/// read `false` on every run, and "unattended" was therefore not a measurement
-/// but a constant. On 2026-09-14 that constant parked the owner's mount, closed
-/// up and declared the night abandoned while he was sitting at the telescope,
-/// from a reject storm whose own escalation message said "sequence paused for
-/// inspection. Resume once conditions clear."
+/// Derived from the operator's
+/// [`RecoveryRuntimeConfig::park_and_close_when_recovery_gives_up`] setting,
+/// which is off by default and documents why. It replaces an inferred
+/// `operator_present` flag that had no writer anywhere in the product, and so
+/// read "nobody is here" on every run.
 ///
-/// There is no signal available here that distinguishes "nobody is present"
-/// from "present and watching": an HTTP client was polling the API every 25 s
-/// throughout that run and the desktop UI was open on his screen. A guess is
-/// not evidence, and an irreversible action must not rest on one. So the
-/// decision is the operator's, stated in advance, and the default is the
-/// action that can be undone with one button.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+/// The enum exists rather than passing the bool around because three separate
+/// sites decide on it — the `PauseForOperator` escalation, the retry ladder's
+/// give-up branch, and the operator-facing log lines — and a named value with a
+/// `label()` is what keeps their wording and their behaviour together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum UnattendedEndPolicy {
     /// DEFAULT. Hold the run for a human: freeze the node tree, restore
     /// tracking, keep safety-class triggers armed (see the trigger monitor's
@@ -349,6 +345,16 @@ pub enum UnattendedEndPolicy {
 }
 
 impl UnattendedEndPolicy {
+    /// Read the policy from the operator's recovery settings. The single
+    /// conversion point between the persisted setting and the decision type.
+    pub fn from_recovery_config(config: &crate::recovery::RecoveryRuntimeConfig) -> Self {
+        if config.park_and_close_when_recovery_gives_up {
+            UnattendedEndPolicy::ParkAndClose
+        } else {
+            UnattendedEndPolicy::HoldForOperator
+        }
+    }
+
     /// Whether this policy permits the run to move or close hardware by itself.
     pub fn may_safe_abandon(self) -> bool {
         matches!(self, UnattendedEndPolicy::ParkAndClose)
@@ -530,7 +536,7 @@ pub(super) async fn apply_recovery_escalation(
 ) {
     // Read the policy live so an operator changing it mid-session takes effect
     // on THIS escalation.
-    let policy = s.runtime_config.read().unattended_end_policy;
+    let policy = UnattendedEndPolicy::from_recovery_config(&s.runtime_config.read().recovery);
     let disposition = recovery_escalation_disposition(policy);
 
     if disposition == EscalationDisposition::SafeAbandon {

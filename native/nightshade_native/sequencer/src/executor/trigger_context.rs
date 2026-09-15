@@ -433,10 +433,7 @@ pub(super) async fn claim_camera_for_trigger_action(
 
         let Some(hold) = hold else {
             if announced {
-                tracing::info!(
-                    "Imaging train free; running trigger-fired {} now",
-                    action
-                );
+                tracing::info!("Imaging train free; running trigger-fired {} now", action);
             }
             return token;
         };

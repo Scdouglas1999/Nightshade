@@ -318,15 +318,16 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   Future<void> recoveryAbort();
 
   /// Push updated recovery defaults (retry interval, max duration,
-  /// stop-tracking flag, abort-on-meridian flag, audible-alert flag) into
-  /// the executor's runtime config. The next recovery entry uses these
-  /// values.
+  /// stop-tracking flag, abort-on-meridian flag, audible-alert flag, and
+  /// whether an exhausted recovery may park and close up) into the executor's
+  /// runtime config. The next recovery entry uses these values.
   Future<void> updateRecoveryConfig({
     required double retryIntervalSecs,
     required double maxDurationSecs,
     required bool stopTrackingDuringRecovery,
     required bool abortOnMeridian,
     required bool audibleAlertWhenEntered,
+    required bool parkAndCloseWhenRecoveryGivesUp,
   });
 
   /// Snapshot of the current in-flight recovery context. Returns `null`

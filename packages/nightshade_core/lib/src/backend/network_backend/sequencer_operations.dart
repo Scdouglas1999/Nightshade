@@ -565,6 +565,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     required bool stopTrackingDuringRecovery,
     required bool abortOnMeridian,
     required bool audibleAlertWhenEntered,
+    required bool parkAndCloseWhenRecoveryGivesUp,
   }) async {
     await _post('sequencer/recovery/update-config', {
       'retryIntervalSecs': retryIntervalSecs,
@@ -572,6 +573,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       'stopTrackingDuringRecovery': stopTrackingDuringRecovery,
       'abortOnMeridian': abortOnMeridian,
       'audibleAlertWhenEntered': audibleAlertWhenEntered,
+      'parkAndCloseWhenRecoveryGivesUp': parkAndCloseWhenRecoveryGivesUp,
     });
   }
 

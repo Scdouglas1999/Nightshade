@@ -34,11 +34,12 @@ impl SequenceExecutor {
     /// next `start()`.
     pub async fn update_recovery_config(&mut self, config: crate::recovery::RecoveryRuntimeConfig) {
         tracing::info!(
-            "Updating recovery defaults: interval={:.0}s, max_duration={:.0}s, stop_tracking={}, audible={}",
+            "Updating recovery defaults: interval={:.0}s, max_duration={:.0}s, stop_tracking={}, audible={}, park_and_close_on_give_up={}",
             config.retry_interval_secs,
             config.max_duration_secs,
             config.stop_tracking_during_recovery,
             config.audible_alert_when_entered,
+            config.park_and_close_when_recovery_gives_up,
         );
         {
             let mut rc = self.runtime_config.write();

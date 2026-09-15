@@ -710,7 +710,10 @@ async fn camera_idle_wait_holds_for_an_exposure_then_releases() {
     let release_state = state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        release_state.write().await.release_imaging_train(frame_token);
+        release_state
+            .write()
+            .await
+            .release_imaging_train(frame_token);
     });
 
     let started = tokio::time::Instant::now();
@@ -807,9 +810,7 @@ async fn an_overrunning_exposure_keeps_the_imaging_train() {
         "but the claim has NOT lapsed, so the camera cannot be taken mid-frame"
     );
     assert!(
-        state
-            .try_claim_imaging_train("recenter", 5.0)
-            .is_none(),
+        state.try_claim_imaging_train("recenter", 5.0).is_none(),
         "a waiting trigger must not be handed a camera that is still exposing"
     );
 }
@@ -1381,7 +1382,10 @@ async fn every_camera_driving_trigger_action_waits_for_the_frame_in_flight() {
     let release_state = state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        release_state.write().await.release_imaging_train(frame_token);
+        release_state
+            .write()
+            .await
+            .release_imaging_train(frame_token);
     });
 
     let label = camera_driving_trigger_action(&RecoveryAction::MeridianFlip(

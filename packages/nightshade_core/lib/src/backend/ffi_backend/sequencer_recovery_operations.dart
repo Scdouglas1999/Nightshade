@@ -383,6 +383,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     required bool stopTrackingDuringRecovery,
     required bool abortOnMeridian,
     required bool audibleAlertWhenEntered,
+    required bool parkAndCloseWhenRecoveryGivesUp,
   }) async {
     await bridge_api.apiSequencerUpdateRecoveryConfig(
       update: bridge.RecoveryConfigUpdate(
@@ -391,6 +392,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
         stopTrackingDuringRecovery: stopTrackingDuringRecovery,
         abortOnMeridian: abortOnMeridian,
         audibleAlertWhenEntered: audibleAlertWhenEntered,
+        parkAndCloseWhenRecoveryGivesUp: parkAndCloseWhenRecoveryGivesUp,
       ),
     );
   }

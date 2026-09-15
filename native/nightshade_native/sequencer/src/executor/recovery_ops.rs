@@ -50,20 +50,38 @@ pub(crate) fn alt_az_to_ra_dec(
     (ra_hours, dec_rad.to_degrees())
 }
 
-/// Recovery Mode — execute a single recovery attempt for the given
-/// cause and report the outcome. Stays out of the executor methods so the
-/// recovery driver task can call it without holding the executor lock.
+/// Re-acquisition settle parameters. These mirror the conservative defaults
+/// used by the guiding settle path: lock within 2 px, hold for 10 s, give up
+/// after 120 s. A re-acquire that can't settle within 120 s is a genuine
+/// failure the operator's retry policy should handle, not something to wait on
+/// indefinitely while the target drifts.
+pub(crate) const REACQUIRE_SETTLE_PIXELS: f64 = 2.0;
+const REACQUIRE_SETTLE_TIME_SECS: f64 = 10.0;
+const REACQUIRE_SETTLE_TIMEOUT_SECS: f64 = 120.0;
+const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Whether a guide status counts as GUIDING for recovery purposes: locked AND
+/// settled inside [`REACQUIRE_SETTLE_PIXELS`].
 ///
-/// The dispatch is intentionally conservative: for `GuideStarLost`,
-/// `MountTrackingLost`, and `WeatherUnsafe` we re-check the live device
-/// status; for `SlewFailed` / `PlateSolveFailed` we re-issue the original
-/// operation (the call site retains the necessary context). For now the
-/// majority of failure modes use a status re-check as the recovery — the
-/// underlying assumption is that the trigger only fired because the
-/// condition became unsafe, so polling once after the wait window is the
-/// right "try again" gesture. Future patches can expand each arm with
-/// fully-blown recovery flows (e.g. re-slew + re-solve + re-acquire) when
-/// the relevant context plumbing arrives.
+/// `is_guiding` on its own does not mean that, and the difference cost the
+/// owner a clear night. PHD2 reports guiding for as long as it is emitting
+/// GuideStep frames, including while it chases a star it has effectively lost.
+/// Measured on his rig on 2026-09-14: `is_guiding: true` throughout, with RA
+/// offsets of -56.8 / -57.2 px and Dec -54.4 / -38.0 px (normal is under 2),
+/// SNR collapsed 126.7 -> 17.3 -> 11.8 and StarMass 2,962,797 -> 7,991 ->
+/// 5,902. Guiding was not working, and every 180 s light taken meanwhile
+/// trailed to HFR 15.6 px.
+///
+/// `rms_total` is in guide-camera pixels — PHD2's `RADistanceRaw` /
+/// `DECDistanceRaw` summed in quadrature — the same unit as the settle bound
+/// and as the GuidingFailed trigger's threshold.
+///
+/// The bound is the one a fresh re-acquisition is already held to, so accepting
+/// an existing lock cannot apply a laxer standard to the worse situation.
+pub(crate) fn guiding_is_settled(status: &crate::device_ops::GuidingStatus) -> bool {
+    status.is_guiding && status.rms_total <= REACQUIRE_SETTLE_PIXELS
+}
+
 /// Actively re-acquire the guide star after a `GuideStarLost` event.
 ///
 /// Merely *querying* `is_guiding` never tells the guider to find a star again,
@@ -80,16 +98,6 @@ pub(crate) async fn recover_guide_star(
     device_ops: &SharedDeviceOps,
 ) -> crate::recovery::AttemptOutcome {
     use crate::recovery::AttemptOutcome;
-
-    // Re-acquisition settle parameters. These mirror the conservative defaults
-    // used by the guiding settle path: lock within 2 px, hold for 10 s, give up
-    // after 120 s. A re-acquire that can't settle within 120 s is a genuine
-    // failure the operator's retry policy should handle, not something to wait
-    // on indefinitely while the target drifts.
-    const REACQUIRE_SETTLE_PIXELS: f64 = 2.0;
-    const REACQUIRE_SETTLE_TIME_SECS: f64 = 10.0;
-    const REACQUIRE_SETTLE_TIMEOUT_SECS: f64 = 120.0;
-    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
 
     // Fast-path: maybe the guider already recovered on its own during the
     // recovery wait window. Issuing guider_start when already guiding can force
@@ -109,7 +117,7 @@ pub(crate) async fn recover_guide_star(
     // fast path cannot hold a worse situation to a laxer standard than a fresh
     // start.
     if let Ok(status) = device_ops.guider_get_status().await {
-        if status.is_guiding && status.rms_total <= REACQUIRE_SETTLE_PIXELS {
+        if guiding_is_settled(&status) {
             return AttemptOutcome::Succeeded;
         }
         if status.is_guiding {
@@ -147,7 +155,7 @@ pub(crate) async fn recover_guide_star(
             // — see `Phd2GuideStats`), which is the same unit
             // `REACQUIRE_SETTLE_PIXELS` and the GuidingFailed trigger's
             // threshold are in. The old log line called it arcseconds.
-            Ok(status) if status.is_guiding && status.rms_total <= REACQUIRE_SETTLE_PIXELS => {
+            Ok(status) if guiding_is_settled(&status) => {
                 tracing::info!(
                     "Guide star re-acquired: guiding settled (RMS total={:.2} px)",
                     status.rms_total
@@ -175,6 +183,20 @@ pub(crate) async fn recover_guide_star(
     }
 }
 
+/// Recovery Mode — execute a single recovery attempt for the given
+/// cause and report the outcome. Stays out of the executor methods so the
+/// recovery driver task can call it without holding the executor lock.
+///
+/// The dispatch is intentionally conservative: for `GuideStarLost`,
+/// `MountTrackingLost`, and `WeatherUnsafe` we re-check the live device
+/// status; for `SlewFailed` / `PlateSolveFailed` we re-issue the original
+/// operation (the call site retains the necessary context). For now the
+/// majority of failure modes use a status re-check as the recovery — the
+/// underlying assumption is that the trigger only fired because the
+/// condition became unsafe, so polling once after the wait window is the
+/// right "try again" gesture. Future patches can expand each arm with
+/// fully-blown recovery flows (e.g. re-slew + re-solve + re-acquire) when
+/// the relevant context plumbing arrives.
 pub(crate) async fn run_recovery_attempt(
     cause: &crate::recovery::RecoveryCause,
     device_ops: &SharedDeviceOps,

@@ -128,3 +128,107 @@ async fn requested_filter_without_wheel_fails_before_capture() {
         "capture must not start when its requested filter cannot be applied"
     );
 }
+
+// Device arbitration between a trigger action and the capture loop.
+//
+// The 2026-09-14 race, in its own words. The Smart Exposure node was cycling
+// Ha/SII/OIII on an 8-position ZWO EFW while the HFR-Degradation trigger fired
+// an autofocus that wanted "L" (position 0). Autofocus reported:
+//
+//   Failed to switch to autofocus filter "L": filter wheel did not reach
+//   position 0 within 120 seconds
+//
+// Measured over the HTTP API at that moment: the wheel was connected, NOT
+// moving, at position 5 (SII), with all 8 names present and answering status
+// polls. Nothing was wrong with the wheel. The capture loop had commanded it,
+// and the camera-only claim did not cover it.
+
+/// While a trigger action holds the imaging train, the capture loop must not
+/// touch the filter wheel — not the camera, and not the wheel either.
+#[tokio::test]
+async fn the_capture_loop_does_not_move_the_wheel_under_a_trigger_claim() {
+    let ops = Arc::new(ScriptedDomeRotatorOps::new());
+    let mut ctx = expose_ctx(ops.clone(), None, live_sun_alt() + 5.0).await;
+    // The owner's 8-position ZWO EFW, which the Smart Exposure node and the
+    // autofocus trigger were both driving.
+    ctx.filterwheel_id = Some("efw-1".to_string());
+    let trigger_state = ctx
+        .trigger_state
+        .clone()
+        .expect("expose_ctx wires a trigger state");
+
+    // The trigger-fired autofocus takes the train and is part-way through its
+    // own move to "L".
+    let af_token = trigger_state
+        .write()
+        .await
+        .try_claim_imaging_train("autofocus", 600.0)
+        .expect("an idle imaging train must be claimable");
+
+    let config = ExposureConfig {
+        // Position 5 is SII on the owner's wheel — the slot that stranded the
+        // autofocus move.
+        filter_index: Some(5),
+        filter: Some("SII".to_string()),
+        ..one_light()
+    };
+
+    // Run the burst concurrently and give it room to reach the wheel if it is
+    // going to.
+    let burst_ctx = ctx;
+    let burst =
+        tokio::spawn(async move { execute_exposure(&config, &burst_ctx, |_, _, _| {}).await });
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+
+    assert!(
+        ops.filter_moves.lock().unwrap().is_empty(),
+        "the capture loop moved the wheel while autofocus held the imaging train; \
+         that is the collision that stranded a 120 s filter move on a healthy wheel: {:?}",
+        ops.filter_moves.lock().unwrap()
+    );
+
+    // Hand it back; the burst proceeds and takes the wheel.
+    trigger_state.write().await.release_imaging_train(af_token);
+    let _ = burst.await.expect("the burst task must not panic");
+    assert_eq!(
+        *ops.filter_moves.lock().unwrap(),
+        vec![5],
+        "and it moves the wheel as soon as the trigger action releases"
+    );
+}
+
+/// And the reverse direction: while the capture loop holds the train for a
+/// frame, a trigger action cannot take it.
+///
+/// This is the half that the old predicted-deadline claim got wrong once an
+/// exposure overran its estimate.
+#[tokio::test]
+async fn a_trigger_action_cannot_take_the_train_mid_frame() {
+    let mut state = crate::triggers::TriggerState::new();
+    // A 180 s light, as on the owner's rig.
+    let frame_token = state
+        .try_claim_imaging_train("the next exposure", 180.0)
+        .expect("an idle imaging train must be claimable");
+
+    // The drift-recenter trigger wants a 5 s plate-solve frame.
+    assert!(
+        state.try_claim_imaging_train("recenter", 5.0).is_none(),
+        "a recenter must not start a 5 s exposure on a camera mid-180 s frame"
+    );
+    let hold = state
+        .imaging_train_hold()
+        .expect("the capture loop still holds it");
+    assert_eq!(hold.holder, "the next exposure");
+    assert!(
+        hold.expected_remaining_secs > 180.0,
+        "the wait a trigger is told to expect comes from the 180 s frame in flight, \
+         not from its own 5 s request plus a fixed margin: got {:.0}s",
+        hold.expected_remaining_secs
+    );
+
+    state.release_imaging_train(frame_token);
+    assert!(
+        state.try_claim_imaging_train("recenter", 5.0).is_some(),
+        "and the recenter runs the moment the frame is downloaded"
+    );
+}

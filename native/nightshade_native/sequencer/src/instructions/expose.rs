@@ -352,16 +352,13 @@ pub async fn execute_exposure_with_renderer(
         // same "No exposure is available to download" failure came back 20 s
         // later — the race had swapped ends, not closed. One claim, taken by
         // whoever gets there first, is what actually serialises them.
-        let frame_claim = match ImagingTrainClaimGuard::acquire(
-            ctx,
-            "the next exposure",
-            config.duration_secs,
-        )
-        .await
-        {
-            Ok(claim) => claim,
-            Err(cancelled) => return cancelled,
-        };
+        let frame_claim =
+            match ImagingTrainClaimGuard::acquire(ctx, "the next exposure", config.duration_secs)
+                .await
+            {
+                Ok(claim) => claim,
+                Err(cancelled) => return cancelled,
+            };
 
         // tokio::select! is the only way to honour cancellation during a
         // blocking exposure without driver support; the abort branch tells
@@ -985,7 +982,10 @@ async fn apply_burst_filter(
                     config.filter
                 );
                 if let Err(e) = ctx.device_ops.filterwheel_set_position(fw_id, index).await {
-                    return Err(InstructionResult::failure(format!("Failed to change filter: {}", e)));
+                    return Err(InstructionResult::failure(format!(
+                        "Failed to change filter: {}",
+                        e
+                    )));
                 }
                 let filter_name = match config.filter.as_deref() {
                     Some(name) if !name.is_empty() => Some(name.to_string()),
@@ -1031,7 +1031,10 @@ async fn apply_burst_filter(
                     .filterwheel_set_filter_by_name(fw_id, filter)
                     .await
                 {
-                    return Err(InstructionResult::failure(format!("Failed to change filter: {}", e)));
+                    return Err(InstructionResult::failure(format!(
+                        "Failed to change filter: {}",
+                        e
+                    )));
                 }
                 if let Err(e) = apply_filter_focus_offset(filter, ctx, None).await {
                     return Err(InstructionResult::failure(format!(

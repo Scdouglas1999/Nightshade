@@ -441,7 +441,8 @@ pub(super) async fn run_recovery_driver(args: RecoveryDriverArgs) {
             // safety-class triggers (weather unsafe, dawn approaching, dome
             // shutter) keep their own configured ParkAndAbort behaviour either
             // way, so a rig in actual danger is still protected.
-            let end_policy = recovery_driver_runtime.read().unattended_end_policy;
+            let end_policy =
+                UnattendedEndPolicy::from_recovery_config(&recovery_driver_runtime.read().recovery);
             if !aborted_by_user {
                 recovery_driver_gave_up.store(true, Ordering::Relaxed);
             }

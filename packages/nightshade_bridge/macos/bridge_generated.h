@@ -376,6 +376,7 @@ typedef struct wire_cst_recovery_config_update {
   bool stop_tracking_during_recovery;
   bool abort_on_meridian;
   bool audible_alert_when_entered;
+  bool park_and_close_when_recovery_gives_up;
 } wire_cst_recovery_config_update;
 
 typedef struct wire_cst_observer_location {

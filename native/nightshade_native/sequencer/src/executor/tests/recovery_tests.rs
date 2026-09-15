@@ -200,6 +200,7 @@ fn update_recovery_config_writes_through_runtime() {
         stop_tracking_during_recovery: false,
         abort_on_meridian: false,
         audible_alert_when_entered: false,
+        park_and_close_when_recovery_gives_up: true,
     };
     let mut executor = executor;
     rt.block_on(async {
@@ -212,6 +213,9 @@ fn update_recovery_config_writes_through_runtime() {
     assert!(!rc.recovery.stop_tracking_during_recovery);
     assert!(!rc.recovery.abort_on_meridian);
     assert!(!rc.recovery.audible_alert_when_entered);
+    // The one field whose default is false, so a write-through of `true` is
+    // what proves it is not being dropped on the way in.
+    assert!(rc.recovery.park_and_close_when_recovery_gives_up);
 }
 
 /// Simulates the lifecycle of a successful recovery attempt for the
@@ -442,9 +446,9 @@ fn run_recovery_attempt_consecutive_rejects_escalates_to_operator_pause() {
 #[test]
 fn recovery_escalation_defaults_to_holding_and_abandons_only_on_opt_in() {
     assert_eq!(
-        RuntimeConfig::default().unattended_end_policy,
+        UnattendedEndPolicy::from_recovery_config(&RuntimeConfig::default().recovery),
         UnattendedEndPolicy::HoldForOperator,
-        "RuntimeConfig must default to holding the run, never to parking the mount"
+        "the recovery defaults must hold the run, never park the mount"
     );
     assert_eq!(
         recovery_escalation_disposition(UnattendedEndPolicy::HoldForOperator),
@@ -480,7 +484,9 @@ async fn consecutive_reject_storm_escalation_promises_and_performs_a_pause() {
         "the escalation message promises a pause: {message}"
     );
     assert_eq!(
-        recovery_escalation_disposition(RuntimeConfig::default().unattended_end_policy),
+        recovery_escalation_disposition(UnattendedEndPolicy::from_recovery_config(
+            &RuntimeConfig::default().recovery
+        )),
         EscalationDisposition::PassivePause,
         "and by default the run must actually pause rather than park"
     );
@@ -630,11 +636,12 @@ async fn holding_escalation_carries_a_failed_tracking_restore_into_progress_mess
     let (event_tx, _rx) = broadcast::channel(32);
 
     let runtime = Arc::new(StdRwLock::new(RuntimeConfig {
-        // The default policy: hold the run for a human. This is the
-        // passive-pause branch that restores tracking and hands the run back.
-        unattended_end_policy: UnattendedEndPolicy::HoldForOperator,
         recovery: crate::recovery::RecoveryRuntimeConfig {
             stop_tracking_during_recovery: true,
+            // The default policy: hold the run for a human. This is the
+            // passive-pause branch that restores tracking and hands the run
+            // back without moving anything.
+            park_and_close_when_recovery_gives_up: false,
             ..Default::default()
         },
         ..Default::default()
@@ -880,4 +887,203 @@ async fn guide_star_lost_recovery_fails_closed_when_start_errors() {
         matches!(outcome, crate::recovery::AttemptOutcome::Failed { .. }),
         "recovery must fail closed when guider_start errors"
     );
+}
+
+/// The full escalation matrix: which cause produces which attempt outcome, and
+/// what each of those does under each policy.
+///
+/// Pinned as one table because the 2026-09-14 failure was a mismatch BETWEEN
+/// two of these cells: `ConsecutiveRejectsExceeded` resolved to
+/// `PauseForOperator` — an outcome whose whole meaning is "stop and wait for a
+/// person" — and the disposition then parked the mount and closed the dome.
+#[tokio::test]
+async fn the_escalation_matrix_is_pinned_cause_by_cause() {
+    use crate::recovery::{AttemptOutcome, RecoveryCause};
+
+    let ops: SharedDeviceOps = std::sync::Arc::new(ReacquireGuiderOps::new(false, true));
+    let mgr = Arc::new(RwLock::new(crate::triggers::TriggerManager::new()));
+
+    // Causes that resolve by waiting and re-checking: the loop may declare
+    // success and resume.
+    for cause in [
+        RecoveryCause::WeatherUnsafe,
+        RecoveryCause::FocusDriftCritical,
+        RecoveryCause::SlewFailed,
+        RecoveryCause::PlateSolveFailed,
+        RecoveryCause::Custom("plugin".to_string()),
+    ] {
+        let outcome = run_recovery_attempt(&cause, &ops, None, &[], &mgr).await;
+        assert!(
+            matches!(outcome, AttemptOutcome::Succeeded),
+            "{cause:?} recovers by re-checking after the wait, got {outcome:?}"
+        );
+    }
+
+    // A reject storm cannot be proven cleared by waiting, so it escalates to a
+    // person. Nothing about it says anything about the mount.
+    let outcome = run_recovery_attempt(
+        &RecoveryCause::ConsecutiveRejectsExceeded,
+        &ops,
+        None,
+        &[],
+        &mgr,
+    )
+    .await;
+    assert!(
+        matches!(outcome, AttemptOutcome::PauseForOperator { .. }),
+        "a reject storm escalates to an operator pause, got {outcome:?}"
+    );
+
+    // A run with no devices assigned is terminal, not retryable.
+    let outcome =
+        run_recovery_attempt(&RecoveryCause::DeviceDisconnected, &ops, None, &[], &mgr).await;
+    assert!(
+        matches!(outcome, AttemptOutcome::Unrecoverable { .. }),
+        "a run with nothing to reconnect must fail on the first attempt, got {outcome:?}"
+    );
+
+    // And the two dispositions, which is the half that went wrong.
+    assert_eq!(
+        recovery_escalation_disposition(UnattendedEndPolicy::HoldForOperator),
+        EscalationDisposition::PassivePause
+    );
+    assert_eq!(
+        recovery_escalation_disposition(UnattendedEndPolicy::ParkAndClose),
+        EscalationDisposition::SafeAbandon
+    );
+    assert!(
+        !UnattendedEndPolicy::default().may_safe_abandon(),
+        "the default policy must never be allowed to move the mount"
+    );
+}
+
+/// A guider that is stepping but not holding the star is NOT recovered.
+///
+/// The owner's measured numbers: PHD2 answered `is_guiding: true` throughout
+/// while RA offsets sat at -56.8 / -57.2 px and Dec at -54.4 / -38.0 px. The
+/// recovery fast path accepted that as "already recovered", declared success
+/// and resumed the run.
+#[test]
+fn stepping_is_not_guiding() {
+    use crate::device_ops::GuidingStatus;
+
+    // The owner's rig, mid-failure: quadrature sum of the measured offsets.
+    let measured_rms_total = (56.8_f64.powi(2) + 54.4_f64.powi(2)).sqrt();
+    assert!(
+        !guiding_is_settled(&GuidingStatus {
+            is_guiding: true,
+            rms_ra: 56.8,
+            rms_dec: 54.4,
+            rms_total: measured_rms_total,
+        }),
+        "RMS of {measured_rms_total:.0} px reported as guiding must not count as recovered"
+    );
+
+    // Just outside the settle bound: still not recovered.
+    assert!(!guiding_is_settled(&GuidingStatus {
+        is_guiding: true,
+        rms_ra: 2.0,
+        rms_dec: 2.0,
+        rms_total: 2.83,
+    }));
+
+    // A real lock.
+    assert!(guiding_is_settled(&GuidingStatus {
+        is_guiding: true,
+        rms_ra: 0.5,
+        rms_dec: 0.4,
+        rms_total: 0.64,
+    }));
+
+    // Not guiding at all is never settled, however small the (stale) RMS.
+    assert!(!guiding_is_settled(&GuidingStatus {
+        is_guiding: false,
+        rms_ra: 0.1,
+        rms_dec: 0.1,
+        rms_total: 0.14,
+    }));
+}
+
+/// A paused run still has a telescope under the open sky, so the triggers that
+/// protect the RIG must keep evaluating — and the ones that drive hardware for
+/// image quality must not.
+///
+/// This is what makes a hold safe enough to be the default. The old code
+/// refused a passive pause precisely because a paused run had no weather, dawn
+/// or altitude evaluation at all, and parked the mount rather than fix that.
+#[test]
+fn only_rig_protecting_triggers_evaluate_while_paused() {
+    for trigger_type in [
+        TriggerType::WeatherUnsafe,
+        TriggerType::HumidityThreshold { max_percent: 85.0 },
+        TriggerType::DomeShutterNotOpen,
+        TriggerType::DawnApproaching {
+            minutes_before: 30.0,
+        },
+        TriggerType::AltitudeLimit { min_altitude: 30.0 },
+        TriggerType::MountTrackingLost,
+    ] {
+        assert!(
+            is_safety_class_trigger(&trigger_type),
+            "{trigger_type:?} protects the rig and must keep watching while paused"
+        );
+    }
+
+    for trigger_type in [
+        TriggerType::AutofocusInterval { every_n_frames: 25 },
+        TriggerType::DitherInterval { every_n_frames: 5 },
+        TriggerType::DriftLimit { max_pixels: 30.0 },
+        TriggerType::MeridianFlip {
+            config: crate::MeridianFlipConfig::default(),
+        },
+        TriggerType::FilterChange,
+        TriggerType::GuidingFailed {
+            rms_threshold: 2.0,
+            duration_secs: 30.0,
+            rms_retention_secs: 300,
+        },
+        TriggerType::GuideStarLost,
+        TriggerType::CloudOpeningIn {
+            minutes_before: 30.0,
+            minimum_duration_secs: 600.0,
+        },
+    ] {
+        assert!(
+            !is_safety_class_trigger(&trigger_type),
+            "{trigger_type:?} would move the focuser, the wheel or the mount under a hold \
+             a human placed to inspect the rig"
+        );
+    }
+}
+
+/// The Guiding Failure trigger must reach the recovery driver, because the
+/// driver freezing the node tree is the only thing that stops the next frame.
+///
+/// Its standard action is `Retry { max_attempts: 3 }`, and on the trigger side
+/// a Retry had nothing to re-run: it counted 1/3 at 02:59:10, 2/3 at 03:00:11,
+/// 3/3 at 03:01:11 and the run took three 180 s lights across that window.
+#[test]
+fn the_guiding_failure_trigger_maps_to_a_recovery_cause() {
+    assert!(
+        matches!(
+            trigger_recovery_cause("guiding_failed"),
+            Some(crate::recovery::RecoveryCause::GuideStarLost)
+        ),
+        "guiding_failed must be promotable to recovery, not left counting firings"
+    );
+    // The standard trigger really does carry a Retry action, so the arm this
+    // mapping feeds is the one that ran that night.
+    let mut mgr = crate::triggers::TriggerManager::new();
+    mgr.create_standard_triggers();
+    let trigger = mgr
+        .get_trigger("guiding_failed")
+        .expect("guiding_failed is a standard trigger");
+    assert!(
+        matches!(trigger.recovery_action, RecoveryAction::Retry { .. }),
+        "got {:?}",
+        trigger.recovery_action
+    );
+    // Triggers with no automatic recovery stay on the firing-count path.
+    assert!(trigger_recovery_cause("filter_change").is_none());
+    assert!(trigger_recovery_cause("dither_interval").is_none());
 }
