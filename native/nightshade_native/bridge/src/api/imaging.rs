@@ -532,6 +532,7 @@ pub async fn api_run_focuser_backlash_calibration(
     use nightshade_sequencer::instructions::{
         execute_backlash_calibration_admitted, try_admit_autofocus_run,
         validate_backlash_calibration_config, BacklashCalibrationConfig,
+        BACKLASH_CALIBRATION_CANCELLED,
     };
 
     let config: BacklashCalibrationConfig =
@@ -586,7 +587,16 @@ pub async fn api_run_focuser_backlash_calibration(
 
     let outcome = execute_backlash_calibration_admitted(&config, &ctx, Some(&progress_fn), guard)
         .await
-        .map_err(NightshadeError::OperationFailed)?;
+        .map_err(|error| {
+            // An operator who pressed Cancel did not suffer a failure, and the
+            // wizard must not tell them they did. The focuser has been returned
+            // to where they left it either way.
+            if error.starts_with(BACKLASH_CALIBRATION_CANCELLED) {
+                NightshadeError::Cancelled
+            } else {
+                NightshadeError::OperationFailed(error)
+            }
+        })?;
 
     serde_json::to_string(&outcome).map_err(|error| {
         NightshadeError::OperationFailed(format!(

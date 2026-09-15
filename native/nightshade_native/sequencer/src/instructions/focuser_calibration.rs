@@ -174,6 +174,13 @@ pub struct BacklashCalibrationPlan {
     pub reversal_budget_at_vertex_steps: i32,
 }
 
+/// Prefix on every error the routine returns for an operator-requested stop.
+///
+/// The executor's error channel is a `String`, so the bridge needs something
+/// stable to key on in order to report a cancellation as a cancellation rather
+/// than as a failed run — the wizard shows those differently, and it should.
+pub const BACKLASH_CALIBRATION_CANCELLED: &str = "Backlash calibration cancelled";
+
 /// Focuser move time the estimate assumes, per point, for the run-up plus the
 /// approach. Deliberately rough — it is an estimate offered as one, and the
 /// UI says so.
@@ -606,7 +613,7 @@ async fn scan_one_direction(
 
     for (index, &position) in positions.iter().enumerate() {
         if ctx.cancellation_token.load(Ordering::Relaxed) {
-            return Err("Backlash calibration cancelled".to_string());
+            return Err(BACKLASH_CALIBRATION_CANCELLED.to_string());
         }
 
         // The whole point of the run: every sample is reached from the same
@@ -628,7 +635,7 @@ async fn scan_one_direction(
         let mut samples = Vec::with_capacity(config.exposures_per_point as usize);
         for _ in 0..config.exposures_per_point {
             if ctx.cancellation_token.load(Ordering::Relaxed) {
-                return Err("Backlash calibration cancelled".to_string());
+                return Err(BACKLASH_CALIBRATION_CANCELLED.to_string());
             }
             let mut abort_guard =
                 CameraExposureAbortGuard::new(ctx.device_ops.clone(), camera_id.to_string());
@@ -801,7 +808,7 @@ async fn settle_after_move(
     let mut remaining = config.focuser_settle_time_ms;
     while remaining > 0 {
         if ctx.cancellation_token.load(Ordering::Relaxed) {
-            return Err("Backlash calibration cancelled".to_string());
+            return Err(BACKLASH_CALIBRATION_CANCELLED.to_string());
         }
         let chunk = remaining.min(100);
         sleep(Duration::from_millis(chunk)).await;
