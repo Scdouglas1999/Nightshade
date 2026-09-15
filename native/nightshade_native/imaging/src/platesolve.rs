@@ -367,6 +367,28 @@ fn which_on_path(binary: &str) -> Option<String> {
     }
 }
 
+/// Which executable and catalog directory a caller-less catalog search should
+/// probe around.
+///
+/// Extracted so the rule is a named thing with a test rather than a line
+/// inside [`detect_astap_catalog`] — the repo's habit for exactly this kind of
+/// decision (see `platesolve_paths::astap_candidates`).
+///
+/// `configured_exe` is what the operator set in Settings → Plate Solving;
+/// `discovered_exe` is what the module's own resolver found on this machine.
+/// Either serves, and the configured one wins — but `None` for BOTH is the
+/// only state in which the search may conclude an exe is unavailable. Handing
+/// back `None` while a discovered exe existed is the whole defect: the exe's
+/// own directory, which is where ASTAP catalogs normally live, never entered
+/// the candidate list.
+fn catalog_search_fallback(
+    configured_exe: Option<PathBuf>,
+    discovered_exe: Option<PathBuf>,
+    configured_catalog: Option<PathBuf>,
+) -> (Option<PathBuf>, Option<PathBuf>) {
+    (configured_exe.or(discovered_exe), configured_catalog)
+}
+
 /// Detect an ASTAP star catalog around a known executable path. The catalog
 /// (.290/.h17 files) is required for ASTAP to actually solve; many users
 /// install it separately on a fast drive.
@@ -399,13 +421,42 @@ pub fn detect_astap_catalog(
     // on runs where the catalogs were present and ASTAP was solving to 0.5".
     // A setup warning that fires while the thing it warns about is working is
     // worse than no warning: the next real one gets ignored.
-    let pref_exe;
-    let pref_catalog;
+    //
+    // Reading the preference was not enough, and the same warning fired again
+    // on the owner's rig on 2026-09-15: ASTAP sat at
+    // `C:\Program Files\astap\astap.exe` with a `d80_*.1476` catalog beside it
+    // and solved that night's frames to 0.17" of an independent run, while
+    // every sequence logged "no ASTAP star database found ... target centering
+    // in this sequence will fail". `ACTIVE_SOLVER_PREF.astap_path` was empty —
+    // nothing had been configured by hand, because nothing needed to be — so
+    // the fallback produced no exe, the exe's own directory never entered the
+    // candidate list, and `C:\Program Files\astap` is not in
+    // `catalog_dir_candidates`' well-known set either.
+    //
+    // So resolve the executable the way the REST of the module resolves it,
+    // through the same cached `discovered_solvers()` that `PlateSolverConfig`
+    // and `verify_solver` use, before concluding anything is missing. That is
+    // what `api_platesolve_detect` has always done by hand — and why it
+    // reported this rig's catalog correctly while the preflight did not. The
+    // detector and the solver now search from the same executable, so the
+    // detector cannot contradict a solver that is working.
+    let fallback_exe;
+    let fallback_catalog;
     let (exe_path, configured) = if exe_path.is_none() && configured.is_none() {
-        let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
-        pref_exe = pref.astap_path.clone();
-        pref_catalog = pref.catalog_path.clone();
-        (pref_exe.as_deref(), pref_catalog.as_deref())
+        // The pref read guard is a statement temporary and is therefore
+        // released before `discovered_solvers()` runs on the next line.
+        // `discovered_solvers` takes DISCOVERED_SOLVERS and then
+        // ACTIVE_SOLVER_PREF, so holding the pref lock across the call would
+        // invert that order — the same hazard `set_solver_preference`
+        // documents.
+        let (pref_exe, pref_catalog) = {
+            let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
+            (pref.astap_path.clone(), pref.catalog_path.clone())
+        };
+        let resolved = catalog_search_fallback(pref_exe, discovered_solvers().astap, pref_catalog);
+        fallback_exe = resolved.0;
+        fallback_catalog = resolved.1;
+        (fallback_exe.as_deref(), fallback_catalog.as_deref())
     } else {
         (exe_path, configured)
     };
@@ -2353,6 +2404,73 @@ mod tests {
         let info = super::detect_astap_catalog(Some(&exe), None).expect("must find V17 catalog");
         assert_eq!(info.name, "V17");
         assert_eq!(info.magnitude_limit, Some(17.0));
+        assert_eq!(info.path, temp);
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    /// The catalog search must probe around an exe the MODULE discovered, not
+    /// only one the operator configured.
+    ///
+    /// The owner's rig on 2026-09-15: ASTAP at `C:\Program Files\astap\astap.exe`
+    /// with a `d80_*.1476` catalog beside it, solving that night's frames to
+    /// 0.17" — and nothing configured by hand, because nothing needed to be.
+    /// With `ACTIVE_SOLVER_PREF.astap_path` empty the search was handed no exe
+    /// at all, never looked in the exe's own directory (and
+    /// `C:\Program Files\astap` is not in `catalog_dir_candidates`' well-known
+    /// set either), and reported the catalog missing to every run.
+    #[test]
+    fn catalog_search_falls_back_to_the_discovered_exe() {
+        let configured = PathBuf::from("/configured/astap");
+        let discovered = PathBuf::from("/usr/bin/astap");
+
+        assert_eq!(
+            super::catalog_search_fallback(None, Some(discovered.clone()), None),
+            (Some(discovered.clone()), None),
+            "a discovered-but-unconfigured exe is the exe the search must probe around"
+        );
+        assert_eq!(
+            super::catalog_search_fallback(Some(configured.clone()), Some(discovered), None)
+                .0,
+            Some(configured),
+            "what the operator configured still wins"
+        );
+        assert_eq!(
+            super::catalog_search_fallback(None, None, None),
+            (None, None),
+            "no exe anywhere is the only state that may conclude one is unavailable"
+        );
+    }
+
+    /// The composition the fallback exists for: a catalog sitting beside an exe
+    /// nobody configured is found.
+    #[test]
+    fn a_catalog_beside_a_discovered_exe_is_found() {
+        let temp = std::env::temp_dir().join(format!(
+            "nightshade-platesolve-cat-disc-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&temp).expect("create temp dir");
+        let exe = temp.join(if cfg!(target_os = "windows") {
+            "astap.exe"
+        } else {
+            "astap"
+        });
+        std::fs::write(&exe, b"#!fake").expect("write fake exe");
+        // Lower-case tag and the `.1476` extension the owner's D80 install
+        // uses, so this is the catalog the preflight said did not exist.
+        std::fs::write(temp.join("d80_0001.1476"), b"fake").expect("write fake catalog");
+
+        // Nothing configured; the exe is only what the module discovered.
+        let (resolved_exe, resolved_catalog) =
+            super::catalog_search_fallback(None, Some(exe), None);
+        let info = super::detect_astap_catalog(resolved_exe.as_deref(), resolved_catalog.as_deref())
+            .expect("a catalog beside a discovered exe must be found");
+        assert_eq!(info.name, "D80");
         assert_eq!(info.path, temp);
 
         let _ = std::fs::remove_dir_all(&temp);

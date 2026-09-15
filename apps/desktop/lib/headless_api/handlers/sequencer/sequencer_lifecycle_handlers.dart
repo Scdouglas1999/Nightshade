@@ -50,6 +50,16 @@ extension _SequencerLifecycle on SequencerHandlers {
             // run that looked healthy even after (e.g.) its meridian flip had
             // failed. The vitals must carry the bad news too.
             'errorMessages': liveStats.errorMessages,
+            // WHY the run ended badly, and where its rejects went. Monitoring
+            // this endpoint through a live failure gave the frame counts and
+            // the error list but no answer to "which of these ended the run",
+            // and the run's last error is the cancelled teardown step, not its
+            // cause. Omitted while the run is healthy rather than sent as a
+            // null a client would render as "no cause".
+            if (liveStats.terminalCause != null)
+              'terminalCause': liveStats.terminalCause,
+            if (liveStats.rejectFolder != null)
+              'rejectFolder': liveStats.rejectFolder,
           };
 
     // The name of the TARGET this run is on. Every other field here describes

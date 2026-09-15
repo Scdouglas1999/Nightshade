@@ -59,22 +59,38 @@ pub(super) fn build_progress_callback(
                 // pull the display name out for NodeStarted. Subsequent
                 // progress events are structured so this branch is the
                 // only place we still parse a message.
-                let node_name = update
-                    .message
-                    .as_ref()
-                    .map(|m| {
-                        if let Some(name) = m.strip_prefix("Executing: ") {
-                            name.to_string()
-                        } else {
-                            m.clone()
+                //
+                // A message-less update names nothing, and this branch used to
+                // answer that with the literal "Unknown" — then cache it, so a
+                // node whose id re-entered this branch mid-run (a Smart
+                // Exposure between bursts; see `node_names` in `start.rs`)
+                // reported itself as "Unknown" to every client for the rest of
+                // the run. The seeded map already holds the authored name, so
+                // the parse only ever CONFIRMS a name and never replaces a
+                // known one with a placeholder.
+                let parsed_name = update.message.as_ref().map(|m| {
+                    if let Some(name) = m.strip_prefix("Executing: ") {
+                        name.to_string()
+                    } else {
+                        m.clone()
+                    }
+                });
+                let node_name = {
+                    let mut names = node_names.write();
+                    match parsed_name {
+                        Some(parsed) => {
+                            names.insert(update.node_id.clone(), parsed.clone());
+                            parsed
                         }
-                    })
-                    // The node name is observability only — node-id carries
-                    // identity — so "Unknown" is an acceptable UI fallback.
-                    .unwrap_or_else(|| "Unknown".to_string());
-                node_names
-                    .write()
-                    .insert(update.node_id.clone(), node_name.clone());
+                        // Unnamed in the definition AND unnamed on the wire:
+                        // the node id is the only identity there is, and
+                        // saying so beats inventing a display name.
+                        None => names
+                            .get(&update.node_id)
+                            .cloned()
+                            .unwrap_or_else(|| update.node_id.clone()),
+                    }
+                };
                 prog.current_node_name = Some(node_name.clone());
                 tracing::info!(
                     "[PROGRESS_CB] Emitting NodeStarted: id={}, name={}",

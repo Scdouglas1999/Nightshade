@@ -20,13 +20,37 @@ class SequenceRunStats {
   final DateTime startTime;
   DateTime? endTime;
 
+  /// Every exposure this run took off the sensor and recorded — accepted and
+  /// rejected alike. A rejected sub was still captured, still cost the night
+  /// its minutes and is still sitting on disk, so it counts here.
   int framesCaptured;
+
+  /// The subset of [framesCaptured] the grader rejected. Always
+  /// `<= framesCaptured`; `framesCaptured - framesRejected` is what the night
+  /// can actually be stacked from.
   int framesRejected;
+
+  /// ACCEPTED exposure time only — see [recordFrame].
   double integrationSecs;
   int triggerFires;
   int autofocusRuns;
   int meridianFlips;
   int ditherCount;
+
+  /// The directory the grader has been moving rejected frames into, or null
+  /// until one is rejected. The first thing an operator opens after a reject
+  /// storm, so the run record carries it rather than making him find it.
+  String? rejectFolder;
+
+  /// The one sentence that says WHY this run ended badly, or null for a run
+  /// that has not failed.
+  ///
+  /// Distinct from [errorMessages], which is the whole cascade in the order it
+  /// happened. This is the link the cause-selection rule picked out of it: the
+  /// first real fault, never a teardown step that was cancelled *because* the
+  /// run was already failing. See `executor::failure_cause` on the native side,
+  /// which chooses it, and [recordTerminalError], which stores it.
+  String? terminalCause;
 
   /// Per-target, per-filter breakdown: targetName -> filterName -> stats
   final Map<String, Map<String, FilterStats>> targetBreakdown;
@@ -49,6 +73,8 @@ class SequenceRunStats {
       autofocusRuns = 0,
       meridianFlips = 0,
       ditherCount = 0,
+      rejectFolder = null,
+      terminalCause = null,
       targetBreakdown = {},
       errorMessages = [],
       warningMessages = [];
@@ -63,6 +89,8 @@ class SequenceRunStats {
     required this.autofocusRuns,
     required this.meridianFlips,
     required this.ditherCount,
+    required this.rejectFolder,
+    required this.terminalCause,
     required this.warningMessages,
     required this.errorMessages,
   }) : targetBreakdown = {};
@@ -84,6 +112,8 @@ class SequenceRunStats {
       autofocusRuns: vitals.autofocusRuns,
       meridianFlips: vitals.meridianFlips,
       ditherCount: vitals.ditherCount,
+      rejectFolder: vitals.rejectFolder,
+      terminalCause: vitals.terminalCause,
       warningMessages: List<String>.from(vitals.warningMessages),
       errorMessages: List<String>.from(vitals.errorMessages),
     );
@@ -111,6 +141,8 @@ class SequenceRunStats {
       autofocusRuns: autofocusRuns,
       meridianFlips: meridianFlips,
       ditherCount: ditherCount,
+      rejectFolder: rejectFolder,
+      terminalCause: terminalCause,
       warningMessages: List<String>.from(warningMessages),
       errorMessages: List<String>.from(errorMessages),
     );
@@ -174,19 +206,34 @@ class SequenceRunStats {
   void recordDither() => ditherCount++;
   void recordError(String message) => errorMessages.add(message);
 
-  /// Record the run's TERMINAL error (the reason on `SequenceFailed`).
+  /// Record the directory the grader is moving rejected frames into.
   ///
-  /// The native executor derives that reason by re-formatting the last
-  /// `InstructionFailed` as `"<node>: <message>"` — byte-for-byte the string
-  /// the bridge already delivered as a mid-run `Error` event and which
-  /// [recordError] already stored. One failing Dither node therefore ended the
-  /// night with the same sentence twice in `errorMessages`, printed twice in
-  /// the Session Report and stacked as two identical critical banners.
+  /// Last writer wins: a run that changes save path mid-night should point the
+  /// operator at the folder its most recent reject actually landed in.
+  void recordRejectFolder(String folder) => rejectFolder = folder;
+
+  /// Record the run's TERMINAL error (the reason on `SequenceFailed`) as this
+  /// run's [terminalCause].
   ///
-  /// Only the immediately-preceding entry is compared, so a node that really
-  /// fails twice still records two errors.
+  /// The native executor picks that reason out of the failures the run reported
+  /// (`executor::failure_cause::run_failure_cause`) and it is, by construction,
+  /// a RESTATEMENT of one of them — byte-for-byte a string the bridge already
+  /// delivered as a mid-run `Error` event and which [recordError] already
+  /// stored. So it is not appended when [errorMessages] already holds it
+  /// anywhere: one failing Dither node used to end the night with the same
+  /// sentence twice, printed twice in the Session Report and stacked as two
+  /// identical critical banners.
+  ///
+  /// Comparing against the whole list, not just the last entry, is what the
+  /// cause-selection rule requires. The chosen cause is the FIRST fault, so by
+  /// the time the run dies there are usually later entries behind it — the
+  /// cancelled teardown steps among them — and a last-entry-only comparison
+  /// would append the cause a second time. Faults recorded through
+  /// [recordError] are untouched by this, so a node that really fails twice
+  /// still records two errors.
   void recordTerminalError(String message) {
-    if (errorMessages.isNotEmpty && errorMessages.last == message) {
+    terminalCause = message;
+    if (errorMessages.contains(message)) {
       return;
     }
     errorMessages.add(message);
@@ -228,6 +275,8 @@ class SequenceRunStats {
       'autofocusRuns': autofocusRuns,
       'meridianFlips': meridianFlips,
       'ditherCount': ditherCount,
+      if (rejectFolder != null) 'rejectFolder': rejectFolder,
+      if (terminalCause != null) 'terminalCause': terminalCause,
       'errorMessages': errorMessages,
       'warningMessages': warningMessages,
     });
@@ -244,6 +293,8 @@ class SequenceRunStats {
     stats.autofocusRuns = (map['autofocusRuns'] as num?)?.toInt() ?? 0;
     stats.meridianFlips = (map['meridianFlips'] as num?)?.toInt() ?? 0;
     stats.ditherCount = (map['ditherCount'] as num?)?.toInt() ?? 0;
+    stats.rejectFolder = map['rejectFolder'] as String?;
+    stats.terminalCause = map['terminalCause'] as String?;
 
     final errors = map['errorMessages'] as List<dynamic>?;
     if (errors != null) {
@@ -295,6 +346,16 @@ class ParsedRunStats {
   final int autofocusRuns;
   final int meridianFlips;
   final int ditherCount;
+
+  /// The directory this run's rejected frames were moved into, or null when
+  /// nothing was rejected. See [SequenceRunStats.rejectFolder].
+  final String? rejectFolder;
+
+  /// Why this run ended badly, or null for one that did not — the first real
+  /// fault, never a cancelled teardown step. See
+  /// [SequenceRunStats.terminalCause].
+  final String? terminalCause;
+
   final Map<String, Map<String, Map<String, dynamic>>> targetBreakdown;
   final List<String> errorMessages;
   final List<String> warningMessages;
@@ -311,6 +372,8 @@ class ParsedRunStats {
     required this.ditherCount,
     required this.targetBreakdown,
     required this.errorMessages,
+    this.rejectFolder,
+    this.terminalCause,
     this.warningMessages = const [],
   });
 
@@ -339,6 +402,8 @@ class ParsedRunStats {
       autofocusRuns: (map['autofocusRuns'] as num?)?.toInt() ?? 0,
       meridianFlips: (map['meridianFlips'] as num?)?.toInt() ?? 0,
       ditherCount: (map['ditherCount'] as num?)?.toInt() ?? 0,
+      rejectFolder: map['rejectFolder'] as String?,
+      terminalCause: map['terminalCause'] as String?,
       targetBreakdown: breakdown,
       errorMessages:
           (map['errorMessages'] as List<dynamic>?)?.cast<String>() ?? [],

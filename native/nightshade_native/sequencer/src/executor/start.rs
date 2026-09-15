@@ -127,6 +127,31 @@ impl SequenceExecutor {
             // index, so the trigger-action-context cannot reference any.
             .unwrap_or_default();
 
+        // The authored display name of every node that has one, read once at
+        // start from the same `SequenceDefinition` the tree was built from.
+        //
+        // The progress callback used to learn these names ONLY by parsing the
+        // one-shot "Executing: <name>" lifecycle message, and substituted the
+        // literal string "Unknown" — cached, so it could not recover — when a
+        // node re-entered that branch on a message-less update. See the
+        // `node_names` map it seeds, below.
+        //
+        // An empty name is skipped rather than indexed: a node the operator
+        // never named has no display name to publish, and caching "" would
+        // print a blank where a client renders the field.
+        let node_display_names: HashMap<NodeId, String> = self
+            .sequence
+            .as_ref()
+            .map(|sequence| {
+                sequence
+                    .nodes
+                    .iter()
+                    .filter(|node| !node.name.trim().is_empty())
+                    .map(|node| (node.id.clone(), node.name.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
         // Which node ids are targets, and what target they name. Read once at
         // start from the same `SequenceDefinition` the tree was built from, so
         // the identity that reaches subscribers is the node id — never a
@@ -601,10 +626,23 @@ impl SequenceExecutor {
                 // left the name behind. A client that highlights
                 // `currentNodeId` on its canvas highlights the wrong node. The
                 // pair is identity; keep it atomic.
-                let node_names = Arc::new(StdRwLock::new(std::collections::HashMap::<
-                    NodeId,
-                    String,
-                >::new()));
+                //
+                // SEEDED from the `SequenceDefinition` this run was built from,
+                // rather than learned only from that entry message. The
+                // message-parse is a fragile way to learn a name the executor
+                // already holds, and when it produced nothing the callback
+                // substituted the literal string "Unknown" and CACHED it, so
+                // the name could not recover for the rest of the node's life.
+                // On the owner's rig `GET /api/sequencer/status` answered
+                // `"currentNodeName":"Unknown"` for minutes at a stretch during
+                // a Smart Exposure node: that node delegates each burst under
+                // its OWN node id, every burst ends with a terminal Success
+                // that clears the id from `started_nodes`, and the very next
+                // update — `ProgressUpdate::instruction_progress`, which
+                // carries no message at all — was then read as a fresh entry
+                // with no name. With the authored name already in the map the
+                // parse can only ever confirm it.
+                let node_names = Arc::new(StdRwLock::new(node_display_names.clone()));
                 // completed_exposures must be monotonic per node so the global counter
                 // never decreases — e.g. when a loop body restarts, its frame count
                 // must not reset back to zero from the UI's perspective.
@@ -1182,10 +1220,32 @@ impl SequenceExecutor {
                         // that died on the daylight gate carried the real
                         // reason in its log while the toast, the Session
                         // Report and the persisted `errorMessages` all showed
-                        // the placeholder. Prefer the structural reason, then
-                        // the last instruction that actually reported one.
-                        let reason = unreachable_failure_reason
-                            .or_else(|| last_instruction_failure(&mut instruction_failure_rx));
+                        // the placeholder.
+                        //
+                        // Choosing the MOST RECENT failure was the next
+                        // placeholder. A dying run cancels its node tree and
+                        // every device operation still in flight reports the
+                        // cancellation as a failure of its own, so the newest
+                        // complaint is always the teardown. The owner's
+                        // 2026-09-15 run lost guiding, trailed three frames,
+                        // tripped the reject limit and was abandoned — and
+                        // reported "Change Filter: Operation cancelled",
+                        // logged one second after the abandonment. See
+                        // `executor::failure_cause` for the rule that replaced
+                        // it: the structural refusal if there is one, else the
+                        // FIRST fault, never a cancelled cleanup step.
+                        let failure_report = crate::executor::failure_cause::run_failure_report(
+                            &mut instruction_failure_rx,
+                            unreachable_failure_reason,
+                        );
+                        if failure_report.cascade.len() > 1 {
+                            tracing::info!(
+                                "Run failure cascade ({} links, cause first): {}",
+                                failure_report.cascade.len(),
+                                failure_report.cascade.join(" | ")
+                            );
+                        }
+                        let reason = failure_report.cause;
                         // The verdict composed above is "Failed: <root name>" —
                         // it names the container the operator never configured
                         // and gives no reason at all, and it is verbatim what

@@ -78,14 +78,16 @@ SchedulerRejectionKind classifySchedulerRejection(String reason) {
     }
     return SchedulerRejectionKind.tooLowForSite;
   }
-  if (r.contains('moon separation'))
+  if (r.contains('moon separation')) {
     return SchedulerRejectionKind.moonSeparation;
+  }
   if (r.contains('moon illumination')) {
     return SchedulerRejectionKind.moonIllumination;
   }
   if (r.contains('moon')) return SchedulerRejectionKind.moon;
-  if (r.contains('time window'))
+  if (r.contains('time window')) {
     return SchedulerRejectionKind.outsideTimeWindow;
+  }
   if (r.contains('filter')) return SchedulerRejectionKind.filterMissing;
   if (r.contains('goals complete')) return SchedulerRejectionKind.goalsComplete;
   return SchedulerRejectionKind.other;

@@ -97,6 +97,16 @@ class SequencerRunVitals {
   /// that omits the key still deserializes.
   final List<String> errorMessages;
 
+  /// The directory this run's rejected frames are being moved into, or null
+  /// until one is rejected. A remote operator watching a reject storm needs
+  /// the path to the files, not just the count.
+  final String? rejectFolder;
+
+  /// Why this run ended badly, or null while it is healthy — the first real
+  /// fault, never a teardown step the cancellation cascade tripped over.
+  /// The whole cascade is in [errorMessages], in the order it happened.
+  final String? terminalCause;
+
   const SequencerRunVitals({
     required this.startTime,
     this.endTime,
@@ -109,6 +119,8 @@ class SequencerRunVitals {
     required this.ditherCount,
     this.warningMessages = const [],
     this.errorMessages = const [],
+    this.rejectFolder,
+    this.terminalCause,
   });
 
   factory SequencerRunVitals.fromJson(Map<String, dynamic> json) {
@@ -131,6 +143,8 @@ class SequencerRunVitals {
           const [],
       errorMessages:
           (json['errorMessages'] as List<dynamic>?)?.cast<String>() ?? const [],
+      rejectFolder: json['rejectFolder'] as String?,
+      terminalCause: json['terminalCause'] as String?,
     );
   }
 
@@ -146,6 +160,8 @@ class SequencerRunVitals {
     'ditherCount': ditherCount,
     'warningMessages': warningMessages,
     'errorMessages': errorMessages,
+    if (rejectFolder != null) 'rejectFolder': rejectFolder,
+    if (terminalCause != null) 'terminalCause': terminalCause,
   };
 }
 

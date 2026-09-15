@@ -567,25 +567,37 @@ async fn an_unevaluable_target_trigger_states_its_reason_on_the_run() {
     );
 }
 
+/// The rule that replaced "prefer the most recent reason". A dying run's most
+/// recent complaint is its teardown; see `executor::failure_cause`.
 #[test]
-fn last_instruction_failure_prefers_the_most_recent_reason() {
+fn the_reported_reason_is_the_first_fault_not_the_cancelled_cleanup() {
     let (tx, mut rx) = broadcast::channel(16);
-    let _ = tx.send(ExecutorEvent::Error {
-        message: "an earlier, benign warning".to_string(),
-    });
     let _ = tx.send(ExecutorEvent::InstructionFailed {
         node_name: "Take Exposures".to_string(),
         message: "Daylight gate: refusing light-frame exposure".to_string(),
     });
-    let reason = last_instruction_failure(&mut rx).expect("a reason was published");
+    // What the executor's cancellation cascade adds on the way out, and what
+    // the owner was shown instead of the line above.
+    let _ = tx.send(ExecutorEvent::InstructionFailed {
+        node_name: "Change Filter".to_string(),
+        message: "Operation cancelled".to_string(),
+    });
+
+    let report = super::failure_cause::run_failure_report(&mut rx, None);
     assert_eq!(
-        reason,
-        "Take Exposures: Daylight gate: refusing light-frame exposure"
+        report.cause.as_deref(),
+        Some("Take Exposures: Daylight gate: refusing light-frame exposure")
     );
     assert_eq!(
-        last_instruction_failure(&mut rx),
-        None,
-        "a run with no instruction failure must not invent one"
+        report.cascade.len(),
+        2,
+        "the cancelled step is kept, just not promoted to the reason"
+    );
+
+    let empty = super::failure_cause::run_failure_report(&mut rx, None);
+    assert_eq!(
+        empty.cause, None,
+        "a run with no failure at all must not invent one"
     );
 }
 

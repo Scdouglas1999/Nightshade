@@ -215,15 +215,15 @@ pub(crate) async fn run_polar_alignment(
     // which polar alignment is often not using — and scaled by the binning
     // these frames are actually being taken at, which the camera has not been
     // set to yet at this point.
-    let mut solve_hints = gather_solve_hints_for_camera(Some(&camera_id)).await;
+    let mut solve_scale = gather_solve_hints_for_camera(Some(&camera_id)).await;
     if binning > 0 {
-        solve_hints.binning = (binning, binning);
+        solve_scale.hints.binning = (binning, binning);
     }
-    solve_hints.log_scale("Polar alignment solve");
+    solve_scale.log_scale("Polar alignment solve");
     // ...and the number that log line prints is the number the solver is
     // handed. It was computed, logged, and then dropped on the floor for three
     // release waves while every polar solve ran blind against a 0.4° field.
-    let solve_scale = solve_hints.arcsec_per_px();
+    let solve_scale_arcsec_per_px = solve_scale.arcsec_per_px();
 
     // Phase 1: Capture and solve 3 points
     for point in 1..=3 {
@@ -290,7 +290,7 @@ pub(crate) async fn run_polar_alignment(
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
         // Write FITS file for plate solving
-        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str, &solve_hints) {
+        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str, &solve_scale.hints) {
             return Err(format!("Failed to write temp FITS: {}", e));
         }
 
@@ -300,7 +300,7 @@ pub(crate) async fn run_polar_alignment(
             &format!("point {}", point),
             &temp_path_str,
             read_polar_solve_hint(&mount_id).await,
-            solve_scale,
+            solve_scale_arcsec_per_px,
             solve_downsample,
             solve_timeout_secs,
         )
@@ -543,7 +543,7 @@ pub(crate) async fn run_polar_alignment(
         let temp_path = create_unique_temp_fits_path("polar_align_adjust");
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
-        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str, &solve_hints) {
+        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str, &solve_scale.hints) {
             consecutive_failures += 1;
             tracing::warn!("Failed to write temp FITS: {}", e);
             emit_polar_status(
@@ -575,7 +575,7 @@ pub(crate) async fn run_polar_alignment(
             "the adjustment frame",
             &temp_path_str,
             read_polar_solve_hint(&mount_id).await,
-            solve_scale,
+            solve_scale_arcsec_per_px,
             polar_solve_downsample(image.width, image.height, binning),
             solve_timeout_secs,
         )

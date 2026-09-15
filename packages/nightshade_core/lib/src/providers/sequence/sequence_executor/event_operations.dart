@@ -162,17 +162,20 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final total = event.data['total'] as int? ?? 1;
         final durationSecs =
             (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
-        // The grader already ruled on this frame (it emits before the
-        // completion), so its verdict decides whether the frame counts as
-        // rejected. A frame no grader ruled on — a run with no save path emits
-        // no grader event at all — still completed, so it is recorded as
-        // accepted rather than dropped.
+        // The grader emits before the completion, so an entry here means this
+        // frame is already counted (see [_gradedFrames]) and only its capture
+        // truth is still wanted, for the preview stamp below. A frame that
+        // reaches here with no entry was never graded — a run with no save path
+        // emits no grader event at all — and still completed, so it is counted
+        // here as accepted rather than dropped.
         final graded = _gradedFrames.remove(frame);
-        _recordRunFrame(
-          exposureSecs: durationSecs,
-          filter: event.data['filter'] as String?,
-          accepted: graded?.accepted ?? true,
-        );
+        if (graded == null) {
+          _recordRunFrame(
+            exposureSecs: durationSecs,
+            filter: event.data['filter'] as String?,
+            accepted: true,
+          );
+        }
         // Feed the ETA smoother from the event's real exposure duration plus
         // a fixed per-frame download overhead. This is robust to AF/flip
         // gaps because it measures shutter-open time, not wall-clock between
@@ -500,7 +503,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameAccepted':
-        _carryFrameVerdict(event, accepted: true);
+        _recordGradedFrame(event, accepted: true);
         // The Rust grader now ships `save_path` for
         // accepted frames as well (it already did for rejected
         // frames). The thumbnail strip uses the on-disk path to load
@@ -517,7 +520,18 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameRejected':
-        _carryFrameVerdict(event, accepted: false);
+        _recordGradedFrame(event, accepted: false);
+        // The folder the rejects are piling up in is the first thing an
+        // operator opens when a run dies on a reject storm, and the run record
+        // is where he looks for it. Recorded from the grader's own
+        // `reject_path` so it names the directory the files are actually in.
+        final rejectPath = event.data['reject_path'] as String?;
+        final rejectFolder = rejectPath == null
+            ? null
+            : parentDirectoryOf(rejectPath);
+        if (rejectFolder != null) {
+          _incrementRunStat((stats) => stats.recordRejectFolder(rejectFolder));
+        }
         // Thumbnail — same as FrameAccepted, but with the
         // reject_path the Rust grader already ships so the strip can
         // surface a "REJECTED" tile that opens the actual file when
@@ -1139,15 +1153,26 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     return sequence?.name ?? 'Sequence';
   }
 
-  /// Hold the grader's verdict and the capture truth it carries until the
-  /// `ExposureCompleted` for the same frame arrives. See [_gradedFrames].
-  void _carryFrameVerdict(NightshadeEvent event, {required bool accepted}) {
+  /// Count a frame the grader ruled on into the run's vitals, and hold its
+  /// verdict and capture truth until the `ExposureCompleted` for the same frame
+  /// arrives. See [_gradedFrames] for why this — not `ExposureCompleted` — is
+  /// where the counters move.
+  ///
+  /// The exposure length credited is the one the camera REPORTED for this frame,
+  /// off the event's own capture payload: the same number the FITS header and
+  /// the `captured_images` row were written from. `ExposureCompleted`'s
+  /// `duration_secs` is the executor's restatement of it and does not reach
+  /// every producer.
+  void _recordGradedFrame(NightshadeEvent event, {required bool accepted}) {
+    final capture = FrameCapture.fromEventData(event.data);
+    _recordRunFrame(
+      exposureSecs: capture.exposureSecs ?? 0.0,
+      filter: event.data['filter'] as String?,
+      accepted: accepted,
+    );
     final frame = (event.data['frame'] as num?)?.toInt();
     if (frame == null) return;
-    _gradedFrames[frame] = (
-      accepted: accepted,
-      capture: FrameCapture.fromEventData(event.data),
-    );
+    _gradedFrames[frame] = (accepted: accepted, capture: capture);
   }
 
   /// The capture settings to stamp on the preview published for the frame that
