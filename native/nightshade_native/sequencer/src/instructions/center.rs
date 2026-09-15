@@ -134,12 +134,6 @@ pub async fn execute_center(
     // leaving it ungated would leave the defect reachable by the more common
     // authoring pattern. Custom / mount-current coordinates are the operator's
     // own numbers and are never gated.
-
-    // Same placeholder gate as `execute_slew`: Center slews too, and it is the
-    // node an automated sequence usually uses instead of a bare Slew, so
-    // leaving it ungated would leave the defect reachable by the more common
-    // authoring pattern. Custom / mount-current coordinates are the operator's
-    // own numbers and are never gated.
     if config.use_target_coords {
         if let Some(reason) = unset_target_pointing_reason(
             ctx.target_name.as_deref(),
