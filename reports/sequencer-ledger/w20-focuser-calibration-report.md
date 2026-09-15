@@ -144,6 +144,49 @@ governs the overshoot moves during the sweep; the measured figure only sizes the
 which happens either way because best focus has to be reached from the side it was measured from.
 All it does is make that unavoidable move shorter and aimed at a known clearance.
 
+## The Dart layers
+
+- **Persistence**, `FocuserBacklashCalibrationRecord` in `settings_dao.dart` under
+  `focuser_backlash_calibrations.v1`, keyed by focuser device id, mirroring `RememberedSensorSpec`
+  (short keys, LRU cap 8, `FormatException` → nothing remembered, skip-write when unchanged). No
+  Drift migration — `app_settings` is an existing key-value table.
+- **Precedence**, `resolveEffectiveFocuserBacklash` — the single decision, wired into all three
+  paths that reach native (sequencer JSON, one-shot FFI config, runtime push-down) so a
+  trigger-fired refocus gets the same figure as an explicit node.
+- **The offer**, `focuserBacklashOfferProvider` — connected camera and focuser, no record for that
+  focuser, no typed figure, not opted out, not dismissed this session, and fail-closed while any of
+  that is still loading. Re-offered after two consecutive landing-verification failures on the same
+  focuser.
+- **The wizard**, with intro / progress / measured / no-measurable-backlash / refused / failed
+  surfaces, both curves on shared axes, and Save / Discard / Re-run.
+- **Headless routes** for start, cancel and plan, relaying the native JSON verbatim so a remote
+  client reads the same message and remedy.
+
+The V-curve painter was promoted out of `autofocus_progress_overlay.dart` into `nightshade_ui`
+rather than forked, per that file's own instruction, and now takes any number of series.
+
+## Two honesty defects found reviewing the finished feature
+
+Both of the class the owner cares about — the UI claiming something had been applied when it had
+not — and both caught by tracing the value end to end rather than by reading the new code.
+
+1. **The field edited a setting nothing reads.** `AppSettings` has two nearly identically named
+   backlash settings. The one the equipment surfaces edit, `backlashCompensation` (DB key
+   `backlash_compensation`), is persisted, remote-synced and displayed — and read by nothing
+   operational. Every path to the focuser takes its figure from `afBacklashIn`. So the "Backlash
+   compensation" field changed a number that changed nothing, and the new "Use the measured 105"
+   button wrote to it: an operator could adopt a measurement, watch the field update, and have
+   autofocus carry on seeing 0. Both surfaces now read and write `afBacklashIn`, with the legacy
+   setting kept in step so nothing shows a contradictory number.
+2. **The resolver ignored the compensation switch.** With `af_backlash_comp_method` set to "None",
+   Dart already sends `backlash_compensation: 0`, so a typed figure never reaches the engine. The
+   resolver reported it as in force anyway, while native was applying the measured figure instead —
+   the reverse of the precedence the UI was promising. It now takes that switch and carries the
+   switched-off number so the readout says so plainly.
+
+`backlashCompensation` is left operationally orphaned rather than merely unread; migrating or
+removing it is a separate change with its own remote-sync and settings-round-trip surface.
+
 ## Verification
 
 Run from `native/nightshade_native` with `TMPDIR=$HOME/.cache/ns-tmp/w20-focuser-calibration`.
@@ -157,6 +200,28 @@ Run from `native/nightshade_native` with `TMPDIR=$HOME/.cache/ns-tmp/w20-focuser
 | `cargo build -p nightshade_bridge` | 0 |
 | `flutter_rust_bridge_codegen generate` | 0 |
 | `cargo fmt --all -- --check` | 1 — six pre-existing diffs in `imaging/src/depthlock/mod.rs`, untouched by this branch (`git diff --stat HEAD -- native/nightshade_native/imaging/` is empty). Every crate this branch touches is clean. |
+| `cargo build --release -p nightshade_bridge` | 0 — all three new FFI symbols present in the `.so` |
+
+Dart, run per package:
+
+| command | exit |
+|---|---|
+| `dart format --output=none --set-exit-if-changed` over nightshade_core, nightshade_app, nightshade_ui, apps/desktop | 0 — 4236 files, 0 changed |
+| `dart analyze packages/nightshade_core` | 0 — 19 infos, all pre-existing, none in a touched file |
+| `dart analyze packages/nightshade_app` | 0 — 873 infos, all pre-existing, none in a touched file |
+| `dart analyze packages/nightshade_ui` | 0 — 59 infos, all pre-existing, none in a touched file |
+| `dart analyze apps/desktop` | 0 — 9 infos, all pre-existing, none in a touched file |
+| `flutter test` (nightshade_core, full) | 0 — 6693 passed |
+| `flutter test test/widgets test/screens/{equipment,imaging,dashboard}` (nightshade_app) | 0 — 1096 passed |
+| `flutter test` (nightshade_ui, full) | 0 — 547 passed |
+| `flutter test test/headless_api` (apps/desktop) | 0 — 1144 passed |
+| `flutter test test/focuser_backlash` (nightshade_core) | 0 — 104 passed |
+
+Pre-existing flake, not from this branch: `test/database/integrity_check_test.dart` "a hot rollback
+journal is replayed" fails roughly one run in three under parallel load and passes in isolation. It
+builds its own raw sqlite file and hand-written journal and never touches `app_settings` or anything
+in this diff; a clean re-run of the same command passed 5254 tests. Two further flakes under
+full-suite load are `tearDownAll` temp-directory cleanup races. Worth a separate ticket.
 
 ### Deviations from the brief
 
