@@ -582,7 +582,8 @@ pub(super) async fn apply_recovery_escalation(
         if let (Some(mount_id), Some(park)) = (s.mount_id, &outcome.park) {
             if park.success {
                 tracing::info!(
-                    "[RECOVERY] Parked mount '{}' on unattended reject-storm abandonment ({} attempt{})",
+                    "[RECOVERY] Parked mount '{}' because the operator's park-and-close policy \
+                     is on ({} attempt{})",
                     mount_id,
                     park.attempts_made,
                     if park.attempts_made == 1 { "" } else { "s" }
