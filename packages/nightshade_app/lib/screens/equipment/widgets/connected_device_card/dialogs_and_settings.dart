@@ -177,7 +177,17 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
 
     bool tempComp = settings.tempCompensation;
     var coefficientText = settings.tempCoefficient.toString();
-    var backlashText = settings.backlashCompensation.toString();
+    // `afBacklashIn`, the figure every path to the focuser actually reads;
+    // `backlashCompensation` is persisted and displayed but operationally
+    // unread. See the note in `_BacklashSettingRow`.
+    var backlashText = settings.afBacklashIn.toString();
+    // Bumped when a measured figure is adopted, so the field's key changes and
+    // it rebuilds showing the new `initialValue`. A controller would be the
+    // obvious alternative, but nothing here outlives the dialog's exit
+    // transition to dispose it on. The field MUST follow the adopted number:
+    // writing the setting while the input still showed the old one would be
+    // exactly the silent replacement this feature exists to avoid.
+    var backlashFieldGeneration = 0;
     final pageContext = context;
     bool isSaving = false;
     String? errorText;
@@ -227,13 +237,15 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                             isSaving = true;
                           });
                           try {
-                            await ref
-                                .read(appSettingsProvider.notifier)
-                                .setFocuserCompensationConfig(
-                                  tempCompensation: tempComp,
-                                  tempCoefficient: coeff,
-                                  backlashCompensation: backlash,
-                                );
+                            final notifier = ref.read(
+                              appSettingsProvider.notifier,
+                            );
+                            await notifier.setAfBacklashIn(backlash);
+                            await notifier.setFocuserCompensationConfig(
+                              tempCompensation: tempComp,
+                              tempCoefficient: coeff,
+                              backlashCompensation: backlash,
+                            );
                             if (!context.mounted) return;
                             Navigator.pop(context);
                             if (pageContext.mounted) {
@@ -303,6 +315,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
+                    key: ValueKey<int>(backlashFieldGeneration),
                     initialValue: backlashText,
                     onChanged: (value) => backlashText = value,
                     enabled: !isSaving,
@@ -321,6 +334,19 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                         borderSide: BorderSide(color: colors.primary),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                  // Where the number in force came from, and the way to
+                  // measure a new one. Same widget as the Equipment settings
+                  // card, so the two surfaces cannot disagree about which
+                  // value is active.
+                  EffectiveBacklashReadout(
+                    onUseMeasured: isSaving
+                        ? null
+                        : (steps) => setState(() {
+                              backlashText = '$steps';
+                              backlashFieldGeneration++;
+                            }),
                   ),
                   if (errorText != null) ...[
                     const SizedBox(height: 8),

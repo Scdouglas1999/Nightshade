@@ -21,6 +21,11 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// To show focus data inline on a screen, reuse this overlay and its provider;
 /// do not fork a second V-curve chart, which would drift in behaviour and
 /// double the event wiring.
+///
+/// The chart itself now lives in `nightshade_ui` as [VCurvePainter] /
+/// [VCurveChart], parameterised over a list of series so the focuser backlash
+/// calibration can draw its two approach curves on shared axes through the
+/// same code. Anything that needs a V-curve takes it from there.
 class AutofocusProgressOverlay extends ConsumerStatefulWidget {
   const AutofocusProgressOverlay({super.key});
 
@@ -278,16 +283,23 @@ class _AutofocusProgressOverlayState
                             ),
                     )
                   : CustomPaint(
-                      painter: _OverlayVCurvePainter(
-                        vcurvePoints: overlayState.vcurvePoints,
-                        bestPosition: overlayState.result?.bestPosition,
+                      // The shared V-curve painter (nightshade_ui). One series,
+                      // the run accent, best sampled point ringed in success.
+                      painter: VCurvePainter(
+                        series: [
+                          VCurveSeries(
+                            points: overlayState.vcurvePoints,
+                            color: colors.primary,
+                            label: 'Autofocus',
+                            vertexPosition: overlayState.result?.bestPosition,
+                            vertexColor: colors.success,
+                            highlightLatest: overlayState.isRunning,
+                          ),
+                        ],
                         focusRange: overlayState.focusRange,
-                        accentColor: colors.primary,
                         gridColor: colors.border,
                         textColor: colors.textMuted,
-                        successColor: colors.success,
-                        isRunning: overlayState.isRunning,
-                        currentPoint: overlayState.currentPoint,
+                        repaintTick: overlayState.currentPoint,
                       ),
                       size: Size.infinite,
                     ),
@@ -540,197 +552,5 @@ class _StatBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// CustomPainter for the overlay V-curve chart
-class _OverlayVCurvePainter extends CustomPainter {
-  final List<VCurvePoint> vcurvePoints;
-  final int? bestPosition;
-  final FocusRange? focusRange;
-  final Color accentColor;
-  final Color gridColor;
-  final Color textColor;
-  final Color successColor;
-  final bool isRunning;
-  final int currentPoint;
-
-  _OverlayVCurvePainter({
-    required this.vcurvePoints,
-    this.bestPosition,
-    this.focusRange,
-    required this.accentColor,
-    required this.gridColor,
-    required this.textColor,
-    required this.successColor,
-    required this.isRunning,
-    required this.currentPoint,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (vcurvePoints.isEmpty) return;
-
-    const padding = EdgeInsets.fromLTRB(36, 8, 8, 20);
-    final chartArea = Rect.fromLTWH(
-      padding.left,
-      padding.top,
-      size.width - padding.horizontal,
-      size.height - padding.vertical,
-    );
-
-    if (chartArea.width <= 0 || chartArea.height <= 0) return;
-
-    // Extract data
-    final positions = vcurvePoints.map((p) => p.position).toList();
-    final hfrs = vcurvePoints.map((p) => p.hfr).toList();
-
-    // Use focus range if available, otherwise compute from data
-    final minPos = focusRange?.min ?? positions.reduce((a, b) => a < b ? a : b);
-    final maxPos = focusRange?.max ?? positions.reduce((a, b) => a > b ? a : b);
-    final minHfr = hfrs.reduce((a, b) => a < b ? a : b);
-    final maxHfr = hfrs.reduce((a, b) => a > b ? a : b);
-
-    final posRange = (maxPos - minPos).toDouble();
-    final hfrPadding = (maxHfr - minHfr) * 0.15;
-    final displayMinHfr = math.max(0.0, minHfr - hfrPadding);
-    final displayMaxHfr = maxHfr + hfrPadding;
-    final hfrRange = displayMaxHfr - displayMinHfr;
-
-    if (posRange == 0 || hfrRange == 0) return;
-
-    double toX(int position) =>
-        chartArea.left + (position - minPos) / posRange * chartArea.width;
-    double toY(double hfr) =>
-        chartArea.bottom - (hfr - displayMinHfr) / hfrRange * chartArea.height;
-
-    // Draw grid lines
-    final gridPaint = Paint()
-      ..color = gridColor.withValues(alpha: 0.2)
-      ..strokeWidth = 1;
-
-    for (var i = 0; i <= 3; i++) {
-      final y = chartArea.top + (chartArea.height * i / 3);
-      canvas.drawLine(
-        Offset(chartArea.left, y),
-        Offset(chartArea.right, y),
-        gridPaint,
-      );
-    }
-
-    // Draw the V-curve line (sorted by position so the line forms a clean V)
-    if (vcurvePoints.length > 1) {
-      final linePaint = Paint()
-        ..color = accentColor
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-
-      final sortedPoints = List.of(vcurvePoints)
-        ..sort((a, b) => a.position.compareTo(b.position));
-
-      final path = Path();
-      for (var i = 0; i < sortedPoints.length; i++) {
-        final p = sortedPoints[i];
-        final x = toX(p.position);
-        final y = toY(p.hfr);
-        if (x.isNaN || y.isNaN || x.isInfinite || y.isInfinite) continue;
-        if (i == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(path, linePaint);
-    }
-
-    // Draw data points
-    final pointPaint = Paint()
-      ..color = accentColor
-      ..style = PaintingStyle.fill;
-
-    for (var i = 0; i < vcurvePoints.length; i++) {
-      final p = vcurvePoints[i];
-      final x = toX(p.position);
-      final y = toY(p.hfr);
-      if (x.isNaN || y.isNaN || x.isInfinite || y.isInfinite) continue;
-      final isBest = bestPosition != null && p.position == bestPosition;
-      final isLatest = i == vcurvePoints.length - 1 && isRunning;
-
-      if (isBest) {
-        // Draw best point with success color
-        final bestPaint = Paint()
-          ..color = successColor
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset(x, y), 5, bestPaint);
-        final ringPaint = Paint()
-          ..color = successColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2;
-        canvas.drawCircle(Offset(x, y), 8, ringPaint);
-      } else if (isLatest) {
-        // Highlight latest point while running
-        canvas.drawCircle(Offset(x, y), 4, pointPaint);
-        final ringPaint = Paint()
-          ..color = accentColor.withValues(alpha: 0.4)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2;
-        canvas.drawCircle(Offset(x, y), 7, ringPaint);
-      } else {
-        canvas.drawCircle(Offset(x, y), 3, pointPaint);
-      }
-    }
-
-    // Draw axis labels
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
-
-    // Y-axis label
-    textPainter.text = TextSpan(
-      text: 'HFR',
-      style: TextStyle(color: textColor, fontSize: 8),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(4, chartArea.top));
-
-    // X-axis label
-    textPainter.text = TextSpan(
-      text: 'Position',
-      style: TextStyle(color: textColor, fontSize: 8),
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(chartArea.center.dx - textPainter.width / 2, size.height - 12),
-    );
-
-    // Min/max HFR labels
-    textPainter.text = TextSpan(
-      text: displayMaxHfr.toStringAsFixed(1),
-      style: TextStyle(color: textColor, fontSize: 7),
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(chartArea.left - textPainter.width - 2, chartArea.top - 4),
-    );
-
-    textPainter.text = TextSpan(
-      text: displayMinHfr.toStringAsFixed(1),
-      style: TextStyle(color: textColor, fontSize: 7),
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(chartArea.left - textPainter.width - 2, chartArea.bottom - 6),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _OverlayVCurvePainter oldDelegate) {
-    return vcurvePoints.length != oldDelegate.vcurvePoints.length ||
-        bestPosition != oldDelegate.bestPosition ||
-        currentPoint != oldDelegate.currentPoint ||
-        isRunning != oldDelegate.isRunning;
   }
 }

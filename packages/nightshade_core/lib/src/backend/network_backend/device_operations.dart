@@ -768,6 +768,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+    int? measuredBacklashIn,
   }) async {
     final start = await _post('focuser/autofocus/start', {
       'deviceId': deviceId,
@@ -790,6 +791,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       'backlashCompMethod': backlashCompMethod,
       'backlashIn': backlashIn,
       'backlashOut': backlashOut,
+      if (measuredBacklashIn != null) 'measuredBacklashIn': measuredBacklashIn,
     });
     final response = await awaitJobResultOrLegacy(
       start,
@@ -800,6 +802,57 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     // Parse using pure Dart types from JSON
     return AutofocusResult.fromJson(response);
   }
+
+  @override
+  Future<String> focuserBacklashCalibrationStart({
+    required String deviceId,
+    required String cameraId,
+    required String configJson,
+  }) async {
+    final start = await _post('focuser/backlash-calibration/start', {
+      'deviceId': deviceId,
+      'cameraId': cameraId,
+      'config': configJson,
+    });
+    final response = await awaitJobResultOrLegacy(
+      start,
+      operation: 'focuser backlash calibration',
+      timeout: _backlashCalibrationTimeout,
+    );
+    final outcome = response['outcome'];
+    if (outcome is! Map) {
+      throw StateError(
+        'The host finished the backlash calibration but returned no outcome',
+      );
+    }
+    return jsonEncode(outcome);
+  }
+
+  @override
+  Future<void> focuserBacklashCalibrationCancel() async {
+    await _post('focuser/backlash-calibration/cancel', const {});
+  }
+
+  @override
+  Future<String> focuserBacklashCalibrationPlan({
+    required String configJson,
+    required int centerPosition,
+  }) async {
+    final response = await _post('focuser/backlash-calibration/plan', {
+      'config': configJson,
+      'centerPosition': centerPosition,
+    });
+    final plan = response['plan'];
+    if (plan is! Map) {
+      throw StateError('The host returned no backlash calibration plan');
+    }
+    return jsonEncode(plan);
+  }
+
+  /// Both scans plus focuser travel; native caps its own run at 20 minutes, so
+  /// the client waits a little longer than that rather than abandoning a run
+  /// that is still going.
+  static const Duration _backlashCalibrationTimeout = Duration(minutes: 25);
 
   @override
   Future<void> autofocusCancel() async {

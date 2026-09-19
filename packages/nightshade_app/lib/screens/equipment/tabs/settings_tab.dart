@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/focuser_backlash/effective_backlash_readout.dart';
 
 class EquipmentSettingsTab extends ConsumerWidget {
   const EquipmentSettingsTab({super.key});
@@ -225,20 +226,92 @@ class _FocuserSettingsCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _SettingRow(
-              label: 'Backlash compensation',
-              child: _compactNumberField(
-                context,
-                initialValue: settings.backlashCompensation.toString(),
-                onChanged: (value) {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null) notifier.setBacklashCompensation(parsed);
-                },
-              ),
-            ),
+            _BacklashSettingRow(settings: settings),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The backlash-compensation field, what the figure in force actually is, and
+/// the way to measure a new one.
+///
+/// Stateful for the [TextEditingController]: adopting a measured figure has to
+/// put the number IN the field, which an `initialValue`-only field cannot do.
+/// Writing the setting while the field still showed the old number would be
+/// the silent replacement this feature exists to avoid.
+class _BacklashSettingRow extends ConsumerStatefulWidget {
+  const _BacklashSettingRow({required this.settings});
+
+  final AppSettingsState settings;
+
+  @override
+  ConsumerState<_BacklashSettingRow> createState() =>
+      _BacklashSettingRowState();
+}
+
+class _BacklashSettingRowState extends ConsumerState<_BacklashSettingRow> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // `afBacklashIn` and NOT `backlashCompensation`, which this field used to
+    // edit. Nothing operational reads `backlashCompensation` — it is persisted,
+    // synced to a remote client and displayed, and that is all; every path to
+    // the focuser (`sequence_serializer`, `autofocus_controls`, the runtime
+    // push-down) takes its figure from `afBacklashIn`. So the field was editing
+    // a number that changed nothing, and it now sits beside a readout that
+    // states the figure actually in force — two different numbers under one
+    // label would be worse than either.
+    _controller = TextEditingController(
+      text: widget.settings.afBacklashIn.toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _apply(String value) {
+    final parsed = int.tryParse(value);
+    if (parsed == null) return;
+    final notifier = ref.read(appSettingsProvider.notifier);
+    notifier.setAfBacklashIn(parsed);
+    // Kept in step so the legacy setting cannot sit behind showing a
+    // contradictory number anywhere it is still surfaced.
+    notifier.setBacklashCompensation(parsed);
+  }
+
+  void _useMeasured(int steps) {
+    _controller.text = steps.toString();
+    _apply(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SettingRow(
+          label: 'Backlash compensation',
+          subtitle: 'Steps the gear train loses when a move reverses '
+              'direction.',
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: dialogMaxWidth(context, 100)),
+            child: NightshadeTextField(
+              controller: _controller,
+              keyboardType: TextInputType.number,
+              onChanged: _apply,
+            ),
+          ),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        EffectiveBacklashReadout(onUseMeasured: _useMeasured),
+      ],
     );
   }
 }

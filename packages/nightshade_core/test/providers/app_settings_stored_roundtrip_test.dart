@@ -171,6 +171,7 @@ void main() {
       afBacklashCompMethod: 'Absolute',
       afBacklashIn: 400,
       afBacklashOut: 100,
+      focuserBacklashOfferMode: 'never',
       afAutofocusFilterName: 'L',
       afFilterSettingsJson: '{"L":{"offset":0}}',
       // Observer

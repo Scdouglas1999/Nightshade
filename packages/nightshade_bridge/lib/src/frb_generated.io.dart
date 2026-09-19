@@ -3922,6 +3922,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.backlash_comp_method = cst_encode_String(apiObj.backlashCompMethod);
     wireObj.backlash_in = cst_encode_i_32(apiObj.backlashIn);
     wireObj.backlash_out = cst_encode_i_32(apiObj.backlashOut);
+    wireObj.measured_backlash_in = cst_encode_opt_box_autoadd_i_32(
+      apiObj.measuredBacklashIn,
+    );
   }
 
   @protected
@@ -10142,6 +10145,22 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__imaging__api_cancel_autofocusPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__imaging__api_cancel_focuser_backlash_calibration(
+    int port_,
+  ) {
+    return _wire__crate__api__imaging__api_cancel_focuser_backlash_calibration(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_cancel_focuser_backlash_calibrationPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_focuser_backlash_calibration',
+      );
+  late final _wire__crate__api__imaging__api_cancel_focuser_backlash_calibration =
+      _wire__crate__api__imaging__api_cancel_focuser_backlash_calibrationPtr
+          .asFunction<void Function(int)>();
+
   void wire__crate__api__imaging__api_clear_device_image(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -15795,6 +15814,36 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__phd2__api_phd2_stop_guidingPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__imaging__api_plan_focuser_backlash_calibration(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> config_json,
+    int center_position,
+  ) {
+    return _wire__crate__api__imaging__api_plan_focuser_backlash_calibration(
+      port_,
+      config_json,
+      center_position,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_plan_focuser_backlash_calibrationPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Int32,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__imaging__api_plan_focuser_backlash_calibration',
+      );
+  late final _wire__crate__api__imaging__api_plan_focuser_backlash_calibration =
+      _wire__crate__api__imaging__api_plan_focuser_backlash_calibrationPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)
+          >();
+
   void wire__crate__api__plate_solve__api_plate_solve_blind(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
@@ -16309,6 +16358,44 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               ffi.Pointer<wire_cst_autofocus_config_api>,
+            )
+          >();
+
+  void wire__crate__api__imaging__api_run_focuser_backlash_calibration(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> config_json,
+  ) {
+    return _wire__crate__api__imaging__api_run_focuser_backlash_calibration(
+      port_,
+      device_id,
+      camera_id,
+      config_json,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_run_focuser_backlash_calibrationPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_focuser_backlash_calibration',
+      );
+  late final _wire__crate__api__imaging__api_run_focuser_backlash_calibration =
+      _wire__crate__api__imaging__api_run_focuser_backlash_calibrationPtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             )
           >();
 
@@ -22832,6 +22919,8 @@ final class wire_cst_autofocus_config_api extends ffi.Struct {
 
   @ffi.Int32()
   external int backlash_out;
+
+  external ffi.Pointer<ffi.Int32> measured_backlash_in;
 }
 
 final class wire_cst_indi_autofocus_config_api extends ffi.Struct {

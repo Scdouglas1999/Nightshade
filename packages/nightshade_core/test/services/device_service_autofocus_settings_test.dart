@@ -228,6 +228,7 @@ class _AutofocusCaptureBackend extends DisconnectedBackend {
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+    int? measuredBacklashIn,
   }) async {
     events.add('autofocus');
     this.exposureTime = exposureTime;

@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/focus_model_curve_card.dart';
+import '../../../widgets/focuser_backlash/focuser_backlash_offer.dart';
 import '../../../widgets/focuser_controls.dart';
 import 'panel_widgets.dart';
 
@@ -25,6 +26,7 @@ class FocusPanel extends ConsumerStatefulWidget {
 class _FocusPanelState extends ConsumerState<FocusPanel> {
   // UI-only transient state (doesn't need to persist)
   bool _isRunningAutofocus = false;
+  bool _isOfferingCalibration = false;
   ProviderSubscription<DeviceService>? _serviceSubscription;
 
   @override
@@ -34,8 +36,11 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
       deviceServiceProvider,
       (previous, next) {
         if (previous == null || identical(previous, next)) return;
-        if (_isRunningAutofocus && mounted) {
-          setState(() => _isRunningAutofocus = false);
+        if ((_isRunningAutofocus || _isOfferingCalibration) && mounted) {
+          setState(() {
+            _isRunningAutofocus = false;
+            _isOfferingCalibration = false;
+          });
         }
       },
     );
@@ -67,11 +72,28 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
     );
   }
 
+  /// Run Autofocus, which may stop to offer a backlash measurement first.
+  ///
+  /// Shares the one interception in `focuser_backlash_offer.dart` with the
+  /// focuser control strip, so the offer makes the same promises on both
+  /// surfaces. Declining runs the focus immediately.
   Future<void> _runAutofocus() async {
-    if (_isRunningAutofocus ||
+    if (_isOfferingCalibration ||
+        _isRunningAutofocus ||
         ref.read(deviceServiceProvider).isAutofocusRunning) {
       return;
     }
+    setState(() => _isOfferingCalibration = true);
+    try {
+      await runWithBacklashOffer(context, ref, proceed: _startAutofocus);
+    } finally {
+      if (mounted) {
+        setState(() => _isOfferingCalibration = false);
+      }
+    }
+  }
+
+  Future<void> _startAutofocus() async {
     final service = ref.read(deviceServiceProvider);
     setState(() => _isRunningAutofocus = true);
 
@@ -430,7 +452,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                     isEnabled: isConnected &&
                         cameraConnected &&
                         !isMoving &&
-                        !autofocusRunning,
+                        !autofocusRunning &&
+                        !_isOfferingCalibration,
                     onTap: _runAutofocus,
                   ),
                 ),

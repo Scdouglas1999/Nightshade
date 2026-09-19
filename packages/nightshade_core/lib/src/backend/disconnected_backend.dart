@@ -294,12 +294,35 @@ class DisconnectedBackend
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+    int? measuredBacklashIn,
   }) async {
     _throwNotConnected();
   }
 
   @override
   Future<void> autofocusCancel() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<String> focuserBacklashCalibrationStart({
+    required String deviceId,
+    required String cameraId,
+    required String configJson,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> focuserBacklashCalibrationCancel() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<String> focuserBacklashCalibrationPlan({
+    required String configJson,
+    required int centerPosition,
+  }) async {
     _throwNotConnected();
   }
 

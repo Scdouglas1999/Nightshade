@@ -103,6 +103,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           // and the same string reaches us for a renamed Wait node.
           if (nodeStatus == NodeStatus.success && _nodeRanAutofocus(nodeId)) {
             _incrementRunStat((stats) => stats.recordAutofocus());
+            _noteAutofocusOutcomeForBacklashOffer();
           }
           // An unrecognised status string maps to failure (above), but a
           // bare red node with no explanation trains users to ignore the
@@ -1236,6 +1237,25 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
   void _recordRunError(String message) {
     _incrementRunStat((stats) => stats.recordError(message));
+    _noteAutofocusOutcomeForBacklashOffer(failureMessage: message);
+  }
+
+  /// Feed an autofocus verdict to the backlash-calibration offer.
+  ///
+  /// This is the only place Dart sees a sequencer instruction's failure text,
+  /// and the landing-verification failure — autofocus moved to the fitted
+  /// position and the frame taken there disagreed — is the one that points at
+  /// an uncalibrated gear train. The offer itself matches the message; every
+  /// other error passes through it unchanged.
+  void _noteAutofocusOutcomeForBacklashOffer({String? failureMessage}) {
+    final focuserId = _ref.read(focuserStateProvider).deviceId;
+    if (focuserId == null || focuserId.isEmpty) return;
+    _ref
+        .read(focuserBacklashOfferSessionProvider.notifier)
+        .noteAutofocusOutcome(
+          focuserId: focuserId,
+          failureMessage: failureMessage,
+        );
   }
 
   /// Record the reason carried by a terminal event. See

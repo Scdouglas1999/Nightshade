@@ -124,6 +124,21 @@ List<HeadlessRoute> buildDeviceRoutes(DeviceHandlers h) => <HeadlessRoute>[
     '/api/focuser/autofocus/cancel',
     h.handleAutofocusCancel,
   ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/focuser/backlash-calibration/start',
+    h.handleFocuserBacklashCalibrationStart,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/focuser/backlash-calibration/cancel',
+    h.handleFocuserBacklashCalibrationCancel,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/focuser/backlash-calibration/plan',
+    h.handleFocuserBacklashCalibrationPlan,
+  ),
 
   // Filter Wheel Control
   HeadlessRoute(

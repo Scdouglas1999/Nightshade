@@ -24,6 +24,12 @@ extension _DeviceServiceAutofocusControls on DeviceService {
         'Autofocus is already running. Wait for it to complete before starting another.',
       );
     }
+    if (_isFocuserBacklashCalibrationRunning) {
+      throw StateError(
+        'A focuser backlash calibration is running. It drives the same camera '
+        'and focuser, so autofocus cannot start until it finishes.',
+      );
+    }
     _isAutofocusRunning = true;
     _autofocusCancelRequested = false;
     _ref.read(sessionStateProvider.notifier).setAutofocusing(true);
@@ -151,6 +157,19 @@ extension _DeviceServiceAutofocusControls on DeviceService {
           disableGuidingDuringAf = false;
         }
       }
+
+      // Read for THIS focuser's id rather than through a provider keyed on
+      // "the connected focuser": the run is about to drive `focuserDeviceId`,
+      // and a figure measured on any other drive train says nothing about it.
+      // Native applies it only when `effectiveBacklashIn` is 0 — a figure the
+      // operator typed outranks a measured one.
+      final measuredCalibration = await _ref
+          .read(settingsDaoProvider)
+          .getFocuserBacklashCalibration(focuserDeviceId);
+      final measuredBacklashIn =
+          measuredCalibration != null && measuredCalibration.measurable
+          ? measuredCalibration.steps
+          : null;
 
       final validationError = _validateAutofocusInputs(
         exposureTime: effectiveExposureTime,
@@ -310,6 +329,7 @@ extension _DeviceServiceAutofocusControls on DeviceService {
             backlashCompMethod: effectiveBacklashCompMethod,
             backlashIn: effectiveBacklashIn,
             backlashOut: effectiveBacklashOut,
+            measuredBacklashIn: measuredBacklashIn,
           );
         } catch (error, stackTrace) {
           runError = error;
@@ -345,6 +365,9 @@ extension _DeviceServiceAutofocusControls on DeviceService {
 
         _ref.read(autofocusResultProvider.notifier).state = completedResult;
         overlayNotifier.onAutofocusCompleted(completedResult);
+        _ref
+            .read(focuserBacklashOfferSessionProvider.notifier)
+            .noteAutofocusOutcome(focuserId: focuserDeviceId);
 
         // Smart notification for autofocus completion
         final hfrText = completedResult.bestHfr.toStringAsFixed(2);
@@ -399,6 +422,12 @@ extension _DeviceServiceAutofocusControls on DeviceService {
           throw const AutofocusCancelledException();
         }
         overlayNotifier.onAutofocusFailed('$e');
+        _ref
+            .read(focuserBacklashOfferSessionProvider.notifier)
+            .noteAutofocusOutcome(
+              focuserId: focuserDeviceId,
+              failureMessage: '$e',
+            );
         rethrow;
       } finally {
         focuserNotifier.setMoving(false);

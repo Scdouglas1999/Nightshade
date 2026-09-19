@@ -115,6 +115,7 @@ extension AppSettingsStateCopyWith on AppSettingsState {
     int? afExposuresPerPoint,
     String? afBacklashCompMethod,
     int? afBacklashIn,
+    String? focuserBacklashOfferMode,
     String? mountSiteSyncMode,
     int? afBacklashOut,
     String? afAutofocusFilterName,
@@ -321,6 +322,8 @@ extension AppSettingsStateCopyWith on AppSettingsState {
       afExposuresPerPoint: afExposuresPerPoint ?? this.afExposuresPerPoint,
       afBacklashCompMethod: afBacklashCompMethod ?? this.afBacklashCompMethod,
       afBacklashIn: afBacklashIn ?? this.afBacklashIn,
+      focuserBacklashOfferMode:
+          focuserBacklashOfferMode ?? this.focuserBacklashOfferMode,
       mountSiteSyncMode: mountSiteSyncMode ?? this.mountSiteSyncMode,
       afBacklashOut: afBacklashOut ?? this.afBacklashOut,
       afAutofocusFilterName:

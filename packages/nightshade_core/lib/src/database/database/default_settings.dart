@@ -94,6 +94,8 @@ const Map<String, String> _defaultSettings = {
   'af_exposures_per_point': '1',
   'af_backlash_comp_method': 'Overshoot',
   'af_backlash_in': '0',
+  // ask | never
+  'focuser_backlash_offer_mode': 'ask',
   // ask | computerToMount | mountToComputer | never
   'mount_site_sync_mode': 'ask',
   'af_backlash_out': '0',

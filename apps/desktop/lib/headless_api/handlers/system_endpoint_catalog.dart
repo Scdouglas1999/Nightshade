@@ -95,6 +95,9 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/focuser/halt',
     'POST /api/focuser/autofocus/start',
     'POST /api/focuser/autofocus/cancel',
+    'POST /api/focuser/backlash-calibration/start',
+    'POST /api/focuser/backlash-calibration/cancel',
+    'POST /api/focuser/backlash-calibration/plan',
     // Filter Wheel
     'POST /api/filter-wheel/position',
     'GET /api/filter-wheel/position',

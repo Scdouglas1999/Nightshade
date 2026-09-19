@@ -179,6 +179,12 @@ extension AutofocusSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(afBacklashIn: value));
   }
 
+  /// Whether to keep offering to measure focuser backlash: `ask` or `never`.
+  Future<void> setFocuserBacklashOfferMode(String value) async {
+    await _saveSetting('focuser_backlash_offer_mode', value);
+    _patchState((s) => s.copyWith(focuserBacklashOfferMode: value));
+  }
+
   Future<void> setAfBacklashOut(int value) async {
     await _saveSetting('af_backlash_out', value.toString());
     _patchState((s) => s.copyWith(afBacklashOut: value));

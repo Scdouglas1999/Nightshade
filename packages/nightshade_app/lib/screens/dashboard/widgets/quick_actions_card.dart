@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/focuser_backlash/focuser_backlash_offer.dart';
 import '../../imaging/centering_dialog.dart';
 import 'glass_card.dart';
 
@@ -318,6 +319,14 @@ class _QuickActionsCardState extends ConsumerState<QuickActionsCard> {
       _finishOperation(_operationGeneration);
       return;
     }
+
+    // Every autofocus launch in the app routes through the one backlash offer
+    // (`focuser_backlash_offer.dart`). Placed after the connection checks so
+    // nothing is offered for a run that could not have started, and before the
+    // authority capture below so the offer's own awaits are not mistaken for
+    // the run's. Declining returns here immediately.
+    await offerBacklashCalibrationIfDue(context, ref);
+    if (!mounted) return;
 
     final generation = _operationGeneration;
     final container = ProviderScope.containerOf(context, listen: false);

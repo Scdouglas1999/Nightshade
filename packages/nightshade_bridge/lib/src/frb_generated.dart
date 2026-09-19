@@ -126,7 +126,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1467366630;
+  int get rustContentHash => -1992707924;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -286,6 +286,8 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiImagingApiCancelAutofocus();
+
+  Future<void> crateApiImagingApiCancelFocuserBacklashCalibration();
 
   Future<void> crateApiImagingApiClearDeviceImage({required String deviceId});
 
@@ -1194,6 +1196,11 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiPhd2ApiPhd2StopGuiding();
 
+  Future<String> crateApiImagingApiPlanFocuserBacklashCalibration({
+    required String configJson,
+    required int centerPosition,
+  });
+
   Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveBlind({
     required String filePath,
     int? timeoutSecs,
@@ -1271,6 +1278,12 @@ abstract class RustLibApi extends BaseApi {
     required String deviceId,
     required String cameraId,
     required AutofocusConfigApi config,
+  });
+
+  Future<String> crateApiImagingApiRunFocuserBacklashCalibration({
+    required String deviceId,
+    required String cameraId,
+    required String configJson,
   });
 
   Future<IndiAutofocusResultApi> crateApiImagingApiRunIndiAutofocus({
@@ -3078,6 +3091,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiImagingApiCancelAutofocusConstMeta =>
       const TaskConstMeta(debugName: "api_cancel_autofocus", argNames: []);
+
+  @override
+  Future<void> crateApiImagingApiCancelFocuserBacklashCalibration() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          return wire
+              .wire__crate__api__imaging__api_cancel_focuser_backlash_calibration(
+                port_,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiImagingApiCancelFocuserBacklashCalibrationConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiImagingApiCancelFocuserBacklashCalibrationConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_cancel_focuser_backlash_calibration",
+        argNames: [],
+      );
 
   @override
   Future<void> crateApiImagingApiClearDeviceImage({required String deviceId}) {
@@ -9771,6 +9812,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "api_phd2_stop_guiding", argNames: []);
 
   @override
+  Future<String> crateApiImagingApiPlanFocuserBacklashCalibration({
+    required String configJson,
+    required int centerPosition,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(configJson);
+          var arg1 = cst_encode_i_32(centerPosition);
+          return wire
+              .wire__crate__api__imaging__api_plan_focuser_backlash_calibration(
+                port_,
+                arg0,
+                arg1,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiImagingApiPlanFocuserBacklashCalibrationConstMeta,
+        argValues: [configJson, centerPosition],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiImagingApiPlanFocuserBacklashCalibrationConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_plan_focuser_backlash_calibration",
+        argNames: ["configJson", "centerPosition"],
+      );
+
+  @override
   Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveBlind({
     required String filePath,
     int? timeoutSecs,
@@ -10356,6 +10432,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_run_autofocus",
         argNames: ["deviceId", "cameraId", "config"],
+      );
+
+  @override
+  Future<String> crateApiImagingApiRunFocuserBacklashCalibration({
+    required String deviceId,
+    required String cameraId,
+    required String configJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(deviceId);
+          var arg1 = cst_encode_String(cameraId);
+          var arg2 = cst_encode_String(configJson);
+          return wire
+              .wire__crate__api__imaging__api_run_focuser_backlash_calibration(
+                port_,
+                arg0,
+                arg1,
+                arg2,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiImagingApiRunFocuserBacklashCalibrationConstMeta,
+        argValues: [deviceId, cameraId, configJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiImagingApiRunFocuserBacklashCalibrationConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_run_focuser_backlash_calibration",
+        argNames: ["deviceId", "cameraId", "configJson"],
       );
 
   @override
@@ -16586,8 +16699,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AutofocusConfigApi dco_decode_autofocus_config_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 17)
-      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    if (arr.length != 18)
+      throw Exception('unexpected arr length: expect 18 but see ${arr.length}');
     return AutofocusConfigApi(
       exposureTime: dco_decode_f_64(arr[0]),
       stepSize: dco_decode_i_32(arr[1]),
@@ -16606,6 +16719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       backlashCompMethod: dco_decode_String(arr[14]),
       backlashIn: dco_decode_i_32(arr[15]),
       backlashOut: dco_decode_i_32(arr[16]),
+      measuredBacklashIn: dco_decode_opt_box_autoadd_i_32(arr[17]),
     );
   }
 
@@ -20866,6 +20980,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_backlashCompMethod = sse_decode_String(deserializer);
     var var_backlashIn = sse_decode_i_32(deserializer);
     var var_backlashOut = sse_decode_i_32(deserializer);
+    var var_measuredBacklashIn = sse_decode_opt_box_autoadd_i_32(deserializer);
     return AutofocusConfigApi(
       exposureTime: var_exposureTime,
       stepSize: var_stepSize,
@@ -20884,6 +20999,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       backlashCompMethod: var_backlashCompMethod,
       backlashIn: var_backlashIn,
       backlashOut: var_backlashOut,
+      measuredBacklashIn: var_measuredBacklashIn,
     );
   }
 
@@ -26559,6 +26675,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.backlashCompMethod, serializer);
     sse_encode_i_32(self.backlashIn, serializer);
     sse_encode_i_32(self.backlashOut, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.measuredBacklashIn, serializer);
   }
 
   @protected

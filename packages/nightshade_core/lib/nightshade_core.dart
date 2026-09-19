@@ -120,6 +120,9 @@ export 'src/models/tutorial/tutorial_step.dart' hide FirstNightWizard;
 export 'src/models/phd2_models.dart';
 export 'src/models/weather/weather_models.dart';
 export 'src/models/autofocus_progress.dart';
+export 'src/models/focuser_backlash_calibration.dart';
+export 'src/models/focuser_backlash_progress.dart';
+export 'src/services/focuser_backlash/effective_focuser_backlash.dart';
 export 'src/models/meridian_flip_settings.dart';
 export 'src/models/meridian_flip_event.dart';
 export 'src/models/flat_wizard/flat_capture_config.dart';
@@ -181,6 +184,8 @@ export 'src/models/import/import_result.dart';
 
 // Providers
 export 'src/providers/app_version_provider.dart';
+export 'src/providers/focuser_backlash_calibration_provider.dart';
+export 'src/providers/focuser_backlash_provider.dart';
 export 'src/providers/database_provider.dart';
 export 'src/providers/equipment_provider.dart';
 export 'src/providers/unified_discovery_provider.dart';

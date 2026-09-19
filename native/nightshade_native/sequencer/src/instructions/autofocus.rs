@@ -43,6 +43,115 @@ pub fn try_admit_autofocus_run() -> Option<AutofocusRunGuard> {
         .map(|_| AutofocusRunGuard)
 }
 
+/// A run-up exactly equal to the backlash leaves the gear train on the very
+/// edge of its dead band, where a step of motor slop puts the drawtube on the
+/// wrong face — so the run-up always clears the figure by a margin: a quarter
+/// of it, but never less than one sweep step, and never less than
+/// [`MIN_RUN_UP_MARGIN_STEPS`] on a focuser whose steps are tiny.
+/// The phrase that identifies a landing-verification failure — autofocus
+/// moving to the fitted position and then measuring a materially worse HFR
+/// there.
+///
+/// Held as a constant because Dart matches on it: two of these in a row on the
+/// same focuser is the signature of an uncalibrated or changed drive train, and
+/// is what re-opens the offer to measure its backlash
+/// (`packages/nightshade_core/lib/src/providers/focuser_backlash_provider.dart`,
+/// `autofocusLandingVerificationFailureMarker`). Rewording the sentence without
+/// this constant would silently stop that offer from ever appearing again.
+pub const LANDING_VERIFICATION_FAILURE_PHRASE: &str = "but the frame taken there measures HFR";
+
+const RUN_UP_MARGIN_DIVISOR: i32 = 4;
+const MIN_RUN_UP_MARGIN_STEPS: i32 = 10;
+
+/// Which figure the final run-up was sized from. Reported so the run's log and
+/// its result say whose number moved the focuser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunUpSource {
+    /// A backlash figure the operator typed in. Outranks everything else.
+    OperatorEntered,
+    /// A backlash figure this app measured on this focuser.
+    Measured,
+    /// No figure for this focuser: run back to the sweep's own start.
+    SweepStart,
+}
+
+impl RunUpSource {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::OperatorEntered => "the backlash you entered",
+            Self::Measured => "the measured backlash",
+            Self::SweepStart => "the sweep start (no backlash figure for this focuser)",
+        }
+    }
+}
+
+/// Steps to run back below best focus, and whose figure that came from.
+///
+/// The precedence is the point of this function. An operator who has measured
+/// their own focuser, or who knows this drive train, must never have their
+/// number quietly replaced by one the app worked out — so a non-zero
+/// `operator_backlash_in` wins outright, and the measured figure is only
+/// consulted when the operator has left theirs at the shipped 0.
+///
+/// `None` means there is no figure at all, and the caller falls back to the
+/// sweep start.
+fn resolve_run_up(
+    operator_backlash_in: i32,
+    measured_backlash: Option<i32>,
+    step_size: i32,
+) -> (Option<i32>, RunUpSource) {
+    let clear = |backlash: i32| {
+        let margin = (backlash / RUN_UP_MARGIN_DIVISOR)
+            .max(step_size)
+            .max(MIN_RUN_UP_MARGIN_STEPS);
+        backlash.saturating_add(margin)
+    };
+
+    if operator_backlash_in > 0 {
+        return (
+            Some(clear(operator_backlash_in)),
+            RunUpSource::OperatorEntered,
+        );
+    }
+    // A measured zero is a real result — "this focuser has no backlash worth
+    // compensating" — and it is not a figure to size a run-up from, so it
+    // falls through to the sweep-start rule like an absent measurement.
+    match measured_backlash.filter(|steps| *steps > 0) {
+        Some(steps) => (Some(clear(steps)), RunUpSource::Measured),
+        None => (None, RunUpSource::SweepStart),
+    }
+}
+
+/// Where the final move must start from so that best focus is reached moving
+/// UPWARD — the same direction every sweep point was measured in.
+///
+/// With a backlash figure in hand the run-up is that figure plus a margin, and
+/// nothing more: a known-good clearance is a shorter, faster move than running
+/// all the way back down the sweep.
+///
+/// With no figure, this is 38bf2b25a's rule unchanged — back at least one
+/// sweep step, and at least to the sweep's own start, which is below best
+/// focus by construction and inside ground the focuser has just covered. It is
+/// blunt, but it is safe without knowing anything about the hardware, which is
+/// the situation an uncalibrated focuser is in.
+fn final_run_up_position(
+    best_position: i32,
+    sweep_start: i32,
+    operator_backlash_in: i32,
+    measured_backlash: Option<i32>,
+    step_size: i32,
+) -> (i32, RunUpSource) {
+    match resolve_run_up(operator_backlash_in, measured_backlash, step_size) {
+        (Some(run_up), source) => (best_position.saturating_sub(run_up), source),
+        (None, source) => (
+            best_position
+                .saturating_sub(step_size.max(1))
+                .min(sweep_start),
+            source,
+        ),
+    }
+}
+
 /// Execute autofocus using V-curve or curve fitting, acquiring the shared
 /// camera/focuser admission gate first.
 ///
@@ -50,26 +159,6 @@ pub fn try_admit_autofocus_run() -> Option<AutofocusRunGuard> {
 /// "already running" error so the one-shot / REST layer can surface a typed
 /// `DeviceBusy`. Sequence NODES should use [execute_autofocus_for_node]
 /// instead, which waits for an in-flight run rather than aborting the run.
-/// Where the final move must start from so that best focus is reached moving
-/// UPWARD — the same direction every sweep point was measured in.
-///
-/// The run-up must clear the focuser's mechanical backlash. `backlash_in` is
-/// the operator's figure and is frequently 0 (it is hardware-specific and the
-/// app cannot measure it), so this never relies on it alone: it also runs back
-/// at least one sweep step, and at least to the sweep's own start, which is
-/// below best focus by construction and inside ground the focuser has just
-/// covered. Overshooting further than necessary costs one extra move.
-fn final_run_up_position(
-    best_position: i32,
-    sweep_start: i32,
-    backlash_in: i32,
-    step_size: i32,
-) -> i32 {
-    best_position
-        .saturating_sub(backlash_in.max(step_size).max(1))
-        .min(sweep_start)
-}
-
 pub async fn execute_autofocus(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
@@ -1072,18 +1161,20 @@ pub(crate) async fn execute_autofocus_once(
         // backlash figure. The run-up only has to EXCEED the mechanical
         // backlash; overshooting further costs one extra move and nothing else,
         // and it never leaves the span the sweep just traversed.
-        let run_up_from = final_run_up_position(
+        let (run_up_from, run_up_source) = final_run_up_position(
             best_position,
             start_position,
             config.backlash_compensation,
+            config.measured_backlash_in,
             config.step_size,
         );
 
         tracing::info!(
             "Final approach: run up from {} to {} so focus is reached moving in the \
-             same direction the sweep measured it",
+             same direction the sweep measured it, sized from {}",
             run_up_from,
-            best_position
+            best_position,
+            run_up_source.label()
         );
 
         if let Err(e) = ctx
@@ -1175,10 +1266,14 @@ pub(crate) async fn execute_autofocus_once(
                     tolerance
                 );
                 return InstructionResult::failure(format!(
-                    "Autofocus moved to {} but the frame taken there measures HFR {:.2}, \
+                    "Autofocus moved to {} {} {:.2}, \
                      against the curve's {:.2} (tolerance {:.2}x). The focuser did not end up \
                      where the curve was measured.",
-                    best_position, measured, best_hfr, tolerance
+                    best_position,
+                    LANDING_VERIFICATION_FAILURE_PHRASE,
+                    measured,
+                    best_hfr,
+                    tolerance
                 ));
             }
         }
@@ -1451,41 +1546,91 @@ pub(crate) fn calculate_hfr_with_crops(
 
 #[cfg(test)]
 mod final_approach_tests {
-    use super::final_run_up_position;
+    use super::{final_run_up_position, RunUpSource};
 
-    /// The owner's rig on 2026-09-14: sweep 6250..6850 (start 6550, 4 steps of
-    /// 75), fit 6620, `af_backlash_in` 0. Measured on hardware that night, the
-    /// EAF's backlash here was ~105 steps, so the run-up has to clear that.
-    /// Landing straight down measured HFR 5.60; running up from below, 2.94.
+    /// The owner's rig on 2026-09-14: sweep 6250..6850 (start 6250, 4 steps of
+    /// 75), fit 6620, `af_backlash_in` 0, and no calibration stored yet. The
+    /// EAF's backlash there measured ~105 steps that night, so the run-up has
+    /// to clear that without knowing it. Landing straight down measured
+    /// HFR 5.60; running up from below, 2.94.
     #[test]
-    fn runs_up_past_measured_backlash_even_when_the_operator_set_none() {
-        let run_up = final_run_up_position(6620, 6250, 0, 75);
+    fn with_no_figure_at_all_it_falls_back_to_the_sweep_start() {
+        let (run_up, source) = final_run_up_position(6620, 6250, 0, None, 75);
         assert!(
             run_up <= 6620 - 105,
             "run-up {} does not clear the 105-step backlash measured on the rig",
             run_up
         );
         assert_eq!(run_up, 6250, "should fall back to the sweep start");
+        assert_eq!(source, RunUpSource::SweepStart);
+    }
+
+    /// Once that 105 steps has been measured, the run-up is sized from it and
+    /// clears it by a margin instead of running all the way down the sweep —
+    /// a shorter move to the same guaranteed side of the dead band.
+    #[test]
+    fn a_measured_backlash_sizes_the_run_up_and_clears_it_by_a_margin() {
+        let (run_up, source) = final_run_up_position(6620, 6250, 0, Some(105), 75);
+
+        assert_eq!(source, RunUpSource::Measured);
+        assert!(
+            run_up < 6620 - 105,
+            "run-up {} must EXCEED the backlash, not equal it",
+            run_up
+        );
+        // 105 + max(105/4, 75, 10) = 105 + 75.
+        assert_eq!(run_up, 6440);
+        assert!(
+            run_up > 6250,
+            "a known clearance should be a shorter move than the sweep start"
+        );
+    }
+
+    /// The precedence rule: what the operator typed wins, and the measured
+    /// figure is not allowed anywhere near it.
+    #[test]
+    fn an_operator_entered_figure_outranks_the_measured_one() {
+        let (run_up, source) = final_run_up_position(6620, 6250, 200, Some(105), 75);
+
+        assert_eq!(source, RunUpSource::OperatorEntered);
+        // 200 + max(50, 75, 10) = 275, from their 200 — not from our 105.
+        assert_eq!(run_up, 6345);
     }
 
     /// An operator-supplied backlash larger than the sweep still wins: the
     /// run-up goes below the sweep start rather than being clamped up to it.
     #[test]
     fn a_large_operator_backlash_overrides_the_sweep_start() {
-        assert_eq!(final_run_up_position(6620, 6250, 500, 75), 6120);
+        // 500 + max(125, 75, 10) = 625.
+        let (run_up, source) = final_run_up_position(6620, 6250, 500, None, 75);
+        assert_eq!(run_up, 5995);
+        assert_eq!(source, RunUpSource::OperatorEntered);
+    }
+
+    /// "No measurable backlash" is a real calibration result, and it is not a
+    /// figure to size a run-up from. The run-up falls back to the sweep start,
+    /// which still lands from below — the direction correctness depends on.
+    #[test]
+    fn a_measured_zero_falls_back_rather_than_sizing_a_zero_run_up() {
+        let (run_up, source) = final_run_up_position(6620, 6250, 0, Some(0), 75);
+        assert_eq!(run_up, 6250);
+        assert_eq!(source, RunUpSource::SweepStart);
+        assert!(run_up < 6620, "the last move must still travel upward");
     }
 
     /// Always strictly below best focus, so the final leg always travels
     /// upward — the direction the sweep measured in.
     #[test]
     fn always_lands_moving_upward() {
-        for (best, start, backlash, step) in [
-            (6620, 6250, 0, 75),
-            (100, 100, 0, 1),
-            (5000, 4000, 0, 0),
-            (0, 0, 0, 0),
+        for (best, start, operator, measured, step) in [
+            (6620, 6250, 0, None, 75),
+            (6620, 6250, 0, Some(105), 75),
+            (100, 100, 0, None, 1),
+            (5000, 4000, 0, None, 0),
+            (5000, 4000, 0, Some(1), 0),
+            (0, 0, 0, None, 0),
         ] {
-            let run_up = final_run_up_position(best, start, backlash, step);
+            let (run_up, _) = final_run_up_position(best, start, operator, measured, step);
             assert!(
                 run_up < best || best == i32::MIN,
                 "run_up {} must be below best {} so the last move goes up",
@@ -1495,10 +1640,20 @@ mod final_approach_tests {
         }
     }
 
+    /// A focuser with tiny steps still gets a real margin over its backlash
+    /// rather than a one-step hair.
+    #[test]
+    fn a_tiny_step_size_still_yields_a_usable_margin() {
+        let (run_up, _) = final_run_up_position(1000, 900, 0, Some(8), 1);
+        // 8 + max(2, 1, 10) = 18.
+        assert_eq!(run_up, 982);
+    }
+
     /// A best focus at the very bottom of the sweep still gets a run-up; the
     /// sweep start alone would be a no-op move.
     #[test]
     fn best_at_the_sweep_floor_still_runs_up() {
-        assert_eq!(final_run_up_position(6250, 6250, 0, 75), 6175);
+        let (run_up, _) = final_run_up_position(6250, 6250, 0, None, 75);
+        assert_eq!(run_up, 6175);
     }
 }

@@ -163,6 +163,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+    int? measuredBacklashIn,
   }) async {
     final config = bridge_api.AutofocusConfigApi(
       exposureTime: exposureTime,
@@ -185,6 +186,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
       backlashCompMethod: backlashCompMethod,
       backlashIn: backlashIn,
       backlashOut: backlashOut,
+      measuredBacklashIn: measuredBacklashIn,
     );
     try {
       final bridgeResult = await bridge_api.apiRunAutofocus(
@@ -201,6 +203,46 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   @override
   Future<void> autofocusCancel() async {
     await bridge_api.apiCancelAutofocus();
+  }
+
+  @override
+  Future<String> focuserBacklashCalibrationStart({
+    required String deviceId,
+    required String cameraId,
+    required String configJson,
+  }) async {
+    try {
+      return await bridge_api.apiRunFocuserBacklashCalibration(
+        deviceId: deviceId,
+        cameraId: cameraId,
+        configJson: configJson,
+      );
+    } catch (error) {
+      throw _toNightshadeError(error, 'Focuser backlash calibration failed');
+    }
+  }
+
+  @override
+  Future<void> focuserBacklashCalibrationCancel() async {
+    await bridge_api.apiCancelFocuserBacklashCalibration();
+  }
+
+  @override
+  Future<String> focuserBacklashCalibrationPlan({
+    required String configJson,
+    required int centerPosition,
+  }) async {
+    try {
+      return await bridge_api.apiPlanFocuserBacklashCalibration(
+        configJson: configJson,
+        centerPosition: centerPosition,
+      );
+    } catch (error) {
+      throw _toNightshadeError(
+        error,
+        'Could not work out what a backlash calibration would cost',
+      );
+    }
   }
 
   // Filter wheel control

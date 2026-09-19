@@ -240,6 +240,16 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           },
         );
       }
+      if (equipmentEvent.property == 'FocuserBacklashCalibrationProgress') {
+        return (
+          'FocuserBacklashCalibrationProgress',
+          {
+            'device_type': equipmentEvent.deviceType,
+            'device_id': equipmentEvent.deviceId,
+            'detail': equipmentEvent.value,
+          },
+        );
+      }
       return (
         'PropertyChanged',
         {

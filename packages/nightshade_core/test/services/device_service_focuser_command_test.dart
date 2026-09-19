@@ -282,6 +282,7 @@ class _FocuserBackend extends DisconnectedBackend {
     String backlashCompMethod = 'Overshoot',
     int backlashIn = 350,
     int backlashOut = 0,
+    int? measuredBacklashIn,
   }) async {
     if (!autofocusStarted.isCompleted) autofocusStarted.complete();
     if (blockAutofocus) await releaseAutofocus.future;

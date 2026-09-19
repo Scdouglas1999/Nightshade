@@ -990,6 +990,7 @@ mod disconnect;
 mod dome;
 mod expose;
 mod filter_identity;
+mod focuser_backlash;
 mod frame_metadata;
 mod grading;
 mod guiding;

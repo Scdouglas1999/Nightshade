@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1467366630;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1992707924;
 
 // Section: executor
 
@@ -809,6 +809,29 @@ fn wire__crate__api__imaging__api_cancel_autofocus_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok = crate::api::imaging::api_cancel_autofocus().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__imaging__api_cancel_focuser_backlash_calibration_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_cancel_focuser_backlash_calibration",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::imaging::api_cancel_focuser_backlash_calibration().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6032,6 +6055,36 @@ fn wire__crate__api__phd2__api_phd2_stop_guiding_impl(
         },
     )
 }
+fn wire__crate__api__imaging__api_plan_focuser_backlash_calibration_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    config_json: impl CstDecode<String>,
+    center_position: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_plan_focuser_backlash_calibration",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_config_json = config_json.cst_decode();
+            let api_center_position = center_position.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_plan_focuser_backlash_calibration(
+                            api_config_json,
+                            api_center_position,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__plate_solve__api_plate_solve_blind_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     file_path: impl CstDecode<String>,
@@ -6512,6 +6565,39 @@ fn wire__crate__api__imaging__api_run_autofocus_impl(
                             api_device_id,
                             api_camera_id,
                             api_config,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__imaging__api_run_focuser_backlash_calibration_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    camera_id: impl CstDecode<String>,
+    config_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_run_focuser_backlash_calibration",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_camera_id = camera_id.cst_decode();
+            let api_config_json = config_json.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_run_focuser_backlash_calibration(
+                            api_device_id,
+                            api_camera_id,
+                            api_config_json,
                         )
                         .await?;
                         Ok(output_ok)
@@ -11622,6 +11708,7 @@ impl SseDecode for crate::api::imaging::AutofocusConfigApi {
         let mut var_backlashCompMethod = <String>::sse_decode(deserializer);
         let mut var_backlashIn = <i32>::sse_decode(deserializer);
         let mut var_backlashOut = <i32>::sse_decode(deserializer);
+        let mut var_measuredBacklashIn = <Option<i32>>::sse_decode(deserializer);
         return crate::api::imaging::AutofocusConfigApi {
             exposure_time: var_exposureTime,
             step_size: var_stepSize,
@@ -11640,6 +11727,7 @@ impl SseDecode for crate::api::imaging::AutofocusConfigApi {
             backlash_comp_method: var_backlashCompMethod,
             backlash_in: var_backlashIn,
             backlash_out: var_backlashOut,
+            measured_backlash_in: var_measuredBacklashIn,
         };
     }
 }
@@ -17128,6 +17216,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::AutofocusConfigApi {
             self.backlash_comp_method.into_into_dart().into_dart(),
             self.backlash_in.into_into_dart().into_dart(),
             self.backlash_out.into_into_dart().into_dart(),
+            self.measured_backlash_in.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -21716,6 +21805,7 @@ impl SseEncode for crate::api::imaging::AutofocusConfigApi {
         <String>::sse_encode(self.backlash_comp_method, serializer);
         <i32>::sse_encode(self.backlash_in, serializer);
         <i32>::sse_encode(self.backlash_out, serializer);
+        <Option<i32>>::sse_encode(self.measured_backlash_in, serializer);
     }
 }
 
@@ -25946,6 +26036,7 @@ mod io {
                 backlash_comp_method: self.backlash_comp_method.cst_decode(),
                 backlash_in: self.backlash_in.cst_decode(),
                 backlash_out: self.backlash_out.cst_decode(),
+                measured_backlash_in: self.measured_backlash_in.cst_decode(),
             }
         }
     }
@@ -29806,6 +29897,7 @@ mod io {
                 backlash_comp_method: core::ptr::null_mut(),
                 backlash_in: Default::default(),
                 backlash_out: Default::default(),
+                measured_backlash_in: core::ptr::null_mut(),
             }
         }
     }
@@ -32118,6 +32210,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_focuser_backlash_calibration(
+        port_: i64,
+    ) {
+        wire__crate__api__imaging__api_cancel_focuser_backlash_calibration_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_clear_device_image(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
@@ -34149,6 +34248,19 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_plan_focuser_backlash_calibration(
+        port_: i64,
+        config_json: *mut wire_cst_list_prim_u_8_strict,
+        center_position: i32,
+    ) {
+        wire__crate__api__imaging__api_plan_focuser_backlash_calibration_impl(
+            port_,
+            config_json,
+            center_position,
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_plate_solve_blind(
         port_: i64,
         file_path: *mut wire_cst_list_prim_u_8_strict,
@@ -34318,6 +34430,21 @@ mod io {
         config: *mut wire_cst_autofocus_config_api,
     ) {
         wire__crate__api__imaging__api_run_autofocus_impl(port_, device_id, camera_id, config)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_run_focuser_backlash_calibration(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        config_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__imaging__api_run_focuser_backlash_calibration_impl(
+            port_,
+            device_id,
+            camera_id,
+            config_json,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -37239,6 +37366,7 @@ mod io {
         backlash_comp_method: *mut wire_cst_list_prim_u_8_strict,
         backlash_in: i32,
         backlash_out: i32,
+        measured_backlash_in: *mut i32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

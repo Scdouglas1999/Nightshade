@@ -221,6 +221,15 @@ extension FocuserDeviceHandlers on DeviceHandlers {
         optionalInt(payload, 'backlashIn', min: 0, max: 10000) ?? 0;
     final backlashOut =
         optionalInt(payload, 'backlashOut', min: 0, max: 10000) ?? 0;
+    // A figure this app measured on the focuser, from a stored calibration.
+    // Never overrides `backlashIn`: native applies it only when the operator
+    // has left theirs at 0.
+    final measuredBacklashIn = optionalInt(
+      payload,
+      'measuredBacklashIn',
+      min: 0,
+      max: 10000,
+    );
 
     // register the command so any later event with a matching
     // operation kind picks up `correlatingCommandId`. We still register
@@ -271,6 +280,7 @@ extension FocuserDeviceHandlers on DeviceHandlers {
             backlashCompMethod: backlashCompMethod,
             backlashIn: backlashIn,
             backlashOut: backlashOut,
+            measuredBacklashIn: measuredBacklashIn,
           );
           final result = await Future.any<dynamic>([
             workFuture,
@@ -335,12 +345,171 @@ extension FocuserDeviceHandlers on DeviceHandlers {
       backlashCompMethod: backlashCompMethod,
       backlashIn: backlashIn,
       backlashOut: backlashOut,
+      measuredBacklashIn: measuredBacklashIn,
     );
 
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
       ...result.toJson(),
     });
+  }
+
+  /// Measure the connected focuser's backlash.
+  ///
+  /// The response relays the outcome object native produced verbatim —
+  /// including a refusal with the message and remedy already worded for the
+  /// operator — because a remote client reads the same evidence a local one
+  /// does, and re-describing a refusal on this hop would give the product two
+  /// accounts of one result.
+  Future<Response> handleFocuserBacklashCalibrationStart(
+    Request request,
+  ) async {
+    _logInfo('[API] POST /api/focuser/backlash-calibration/start');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final cameraId = requireString(payload, 'cameraId');
+    final configJson = _requireCalibrationConfig(payload);
+
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'focuser.backlash-calibration.start',
+      deviceId: deviceId,
+    );
+
+    final mgr = jobManager;
+    final preferLegacy = requestPrefersLegacyBlocking(request);
+    if (mgr != null && !preferLegacy) {
+      final job = mgr.start(
+        operation: 'focuser.backlash-calibration',
+        deviceId: deviceId,
+        commandId: commandId,
+        work: (sink, cancellation) async {
+          sink.update(null, 'Starting the from-below scan');
+          final backend = container.read(deviceBackendProvider);
+          final workFuture = backend.focuserBacklashCalibrationStart(
+            deviceId: deviceId,
+            cameraId: cameraId,
+            configJson: configJson,
+          );
+          final result = await Future.any<dynamic>([
+            workFuture,
+            cancellation.whenCancelled.then((_) => _CancelledMarker.instance),
+          ]);
+          if (result is _CancelledMarker) {
+            await backend.focuserBacklashCalibrationCancel();
+            // Cancelling only asks. The routine still has to halt the motor
+            // and drive the focuser back to where the operator left it, so the
+            // job stays live until the real future settles — otherwise a
+            // client could start another run on moving hardware.
+            try {
+              await workFuture;
+            } catch (error) {
+              _logger.debug(
+                'Backlash calibration settled with an error after client '
+                'cancellation: $error',
+                source: 'DeviceHandlers',
+              );
+            }
+            throw const JobCancelledException(
+              'Backlash calibration cancellation requested by client',
+            );
+          }
+          return {'outcome': _decodeNativeJson(result as String, 'outcome')};
+        },
+      );
+      return jsonOk({
+        'jobId': job.jobId,
+        'status': job.state.wireName,
+        if (commandId != null) 'commandId': commandId,
+        'operation': job.operation,
+      });
+    }
+
+    final backend = container.read(deviceBackendProvider);
+    final outcomeJson = await backend.focuserBacklashCalibrationStart(
+      deviceId: deviceId,
+      cameraId: cameraId,
+      configJson: configJson,
+    );
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'outcome': _decodeNativeJson(outcomeJson, 'outcome'),
+    });
+  }
+
+  Future<Response> handleFocuserBacklashCalibrationCancel(
+    Request request,
+  ) async {
+    _logInfo('[API] POST /api/focuser/backlash-calibration/cancel');
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'focuser.backlash-calibration.cancel',
+    );
+    final manager = jobManager;
+    final activeJobs = manager
+        ?.list(operation: 'focuser.backlash-calibration')
+        .where((job) => !job.state.isTerminal)
+        .toList(growable: false);
+    if (activeJobs != null && activeJobs.isNotEmpty) {
+      for (final job in activeJobs) {
+        manager!.cancel(job.jobId);
+      }
+      return jsonOk({
+        if (commandId != null) 'commandId': commandId,
+        'status': 'cancellation_requested',
+        'jobIds': activeJobs.map((job) => job.jobId).toList(growable: false),
+      });
+    }
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.focuserBacklashCalibrationCancel();
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'cancellation_requested',
+    });
+  }
+
+  /// What a calibration run would cost, without running it, so a remote client
+  /// can state the travel and the time before the operator agrees to it.
+  Future<Response> handleFocuserBacklashCalibrationPlan(Request request) async {
+    _logInfo('[API] POST /api/focuser/backlash-calibration/plan');
+    final payload = await readJsonObject(request);
+    final centerPosition = requireInt(payload, 'centerPosition', min: 0);
+    final configJson = _requireCalibrationConfig(payload);
+    final backend = container.read(deviceBackendProvider);
+    final planJson = await backend.focuserBacklashCalibrationPlan(
+      configJson: configJson,
+      centerPosition: centerPosition,
+    );
+    return jsonOk({'plan': _decodeNativeJson(planJson, 'plan')});
+  }
+
+  /// The calibration config, as the JSON object native validates.
+  ///
+  /// Passed through rather than re-validated field by field: every default and
+  /// every bound lives in the native routine, and a second copy of them here
+  /// would be the copy that goes stale. A caller that omits it gets those
+  /// defaults, which is what the desktop sends.
+  String _requireCalibrationConfig(Map<String, dynamic> payload) {
+    final config = payload['config'];
+    if (config == null) return '{}';
+    if (config is String) return config;
+    if (config is Map) return jsonEncode(config);
+    throw BadRequestError(
+      field: 'config',
+      expected: 'a JSON object or a JSON string',
+      message: 'Calibration config must be a JSON object or a JSON string',
+    );
+  }
+
+  /// Decode JSON produced by the native routine for embedding in a response.
+  Object _decodeNativeJson(String raw, String field) {
+    try {
+      return jsonDecode(raw) as Object;
+    } on FormatException catch (error) {
+      throw StateError(
+        'The backlash calibration returned a $field that could not be read: '
+        '$error',
+      );
+    }
   }
 
   Future<Response> handleAutofocusCancel(Request request) async {

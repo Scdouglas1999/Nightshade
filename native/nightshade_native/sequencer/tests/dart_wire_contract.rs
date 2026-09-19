@@ -119,3 +119,52 @@ fn the_dart_fixture_document_deserializes() {
     assert_eq!(exposure.binning, Binning::One);
     assert_eq!(exposure.frame_type, "Light");
 }
+
+/// The autofocus wire config as `SequenceSerializer` emits it, including the
+/// per-focuser backlash figure the calibration measures.
+///
+/// `measured_backlash_in` is `#[serde(default)]`, so both halves of the
+/// contract need pinning: a document that carries it must round-trip the
+/// value, and a document from a build that predates it — or from a focuser
+/// that has never been calibrated — must deserialize to `None` rather than
+/// fail. The second half is what keeps an older client working.
+#[test]
+fn the_autofocus_wire_config_carries_the_measured_backlash() {
+    let with_figure = serde_json::json!({
+        "step_size": 75,
+        "steps_out": 4,
+        "exposure_duration": 0.5,
+        "backlash_compensation": 0,
+        "measured_backlash_in": 105,
+    });
+    let config: nightshade_sequencer::AutofocusConfig =
+        serde_json::from_value(with_figure).expect("the Dart autofocus config must deserialize");
+
+    assert_eq!(config.measured_backlash_in, Some(105));
+    assert_eq!(
+        config.backlash_compensation, 0,
+        "the operator's own figure must stay separate from the measured one"
+    );
+
+    let without_figure = serde_json::json!({
+        "step_size": 75,
+        "steps_out": 4,
+        "exposure_duration": 0.5,
+    });
+    let uncalibrated: nightshade_sequencer::AutofocusConfig =
+        serde_json::from_value(without_figure)
+            .expect("a document with no measured figure must still deserialize");
+    assert_eq!(uncalibrated.measured_backlash_in, None);
+
+    // Null is what Dart emits for a focuser with no stored calibration, and it
+    // must mean the same thing as the key being absent.
+    let explicit_null = serde_json::json!({
+        "step_size": 75,
+        "steps_out": 4,
+        "exposure_duration": 0.5,
+        "measured_backlash_in": serde_json::Value::Null,
+    });
+    let null_figure: nightshade_sequencer::AutofocusConfig =
+        serde_json::from_value(explicit_null).expect("an explicit null must deserialize");
+    assert_eq!(null_figure.measured_backlash_in, None);
+}
