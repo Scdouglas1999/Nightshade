@@ -439,9 +439,11 @@ class _OverlaysMenuButtonState extends ConsumerState<OverlaysMenuButton> {
         label: 'Overlays',
         child: PopupMenuButton<int>(
           key: _menuKey,
-          // The button below owns the tap and calls showButtonMenu(); leaving
-          // this enabled would put a second tap recognizer on the same pixels.
-          enabled: false,
+          // Stays enabled: `enabled: false` publishes the node as
+          // `panel: Overlays [DISABLED]`, and the a11y contract for this
+          // control is an enabled button. The button below wins the gesture
+          // arena against this widget's own InkWell and opens the menu through
+          // the key, so only one menu can open from one tap either way.
           tooltip: 'Overlays',
           position: PopupMenuPosition.under,
           offset: const Offset(0, NightshadeTokens.spaceXs),
