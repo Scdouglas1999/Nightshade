@@ -11,6 +11,24 @@ import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
+/// A mock host that is connected, with live credentials.
+///
+/// The sync provider reads `connectionState` before every hydration fan-out so
+/// a host in a terminal auth state stays quiet instead of feeding the server's
+/// auth-failure limiter. Both that getter and `isAuthTokenRejected` are
+/// non-nullable, and mocktail raises a TypeError rather than returning null for
+/// an unstubbed non-nullable getter — so a bare mock throws before a test
+/// reaches its own assertions. A test that wants the terminal path re-stubs
+/// `connectionState` itself.
+_MockNetworkBackend _connectedBackend() {
+  final backend = _MockNetworkBackend();
+  when(
+    () => backend.connectionState,
+  ).thenReturn(BackendConnectionState.connected);
+  when(() => backend.isAuthTokenRejected).thenReturn(false);
+  return backend;
+}
+
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
@@ -37,7 +55,7 @@ void main() {
     test(
       'host framing events do not echo the target back to the host',
       () async {
-        final backend = _MockNetworkBackend();
+        final backend = _connectedBackend();
         final container = ProviderContainer(
           overrides: [
             inMemoryDatabaseOverride(),
@@ -78,7 +96,7 @@ void main() {
     );
 
     test('equipment Connected updates mount chip without hydration', () async {
-      final backend = _MockNetworkBackend();
+      final backend = _connectedBackend();
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -112,7 +130,7 @@ void main() {
     test(
       'mirrored camera temperature keeps an absent cooler power unknown',
       () async {
-        final backend = _MockNetworkBackend();
+        final backend = _connectedBackend();
         when(
           () => backend.eventStream,
         ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -162,7 +180,7 @@ void main() {
     );
 
     test('HostStateChanged profile mutation invalidates profiles', () async {
-      final backend = _MockNetworkBackend();
+      final backend = _connectedBackend();
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -199,7 +217,7 @@ void main() {
     test(
       'HostStateChanged target mutation invalidates target catalog',
       () async {
-        final backend = _MockNetworkBackend();
+        final backend = _connectedBackend();
         when(
           () => backend.eventStream,
         ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -232,7 +250,7 @@ void main() {
     );
 
     test('ImageCaptured invalidates target progress providers', () async {
-      final backend = _MockNetworkBackend();
+      final backend = _connectedBackend();
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -271,7 +289,7 @@ void main() {
     });
 
     test('ImageReady on remote populates currentImageProvider', () async {
-      final backend = _MockNetworkBackend();
+      final backend = _connectedBackend();
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -332,8 +350,8 @@ void main() {
     });
 
     test('late current-frame response from an old host is discarded', () async {
-      final hostA = _MockNetworkBackend();
-      final hostB = _MockNetworkBackend();
+      final hostA = _connectedBackend();
+      final hostB = _connectedBackend();
       final delayedFrame = Completer<CapturedImageResult?>();
       when(
         () => hostA.cameraGetLastImage('asi:0'),
@@ -386,7 +404,7 @@ void main() {
     test(
       'ImageReady without networkBackend leaves currentImageProvider blank',
       () async {
-        final backend = _MockNetworkBackend();
+        final backend = _connectedBackend();
         when(
           () => backend.eventStream,
         ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -427,7 +445,7 @@ void main() {
     test(
       'SequenceUpdated over WS invalidates savedSequencesProvider',
       () async {
-        final backend = _MockNetworkBackend();
+        final backend = _connectedBackend();
         when(
           () => backend.eventStream,
         ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -466,7 +484,7 @@ void main() {
     );
 
     test('HostStateChanged sequence mutation invalidates library', () async {
-      final backend = _MockNetworkBackend();
+      final backend = _connectedBackend();
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
@@ -506,7 +524,7 @@ void main() {
 
     test('remoteSessionSyncProvider reacts to live equipment events', () async {
       final eventController = StreamController<NightshadeEvent>.broadcast();
-      final backend = _MockNetworkBackend();
+      final backend = _connectedBackend();
       when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
       when(() => backend.sequencerGetStatus()).thenAnswer(
         (_) async => const SequencerStatus(state: 'Idle', progress: 0),

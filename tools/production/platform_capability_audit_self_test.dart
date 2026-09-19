@@ -181,7 +181,7 @@ String? unsupportedBackendReasonFor() {
   final backendEnabled = isEnabled && unsupportedReason == null;
   print(backendEnabled);
   print(onTap: widget.isEnabled ? widget.onTap : null);
-  print(enabled: unsupportedReason == null);
+  print(enabled: widget.isEnabled);
 }
 ''',
   );
@@ -203,7 +203,7 @@ void main() {
     '''
 void settings() {
   PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
-  print('Platform Capabilities');
+  print('Platform capabilities');
   print('Current platform:');
   print(statusFor(platform));
   print('Capability-gated');
@@ -218,7 +218,7 @@ void settings() {
     '''
 void main() {
   // Connection settings render release-scoped platform capabilities
-  print('Platform Capabilities');
+  print('Platform capabilities');
   print('ASCOM COM');
   print('Native SDK');
   print('Capability-gated');

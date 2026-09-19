@@ -8,6 +8,20 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
+/// Every test here drives a backend whose credentials are live.
+///
+/// The remote poller reads `isAuthTokenRejected` before each fetch — terminal
+/// credentials can only 403, so it stops polling rather than writing a
+/// fail-mode warning into state every 10 s. It is a non-nullable `bool`, and
+/// mocktail answers an unstubbed getter with null, so leaving it unstubbed
+/// makes the notifier throw in its constructor before any test reaches its
+/// own assertions.
+_MockNetworkBackend _liveCredentialsBackend() {
+  final backend = _MockNetworkBackend();
+  when(() => backend.isAuthTokenRejected).thenReturn(false);
+  return backend;
+}
+
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
@@ -34,7 +48,7 @@ void main() {
   });
 
   test('remote weather settings read and write the imaging host', () async {
-    final backend = _MockNetworkBackend();
+    final backend = _liveCredentialsBackend();
     when(() => backend.getWeatherSettings()).thenAnswer(
       (_) async => {
         'triggerDistanceKm': 42.0,
@@ -82,7 +96,7 @@ void main() {
   test(
     'remote safety state mirrors the host and never evaluates locally',
     () async {
-      final backend = _MockNetworkBackend();
+      final backend = _liveCredentialsBackend();
       when(() => backend.getSafetyStatus()).thenAnswer(
         (_) async => {
           'isSafe': true,
@@ -122,7 +136,7 @@ void main() {
   test(
     'remote safety preserves critical severity, reason, and exact actions',
     () async {
-      final backend = _MockNetworkBackend();
+      final backend = _liveCredentialsBackend();
       when(() => backend.getSafetyStatus()).thenAnswer(
         (_) async => {
           'isSafe': false,
@@ -179,7 +193,7 @@ void main() {
   test(
     'remote cancel snooze exits snoozed state while host request is pending',
     () async {
-      final backend = _MockNetworkBackend();
+      final backend = _liveCredentialsBackend();
       when(() => backend.getSafetyStatus()).thenAnswer(
         (_) async => {
           'isSafe': false,
@@ -232,7 +246,7 @@ void main() {
   );
 
   test('remote safety status failure remains fail closed', () async {
-    final backend = _MockNetworkBackend();
+    final backend = _liveCredentialsBackend();
     when(
       () => backend.getSafetyStatus(),
     ).thenThrow(StateError('host unreachable'));

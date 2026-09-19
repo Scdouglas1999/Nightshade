@@ -1,227 +1,233 @@
-# Nightshade 7.0.0 Release Notes
+# Nightshade 7.1.0 Release Notes
 
 ## Release
 
-- Version: `7.0.0` (build 27)
-- Build date: 2026-09-07
+- Version: `7.1.0` (build 28)
+- Build date: 2026-09-19
 - Channel: `alpha` (see `version.yaml`)
-- Previous release: `6.2.0` (build 26)
-- Headline: **Darkroom** — non-destructive recipe processing and networked morning delivery
+- Previous release: `7.0.0` (build 27)
+- Headline: **Observatory** — one design system across every screen, and the rig defects four on-sky nights found
 
 ## Release Summary
 
-7.0 processes your night for you and never takes anything away from you to do it.
+7.1 rebuilds the interface you drive the night through, and fixes the parts of the imaging
+chain that real nights broke.
 
-When a sequence completes, the **dawn autopilot** calibrates, registers and integrates your
-accepted frames into per-filter linear master lights, composes a **first-draft recipe**
-(gradient removal, denoise, colour calibration where the data supports it, an auto-fitted
-stretch, an edge crop), renders a draft JPEG, and delivers everything wherever you want to
-work in the morning. The draft is not a baked file: it is a *recipe* — an ordered, editable
-stack of operations stored as data. Open it in the new **Darkroom** and every step the
-autopilot took is there to adjust, reorder, disable or discard. "Reset to linear" always
-exists and never destroys anything.
+The whole app now sits on the **Observatory** kit — one set of panels, wells, readouts, form
+rows, fields, buttons, tabs, chips, banners and side panels in `nightshade_ui` — instead of
+the eleven-screen patchwork it had grown into. Every screen was rebuilt on the sheet rather
+than re-skinned.
 
-Alongside Darkroom, this release closes the behavioural audit register to zero open findings
-for the first time, retires simulation mode's dead toggle, makes the observer location
-explicitly *unknown* until you set one, and fixes a stacking-normalisation defect that shipped
-in 6.2.0 (see Migration And Compatibility — 6.2.0 masters are void).
+Three new pieces of instrumentation land with it. The **Sequencer ledger** shows a twelve-hour
+run as a ledger of aligned columns with folded runs, sticky ancestors and a gutter map instead
+of a tree you scroll. **DepthLock** measures how deep a marked region of your target actually
+is, across nights and sessions, and says what it still needs — including the negative answer,
+when the calibration error floor means more hours cannot help. **Focuser backlash calibration**
+measures your gear train with two scans instead of asking you for a number you do not have.
+
+The rig fixes matter more than any of it. A sequence that died 1.5 seconds after slewing, a
+polar alignment that failed every westward run, an app that froze solid on the first successful
+plate solve, and a guider failure that kept exposing and then parked an attended mount — all
+four were invisible to the simulator, and all four are fixed here. **On-sky validation of this
+build is owed** (see Known Limitations).
 
 ## Supported Platforms
 
 | Platform | Status | Build artifact | Verification |
 | --- | --- | --- | --- |
-| Linux x64 | supported | `nightshade-7.0.0-linux-x64.tar.gz` (built by `.github/workflows/release.yml`) | Release bundle built from this tree and exercised end to end by the committed live harness (see Verification Summary). This is the platform every claim below was proven on. |
-| Windows x64 | supported, **validation owed** | `nightshade-7.0.0-windows-x64.zip` (built on a Windows runner by `.github/workflows/release.yml`) | Not exercised for this candidate. No Windows build, bundle audit, golden re-capture or runtime walk was performed. The Windows runner-lifecycle fixes in this release are compile-level changes reviewed against the Win32 message loop; they have not been run. |
-| Android | supported, **validation owed** | `nightshade-7.0.0.apk` | Built by CI; not installed or exercised for this candidate. |
-| macOS | unsupported | — | Not built or tested. |
+| Linux x64 | supported | `nightshade-7.1.0-linux-x64.tar.gz` (built by `.github/workflows/release.yml`) | Every claim below was proven on this platform: full Dart and Rust suites, clippy, and the production gate set run against this tree. |
+| Windows x64 | supported, **validation owed** | `nightshade-7.1.0-windows-x64.zip` (built on a Windows runner by `.github/workflows/release.yml`) | Not exercised for this candidate. No Windows build, bundle audit, golden re-capture or runtime walk was performed. The ASCOM COM-worker change in this release is a compile-level change reviewed against the STA worker contract; it has not been run. |
+| Android | supported, **validation owed** | `nightshade-7.1.0.apk` | Built by CI; not installed or exercised for this candidate. |
+| macOS | unsupported | — | Builds in CI's build-test matrix; not tested. |
 
 ## Supported Hardware And Drivers
 
-Unchanged from 6.2.0 — see `docs/supported-hardware-by-platform.md`. Two vendor
-connect-behaviour changes land in this release (Player One bin/ROI refusal, Atik
-undetermined-colour refusal) and **have not been exercised on hardware**.
+Unchanged from 7.0.0 — see `docs/supported-hardware-by-platform.md`. One vendor protocol fix
+lands here: the LX200 arm accepts the NYX's `+05:00` reply to `:GG#` as well as `+05`.
 
 ## New Or Changed Features
 
-### The Darkroom editor
+### Observatory
 
-- Step cards driven by each operation's own parameter schema, keeping three truths separate:
-  what the recipe says, what validation says, and what the render actually did — including
-  *why* a step was skipped (no photometric catalog on a fresh install is an explanation on
-  the card, not a silent no-op).
-- Branching: duplicate any recipe as a variant at the shared prefix; compare branches
-  side-by-side or blinking with a shared zoom/pan. Autopilot drafts and your own recipes are
-  marked by author.
-- Export at any stage: the linear master, the image after step N, or the final render. FITS
-  always carries the full recipe as provenance (HISTORY cards plus a `.nsrecipe` sidecar).
-  Raster formats of a still-linear stage are a visible screen-transfer choice, never a silent
-  auto-stretch.
-- Undo/redo over your edits; renders are cancelled, never queued, when you keep dragging.
-- A recipe carrying an op this build cannot run renders around it, says so per step, and
-  offers removal with undo, instead of becoming a dead end.
+- One kit for panels, wells, readouts, form rows, fields, buttons, underline tabs, chips,
+  banners, side panels and the night band. A control behaves the same in Settings, Guiding and
+  the Flat wizard.
+- One page header on every screen, with the title yielding to the actions on a phone instead of
+  truncating them.
+- The Observatory rail replaces the old navigation; the bottom nav stays on screen below 768 px.
+- Tonight (`/dashboard`), Plan, Analytics, Weather, Equipment, Guiding, Settings, Onboarding,
+  the Darkroom, the Sequencer, the polar-alignment and Flat wizards and the pairing screen were
+  each rebuilt on the kit.
+- The select has its own popover instead of Material's menu — the cause of menus opening
+  mid-screen rather than on the button that spawned them.
+- Sentence case throughout, including composed sentences and their localisation twins. Red
+  night reaches the Imaging canvas and the Weather map, which were both painting off the red
+  axis.
 
-### Honest calibration, honest colour
+### The Sequencer ledger
 
-- Every master states exactly which darks/flats/bias were applied, per slot, with match
-  quality and staleness — in the result, the FITS HISTORY and a `CALWARN` card. A missing
-  master is an explicit entry. Agreeing on nothing is not a match.
-- Colour calibration is a Johnson B−V regression against the shipped catalogs, scoped and
-  labelled as such. It is not SPCC and is never called that. It refuses mono input loudly, and
-  the dawn draft pins the fitted channel scales so previews render colour-correct at any zoom.
-- Unknown gain/offset on your frames is matched as *unknown* (scored, reported UNVERIFIED),
-  never compared as a fabricated zero.
+- Three persisted density modes, switched from the canvas bar, from the full tree down to a
+  ledger of aligned columns with collapsed rollups.
+- Contiguous runs fold into one row: forty identical exposures read as one line with a count.
+- Sticky ancestors keep the running branch pinned while you scroll, and the gutter maps your
+  position in the whole run.
+- The node inspector gained Settings, Activity and Notes tabs; switching tabs no longer scrolls
+  the screen pager underneath.
+- The toolbox Queue tab is now Targets, showing the sequence's own targets beside a
+  saved-for-later wishlist.
+- Pre-flight refuses a centring sequence when no plate solver is configured.
 
-### Delivery
+### DepthLock
 
-- Targets: any watched folder (NAS mounts included), SFTP (key auth via the system OpenSSH),
-  or a **paired desktop that pulls** — the rig publishes a signed manifest and your home
-  machine fetches it with resumable downloads.
-- Copy, never move. Atomic writes, checksum verification, bounded retries that survive a rig
-  reboot, and a journal whose every status line derives from a recorded fact. There is no
-  "configured" state that has not proven itself.
-- Delivered filenames carry a rig identity, so two Nightshades sharing one drop folder cannot
-  collide.
+Mark the structure you care about and a nearby patch of blank sky, pick a depth, and every
+matching exposure measures that region from then on — across nights and across sessions. A goal
+is one filter, on one target, with one setup.
 
-### Also in 7.0
+- Done is defined by the data, not the clock.
+- Each filter's goal states what it still needs, so clear sky can be allocated to the one that
+  is behind. A Smart Exposure plan reads those numbers directly.
+- When the calibration error floor caps how deep the region can go, DepthLock says so, names
+  the ceiling, and names the two things that would actually help.
 
-- The behavioural audit register is at **zero open findings** for the first time: every
-  silent-behaviour site was either fixed (~65 real defects, including vendor drivers that
-  fabricated capabilities and safing paths that failed silently) or documented with the
-  specific mechanism that makes it safe.
-- Simulation mode's dead toggle is gone. The observer location is explicitly *unknown* until
-  you set one; the backend is told null rather than 0/0/0.
-- `NIGHTSHADE_DATA_DIR` is now the root of everything Dart writes — one resolver, 52 call
-  sites.
-- Idle frame rate: every 1 Hz clock is aligned to the epoch-second boundary. The idle frame
-  rate was the number of clock phases, not the clock rate. An urgent status dot pulses for
-  twenty seconds and then holds, so a failed run no longer costs a third of a core forever.
-- A finished sequencer node says so: `NodeCompleted` now answers every `NodeStarted`.
-- Retired: a dead sky-view widget, a test-data seeder that could write a fake observer
-  location, an unwired timeout module, and ~14k lines of comment noise.
+Full documentation: `docs/depthlock.md`; design notes in `docs/depthlock-design.md`.
+
+### Focuser backlash calibration
+
+- Two scans, one approaching from below and one from above, fitted and differenced, persisted
+  per focuser, with a wizard that states the run's cost before it starts.
+- A cancelled calibration reports as cancelled, not as a failure.
+- The backlash model was corrected against a simulated gear train, along with the
+  reversal-budget formula the code actually uses.
+- **The shipped default is now zero.** An invented 350 was reaching both the settings field and
+  the autofocus endpoint; only the operator knows theirs.
+
+### Also in 7.1
+
+- Tiered Wi-Fi positioning with per-tier consent and a stated accuracy radius; Detect location
+  falls back to an internet lookup in one click.
+- Camera sensor specs resolve through one chain: Framing states which tier its geometry came
+  from, an override claims only what was actually changed, and the planner says a missing spec
+  once rather than three times.
+- The Profiles tab edits the profile you click — it previously had no detail pane at all.
+- Frame-timing diagnostics report UI-isolate block time and image-cache state.
+- Recovery and session reporting headline the cause rather than the last teardown failure.
+- The launch-time catalog modal is retired; the Tonight checklist owns it.
 
 ## Security And Remote Access
 
-- Darkroom delivery egress is scoped to control; credential files are written `0600`.
-- `--allow-unauthenticated` no longer outranks a configured token.
-- SFTP uses key auth via the system OpenSSH. **Password auth is deliberately absent** pending
-  a dependency decision.
-- Unauthenticated hits on the new endpoints return 401; this was exercised in the break-it
-  waves against a running build.
+Unchanged from 7.0.0. Two notes specific to this release:
+
+- The recovery endpoint's new `parkAndCloseWhenRecoveryGivesUp` field is an **opt-in**: a
+  client that omits it leaves parking off. The other six fields remain required, so a partial
+  write is a 400 rather than a silent reset.
+- The DepthLock goal endpoints sit behind the same auth as the rest of the headless API;
+  unauthenticated hits return 401.
 
 ## Migration And Compatibility
 
-- **Database schema v59.** The upgrade is atomic and takes a backup first; a failed migration
-  does not brick the library. The migration probe from a v4.3.0 fixture runs in CI.
-- **6.2.0 accumulating-master sidecars are refused.** 6.2.0 shipped a stacking-normalisation
-  defect (a background-pair OLS fit that erased stars — retention 0.08%). The fix follows
-  PixInsight's default additive-with-scaling normalisation. v1 sidecars are refused at
-  `MASTER_STATE_VERSION 2`, so **masters and sidecars produced by 6.2.0 are void and must be
-  re-integrated from frames.** Your captured frames are untouched.
-- No other user-facing data migration is required.
+- **No schema migration is required** for this release.
+- **6.2.0 accumulating-master sidecars are still refused.** 6.2.0 shipped a
+  stacking-normalisation defect (a background-pair OLS fit that erased stars — retention
+  0.08%); v1 sidecars are refused at `MASTER_STATE_VERSION 2`. Masters and sidecars produced by
+  6.2.0 remain void and must be re-integrated from frames. Your captured frames are untouched.
+- **Check your focuser backlash setting after upgrading.** The shipped default is now zero. If
+  you were relying on the old invented 350, run the calibration wizard rather than re-entering
+  it.
+- Desktop, mobile and OTA versions move together to 7.1.0+28; the release build fails loudly if
+  they ever disagree.
 
 ## Known Limitations
 
-- **On-sky validation is owed.** Everything in this release was proven against simulators on
-  Linux. The colour path has not run against a real plate-solved master with real APASS/HYG
-  photometry.
-- **Windows validation is owed**: build, bundle audit, golden re-capture, SFTP key-file ACLs,
-  and the runner-lifecycle changes in this release.
-- **The polar-alignment rotation fix is not on-sky validated.** Three-point alignment now
-  builds its rotation target in the mount's own frame (a target built from the *solved*
-  coordinates made the mount absorb the very misalignment being measured, producing a
-  two-axis swing toward the pole instead of a 10° RA step) and refuses a step that would
-  cross the meridian. This is covered by unit tests and was reproduced from a live rig log,
-  but the corrected path has not been run against a mount.
-- The curves operation renders read-only in this build's editor (no curve control yet).
-- `denoise` on very large RGB masters has a high peak-memory profile; an f32 plane fallback is
-  identified if it bites.
-- A server's full disk reports as a retryable transport failure, because SFTP cannot
-  distinguish ENOSPC.
-- With no observing site configured, the default altitude trigger currently skips targets; the
-  run outcome states it.
+- **On-sky validation of this build is owed.** Each rig fix below was reproduced from a
+  live-rig log or a simulator fault injection and is covered by tests, but this tree has not
+  been flown as a whole. The polar-alignment and slew-frame fixes in particular deserve a night
+  before an unattended run is trusted to them.
+- **One open TPPA question.** On 2026-09-13 the mount moved 12.1° for a 10° commanded step.
+  That is not explained yet and is not a software fix in this release.
+- **Windows validation is owed**: build, bundle audit, golden re-capture, and the ASCOM
+  COM-worker routing change.
+- **Android validation is owed**: built by CI, not installed or exercised.
+- **The focuser backlash calibration has not run against a real focuser in this build.** The
+  model was corrected against a simulated gear train; an EAF measured 105 steps at position
+  6620 on an earlier build.
+- **DepthLock has not accumulated a real target across real nights.** Its forecast, yield,
+  allocation and curve paths pass against seeded data.
+- SFTP password auth is deliberately absent pending a dependency decision.
+- The curves operation renders read-only in this build's editor.
+- `denoise` on very large RGB masters has a high peak-memory profile.
+- With no observing site configured, the default altitude trigger skips targets; the run
+  outcome states it.
 - Weather safety is fail-closed by default: with no weather device and an API that has never
   been fetched, an unattended rig will park. Set `fail_open` if that is not what you want.
 
 ## Fixed Issues
 
-Seventy commits since `v6.2.0`. The largest groups:
+415 commits since `v7.0.0`. The rig defects, each invisible to the simulator:
 
-- **Darkroom break-waves one through six** (30, 21, 33, 22, unrecorded and 14 findings, by
-  their own commit subjects) and **fix-fleet waves seven through nineteen**: every defect
-  five adversarial agents could reproduce against the running build across UX honesty, data
-  corruption, process kills, delivery faults and UI traps. Among them: a
-  release-only UI freeze the framework's own debug assert cannot catch in production; a
-  session-finalisation gap on the headless path that predated this release; a missing SQLite
-  busy-timeout that let any external reader kill the daemon at startup; and four SFTP wire
-  truths that only a real OpenSSH server disproved.
-- **Stacking normalisation** follows PixInsight's default; stars survive integration again.
-- **Calibration frames count**: a 3-frame dark run no longer reports 0/0 frames and 100%
-  downtime.
-- **Meridian handling**: the trigger reads the target's sky, not the mount's pointing; a
-  parked or non-tracking mount does not arm the flip; preflight warns when the flip would
-  re-centre without a solver.
-- **Weather map**: labels above the clouds, honest zoom, tiles that retry, one `saveLayer` per
-  tile, and a basemap that is not a wall of "API KEY REQUIRED" watermarks.
-- **Catalogs**: the three download tiers were a placebo — one dataset, stated once, with HYG's
-  real depth.
-- **Plate solving**: solver verification is bounded by a deadline and reaps a hung probe (an
-  ASTAP GUI build opens a window instead of exiting on `--help`), and the CLI executable is
-  preferred over the GUI one wherever both are installed. Verification is no longer a
-  synchronous bridge call on the UI thread.
-- **USB hot-plug**: a bus event now schedules follow-up probes at ~3 s, ~13 s and ~43 s. A
-  single immediate probe cached "nothing here" while Windows was still installing the driver,
-  and the device stayed invisible until the five-minute fallback.
-- **Windows runner lifecycle**: the Flutter controller is torn down while the window and COM
-  apartment are still alive, a font-change broadcast during teardown no longer dereferences a
-  released controller, and a `GetMessage` failure is reported as a failure.
+- **The slew validator killed every sequence 1.5 s after it started.** It compared a J2000
+  target against an of-date read-back from the mount. Arrival is now validated in the mount's
+  own coordinate frame.
+- **Polar alignment failed every westward run.** The rotation-axis fit picked the antipode, so
+  the correction pointed the wrong way. The fit is hemisphere-consistent, Dec is re-read per
+  step, and TPPA frames are solved hinted from the mount on a budget that fits between steps
+  instead of a blind 30 s solve. Use a 30° step and bin 2.
+- **The app froze on the first successful plate solve.** The annotation pipeline read the
+  896 MB GLADE+ catalogue line by line on the UI isolate. It is off the UI isolate; the star
+  matcher is bucketed instead of quadratic; an image-texture leak went with it.
+- **A guider failure kept exposing, then parked an attended mount.** The imaging train is
+  arbitrated so exposures stop when the guider is dead, and parking is an explicit opt-in.
+- **A failed INDI reader recovery wedged the client out of ever recovering.** One failed
+  reconnect left the reader marked `Restarting` for the life of the client, so the heartbeat
+  never tried again and a server that came back stayed dead to the app. Found by this
+  release's integration.
+- **Thumbnails decoded full-resolution FITS on the UI isolate**, never reading the sidecars and
+  never sizing the decode to the cell.
+
+Other groups:
+
+- **Autofocus**: best focus lands from below and is verified with a real frame; the MAD outlier
+  filter was deleting the focus region on clean sweeps; a symmetric model gets a symmetric
+  sample; star counts report what was detected rather than the brightest-N cap.
+- **Equipment**: profile menus opened mid-screen rather than on their button; ASCOM mount site
+  and time route through the COM worker rather than the `RwLock` guard, and the app asks which
+  way to reconcile them on connect.
+- **Performance**: the mount position poll no longer repaints the whole window; the status
+  bar's selection is scoped; the dashboard has repaint boundaries.
+- **Observatory review waves** closed the layout, narrow-window, sentence-case and
+  retintable-glyph findings raised while driving the merged build.
 
 ## Verification Summary
 
-Everything below was run on Linux against **this tree**, on 2026-09-07.
+On Linux, against this tree:
 
-| Check | Result |
-| --- | --- |
-| Dart/Flutter suites (`melos run test`, 10 packages) | **6,871 passed, 0 failed** |
-| Rust suites (`cargo test --workspace`) | **2,819 passed, 0 failed, 23 ignored** |
-| Rust clippy (`-D warnings` + `result_unit_err`, `await_holding_lock`, `undocumented_unsafe_blocks`) | clean |
-| `cargo fmt --all --check` / `dart format` | clean |
-| Production gate set (25 gates, mirroring `.github/workflows/ci.yml`) | **25 passed, 0 failed** |
-| Behavioural audit | 0 open, 0 unregistered (3,109 files) |
-| D1 live sim-night, release bundle | **38 assertions passed, 0 failed** |
-| D1 crash-resume leg | **3 passed, 0 failed** |
-| D1 two-nights leg | **23 passed, 0 failed** |
+- Full Dart test suite across 11 packages, 0 failed
+- 3,039 Rust tests, 0 failed
+- `cargo clippy --locked --all-features --workspace --all-targets` with CI's deny list
+  (`-D warnings -D clippy::result_unit_err -D clippy::await_holding_lock
+  -D clippy::undocumented_unsafe_blocks`), 0 warnings
+- Analyzer rollup: 0 errors, 0 warnings, 0 critical warnings, production and all
+- Behavioural audit: 0 open, 0 unregistered. The register is keyed by `file:line`, so this
+  release's merges orphaned 47 rows whose findings had simply moved; those were re-pointed with
+  their reasoning intact rather than re-registered, and the 12 genuinely new sites reviewed and
+  registered individually
+- Runtime placeholder gate, fail-closed policy gate, dependency hygiene, version consistency
+  (plus self-test), bridge-boundary audit (plus self-test): all green
+- Cargo duplicate-versions baseline: identical to the committed baseline
+- `cargo deny check licenses --all-features`: pass
+- Constellation hub: `dart analyze --fatal-infos` and `dart test` both pass
+- `dart format` and `cargo fmt --check`: clean
 
-The three live legs ran against the release bundle built from this tree
-(`apps/desktop/build/linux/x64/release/bundle`), with the native library rebuilt first and the
-shipped `.so` string-checked for this release's own fixes — `flutter build` does not rebuild
-Rust, and a stale `.so` mimics a working fix.
-
-The sim-night leg covers: fresh install → simulator-bound profile → LRGB sequence to natural
-completion → per-filter masters with non-zero integration and real star contrast (worst 109
-ADU against a 30 ADU floor) → dawn Darkroom job queued→running→done → autopilot recipes with
-draft JPEGs and `.nsrecipe` sidecars → delivery journal rows with checksums → files
-byte-identical in the drop folder → operator grading thresholds reaching the executor and
-rejected frames filed under `Reject/` → a crash-resumed pass re-queueing and delivering
-without a destination conflict.
-
-Golden pixel-diff tests are excluded by policy: the committed baselines are Windows-captured
-and produce false diffs on a Linux host. See `docs/testing/golden-tests.md`.
-
-**Not verified for this candidate:** any Windows build or runtime behaviour, any Android
-runtime behaviour, any real hardware, and anything on sky.
+Not run for this candidate: Windows runtime, Android runtime, on-sky.
 
 ## Upgrade Notes
 
-- Re-integrate any masters produced by 6.2.0. Their sidecars are refused by this build and
-  their pixels are not trustworthy (see Migration And Compatibility).
-- If you rely on unattended weather safety, confirm your `fail_open` / `fail_closed` setting
-  before the first unattended night on this build.
-- Android installs upgrade in place, provided the release was signed with the permanent
-  keystore.
+- Desktop, mobile and OTA versions are pinned together at 7.1.0+28.
+- Re-integrate any master produced by 6.2.0.
+- Re-check the focuser backlash setting; the default changed to zero.
+- No database migration is required.
 
 ## Rollback Plan
 
-- Reinstall `6.2.0` from its GitHub release. The v59 schema is forward-only: a 7.0.0 database
-  will not open on 6.2.0, so restore the pre-migration backup the upgrade wrote if you roll
-  back.
-- Captured frames are never modified by an upgrade or a rollback.
+The previous release is `v7.0.0` (build 27). Its artifacts remain published on the GitHub
+release page. No schema migration runs in this release, so a rollback to 7.0.0 needs no
+database restore — reinstall the 7.0.0 bundle over the top.

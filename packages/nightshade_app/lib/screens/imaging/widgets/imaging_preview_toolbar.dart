@@ -379,7 +379,7 @@ class _DepthLockRegionButton extends ConsumerWidget {
 
 /// The single labelled "Overlays" entry point. Tapping opens a compact popover
 /// of labelled checkbox rows, one per overlay.
-class OverlaysMenuButton extends ConsumerWidget {
+class OverlaysMenuButton extends ConsumerStatefulWidget {
   const OverlaysMenuButton({
     super.key,
     required this.showCrosshair,
@@ -394,7 +394,27 @@ class OverlaysMenuButton extends ConsumerWidget {
   final VoidCallback onToggleStarOverlay;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OverlaysMenuButton> createState() => _OverlaysMenuButtonState();
+}
+
+class _OverlaysMenuButtonState extends ConsumerState<OverlaysMenuButton> {
+  /// Opens the menu from the button's own `onPressed`, so the control the
+  /// operator sees is the control that acts. The button used to be wrapped in
+  /// an `IgnorePointer` with an empty callback, leaving `PopupMenuButton`'s
+  /// own detector to catch the tap — a button that, read on its own, did
+  /// nothing. Per-instance rather than static: two toolbars alive at once (a
+  /// route transition) would otherwise share one key, and a release build
+  /// silently drops the second widget claiming it.
+  final GlobalKey<PopupMenuButtonState<int>> _menuKey =
+      GlobalKey<PopupMenuButtonState<int>>();
+
+  bool get showCrosshair => widget.showCrosshair;
+  bool get showStarOverlay => widget.showStarOverlay;
+  VoidCallback get onToggleCrosshair => widget.onToggleCrosshair;
+  VoidCallback get onToggleStarOverlay => widget.onToggleStarOverlay;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     final annotationSettings =
         ref.watch(annotationSettingsProvider).valueOrNull;
@@ -418,6 +438,10 @@ class OverlaysMenuButton extends ConsumerWidget {
         enabled: true,
         label: 'Overlays',
         child: PopupMenuButton<int>(
+          key: _menuKey,
+          // The button below owns the tap and calls showButtonMenu(); leaving
+          // this enabled would put a second tap recognizer on the same pixels.
+          enabled: false,
           tooltip: 'Overlays',
           position: PopupMenuPosition.under,
           offset: const Offset(0, NightshadeTokens.spaceXs),
@@ -526,17 +550,14 @@ class OverlaysMenuButton extends ConsumerWidget {
             ];
           },
           // Excluded so the label does not publish a SECOND "Overlays" node
-          // beside the one the wrapper above owns; PopupMenuButton's tap sits
-          // above this, so the action is unaffected.
+          // beside the one the Semantics wrapper above owns.
           child: ExcludeSemantics(
-            child: IgnorePointer(
-              child: NightshadeButton(
-                label: 'Overlays',
-                icon: NightshadeIcons.layers,
-                size: ButtonSize.small,
-                variant: ButtonVariant.ghost,
-                onPressed: () {},
-              ),
+            child: NightshadeButton(
+              label: 'Overlays',
+              icon: NightshadeIcons.layers,
+              size: ButtonSize.small,
+              variant: ButtonVariant.ghost,
+              onPressed: () => _menuKey.currentState?.showButtonMenu(),
             ),
           ),
         ),

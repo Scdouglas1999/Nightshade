@@ -141,7 +141,9 @@ const _requiredFiles = <_RequiredFile>[
     label: 'Settings platform capability view',
     requiredText: [
       'PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem)',
-      'Platform Capabilities',
+      // The shipped label, sentence case since the Observatory sweep. This
+      // anchor tracks what the screen actually says; it is not a style rule.
+      'Platform capabilities',
       'Current platform:',
       'statusFor(platform)',
       'Capability-gated',
@@ -155,7 +157,7 @@ const _requiredFiles = <_RequiredFile>[
     label: 'Settings platform capability tests',
     requiredText: [
       'Connection settings render release-scoped platform capabilities',
-      'Platform Capabilities',
+      'Platform capabilities',
       'ASCOM COM',
       'Native SDK',
       'Capability-gated',
