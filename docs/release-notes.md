@@ -6,7 +6,7 @@
 - Build date: 2026-09-19
 - Channel: `alpha` (see `version.yaml`)
 - Previous release: `7.0.0` (build 27)
-- Headline: **Observatory** — one design system across every screen, and the rig defects four on-sky nights found
+- Headline: **Observatory** — one design system across every screen, and the rig defects the September nights found
 
 ## Release Summary
 
@@ -162,7 +162,7 @@ Unchanged from 7.0.0. Two notes specific to this release:
 
 ## Fixed Issues
 
-415 commits since `v7.0.0`. The rig defects, each invisible to the simulator:
+418 commits since `v7.0.0`. The rig defects, each invisible to the simulator:
 
 - **The slew validator killed every sequence 1.5 s after it started.** It compared a J2000
   target against an of-date read-back from the mount. Arrival is now validated in the mount's
@@ -200,8 +200,8 @@ Other groups:
 
 On Linux, against this tree:
 
-- Full Dart test suite across 11 packages, 0 failed
-- 3,039 Rust tests, 0 failed
+- 6,732 Dart tests across 11 packages, 0 failed (4 skipped)
+- 3,039 Rust tests, 0 failed (24 ignored)
 - `cargo clippy --locked --all-features --workspace --all-targets` with CI's deny list
   (`-D warnings -D clippy::result_unit_err -D clippy::await_holding_lock
   -D clippy::undocumented_unsafe_blocks`), 0 warnings
@@ -216,6 +216,8 @@ On Linux, against this tree:
 - `cargo deny check licenses --all-features`: pass
 - Constellation hub: `dart analyze --fatal-infos` and `dart test` both pass
 - `dart format` and `cargo fmt --check`: clean
+- The Linux release bundle builds from this tree and carries
+  `libnightshade_bridge.so`
 
 Not run for this candidate: Windows runtime, Android runtime, on-sky.
 
