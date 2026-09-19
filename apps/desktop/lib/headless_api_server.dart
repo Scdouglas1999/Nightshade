@@ -224,6 +224,13 @@ class HeadlessApiServer {
   late final AuthCookieManager _authCookieManager;
   late final PairingAttemptTracker _pairingAttempts;
   PairingService? _pairingService;
+
+  /// Test seam for the lazy-construction path in [_ensurePairingService]:
+  /// when set and no [pairingService] was injected, the factory supplies
+  /// the lazily-created service (e.g. one backed by an in-memory
+  /// [PairingDatabase]) instead of `PairingService()` — whose default
+  /// database would resolve the real on-disk store.
+  final PairingService Function()? _pairingServiceFactory;
   // Tokens minted by completed pairing flows and their scopes. Separate from
   // the configured token table because pairing tokens live in PairingDatabase
   // (Drift) and must not mutate the immutable configured-token map.
@@ -498,11 +505,12 @@ class HeadlessApiServer {
     this.tlsPublicKeyFingerprint,
     this.eventReplayBufferSize = 5000,
     PairingService? pairingService,
+    PairingService Function()? pairingServiceFactory,
     CommandCorrelator? commandCorrelator,
     String? serverInstanceId,
     LanPushBroadcaster? lanPushBroadcaster,
     RemotePushDelivery? remotePushDelivery,
-  }) {
+  }) : _pairingServiceFactory = pairingServiceFactory {
     _lanPushBroadcaster = lanPushBroadcaster;
     _remotePushDelivery = remotePushDelivery;
     _pairingService = pairingService;
@@ -639,7 +647,7 @@ class HeadlessApiServer {
   PairingService _ensurePairingService() {
     final existing = _pairingService;
     if (existing != null) return existing;
-    final created = PairingService();
+    final created = (_pairingServiceFactory ?? PairingService.new)();
     _pairingService = created;
     // ensure the revocation listener is wired even when the service
     // was lazy-constructed (i.e. the headless operator never explicitly

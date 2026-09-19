@@ -128,6 +128,12 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     final solverPreference = ref.watch(plateSolverPreferenceProvider);
 
     final target = framingState.target;
+    // The aim is where the telescope will actually point — the dragged
+    // reticle's coordinates, or the view-center target when the box has not
+    // been dragged. Pointing consumers below (slew, solve hint, the horizon
+    // advisory) read this; the picked `target` itself only feeds display of
+    // the resolved object (step 1) and the slew button's targetName.
+    final aimTarget = framingState.effectiveAimTarget;
     final hasTarget = target != null;
     final hasSurveyImage = framingState.surveyImageBytes != null;
     final latestCameraFrame = ref.watch(currentImageProvider);
@@ -162,7 +168,8 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     // "Ready" over a target 5.7 deg under the ground would be false, so the
     // badge says which it is. Null means no configured site
     // (the app cannot know the altitude), in which case we claim nothing.
-    final targetAltitudeDeg = _targetAltitudeDeg(target);
+    // Measured at the AIM — the slew destination — not the view center.
+    final targetAltitudeDeg = _targetAltitudeDeg(aimTarget);
     final isBelowHorizon = targetAltitudeDeg != null && targetAltitudeDeg < 0;
 
     return NightshadePanel(
@@ -317,8 +324,11 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
                           width: double.infinity,
                           child: SlewDropdownButton(
                             key: FramingTutorialKeys.slewBtn,
-                            ra: target.raHours,
-                            dec: target.decDegrees,
+                            // Slew to where the reticle was dragged, not the
+                            // view center — this is the payoff of the aim
+                            // model.
+                            ra: aimTarget!.raHours,
+                            dec: aimTarget.decDegrees,
                             targetName: target.name,
                             targetRotation: framingState.rotation != 0
                                 ? framingState.rotation
@@ -410,7 +420,10 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     if (_isSolving) return;
 
     final framingState = ref.read(framingProvider);
-    final target = framingState.target;
+    // The solve measures the mount's offset from where it will be COMMANDED
+    // to point — the aim — so the hint and the reported delta both reference
+    // the dragged reticle position, not the view center.
+    final target = framingState.effectiveAimTarget;
     final cameraFrame = ref.read(currentImageProvider);
     final imagePath = cameraFrame?.filePath;
 

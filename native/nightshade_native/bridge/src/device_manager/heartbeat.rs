@@ -110,7 +110,7 @@ impl DeviceManager {
     }
 
     /// Perform a health check for a specific device, with a single retry for
-    /// the slow, contention-prone device types (focuser, filter wheel).
+    /// the slow, contention-prone device types (mount, focuser, filter wheel).
     ///
     /// Returns Ok(true) if healthy, Ok(false) if not responding, Err for
     /// connection errors.
@@ -122,14 +122,17 @@ impl DeviceManager {
     /// the mount, …). A frame download or a momentary bus hiccup makes a single
     /// status read fail while the device is perfectly healthy, which — without a
     /// retry — marches an idle device toward a spurious disconnect/reconnect.
+    /// Mounts share the same hazard on ASCOM: the probe is one `get_tracking()`
+    /// COM round-trip on the process-wide shared STA worker thread, and a slow
+    /// driver call ahead of it in the queue times the probe out transiently.
     ///
     /// Applying the retry ONCE here, above the per-driver dispatch, gives ASCOM,
     /// Native, INDI and Alpaca identical behavior by construction (the user
     /// asked for parity across all four). The alternative — duplicating the
-    /// retry inside each driver's focuser/wheel arm — is eight copies that drift
-    /// out of parity. Camera/mount/etc. poll fast, reliable properties and are
-    /// checked once. A genuinely-gone device fails the retry too and is still
-    /// escalated by the surrounding loop.
+    /// retry inside each driver's mount/focuser/wheel arm — is twelve copies
+    /// that drift out of parity. Camera/etc. poll fast, reliable properties and
+    /// are checked once. A genuinely-gone device fails the retry too and is
+    /// still escalated by the surrounding loop.
     ///
     /// Visibility note: `pub(super)` so the in-module tests in
     /// `device_manager::tests` (one level up) can call it directly.
@@ -145,13 +148,16 @@ impl DeviceManager {
 
         // Healthy first try, or a device type we don't retry → done.
         if matches!(first, Ok(true))
-            || !matches!(device_type, DeviceType::Focuser | DeviceType::FilterWheel)
+            || !matches!(
+                device_type,
+                DeviceType::Mount | DeviceType::Focuser | DeviceType::FilterWheel
+            )
         {
             return first;
         }
 
-        // Transient focuser/filter-wheel failure: settle briefly, then re-probe
-        // once before letting the failure count toward a disconnect.
+        // Transient mount/focuser/filter-wheel failure: settle briefly, then
+        // re-probe once before letting the failure count toward a disconnect.
         tokio::time::sleep(Duration::from_millis(750)).await;
         self.perform_health_check_once(device_id, device_type, driver_type)
             .await

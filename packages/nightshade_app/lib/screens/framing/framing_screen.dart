@@ -137,8 +137,11 @@ class _FramingViewState extends ConsumerState<FramingView> {
     // Recompute alt/az lazily on each build (cheap trig, no IO). This naturally
     // refreshes whenever the framing target or location settings change; the
     // previous 10-second periodic timer fired even when off-tab/off-focus.
+    // Computed for the effective AIM — the point the telescope will slew to —
+    // which differs from the view-center target once the box is dragged.
     final settings = ref.watch(appSettingsProvider).valueOrNull;
-    final currentAltAz = _computeCurrentAltAz(framingState.target, settings);
+    final currentAltAz =
+        _computeCurrentAltAz(framingState.effectiveAimTarget, settings);
 
     return _buildFramingContent(
       colors,
@@ -228,6 +231,9 @@ class _FramingViewState extends ConsumerState<FramingView> {
             },
             onRotate: (angle) {
               ref.read(framingProvider.notifier).setRotation(angle);
+            },
+            onAimChanged: (raHours, decDegrees) {
+              ref.read(framingProvider.notifier).setAim(raHours, decDegrees);
             },
             onCanvasResized: (canvasSize) {
               ref.read(framingProvider.notifier).onCanvasResized(canvasSize);
@@ -365,12 +371,16 @@ class _FramingViewState extends ConsumerState<FramingView> {
         FramingActionsPanel(
           colors: colors,
           framingState: framingState,
+          // Both add-to-sequence paths capture a POINTING: the emitted target
+          // headers must carry the aim (the dragged reticle position), not the
+          // view-center target. effectiveAimTarget is non-null here because
+          // the buttons are gated on framingState.target != null.
           onAddToSequence: () => _addToSequence(
-            framingState.target!,
+            framingState.effectiveAimTarget!,
             framingState.rotation,
           ),
           onAddToExistingSequence: () => _addToExistingSequence(
-            framingState.target!,
+            framingState.effectiveAimTarget!,
             framingState.rotation,
           ),
           onSaveTarget: _saveTarget,

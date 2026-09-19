@@ -92,6 +92,7 @@ void main() {
                   equipmentResult: null,
                   onPan: (_, __, ___) {},
                   onRotate: (_) {},
+                  onAimChanged: (_, __) {},
                   onCanvasResized: (_) {},
                 ),
               ),

@@ -11,6 +11,13 @@ import 'package:nightshade_core/nightshade_core.dart';
 // app->core src-model convention used by the framing painters themselves.
 // ignore: implementation_imports
 import 'package:nightshade_core/src/models/framing_plate_scale.dart';
+// FramingSkyProjection is the shared sky<->screen mapping the gesture handlers
+// invert to turn a box-drag pixel position back into the aim's RA/Dec — the
+// exact inverse of the transform stack the overlays are drawn through, so the
+// dragged point lands on the sky point under the cursor. Same src-model import
+// convention as the plate scale above.
+// ignore: implementation_imports
+import 'package:nightshade_core/src/models/framing_hips_projection.dart';
 
 import '../../../widgets/tutorial_keys/framing_keys.dart';
 import '../painters/framing_background_painters.dart';
@@ -37,6 +44,12 @@ class FramingCanvas extends StatefulWidget {
   final void Function(double dx, double dy, Size canvasSize) onPan;
   final void Function(double angle) onRotate;
 
+  /// Fired as a drag that started INSIDE the FOV rect moves the reticle's aim
+  /// point over the (stationary) sky. Reports absolute sky coordinates — RA in
+  /// hours, Dec in degrees — projected back through the shared
+  /// [FramingSkyProjection]; wired to `FramingNotifier.setAim` by the screen.
+  final void Function(double raHours, double decDegrees) onAimChanged;
+
   /// Fired whenever the measured canvas size changes (the LayoutBuilder reports
   /// a new bounded box, e.g. when the user drags the sidebar splitter or the
   /// window resizes). Drives C9's plate-scale-aware survey re-fetch so the
@@ -50,6 +63,7 @@ class FramingCanvas extends StatefulWidget {
     required this.equipmentResult,
     required this.onPan,
     required this.onRotate,
+    required this.onAimChanged,
     required this.onCanvasResized,
   });
 
@@ -60,7 +74,15 @@ class FramingCanvas extends StatefulWidget {
 class _FramingCanvasState extends State<FramingCanvas> {
   bool _isDragging = false;
   bool _isRotating = false;
+
+  /// A drag that started inside the FOV rect: moves the reticle's AIM on the
+  /// (stationary) sky instead of panning the sky under a fixed reticle.
+  bool _isDraggingBox = false;
   Offset _lastPosition = Offset.zero;
+
+  /// Pointer offset from the box center captured at drag start, so the grabbed
+  /// spot on the reticle stays under the cursor for the whole box drag.
+  Offset _boxGrabOffset = Offset.zero;
 
   /// The real canvas size, captured from the [LayoutBuilder] in [build].
   ///
@@ -139,6 +161,118 @@ class _FramingCanvasState extends State<FramingCanvas> {
     return (previewFov, previewFov / aspect);
   }
 
+  /// The shared sky<->screen projection for the CURRENT view: resolved plate
+  /// scale, measured canvas size, live pan/zoom/rotation, and the view-center
+  /// target as the look-direction. Used by the gesture handlers both forward
+  /// (where the FOV box is drawn) and inverse (which sky point a dragged pixel
+  /// looks at).
+  ///
+  /// Returns `null` when the projection cannot be built or inverted: no framed
+  /// target to center on, or a degenerate px/deg scale — `screenToRaDec` throws
+  /// [StateError] on `pixelsPerDegree <= 0`, and a skipped drag beat is cheaper
+  /// than a crash mid-gesture.
+  FramingSkyProjection? _gestureProjection(FramingPlateScale plateScale) {
+    final state = widget.framingState;
+    final target = state.target;
+    if (target == null || _canvasSize.isEmpty) return null;
+    final projection = FramingSkyProjection.fromResolved(
+      plateScale: plateScale,
+      canvasSize: _canvasSize,
+      centerRaHours: target.raHours,
+      centerDecDegrees: target.decDegrees,
+      zoom: state.zoom,
+      pan: Offset(state.panX, state.panY),
+      rotationDegrees: state.rotation,
+    );
+    final ppd = projection.pixelsPerDegree;
+    if (ppd <= 0 || !ppd.isFinite) return null;
+    return projection;
+  }
+
+  /// The aim's UNROTATED drawn offset, in logical px, from the panned view
+  /// center — the `u` term inside `FramingSkyProjection.raDecToScreen`,
+  /// recomputed here so the FOV/mosaic overlays can be translated by
+  /// `pan + u` within the same rotate-about-canvas-center stack the survey
+  /// uses. The reticle then lands at `canvasCenter + R(rotation)·(pan + u)`,
+  /// its aim's sky position, while the survey/grid stay on plain `pan` — the
+  /// sky stays sky-locked under the moved box.
+  ///
+  /// [Offset.zero] whenever no separate aim is set, which makes the overlays
+  /// draw exactly where they always did (reticle at the view center).
+  Offset _aimOffsetPx(FramingPlateScale plateScale) {
+    final state = widget.framingState;
+    final target = state.target;
+    final aimRa = state.aimRaHours;
+    final aimDec = state.aimDecDegrees;
+    if (target == null || aimRa == null || aimDec == null) {
+      return Offset.zero;
+    }
+    final ppd = plateScale.pixelsPerDegree(_canvasSize, state.zoom);
+    if (ppd <= 0 || !ppd.isFinite) return Offset.zero;
+
+    // Mirrors raDecToScreen's inner step: the RA delta wraps to the shortest
+    // 24h path and folds by cos(view-center dec) with the same pole clamp;
+    // +x points toward increasing RA, +y toward decreasing Dec (north up).
+    final decRad = target.decDegrees * math.pi / 180.0;
+    final cosDec = math.cos(decRad);
+    final safeCosDec =
+        cosDec.abs() > 0.01 ? cosDec : (cosDec.isNegative ? -0.01 : 0.01);
+    var dRaHours = (aimRa - target.raHours) % 24.0;
+    if (dRaHours > 12.0) dRaHours -= 24.0;
+    if (dRaHours < -12.0) dRaHours += 24.0;
+    return Offset(
+      dRaHours * 15.0 * safeCosDec * ppd,
+      -(aimDec - target.decDegrees) * ppd,
+    );
+  }
+
+  /// On-screen position of the drawn FOV-box center this frame —
+  /// `raDecToScreen(effectiveAim)` == `canvasCenter + R(rotation)·(pan + u)`.
+  /// This is NOT the canvas center once the user has panned the sky or dragged
+  /// the reticle off the view center, and both the rotation-handle hit ring
+  /// and the rotate gesture's atan2 pivot anchor to it. Falls back to the
+  /// canvas center when the projection cannot run (no target / degenerate
+  /// scale), matching the pre-aim geometry.
+  Offset _boxCenterScreen(FramingPlateScale plateScale) {
+    final projection = _gestureProjection(plateScale);
+    final state = widget.framingState;
+    final aimRa = state.effectiveAimRaHours;
+    final aimDec = state.effectiveAimDecDegrees;
+    if (projection == null || aimRa == null || aimDec == null) {
+      return Offset(_canvasSize.width / 2, _canvasSize.height / 2);
+    }
+    return projection.raDecToScreen(aimRa, aimDec);
+  }
+
+  /// Whether [pointer] is inside the drawn FOV rectangle.
+  ///
+  /// The rect is centered on the aim's screen position with half-extents
+  /// `fov * ppd / 2`, rotated by [FramingState.rotation] about the CANVAS
+  /// center. The pointer is therefore un-rotated back into the painter's draw
+  /// space (the same un-rotate `screenToRaDec` performs), shifted by the box's
+  /// unrotated `pan + u` offset, and compared against the axis-aligned rect.
+  bool _isInsideFovRect(Offset pointer, FramingPlateScale plateScale) {
+    final state = widget.framingState;
+    final equipment = _equipment;
+    if (equipment == null) return false;
+    final ppd = plateScale.pixelsPerDegree(_canvasSize, state.zoom);
+    if (ppd <= 0 || !ppd.isFinite) return false;
+
+    final rotRad = state.rotation * math.pi / 180.0;
+    final cosR = math.cos(rotRad);
+    final sinR = math.sin(rotRad);
+    final center = Offset(_canvasSize.width / 2, _canvasSize.height / 2);
+    final fromCenter = pointer - center;
+    final unrotatedX = fromCenter.dx * cosR + fromCenter.dy * sinR;
+    final unrotatedY = -fromCenter.dx * sinR + fromCenter.dy * cosR;
+    final u = _aimOffsetPx(plateScale);
+    final localX = unrotatedX - state.panX - u.dx;
+    final localY = unrotatedY - state.panY - u.dy;
+
+    return localX.abs() <= equipment.fovWidthDeg * ppd / 2 &&
+        localY.abs() <= equipment.fovHeightDeg * ppd / 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -210,12 +344,29 @@ class _FramingCanvasState extends State<FramingCanvas> {
   }
 
   Widget _buildCanvas(BuildContext context, FramingPlateScale plateScale) {
+    // The aim's unrotated drawn offset from the view center. The FOV/mosaic
+    // overlays are translated by `pan + aimOffset` (still inside the
+    // rotate-about-center stack) so the reticle sits at the AIM's sky position
+    // while the survey background, grid and HiPS tiles — all left on plain
+    // `pan` — stay sky-locked underneath it. Offset.zero until the user drags
+    // the box off-center, so the default render is identical to before.
+    final aimOffset = _aimOffsetPx(plateScale);
+    final overlayOffset = Offset(
+      widget.framingState.panX + aimOffset.dx,
+      widget.framingState.panY + aimOffset.dy,
+    );
+
     return GestureDetector(
       onPanStart: (details) {
         _lastPosition = details.localPosition;
         final canvasSize = _canvasSize;
-        final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
-        final distance = (details.localPosition - center).distance;
+        final pointer = details.localPosition;
+        // The drawn box center — canvasCenter + R(rotation)·(pan + u) — is NOT
+        // the canvas center once the sky is panned or the reticle dragged
+        // off-center; both the rotation ring and the rect hit-test anchor to
+        // the box, not the canvas.
+        final boxCenter = _boxCenterScreen(plateScale);
+        final distance = (pointer - boxCenter).distance;
 
         // If clicking near the rotation handle, rotate instead of pan. The
         // handle is painted [FramingFOVPainter.rotationHandleGap] above the FOV
@@ -240,24 +391,46 @@ class _FramingCanvasState extends State<FramingCanvas> {
               FramingFOVPainter.rotationHitTolerance;
           if (distance > innerRadius && distance < outerRadius) {
             _isRotating = true;
-          } else {
-            _isDragging = true;
+            return;
           }
+          // Inside the drawn FOV rect: drag the reticle's AIM over the
+          // stationary sky rather than panning the sky under a fixed reticle.
+          // Requires a framed target — the inverse projection needs the
+          // view-center look-direction to project against. The grab offset
+          // keeps the grabbed spot under the cursor instead of snapping the
+          // box center to it.
+          if (widget.framingState.target != null &&
+              _isInsideFovRect(pointer, plateScale)) {
+            _isDraggingBox = true;
+            _boxGrabOffset = pointer - boxCenter;
+            return;
+          }
+          _isDragging = true;
         } else {
           _isDragging = true;
         }
       },
       onPanUpdate: (details) {
         if (_isRotating) {
-          final center = Offset(
-            _canvasSize.width / 2,
-            _canvasSize.height / 2,
-          );
+          // The handle rotates about the BOX center (it is painted into the
+          // box's transform, so it orbits the aim), not the canvas center.
+          final boxCenter = _boxCenterScreen(plateScale);
           final angle = math.atan2(
-            details.localPosition.dx - center.dx,
-            -(details.localPosition.dy - center.dy),
+            details.localPosition.dx - boxCenter.dx,
+            -(details.localPosition.dy - boxCenter.dy),
           );
           widget.onRotate(angle * 180 / math.pi);
+        } else if (_isDraggingBox) {
+          // Move the AIM to the sky point under the dragged spot; the sky
+          // itself does not move. screenToRaDec is the exact inverse of the
+          // rotate∘translate(pan+u) draw stack, so the box tracks the cursor
+          // under any pan/rotation/zoom.
+          final projection = _gestureProjection(plateScale);
+          if (projection != null) {
+            final aim = projection
+                .screenToRaDec(details.localPosition - _boxGrabOffset);
+            widget.onAimChanged(aim.raHours, aim.decDegrees);
+          }
         } else if (_isDragging) {
           final delta = details.localPosition - _lastPosition;
           widget.onPan(delta.dx, delta.dy, _canvasSize);
@@ -267,6 +440,14 @@ class _FramingCanvasState extends State<FramingCanvas> {
       onPanEnd: (_) {
         _isDragging = false;
         _isRotating = false;
+        _isDraggingBox = false;
+      },
+      // A cancelled gesture (lost arena) never reaches onPanEnd — without this
+      // a stale _isDraggingBox would hijack the NEXT drag's classification.
+      onPanCancel: () {
+        _isDragging = false;
+        _isRotating = false;
+        _isDraggingBox = false;
       },
       // Hard-clip the entire canvas to its bounded box. Several layers paint
       // beyond their own RenderBox via raw canvas ops: in particular
@@ -358,13 +539,16 @@ class _FramingCanvasState extends State<FramingCanvas> {
               // center OUTERMOST, translate by pan INNERMOST. (Reversing these —
               // translate outer, rotate inner — drifts the reticle off the
               // imagery by rotate(pan) - pan whenever rotation != 0 and pan != 0.)
+              //
+              // The translate is by `pan + u` — pan (the view, shared with the
+              // sky) PLUS the aim's unrotated sky offset — so the box sits at
+              // the AIM's position while the background stays on plain `pan`.
               if (_showEquipmentOverlay && _equipment != null)
                 Center(
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: Transform.translate(
-                      offset: Offset(
-                          widget.framingState.panX, widget.framingState.panY),
+                      offset: overlayOffset,
                       child: CustomPaint(
                         painter: FramingEquipmentFOVOverlayPainter(
                           fovWidth: _equipment!.fovWidthDeg,
@@ -386,14 +570,14 @@ class _FramingCanvasState extends State<FramingCanvas> {
               // FOV overlay - Show when equipment is configured and preview FOV <= equipment FOV
               // Same rotate-outer / translate-inner order as the background and
               // the larger-than-equipment overlay above, so the reticle stays
-              // co-registered with the survey imagery under pan + rotation.
+              // co-registered with the survey imagery under pan + rotation —
+              // and the same `pan + u` translate so the box rides at the aim.
               if (_hasEquipment && _equipment != null && !_showEquipmentOverlay)
                 Center(
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: Transform.translate(
-                      offset: Offset(
-                          widget.framingState.panX, widget.framingState.panY),
+                      offset: overlayOffset,
                       child: CustomPaint(
                         key: FramingTutorialKeys.fovRect,
                         painter: FramingFOVPainter(
@@ -414,7 +598,11 @@ class _FramingCanvasState extends State<FramingCanvas> {
               // Mosaic grid overlay
               // Same rotate-outer / translate-inner order as the background and
               // FOV overlays so the mosaic panels stay co-registered with the
-              // survey imagery under pan + rotation.
+              // survey imagery under pan + rotation. The painter draws a rigid
+              // grid centered on its origin (it does NOT project the panels'
+              // centerRa/Dec), so it needs the same `pan + u` translate: the
+              // grid's painted center is the aim — matching the panels
+              // _recalculateMosaicPanels computes around the effective aim.
               if (widget.framingState.mosaicEnabled &&
                   _hasEquipment &&
                   _equipment != null)
@@ -422,8 +610,7 @@ class _FramingCanvasState extends State<FramingCanvas> {
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: Transform.translate(
-                      offset: Offset(
-                          widget.framingState.panX, widget.framingState.panY),
+                      offset: overlayOffset,
                       child: CustomPaint(
                         painter: FramingMosaicGridPainter(
                           config: widget.framingState.mosaicConfig,
@@ -511,9 +698,14 @@ class _FramingCanvasState extends State<FramingCanvas> {
                             Flexible(
                               child: Align(
                                 alignment: Alignment.centerLeft,
+                                // The card reports where the telescope will
+                                // point — the effective aim (the picked
+                                // object's name/catalog id, the dragged
+                                // reticle's coordinates) — not the view center.
                                 child: FramingTargetInfoOverlay(
                                   colors: widget.colors,
-                                  target: widget.framingState.target!,
+                                  target:
+                                      widget.framingState.effectiveAimTarget!,
                                 ),
                               ),
                             ),

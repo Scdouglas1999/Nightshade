@@ -40,6 +40,40 @@ fn get_discovery_cache() -> &'static Mutex<Option<DiscoveryCache>> {
 /// Discovery can still be triggered manually via the UI refresh button.
 const CACHE_TTL: Duration = Duration::from_secs(60);
 
+/// True when a vendor discovery error means "the SDK is not installed on
+/// this host" — the overwhelmingly common case for gear the user does not
+/// own — rather than "a present SDK failed". Absent SDKs log at debug so a
+/// host without e.g. the Moravian gxccd library doesn't emit a WARN line
+/// every discovery cycle; a present-but-broken SDK yields a different error
+/// and still warns.
+///
+/// Matching is textual because vendor `get_sdk()` flattens
+/// `VendorLoadError` into `NativeError::SdkError(String)` at the vendor
+/// boundary. "candidate library paths" is the canonical
+/// `VendorLoadError::PathNotFound` phrasing from `sdk_loader.rs` — the
+/// `LoadLibraryExW`/`dlopen` failure that text carries is the actual
+/// not-installed signal on Windows/Linux. Bare "not found" is
+/// deliberately NOT a signal: `SymbolNotFound` ends in "symbol not
+/// found" and must keep warning (a resolved-but-mismatched SDK is
+/// actionable, not absent).
+fn is_sdk_not_installed_error(e: &NativeError) -> bool {
+    // The unambiguous signal needs no string inspection.
+    if matches!(e, NativeError::SdkNotLoaded) {
+        return true;
+    }
+    let m = e.to_string().to_lowercase();
+    // Everything below presumes a flattened SDK-load failure payload —
+    // without sdk/library context a bare "device not found" or similar
+    // must not be misread as an absent SDK.
+    if !m.contains("sdk") && !m.contains("library") {
+        return false;
+    }
+    m.contains("not loaded")
+        || m.contains("failed to load")
+        || m.contains("no such file")
+        || m.contains("candidate library paths")
+}
+
 /// Information about a discovered native device
 #[derive(Debug, Clone)]
 pub struct NativeDeviceInfo {
@@ -537,12 +571,7 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             // overwhelmingly common case for users without a Moravian camera —
             // log at debug, not a per-discovery-cycle WARN flood. A genuinely
             // present-but-broken SDK yields a different error and still warns.
-            let m = e.to_string().to_lowercase();
-            if m.contains("not loaded")
-                || m.contains("failed to load")
-                || m.contains("not found")
-                || m.contains("no such file")
-            {
+            if is_sdk_not_installed_error(&e) {
                 tracing::debug!(
                     "Moravian camera discovery skipped (SDK not installed): {}",
                     e
@@ -592,12 +621,7 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                 // Expected (and common) when the Fujifilm X-Acquire SDK is not
                 // installed — log at debug rather than a per-cycle WARN flood.
                 // A present-but-broken SDK yields a different error and warns.
-                let m = e.to_string().to_lowercase();
-                if m.contains("not loaded")
-                    || m.contains("failed to load")
-                    || m.contains("not found")
-                    || m.contains("no such file")
-                {
+                if is_sdk_not_installed_error(&e) {
                     tracing::debug!(
                         "Fujifilm camera discovery skipped (SDK not installed): {}",
                         e
@@ -765,4 +789,69 @@ pub async fn discover_vendor_devices(
         .into_iter()
         .filter(|d| d.vendor == vendor)
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The verbatim Moravian log line from a Windows host without the
+    /// gxccd SDK: `VendorLoadError::PathNotFound` flattened into
+    /// `NativeError::SdkError` by `get_sdk()`. This is the exact message
+    /// that used to WARN every discovery cycle.
+    #[test]
+    fn sdk_not_installed_classifies_path_not_found() {
+        let e = NativeError::SdkError(
+            "Moravian: none of 30 candidate library paths could be opened; \
+             last error: LoadLibraryExW failed"
+                .to_string(),
+        );
+        assert!(is_sdk_not_installed_error(&e));
+    }
+
+    #[test]
+    fn sdk_not_installed_classifies_sdk_not_loaded_variant() {
+        assert!(is_sdk_not_installed_error(&NativeError::SdkNotLoaded));
+    }
+
+    #[test]
+    fn sdk_not_installed_classifies_flattened_load_failure() {
+        let e = NativeError::SdkError(
+            "Fujifilm: SDK failed to load libxapi.dll".to_string(),
+        );
+        assert!(is_sdk_not_installed_error(&e));
+    }
+
+    /// A library that EXISTS but fails to open (corrupt binary, wrong
+    /// arch, missing transitive dep) must keep warning — that's an
+    /// actionable broken install, not an absent SDK.
+    #[test]
+    fn sdk_not_installed_does_not_swallow_library_open_failure() {
+        let e = NativeError::SdkError(
+            "Moravian: library at 'C:\\gxccd.dll' could not be opened: \
+             LoadLibraryExW failed"
+                .to_string(),
+        );
+        assert!(!is_sdk_not_installed_error(&e));
+    }
+
+    /// A resolved-library-but-missing-symbol failure (SDK version
+    /// mismatch) must keep warning.
+    #[test]
+    fn sdk_not_installed_does_not_swallow_symbol_failure() {
+        let e = NativeError::SdkError(
+            "Moravian: failed to resolve symbol 'gxccd_enumerate' from \
+             'C:\\gxccd.dll': symbol not found"
+                .to_string(),
+        );
+        assert!(!is_sdk_not_installed_error(&e));
+    }
+
+    /// Errors without SDK/library context must not be misclassified —
+    /// e.g. a device-level "not found" still deserves a warning.
+    #[test]
+    fn sdk_not_installed_requires_sdk_context() {
+        let e = NativeError::DeviceNotFound("native:moravian:0".to_string());
+        assert!(!is_sdk_not_installed_error(&e));
+    }
 }

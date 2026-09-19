@@ -246,6 +246,16 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     saveUndo();
   }
 
+  /// Whether the editor can be mutated right now — the same gate
+  /// [_ensureEditable] enforces, for callers that want to SKIP an edit rather
+  /// than throw on it (the remote-sync editor mirror). `true` when no [Ref]
+  /// is wired (test fixtures without an execution-state provider).
+  bool get isEditableNow {
+    final ref = _ref;
+    if (ref == null) return true;
+    return _isEditable(ref.read(sequenceExecutionStateProvider));
+  }
+
   /// Guard mutating operations against being called while the sequence is
   /// running. Throws [SequenceLockedException] when blocked.
   ///

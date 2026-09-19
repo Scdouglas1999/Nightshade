@@ -78,11 +78,26 @@ class GuideStarQuery {
   /// painted markers so a dense field does not flood the overlay.
   final int maxCandidates;
 
+  /// Sky center, in RA hours, of the FOV rectangle candidates must fall inside.
+  ///
+  /// `null` (the default) means the projection's look-direction center — the
+  /// long-standing behavior where the reticle sits at the view center. When the
+  /// user has dragged the FOV box off-center, the overlay passes the reticle's
+  /// AIM here so "inside the frame" is measured against where the box actually
+  /// is, not where the camera is looking.
+  final double? centerRaHours;
+
+  /// Dec counterpart of [centerRaHours]; when only one of the pair is supplied
+  /// the projection's center is used for the missing axis.
+  final double? centerDecDegrees;
+
   const GuideStarQuery({
     this.maxMagnitude = 10.0,
     required this.fovWidthDeg,
     required this.fovHeightDeg,
     this.maxCandidates = 12,
+    this.centerRaHours,
+    this.centerDecDegrees,
   });
 }
 
@@ -131,8 +146,9 @@ class GuideStarCandidate {
       'mag: $magnitude, screen: $screenPosition)';
 }
 
-/// Selects bright catalog stars usable as guide stars within the FOV centered on
-/// [projection]'s look-direction, and projects each onto the canvas.
+/// Selects bright catalog stars usable as guide stars within the FOV centered
+/// on [query]'s center (defaulting to [projection]'s look-direction), and
+/// projects each onto the canvas.
 ///
 /// A star qualifies when ALL of:
 ///  * it has a magnitude and that magnitude is `<= query.maxMagnitude`
@@ -157,8 +173,11 @@ List<GuideStarCandidate> findGuideStarCandidates({
   final halfHeightDeg = query.fovHeightDeg.abs() / 2.0;
   if (halfWidthDeg <= 0 || halfHeightDeg <= 0) return const [];
 
-  final centerRaHours = projection.centerRaHours;
-  final centerDecDeg = projection.centerDecDegrees;
+  // The FOV center the inside test is measured against: the query's explicit
+  // center when the overlay passes the dragged reticle's aim, else the
+  // projection's look-direction (view-center target).
+  final centerRaHours = query.centerRaHours ?? projection.centerRaHours;
+  final centerDecDeg = query.centerDecDegrees ?? projection.centerDecDegrees;
   final cosDec = math.cos(centerDecDeg * math.pi / 180.0);
   // Match the projection's pole clamp so RA-folding stays finite near the poles.
   final safeCosDec = cosDec.abs() > 0.01

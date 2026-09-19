@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/models/backend/device_types.dart';
 import 'package:nightshade_core/src/models/backend/event_types.dart';
+import 'package:nightshade_core/src/models/errors/server_error.dart';
 
 void main() {
   group('NetworkBackend WebSocket heartbeat', () {
@@ -731,6 +732,194 @@ void main() {
         } finally {
           backend.dispose();
           await server.close(force: true);
+        }
+      },
+    );
+  });
+
+  group('auth rejection', () {
+    /// Shared fake: /api/info answers compatibly; everything else is
+    /// configurable per-test via the handlers map. Returns the server and
+    /// a hit-counter keyed by request path.
+    Future<({HttpServer server, Map<String, int> hits})> startAuthFake({
+      Map<String, int> statusByPath = const {},
+      Map<String, Map<String, dynamic>> bodyByPath = const {},
+    }) async {
+      final hits = <String, int>{};
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        final path = request.uri.path;
+        hits[path] = (hits[path] ?? 0) + 1;
+        if (path == '/api/info') {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode(const {'version': '2.5.0'}));
+          await request.response.close();
+          return;
+        }
+        final status = statusByPath[path];
+        if (status != null) {
+          request.response
+            ..statusCode = status
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode(
+                bodyByPath[path] ??
+                    const {
+                      'error': 'Access denied',
+                      'message': 'Invalid authentication token',
+                    },
+              ),
+            );
+          await request.response.close();
+          return;
+        }
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      });
+      return (server: server, hits: hits);
+    }
+
+    test('a 403 ticket mint latches rejection: terminal error, no upgrade, '
+        'no further wire traffic', () async {
+      final fake = await startAuthFake(
+        statusByPath: {'/api/ws/ticket': HttpStatus.forbidden},
+      );
+      final backend = NetworkBackend(
+        serverHost: InternetAddress.loopbackIPv4.address,
+        serverPort: fake.server.port,
+        webSocketPort: fake.server.port,
+        authToken: 'dead-token',
+        autoConnectWebSocket: false,
+      );
+      final rejectedEvent = backend.eventStream
+          .firstWhere((e) => e.eventType == 'AuthenticationRejected')
+          .timeout(const Duration(seconds: 2));
+
+      try {
+        await backend.connect();
+
+        expect(backend.connectionState, BackendConnectionState.error);
+        expect(backend.isAuthTokenRejected, isTrue);
+        await rejectedEvent;
+        // The doomed /events upgrade must never be attempted — one
+        // ticket-mint 403 is enough to know the token is dead.
+        expect(fake.hits['/events'], isNull);
+        expect(fake.hits['/api/ws/ticket'], 1);
+
+        // Subsequent API calls fail fast locally instead of feeding the
+        // server's auth-failure limiter.
+        await expectLater(
+          backend.getSessionStatus(),
+          throwsA(
+            isA<ServerError>().having(
+              (e) => e.code,
+              'code',
+              'invalid_auth_token',
+            ),
+          ),
+        );
+        expect(
+          fake.hits['/api/session/status'],
+          isNull,
+          reason: 'fail-fast must not reach the wire',
+        );
+      } finally {
+        backend.dispose();
+        await fake.server.close(force: true);
+      }
+    });
+
+    test(
+      'a refused WS upgrade (legacy ?token= path) latches rejection',
+      () async {
+        final fake = await startAuthFake(
+          statusByPath: {
+            // No ticket endpoint -> the client falls back to ?token= on
+            // the upgrade, which the auth gate then refuses with 403.
+            '/api/ws/ticket': HttpStatus.notFound,
+            '/events': HttpStatus.forbidden,
+          },
+        );
+        final backend = NetworkBackend(
+          serverHost: InternetAddress.loopbackIPv4.address,
+          serverPort: fake.server.port,
+          webSocketPort: fake.server.port,
+          authToken: 'dead-token',
+          autoConnectWebSocket: false,
+        );
+
+        try {
+          await backend.connect();
+
+          expect(backend.connectionState, BackendConnectionState.error);
+          expect(backend.isAuthTokenRejected, isTrue);
+          expect(fake.hits['/events'], 1);
+        } finally {
+          backend.dispose();
+          await fake.server.close(force: true);
+        }
+      },
+    );
+
+    test('a non-auth refusal stays on the reconnect path (no latch)', () async {
+      final fake = await startAuthFake(
+        statusByPath: {
+          '/api/ws/ticket': HttpStatus.notFound,
+          // 429 = server-side lockout is transient; the token may be
+          // fine once the window clears, so no terminal latch.
+          '/events': HttpStatus.tooManyRequests,
+        },
+      );
+      final backend = NetworkBackend(
+        serverHost: InternetAddress.loopbackIPv4.address,
+        serverPort: fake.server.port,
+        webSocketPort: fake.server.port,
+        authToken: 'dead-token',
+        autoConnectWebSocket: false,
+      );
+
+      try {
+        await backend.connect();
+        expect(backend.isAuthTokenRejected, isFalse);
+        expect(backend.connectionState, isNot(BackendConnectionState.error));
+      } finally {
+        backend.dispose();
+        await fake.server.close(force: true);
+      }
+    });
+
+    test(
+      'reconnectNow re-probes the wire (and re-latches if still rejected)',
+      () async {
+        final fake = await startAuthFake(
+          statusByPath: {'/api/ws/ticket': HttpStatus.forbidden},
+        );
+        final backend = NetworkBackend(
+          serverHost: InternetAddress.loopbackIPv4.address,
+          serverPort: fake.server.port,
+          webSocketPort: fake.server.port,
+          authToken: 'dead-token',
+          autoConnectWebSocket: false,
+        );
+
+        try {
+          await backend.connect();
+          expect(backend.isAuthTokenRejected, isTrue);
+          expect(fake.hits['/api/ws/ticket'], 1);
+
+          // Manual retry is the operator's escape hatch after re-pairing:
+          // it must actually reach the server, not be swallowed by the
+          // terminal latch.
+          await backend.reconnectNow();
+          expect(fake.hits['/api/ws/ticket'], 2);
+          // Token is still dead, so the latch re-engages.
+          expect(backend.isAuthTokenRejected, isTrue);
+          expect(backend.connectionState, BackendConnectionState.error);
+        } finally {
+          backend.dispose();
+          await fake.server.close(force: true);
         }
       },
     );

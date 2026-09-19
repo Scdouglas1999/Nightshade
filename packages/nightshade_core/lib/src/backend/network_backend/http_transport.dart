@@ -69,6 +69,11 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     }
 
     authToken = refreshedToken;
+    // New credentials invalidate a previously-latched auth rejection — the
+    // host rejected the OLD token, not this one, so let requests (and the
+    // next WS connect) actually reach the wire.
+    _rejectedAuthToken = null;
+    _authRejected = false;
     headers = _buildRequestHeaders(
       endpoint,
       jsonContent: jsonContent,
@@ -119,6 +124,8 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
     await response.drain<void>();
     authToken = refreshedToken;
+    _rejectedAuthToken = null;
+    _authRejected = false;
     return send();
   }
 
@@ -191,6 +198,7 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     String method,
     String endpoint,
   ) {
+    _markAuthRejectedIfTerminal(statusCode, responseBody, method, endpoint);
     // Try to parse as structured error JSON
     try {
       final json = jsonDecode(responseBody);
@@ -268,6 +276,31 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     );
   }
 
+  /// Latch the terminal auth-rejection flags when the server definitively
+  /// refuses the bearer token: a `403` whose body carries the auth
+  /// middleware's "Invalid authentication token" message.
+  ///
+  /// This runs inside the single error choke point every JSON helper (and
+  /// the raw download path) funnels through, so one dead-token response is
+  /// enough — after it latches, [_retryableRequest] fails fast without
+  /// touching the wire and [_connect] stops retrying, keeping a dead token
+  /// from flooding the server's per-IP auth-failure limiter into a `429`
+  /// lockout. Scope denials ("Insufficient scope", session-ownership 403s)
+  /// carry a different message and deliberately do NOT latch: a view-scope
+  /// token refused by a control endpoint is still valid for view traffic.
+  void _markAuthRejectedIfTerminal(
+    int statusCode,
+    String responseBody,
+    String method,
+    String endpoint,
+  ) {
+    if (statusCode != HttpStatus.forbidden ||
+        !responseBody.contains('Invalid authentication token')) {
+      return;
+    }
+    _latchAuthRejection('$method $endpoint');
+  }
+
   /// Retry a request with exponential backoff
   /// Max 3 attempts for transient failures only
   Future<T> _retryableRequest<T>(
@@ -275,6 +308,23 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     int maxAttempts = 3,
     Duration? timeout,
   }) async {
+    // Fail fast once the host has definitively rejected this exact token:
+    // every call would 403 anyway, and each attempt feeds the server's
+    // per-IP auth-failure counter toward a `429` lockout. Throwing locally
+    // keeps the failure visible to the caller without the wire traffic.
+    // Equality (not just non-null) is the gate so a swapped-in replacement
+    // token is allowed through.
+    final rejected = _rejectedAuthToken;
+    if (rejected != null && rejected == authToken) {
+      throw const ServerError(
+        code: 'invalid_auth_token',
+        message:
+            'Access denied: Invalid authentication token (not retried — '
+            'the host rejected this token)',
+        httpStatus: HttpStatus.forbidden,
+      );
+    }
+
     // Null `timeout` defers to the host-tuned [requestTimeout] (30 s on LAN,
     // 60 s on a tailnet). Callers that pass an explicit value override the
     // tuning.

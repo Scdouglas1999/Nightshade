@@ -12,8 +12,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// urgent tone (info → warning → imminent) — so dismissing the calm "flip in
 /// 5h" status can never suppress the attention-grade "imminent" one. Holds the
 /// dismissed [NightshadeAlertSeverity.index]; `null` means "not dismissed". It
-/// resets to `null` whenever the flip disarms so a fresh arm cycle shows again,
-/// and is deliberately NOT persisted (a new night starts clean).
+/// resets to `null` [MeridianFlipCountdownBanner.kDismissalResetGrace] after
+/// the flip disarms — debounced so a heartbeat flap (disconnect → auto-reconnect
+/// every ~30 s) cannot un-dismiss the banner — and resets immediately when the
+/// reported pier side changes (the flip this countdown was for has happened,
+/// so a fresh cycle starts clean). Deliberately NOT persisted (a new night
+/// starts clean).
 final meridianBannerDismissedSeverityProvider =
     StateProvider<int?>((ref) => null);
 
@@ -43,6 +47,12 @@ class MeridianFlipCountdownBanner extends ConsumerStatefulWidget {
   /// starts moving.
   static const Duration kWarningThreshold = Duration(minutes: 10);
 
+  /// How long the flip must stay disarmed before an operator dismissal is
+  /// forgotten. A mount heartbeat flap disarms the countdown for tens of
+  /// seconds at a time; resetting the dismissal immediately let the banner
+  /// reappear on every auto-reconnect, so the reset waits out the flap.
+  static const Duration kDismissalResetGrace = Duration(minutes: 5);
+
   @override
   ConsumerState<MeridianFlipCountdownBanner> createState() =>
       _MeridianFlipCountdownBannerState();
@@ -51,6 +61,17 @@ class MeridianFlipCountdownBanner extends ConsumerStatefulWidget {
 class _MeridianFlipCountdownBannerState
     extends ConsumerState<MeridianFlipCountdownBanner> {
   Timer? _ticker;
+
+  /// Pending reset of the operator's dismissal, armed while the flip is
+  /// disarmed. See [MeridianFlipCountdownBanner.kDismissalResetGrace].
+  Timer? _disarmResetTimer;
+
+  /// The last pier side the countdown actually reported. Compared against
+  /// incoming states rather than the previous emission because a heartbeat
+  /// flap can blank the field (mount state resets on disconnect): an
+  /// east → (null while flapping) → west sequence is still a completed
+  /// flip, not a same-cycle re-arm.
+  String? _lastSeenPierSide;
 
   @override
   void initState() {
@@ -68,18 +89,49 @@ class _MeridianFlipCountdownBannerState
   @override
   void dispose() {
     _ticker?.cancel();
+    _disarmResetTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Reset the operator's dismissal whenever the flip disarms, so a fresh arm
-    // cycle (a new night, or the next flip after this one completes) surfaces
-    // the banner again instead of staying silenced forever.
+    // Reset the operator's dismissal once the flip has stayed disarmed for
+    // [MeridianFlipCountdownBanner.kDismissalResetGrace], so a fresh arm cycle
+    // (a new night, or the next flip after this one completes) surfaces the
+    // banner again — but a transient disconnect flap cannot un-dismiss it.
     ref.listen<MeridianCountdownState>(meridianCountdownProvider, (prev, next) {
-      if (!next.isArmed &&
-          ref.read(meridianBannerDismissedSeverityProvider) != null) {
+      // The flip this countdown was for has happened: the mount now reports
+      // the other pier side. A new cycle starts clean, grace or not.
+      final side = next.sideOfPier;
+      final pierSideChanged = side != null &&
+          _lastSeenPierSide != null &&
+          side != _lastSeenPierSide;
+      if (side != null) _lastSeenPierSide = side;
+      if (pierSideChanged) {
+        _disarmResetTimer?.cancel();
+        _disarmResetTimer = null;
         ref.read(meridianBannerDismissedSeverityProvider.notifier).state = null;
+        return;
+      }
+      if (next.isArmed) {
+        // Re-armed before the grace elapsed (e.g. auto-reconnect): the
+        // dismissal stands.
+        _disarmResetTimer?.cancel();
+        _disarmResetTimer = null;
+        return;
+      }
+      if (ref.read(meridianBannerDismissedSeverityProvider) != null &&
+          _disarmResetTimer == null) {
+        _disarmResetTimer = Timer(
+          MeridianFlipCountdownBanner.kDismissalResetGrace,
+          () {
+            _disarmResetTimer = null;
+            if (mounted) {
+              ref.read(meridianBannerDismissedSeverityProvider.notifier).state =
+                  null;
+            }
+          },
+        );
       }
     });
 
@@ -87,6 +139,10 @@ class _MeridianFlipCountdownBannerState
     // resolves to a not-armed state and [_MeridianFlipCountdownView] renders
     // nothing. The banner is ambient status, never a blocker.
     final state = ref.watch(meridianCountdownProvider);
+    // Seed the pier-side memory with the value already in force at mount; the
+    // listener above only sees CHANGES after this build. `??` keeps later
+    // builds from clobbering the tracked value (the listener owns updates).
+    _lastSeenPierSide ??= state.sideOfPier;
     final dismissedSeverityIndex =
         ref.watch(meridianBannerDismissedSeverityProvider);
     return _MeridianFlipCountdownView(

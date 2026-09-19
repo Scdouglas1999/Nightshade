@@ -296,16 +296,18 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
 
   /// Display preferences that belong to the DEVICE rendering the UI, not to
   /// the imaging host: theme (incl. red-night), accent colour, font size, UI
-  /// scale. On a remote client these persist to the LOCAL store and never
-  /// round-trip to the host. Before this, a paired phone pushed them over
-  /// `POST /api/settings` — which is admin-scoped (so a control token got
-  /// "Access denied: Token scope is not permitted", and the theme reverted)
-  /// and, worse, would have reskinned the DESKTOP to match the phone.
+  /// scale, and the side-rail collapsed state. On a remote client these
+  /// persist to the LOCAL store and never round-trip to the host. Before
+  /// this, a paired phone pushed them over `POST /api/settings` — which is
+  /// admin-scoped (so a control token got "Access denied: Token scope is not
+  /// permitted", and the theme reverted) and, worse, would have reskinned
+  /// the DESKTOP to match the phone.
   static const Set<String> _deviceLocalDisplayKeys = {
     'theme',
     'accent_color',
     'font_size',
     'ui_scale',
+    'sidebar_collapsed',
   };
 
   Future<void> _saveSetting(String key, String value) {

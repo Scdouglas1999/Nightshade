@@ -30,6 +30,9 @@ fn test_heartbeat_config_for_mount() {
     let config = HeartbeatConfig::for_mount();
     // Mounts should have more frequent monitoring
     assert_eq!(config.base_interval_secs, 5);
+    // Three misses (each double-probed) before teardown — one transient
+    // STA-queue timeout must not drop a tracking mount.
+    assert_eq!(config.failure_threshold, 3);
     // Mounts should auto-reconnect to maintain tracking
     assert!(config.auto_reconnect);
     assert_eq!(config.max_reconnect_attempts, 5);
@@ -98,9 +101,11 @@ fn test_heartbeat_config_non_critical_failure_thresholds_raised() {
     // four missed pings tolerated, and never a teardown.
     assert_eq!(HeartbeatConfig::for_safety_monitor().failure_threshold, 4);
 
-    // Critical/auto-reconnecting device types are intentionally unchanged.
+    // Critical/auto-reconnecting device types. The mount threshold is 3: its
+    // ASCOM probe is a COM round-trip on the shared STA worker, so one
+    // transient timeout pair must not disconnect a tracking mount.
     assert_eq!(HeartbeatConfig::for_camera().failure_threshold, 3);
-    assert_eq!(HeartbeatConfig::for_mount().failure_threshold, 2);
+    assert_eq!(HeartbeatConfig::for_mount().failure_threshold, 3);
     assert_eq!(HeartbeatConfig::for_guider().failure_threshold, 2);
     assert_eq!(HeartbeatConfig::for_dome().failure_threshold, 4);
     assert_eq!(HeartbeatConfig::for_weather().failure_threshold, 5);

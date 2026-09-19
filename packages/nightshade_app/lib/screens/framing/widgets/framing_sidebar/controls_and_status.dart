@@ -170,9 +170,10 @@ class FramingControlsSection extends ConsumerWidget {
   }
 }
 
-/// Coordinates panel: RA/Dec readout for the current target, plus computed
-/// Alt/Az with horizon warning. Copy-to-clipboard icon for the target's
-/// RA/Dec string.
+/// Coordinates panel: RA/Dec readout for where the telescope will point (the
+/// reticle's effective aim — the dragged box position, or the picked target
+/// while the box is centered), plus computed Alt/Az with horizon warning.
+/// Copy-to-clipboard icon for the aim's RA/Dec string.
 class FramingCoordinatesPanel extends StatelessWidget {
   final NightshadeColors colors;
   final FramingState framingState;
@@ -187,7 +188,7 @@ class FramingCoordinatesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final target = framingState.target;
+    final target = framingState.effectiveAimTarget;
 
     return NightshadePanel(
         key: FramingTutorialKeys.coordinates,
@@ -282,7 +283,10 @@ class FramingAltitudePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final target = framingState.target;
+    // Chart the altitude of where the telescope will actually point (the
+    // dragged reticle's effective aim), which carries the picked target's
+    // name for the chart title.
+    final target = framingState.effectiveAimTarget;
 
     if (target == null) {
       return NightshadePanel(

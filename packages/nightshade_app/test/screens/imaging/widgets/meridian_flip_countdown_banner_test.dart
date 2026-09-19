@@ -341,4 +341,138 @@ void main() {
       expect(find.textContaining('Meridian flip in'), findsOneWidget);
     });
   });
+
+  // Dismissal-reset rules: a mount heartbeat flap disarms the countdown for
+  // tens of seconds; the dismissal must survive that, but still reset for a
+  // genuinely new cycle (disarmed past the grace, or the pier side changed —
+  // the flip this countdown was for has happened).
+  group('dismissal reset grace', () {
+    /// Pump the banner with a test-owned driver behind the countdown provider
+    /// so each test can disarm / re-arm mid-flight.
+    Future<ProviderContainer> pumpDriven(
+      WidgetTester tester,
+      StateProvider<MeridianCountdownState> driver,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(900, 600);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            meridianCountdownProvider.overrideWith((ref) => ref.watch(driver)),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const Scaffold(
+              body: Center(child: MeridianFlipCountdownBanner()),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return ProviderScope.containerOf(
+        tester.element(find.byType(MeridianFlipCountdownBanner)),
+      );
+    }
+
+    StateProvider<MeridianCountdownState> armedDriver({String? sideOfPier}) =>
+        StateProvider<MeridianCountdownState>(
+          (ref) => _state(
+            isArmed: true,
+            timeToFlip: const Duration(minutes: 25),
+            sideOfPier: sideOfPier,
+          ),
+        );
+
+    testWidgets('a brief disarm does not un-dismiss the banner',
+        (tester) async {
+      final driver = armedDriver(sideOfPier: 'east');
+      final container = await pumpDriven(tester, driver);
+
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pump();
+      expect(find.textContaining('Meridian flip in'), findsNothing);
+
+      // Heartbeat flap: disarmed for 30 s (well under the 5-minute grace).
+      container.read(driver.notifier).state = _state(isArmed: false);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+
+      container.read(driver.notifier).state = _state(
+          isArmed: true,
+          timeToFlip: const Duration(minutes: 25),
+          sideOfPier: 'east');
+      await tester.pump();
+
+      expect(find.textContaining('Meridian flip in'), findsNothing);
+    });
+
+    testWidgets('a disarm past the grace resets the dismissal', (tester) async {
+      final driver = armedDriver();
+      final container = await pumpDriven(tester, driver);
+
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pump();
+      expect(find.textContaining('Meridian flip in'), findsNothing);
+
+      container.read(driver.notifier).state = _state(isArmed: false);
+      await tester.pump();
+      await tester.pump(
+        MeridianFlipCountdownBanner.kDismissalResetGrace +
+            const Duration(minutes: 1),
+      );
+
+      container.read(driver.notifier).state =
+          _state(isArmed: true, timeToFlip: const Duration(minutes: 25));
+      await tester.pump();
+
+      expect(find.textContaining('Meridian flip in'), findsOneWidget);
+    });
+
+    testWidgets('a pier-side change resets the dismissal immediately',
+        (tester) async {
+      final driver = armedDriver(sideOfPier: 'east');
+      final container = await pumpDriven(tester, driver);
+
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pump();
+      expect(find.textContaining('Meridian flip in'), findsNothing);
+
+      // The flip actually happened: the mount reports the other pier side.
+      container.read(driver.notifier).state = _state(
+          isArmed: true,
+          timeToFlip: const Duration(minutes: 25),
+          sideOfPier: 'west');
+      await tester.pump();
+
+      expect(find.textContaining('Meridian flip in'), findsOneWidget);
+    });
+
+    testWidgets(
+        'a pier-side change across a disarm gap still resets the dismissal',
+        (tester) async {
+      final driver = armedDriver(sideOfPier: 'east');
+      final container = await pumpDriven(tester, driver);
+
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pump();
+      expect(find.textContaining('Meridian flip in'), findsNothing);
+
+      // The flap blanks the pier side (mount state resets on disconnect);
+      // the mount comes back on the other side — the flip happened in the
+      // gap. Comparing prev→next alone would see null→west and miss it.
+      container.read(driver.notifier).state = _state(isArmed: false);
+      await tester.pump();
+      container.read(driver.notifier).state = _state(
+          isArmed: true,
+          timeToFlip: const Duration(minutes: 25),
+          sideOfPier: 'west');
+      await tester.pump();
+
+      expect(find.textContaining('Meridian flip in'), findsOneWidget);
+    });
+  });
 }

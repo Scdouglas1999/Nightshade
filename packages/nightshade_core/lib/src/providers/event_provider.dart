@@ -156,17 +156,37 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
 
   StreamSubscription<core.NightshadeEvent>? subscription;
 
-  // Coalesce identical toasts that arrive in a tight burst. A mass event such
+  // Coalesce identical toasts that arrive in a wide window. A mass event such
   // as "Disconnect All" makes every device emit a Disconnected/Error event,
   // often repeated as each driver tears down, and every one of those would
   // raise its own toast — hundreds-to-thousands in a single event-loop turn
   // flood the notification overlay and the Windows platform task runner
-  // ("Failed to post message to main thread"). Suppressing a repeat of the
-  // *same* (severity+title+message) toast within this window collapses a
-  // driver's teardown chatter to one visible toast; the first occurrence of
-  // every distinct error still shows.
-  const dedupeWindow = Duration(seconds: 3);
+  // ("Failed to post message to main thread"). A flapping mount heartbeat can
+  // also re-raise the same disconnect error every ~30 s poll cycle, so the
+  // window is wide enough to collapse a reconnect loop, not just a single
+  // teardown burst; the first occurrence of every distinct error still shows.
+  const dedupeWindow = Duration(seconds: 30);
   final lastShownAt = <String, DateTime>{};
+
+  // PHD2 emits a StarLost event per lost frame, so one cloudy episode is a
+  // toast-per-second flood. Latch the first one per episode. The latch only
+  // re-arms on an event that means guiding genuinely recovered or ended:
+  // while PHD2 hunts for the star it keeps emitting StarSelected, GuideStep,
+  // GuideStats and LoopingExposures per frame — the desktop log shows
+  // StarSelected ↔ StarLost alternating every ~10 s for an entire episode —
+  // so resetting on "any other guiding event" would make the latch a no-op.
+  var starLostToasted = false;
+  const starLostEpisodeEnders = {
+    'GuidingStarted', // app-state back to Guiding — lock recovered
+    'Resumed',
+    'SettleDone', // successful settle; a failed one maps to StarLost upstream
+    'GuidingStopped',
+    'Disconnected',
+    'Connected',
+    'Paused',
+    'Calibrating',
+    'CalibrationComplete',
+  };
 
   bool shouldSuppress(String dedupeKey, DateTime now) {
     // Opportunistically prune stale keys so the map can't grow without bound
@@ -182,7 +202,44 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
 
   subscription = backend.eventStream.listen(
     (event) {
+      // Star-lost episode handling runs before the info early-return so an
+      // info-severity recovery event still re-arms the latch.
+      if (event.category == core.EventCategory.guiding) {
+        if (event.eventType == 'StarLost' || event.eventType == 'LostStar') {
+          if (starLostToasted) return;
+          if (event.severity != core.EventSeverity.info) {
+            starLostToasted = true;
+          }
+        } else if (starLostEpisodeEnders.contains(event.eventType)) {
+          starLostToasted = false;
+        }
+        // Anything else — StarSelected, GuideStep, GuideStats,
+        // LoopingExposures, Settling, dither traffic, AppState — is
+        // per-frame hunt noise and leaves the latch alone.
+      }
+
       if (event.severity == core.EventSeverity.info) return;
+
+      // Heartbeat status changes carry no human message — the toast would
+      // literally read "HeartbeatStatusChanged". The Rust heartbeat emits a
+      // companion equipment Error event (with the real message) on the same
+      // poll, so nothing is lost by dropping these.
+      if (event.category == core.EventCategory.equipment &&
+          event.eventType == 'HeartbeatStatusChanged') {
+        return;
+      }
+
+      // Error/critical equipment Error events are already surfaced by
+      // DeviceService._handleDeviceError via errorService (60 s per-message
+      // dedupe + a device-aware title) — its event subscription is
+      // unconditional for every backend, host and remote client alike.
+      // Warning-severity ones still go through here.
+      if (event.category == core.EventCategory.equipment &&
+          event.eventType == 'Error' &&
+          (event.severity == core.EventSeverity.error ||
+              event.severity == core.EventSeverity.critical)) {
+        return;
+      }
 
       // PRODUCER 4 of the stop pipeline, and the one the operator actually
       // reads. Like every other producer it asks `isSequenceCancelledNotice`

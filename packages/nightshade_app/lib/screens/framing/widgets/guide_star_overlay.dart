@@ -113,10 +113,24 @@ class GuideStarOverlay extends ConsumerWidget {
 
     final colors = NightshadeColors.of(context);
 
-    // Search a cone comfortably larger than the FOV diagonal so a star near a
-    // corner is never missed by the coarse pass; the finder does the exact
-    // inside-FOV test.
-    final coneRadius = _coneRadiusDegrees(fovWidthDeg, fovHeightDeg);
+    // The inside-FOV test is measured around the reticle's AIM — which is off
+    // the view center once the user has dragged the FOV box — while the coarse
+    // cone search stays keyed on the view center (a dragged box keeps the
+    // cached catalog page; only the cone radius grows).
+    final aimRa = framingState.effectiveAimRaHours!;
+    final aimDec = framingState.effectiveAimDecDegrees!;
+
+    // The cone must still contain every star the aim-centered FOV rect could
+    // cover, so it is the usual half-diagonal margin PLUS the view-center→aim
+    // sky distance — a dragged box can sit further from the view center than
+    // the FOV half-diagonal the margin alone assumes.
+    final coneRadius = _coneRadiusDegrees(fovWidthDeg, fovHeightDeg) +
+        _skyOffsetDeg(
+          target.raHours,
+          target.decDegrees,
+          aimRa,
+          aimDec,
+        );
     final coneKey = _GuideStarConeKey(
       raHours: target.raHours,
       decDegrees: target.decDegrees,
@@ -155,6 +169,10 @@ class GuideStarOverlay extends ConsumerWidget {
               maxMagnitude: _guideStarMagnitudeLimit,
               fovWidthDeg: fovWidthDeg,
               fovHeightDeg: fovHeightDeg,
+              // "Inside the frame" is measured around the dragged reticle's
+              // aim; the projection's own center stays the view center.
+              centerRaHours: aimRa,
+              centerDecDegrees: aimDec,
             ),
           );
           if (candidates.isEmpty) return const SizedBox.expand();
@@ -177,5 +195,22 @@ class GuideStarOverlay extends ConsumerWidget {
     final halfDiagonal =
         0.5 * math.sqrt(widthDeg * widthDeg + heightDeg * heightDeg);
     return halfDiagonal * 1.2;
+  }
+
+  /// Tangent-plane angular distance (degrees) between two sky points, with the
+  /// RA axis folded by cos(dec) — the same small-field convention the shared
+  /// projection and the finder's inside test use.
+  static double _skyOffsetDeg(
+    double fromRaHours,
+    double fromDecDeg,
+    double toRaHours,
+    double toDecDeg,
+  ) {
+    var dRaHours = (toRaHours - fromRaHours) % 24.0;
+    if (dRaHours > 12.0) dRaHours -= 24.0;
+    if (dRaHours < -12.0) dRaHours += 24.0;
+    final dRaDeg = dRaHours * 15.0 * math.cos(fromDecDeg * math.pi / 180.0);
+    final dDecDeg = toDecDeg - fromDecDeg;
+    return math.sqrt(dRaDeg * dRaDeg + dDecDeg * dDecDeg);
   }
 }

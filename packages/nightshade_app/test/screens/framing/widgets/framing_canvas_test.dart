@@ -50,6 +50,7 @@ Future<ProviderContainer> _pumpCanvas(
   FramingEquipmentResult? equipmentResult,
   void Function(double, double, Size)? onPan,
   void Function(double)? onRotate,
+  void Function(double, double)? onAimChanged,
   void Function(Size)? onCanvasResized,
 }) async {
   tester.view.devicePixelRatio = 1.0;
@@ -87,6 +88,7 @@ Future<ProviderContainer> _pumpCanvas(
               equipmentResult: equipmentResult,
               onPan: onPan ?? (_, __, ___) {},
               onRotate: onRotate ?? (_) {},
+              onAimChanged: onAimChanged ?? (_, __) {},
               onCanvasResized: onCanvasResized ?? (_) {},
             ),
           ),

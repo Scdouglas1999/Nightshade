@@ -12,6 +12,26 @@ class FramingState {
   /// sequence generation without degrading to name/coordinate-only metadata.
   final TargetSuggestion? sourceSuggestion;
 
+  /// Absolute sky coordinates the FOV reticle is aimed at: where the telescope
+  /// will actually be pointed (and the mosaic capture plan is centered).
+  ///
+  /// `null` means the aim coincides with [target] — the reticle sits at the
+  /// view center, which is the default before any FOV-box drag and preserves
+  /// the long-standing "box glued to canvas center" behavior bit-for-bit.
+  ///
+  /// Why a separate field rather than folding the offset into [target]: the
+  /// target doubles as the *view center* — the sky point the survey cutout was
+  /// fetched around and the projection origin every painter shares. Moving the
+  /// reticle must not move the view center (that would slide the sky under the
+  /// box, the bug this fixes), so the aim is kept as absolute sky and the view
+  /// is free to pan underneath it — including `_recenterFromPan`, which shifts
+  /// [target] while the aim correctly stays put on the sky.
+  final double? aimRaHours;
+
+  /// Declination half of the aim point; always set/cleared together with
+  /// [aimRaHours].
+  final double? aimDecDegrees;
+
   /// Survey source for background image
   final SurveySource surveySource;
 
@@ -94,6 +114,8 @@ class FramingState {
   const FramingState({
     this.target,
     this.sourceSuggestion,
+    this.aimRaHours,
+    this.aimDecDegrees,
     this.surveySource = SurveySource.dss2Red,
     this.surveyImageBytes,
     this.surveyImage,
@@ -122,9 +144,44 @@ class FramingState {
     this.showOpticalConfigPanel = false,
   });
 
+  /// RA in hours the FOV reticle is aimed at: the explicit [aimRaHours] when
+  /// the user has dragged the box off-center, else the view-center [target]'s
+  /// RA. `null` when no target is framed.
+  double? get effectiveAimRaHours => aimRaHours ?? target?.raHours;
+
+  /// Dec counterpart of [effectiveAimRaHours].
+  double? get effectiveAimDecDegrees => aimDecDegrees ?? target?.decDegrees;
+
+  /// Where the telescope will actually point: the picked [target]'s identity
+  /// (name, catalog id, photometry) carried on the AIM's coordinates.
+  ///
+  /// Pointing consumers — slew/GoTo, add-to-sequence, the solve hint, the
+  /// on-canvas coordinate card — should read this rather than [target], whose
+  /// coordinates are the *view center* (what the survey cutout is centered on),
+  /// which only coincides with the aim when the box has not been dragged.
+  FramingTarget? get effectiveAimTarget {
+    final t = target;
+    if (t == null) return null;
+    final ra = aimRaHours;
+    final dec = aimDecDegrees;
+    if (ra == null || dec == null) return t;
+    return FramingTarget(
+      name: t.name,
+      catalogId: t.catalogId,
+      raHours: ra,
+      decDegrees: dec,
+      type: t.type,
+      magnitude: t.magnitude,
+      sizeArcmin: t.sizeArcmin,
+      constellation: t.constellation,
+    );
+  }
+
   FramingState copyWith({
     FramingTarget? target,
     TargetSuggestion? sourceSuggestion,
+    double? aimRaHours,
+    double? aimDecDegrees,
     SurveySource? surveySource,
     Uint8List? surveyImageBytes,
     ui.Image? surveyImage,
@@ -154,12 +211,22 @@ class FramingState {
     bool clearImage = false,
     bool clearTarget = false,
     bool clearSourceSuggestion = false,
+    bool clearAim = false,
   }) {
     return FramingState(
       target: clearTarget ? null : (target ?? this.target),
       sourceSuggestion: clearTarget || clearSourceSuggestion
           ? null
           : (sourceSuggestion ?? this.sourceSuggestion),
+      // An orphaned aim (no target to hang it off of) is meaningless — and
+      // would silently re-apply its offset to the NEXT target picked — so
+      // clearing the target always clears the aim too.
+      aimRaHours: (clearAim || clearTarget)
+          ? null
+          : (aimRaHours ?? this.aimRaHours),
+      aimDecDegrees: (clearAim || clearTarget)
+          ? null
+          : (aimDecDegrees ?? this.aimDecDegrees),
       surveySource: surveySource ?? this.surveySource,
       surveyImageBytes: clearImage
           ? null

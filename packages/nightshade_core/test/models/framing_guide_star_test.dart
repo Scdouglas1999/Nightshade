@@ -198,6 +198,137 @@ void main() {
     });
   });
 
+  group('findGuideStarCandidates — query center (dragged aim)', () {
+    // The FOV box dragged 0.4deg east / 0.3deg north of the view centre. The
+    // inside-FOV test must measure around THIS point while the projection that
+    // places the markers stays centred on the view (the sky the user sees).
+    final cosDec = math.cos(_centerDecDeg * math.pi / 180.0);
+    final aimRaHours = _centerRaHours + (0.4 / cosDec) / 15.0;
+    const aimDecDeg = _centerDecDeg + 0.3;
+
+    test('inside-FOV is measured around the query centre, not the projection '
+        'centre', () {
+      final query = GuideStarQuery(
+        maxMagnitude: 10.0,
+        fovWidthDeg: 1.0,
+        fovHeightDeg: 1.0,
+        centerRaHours: aimRaHours,
+        centerDecDegrees: aimDecDeg,
+      );
+
+      final stars = <GuideStarInput>[
+        // 0.6deg east of the VIEW centre: outside the unmoved box, but only
+        // 0.2deg from the dragged aim -> inside the moved box.
+        _starAtOffset(
+          id: 'nearAim',
+          eastDeg: 0.6,
+          northDeg: 0.3,
+          magnitude: 7.0,
+        ),
+        // 0.4deg west of the view centre: inside the unmoved box but 0.8deg
+        // from the aim -> outside the moved box.
+        _starAtOffset(
+          id: 'behindBox',
+          eastDeg: -0.4,
+          northDeg: 0.0,
+          magnitude: 6.0,
+        ),
+        // The view centre itself sits 0.4deg/0.3deg from the aim — still inside
+        // the moved box and NOT the aim point, so it is a legitimate guide star.
+        const GuideStarInput(
+          id: 'viewCentre',
+          name: 'viewCentre',
+          raHours: _centerRaHours,
+          decDegrees: _centerDecDeg,
+          magnitude: 8.0,
+        ),
+      ];
+
+      final withAim = findGuideStarCandidates(
+        projection: _projection(),
+        stars: stars,
+        query: query,
+      );
+      expect(withAim.map((c) => c.id).toSet(), {'nearAim', 'viewCentre'});
+
+      // Without a query centre the same stars resolve against the projection
+      // centre — 'behindBox' is inside, 'nearAim' is not, and 'viewCentre' is
+      // rejected as the target itself.
+      final withProjection = findGuideStarCandidates(
+        projection: _projection(),
+        stars: stars,
+        query: fovQuery,
+      );
+      expect(withProjection.map((c) => c.id).toList(), ['behindBox']);
+    });
+
+    test(
+      'a star at the query centre is rejected as the aim, not the target',
+      () {
+        final query = GuideStarQuery(
+          maxMagnitude: 10.0,
+          fovWidthDeg: 1.0,
+          fovHeightDeg: 1.0,
+          centerRaHours: aimRaHours,
+          centerDecDegrees: aimDecDeg,
+        );
+        final stars = <GuideStarInput>[
+          GuideStarInput(
+            id: 'atAim',
+            name: 'atAim',
+            raHours: aimRaHours,
+            decDegrees: aimDecDeg,
+            magnitude: 5.0,
+          ),
+          _starAtOffset(
+            id: 'guide',
+            eastDeg: 0.5,
+            northDeg: 0.3,
+            magnitude: 9.0,
+          ),
+        ];
+
+        final result = findGuideStarCandidates(
+          projection: _projection(),
+          stars: stars,
+          query: query,
+        );
+        expect(result.map((c) => c.id).toList(), ['guide']);
+      },
+    );
+
+    test(
+      'screen positions still project through the view-centre projection',
+      () {
+        final proj = _projection();
+        final star = _starAtOffset(
+          id: 's',
+          eastDeg: 0.55,
+          northDeg: 0.35,
+          magnitude: 7.0,
+        );
+        final result = findGuideStarCandidates(
+          projection: proj,
+          stars: [star],
+          query: GuideStarQuery(
+            maxMagnitude: 10.0,
+            fovWidthDeg: 1.0,
+            fovHeightDeg: 1.0,
+            centerRaHours: aimRaHours,
+            centerDecDegrees: aimDecDeg,
+          ),
+        );
+        expect(result, hasLength(1));
+        // The marker lands where the VIEW-centred projection puts the star — the
+        // aim only decides membership, never the marker's pixel.
+        expect(
+          result.single.screenPosition,
+          proj.raDecToScreen(star.raHours, star.decDegrees),
+        );
+      },
+    );
+  });
+
   group('findGuideStarCandidates — screen registration', () {
     test('candidate screen position matches the shared projection exactly', () {
       final proj = _projection();
