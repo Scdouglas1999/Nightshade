@@ -466,36 +466,31 @@ void main() {
       expect(response.headers['content-type'], 'application/json');
     });
 
-    test(
-      'recovery/update-config accepts a payload without the park-and-close '
-      'flag, so an older client can still save recovery settings',
-      () async {
-        // The flag is newer than the route. A client built before it exists
-        // omits it, and the honest default for a missing value is `false` —
-        // hold the run. Rejecting the payload would stop a mobile companion
-        // saving recovery settings at all, and defaulting a missing value to
-        // "park the mount" is the inference this field exists to remove.
-        final response = await translateHandlerErrors(
-          handlers.handleSequencerUpdateRecoveryConfig(
-            Request(
-              'POST',
-              Uri.parse(
-                'http://localhost/api/sequencer/recovery/update-config',
-              ),
-              body: jsonEncode({
-                'retryIntervalSecs': 600.0,
-                'maxDurationSecs': 5400.0,
-                'stopTrackingDuringRecovery': true,
-                'abortOnMeridian': true,
-                'audibleAlertWhenEntered': true,
-              }),
-            ),
+    test('recovery/update-config accepts a payload without the park-and-close '
+        'flag, so an older client can still save recovery settings', () async {
+      // The flag is newer than the route. A client built before it exists
+      // omits it, and the honest default for a missing value is `false` —
+      // hold the run. Rejecting the payload would stop a mobile companion
+      // saving recovery settings at all, and defaulting a missing value to
+      // "park the mount" is the inference this field exists to remove.
+      final response = await translateHandlerErrors(
+        handlers.handleSequencerUpdateRecoveryConfig(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/recovery/update-config'),
+            body: jsonEncode({
+              'retryIntervalSecs': 600.0,
+              'maxDurationSecs': 5400.0,
+              'stopTrackingDuringRecovery': true,
+              'abortOnMeridian': true,
+              'audibleAlertWhenEntered': true,
+            }),
           ),
-        );
-        expect(response.statusCode, isNot(HttpStatus.badRequest));
-        expect(response.headers['content-type'], 'application/json');
-      },
-    );
+        ),
+      );
+      expect(response.statusCode, isNot(HttpStatus.badRequest));
+      expect(response.headers['content-type'], 'application/json');
+    });
 
     test('recovery/current returns JSON with context key', () async {
       final response = await translateHandlerErrors(

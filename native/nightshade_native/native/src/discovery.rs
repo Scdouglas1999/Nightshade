@@ -816,9 +816,7 @@ mod tests {
 
     #[test]
     fn sdk_not_installed_classifies_flattened_load_failure() {
-        let e = NativeError::SdkError(
-            "Fujifilm: SDK failed to load libxapi.dll".to_string(),
-        );
+        let e = NativeError::SdkError("Fujifilm: SDK failed to load libxapi.dll".to_string());
         assert!(is_sdk_not_installed_error(&e));
     }
 
