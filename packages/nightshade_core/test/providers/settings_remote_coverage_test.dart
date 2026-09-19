@@ -18,6 +18,7 @@ import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
 import 'package:nightshade_core/src/providers/backend_provider.dart';
+import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
 import '../harness/in_memory_database.dart';
 
@@ -224,14 +225,14 @@ void main() {
 
     await container.read(appSettingsProvider.future);
 
-    // sidebar_collapsed is a desktop-shell UI/window pref that is NOT carried
-    // by models.AppSettings (genuinely host-local, not an imaging knob), so a
+    // start_minimized is a desktop-shell window pref that is NOT carried by
+    // models.AppSettings (genuinely host-local, not an imaging knob), so a
     // remote save of it would silently vanish on the host. The guard must
     // throw. (This is part of the true residual deny-set: window/shell UI
     // prefs, host-filesystem infra paths, the horizon-mask JSON blob, and the
     // adaptive-swap scheduler-seed cluster.)
     await expectLater(
-      container.read(appSettingsProvider.notifier).setSidebarCollapsed(true),
+      container.read(appSettingsProvider.notifier).setStartMinimized(true),
       throwsA(isA<UnsupportedError>()),
     );
 
@@ -240,6 +241,44 @@ void main() {
       isEmpty,
       reason: 'a non-remotable key must never reach the host',
     );
+  });
+
+  // sidebar_collapsed is a per-device chrome pref (like ui_scale): on a
+  // remote client it must persist to the LOCAL store — `POST /api/settings`
+  // is admin-scoped, so a control-token client used to throw before the
+  // state patch and the rail never toggled.
+  test('sidebar collapse is device-local on a remote client', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    expect(
+      container.read(appSettingsProvider).valueOrNull?.sidebarCollapsed,
+      isTrue,
+      reason: 'the rail defaults to collapsed',
+    );
+    await container
+        .read(appSettingsProvider.notifier)
+        .setSidebarCollapsed(false);
+
+    expect(
+      container.read(appSettingsProvider).valueOrNull?.sidebarCollapsed,
+      isFalse,
+    );
+    expect(
+      await container.read(settingsDaoProvider).getSetting('sidebar_collapsed'),
+      'false',
+    );
+    verifyNever(() => h.backend.updateSettings(any()));
+    verifyNever(
+      () => h.backend.updateSettingsWithCommandId(
+        any(),
+        commandId: any(named: 'commandId'),
+      ),
+    );
+    expect(container.read(appSettingsWriteFailureProvider), isNull);
   });
 
   // Full remote-settings parity 2026-06-05 — the remaining setter-reachable

@@ -174,6 +174,24 @@ abstract class _NetworkBackendTransport {
   /// distinct messaging on each.
   bool _hasEverConnected = false;
 
+  /// The auth token the host last told us is invalid (`403 Invalid
+  /// authentication token`). Non-null ⇒ every further request with the same
+  /// token is guaranteed to fail, so we fail fast locally instead of
+  /// feeding the server's auth-failure rate limiter (which escalates the
+  /// whole client into `429` lockouts). Cleared when [authToken] changes or
+  /// on an explicit reconnect. Distinct from [_authRejected]: this is the
+  /// definitive "token itself is dead" signal, so HTTP callers consult it
+  /// too.
+  String? _rejectedAuthToken;
+
+  /// Terminal auth-failure latch for the connection lifecycle. Set when the
+  /// server rejects our credentials — either an HTTP `403 Invalid
+  /// authentication token` or a WebSocket upgrade refused with `403` —
+  /// because retrying the same credentials cannot succeed and every retry
+  /// deepens the server-side auth lockout. Puts the backend in
+  /// [BackendConnectionState.error] until an explicit reconnect clears it.
+  bool _authRejected = false;
+
   /// Identity payload sent on `collaboration.join` after the WS
   /// handshake completes. The server overrides the `viewerId` with the
   /// authenticated principal's digest but we still send our
@@ -350,6 +368,16 @@ abstract class _NetworkBackendTransport {
 
   /// Current connection state
   BackendConnectionState get connectionState => _connectionState;
+
+  /// True when the host definitively rejected the current credentials —
+  /// an HTTP `403 Invalid authentication token` or a refused WebSocket
+  /// upgrade — and further requests are being refused locally instead of
+  /// hammering the server's auth-failure rate limiter. Callers (remote
+  /// session sync, background pollers) should treat this as a terminal
+  /// state — surface "re-pair required" rather than scheduling retries.
+  /// Cleared when the token is swapped or an explicit reconnect is
+  /// requested.
+  bool get isAuthTokenRejected => _authRejected;
 
   /// Stream of WebSocket ping/pong round-trip times. Emits a [Duration]
   /// every time the server's pong is received after we send a ping.

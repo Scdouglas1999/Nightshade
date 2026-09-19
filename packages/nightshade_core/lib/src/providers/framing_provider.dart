@@ -168,6 +168,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
       target: target,
       clearImage: true,
       clearSourceSuggestion: true,
+      // A fresh user-picked aim point: the reticle starts centered on the new
+      // target, so any aim dragged onto a previous target must not carry over.
+      clearAim: true,
     );
     loadSurveyImage();
 
@@ -208,6 +211,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
       target: target,
       sourceSuggestion: suggestion,
       clearImage: true,
+      clearAim: true,
     );
     loadSurveyImage();
     _rememberLastFramedTarget(target);
@@ -266,7 +270,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Set the target from a catalog search result
   void setTarget(FramingTarget target) {
-    state = state.copyWith(target: target, clearImage: true);
+    state = state.copyWith(target: target, clearImage: true, clearAim: true);
     loadSurveyImage();
     _rememberLastFramedTarget(target);
 
@@ -349,14 +353,42 @@ class FramingNotifier extends StateNotifier<FramingState> {
     setZoom(state.zoom / 1.25);
   }
 
-  /// Reset zoom and pan
+  /// Reset zoom, pan, and the dragged-out aim (the box re-centers on the
+  /// view-center target).
   void resetView() {
-    state = state.copyWith(zoom: 1.0, panX: 0, panY: 0);
+    state = state.copyWith(zoom: 1.0, panX: 0, panY: 0, clearAim: true);
   }
 
   /// Set pan offset
   void setPan(double x, double y) {
     state = state.copyWith(panX: x, panY: y);
+  }
+
+  /// Move the FOV reticle's aim point on the sky, in absolute coordinates.
+  ///
+  /// This is the "drag the FOV box, sky stays" gesture's write path: it shifts
+  /// where the telescope will point WITHOUT touching [FramingState.target]
+  /// (the view center the survey cutout and the sky<->screen projection are
+  /// anchored to) or the pan/zoom view transform — so the sky stays put while
+  /// the box moves over it.
+  ///
+  /// RA is normalized to [0, 24) hours and Dec clamped to [-90, 90], the same
+  /// bounds [_recenterFromPan] applies to the view center. When mosaic mode is
+  /// on the panel grid is a capture plan around the aim, so it is rebuilt here
+  /// exactly as [setRotation] rebuilds it. Non-finite input is dropped — a
+  /// NaN/Infinity aim would render the reticle nowhere and feed garbage into
+  /// the pointing consumers that read the effective aim.
+  void setAim(double raHours, double decDegrees) {
+    if (!raHours.isFinite || !decDegrees.isFinite) return;
+    var ra = raHours % 24.0;
+    if (ra < 0) ra += 24.0;
+    state = state.copyWith(
+      aimRaHours: ra,
+      aimDecDegrees: decDegrees.clamp(-90.0, 90.0),
+    );
+    if (state.mosaicEnabled) {
+      _recalculateMosaicPanels();
+    }
   }
 
   /// Accumulated pan, as a fraction of the survey FOV width, at which the view
@@ -622,9 +654,12 @@ class FramingNotifier extends StateNotifier<FramingState> {
     final totalWidthDeg = fovWidth + (config.columns - 1) * stepWidthDeg;
     final totalHeightDeg = fovHeight + (config.rows - 1) * stepHeightDeg;
 
-    // Center coordinates
-    final centerRa = state.target!.raHours;
-    final centerDec = state.target!.decDegrees;
+    // Center coordinates: the mosaic is a capture plan around where the
+    // telescope will point, so panels are built around the effective AIM (the
+    // dragged reticle position), not the view-center target. They coincide
+    // whenever the box has not been dragged off-center.
+    final centerRa = state.effectiveAimRaHours!;
+    final centerDec = state.effectiveAimDecDegrees!;
 
     // Frame rotation, applied to each panel's tangent-plane offset with the
     // same convention as mosaicPanelCenters so the listed coords match the
@@ -752,8 +787,10 @@ class FramingNotifier extends StateNotifier<FramingState> {
         'Durable mosaic projects must be created on the imaging host.',
       );
     }
-    final target = state.target;
-    if (target == null) return null;
+    // The project center is where the rig will point — the effective aim,
+    // which carries the picked target's name when the box has been dragged.
+    final aimTarget = state.effectiveAimTarget;
+    if (aimTarget == null) return null;
 
     final fov = await _getCurrentFOV();
     if (fov == null) return null;
@@ -762,11 +799,11 @@ class FramingNotifier extends StateNotifier<FramingState> {
     final config = state.mosaicConfig;
     final service = _ref.read(mosaicProjectServiceProvider);
     return service.createProject(
-      name: name?.trim().isNotEmpty == true ? name!.trim() : target.name,
+      name: name?.trim().isNotEmpty == true ? name!.trim() : aimTarget.name,
       rows: config.rows,
       cols: config.columns,
-      centerRa: target.raHours,
-      centerDec: target.decDegrees,
+      centerRa: aimTarget.raHours,
+      centerDec: aimTarget.decDegrees,
       overlapPct: config.overlapPercent,
       positionAngleDeg: state.rotation,
       fovWidthDeg: fovWidthDeg,

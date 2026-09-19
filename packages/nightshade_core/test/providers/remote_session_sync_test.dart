@@ -81,6 +81,9 @@ void main() {
         when(
           () => hostA.eventStream,
         ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(
+          () => hostA.connectionState,
+        ).thenReturn(BackendConnectionState.connected);
 
         when(hostB.sequencerGetStatus).thenAnswer(
           (_) async => const SequencerStatus(state: 'Idle', progress: 0),
@@ -134,6 +137,9 @@ void main() {
         when(
           () => hostB.eventStream,
         ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(
+          () => hostB.connectionState,
+        ).thenReturn(BackendConnectionState.connected);
         _stubHydrationParityEndpoints(hostB);
 
         final container = ProviderContainer(
@@ -218,6 +224,9 @@ void main() {
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(
+        () => backend.connectionState,
+      ).thenReturn(BackendConnectionState.connected);
 
       final container = ProviderContainer(
         overrides: [
@@ -279,6 +288,9 @@ void main() {
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(
+        () => backend.connectionState,
+      ).thenReturn(BackendConnectionState.connected);
 
       _stubHydrationParityEndpoints(backend);
 
@@ -304,6 +316,196 @@ void main() {
       expect(guider.connectionState, DeviceConnectionState.connected);
 
       expect(guider.deviceId, 'phd2_guider');
+    });
+
+    test('hydrates focuser capability flags from host status', () async {
+      final backend = _MockNetworkBackend();
+
+      when(() => backend.sequencerGetStatus()).thenAnswer(
+        (_) async => const SequencerStatus(state: 'Idle', progress: 0),
+      );
+      when(() => backend.getConnectedDevices()).thenAnswer(
+        (_) async => const [
+          DeviceInfo(
+            id: 'native:zwo_eaf',
+            name: 'ZWO EAF',
+            deviceType: DeviceType.focuser,
+            driverType: DriverType.native,
+            description: '',
+            driverVersion: '1.0',
+          ),
+        ],
+      );
+      when(() => backend.getFocuserStatus('native:zwo_eaf')).thenAnswer(
+        (_) async => const FocuserStatus(
+          connected: true,
+          position: 12000,
+          moving: false,
+          temperature: 12.5,
+          maxPosition: 31000,
+          stepSize: 1.0,
+          isAbsolute: true,
+          hasTemperature: true,
+        ),
+      );
+      when(() => backend.getOpenEditorSequence()).thenAnswer((_) async => null);
+      when(() => backend.phd2GetStatus()).thenAnswer(
+        (_) async => const Phd2Status(
+          state: 'Stopped',
+          connected: false,
+          rmsRa: 0,
+          rmsDec: 0,
+          rmsTotal: 0,
+          snr: 0,
+          starMass: 0,
+          avgDistance: 0,
+        ),
+      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(
+        () => backend.connectionState,
+      ).thenReturn(BackendConnectionState.connected);
+      _stubHydrationParityEndpoints(backend);
+
+      final container = ProviderContainer(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          loggingServiceProvider.overrideWithValue(LoggingService()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(remoteSessionSyncProvider);
+      await pumpEventQueue();
+
+      final focuser = container.read(focuserStateProvider);
+      expect(focuser.connectionState, DeviceConnectionState.connected);
+      // The capability flags ride the status payload; without them the slave
+      // card claims "absolute positioning is not supported" and disables
+      // Go To Position.
+      expect(focuser.isAbsolute, isTrue);
+      expect(focuser.maxPosition, 31000);
+      expect(focuser.stepSize, 1.0);
+      expect(focuser.hasTemperature, isTrue);
+      expect(focuser.position, 12000);
+    });
+
+    // While the host's sequence runs, the slave's mirrored
+    // sequenceExecutionState locks the editor — the open-editor mirror apply
+    // must SKIP rather than throw SequenceLockedException out of hydration
+    // (which used to abort PHD2 / profile / settings refreshes every 30 s).
+    test(
+      'editor mirror skips while a sequence runs; hydration continues',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(() => backend.sequencerGetStatus()).thenAnswer(
+          (_) async => const SequencerStatus(state: 'Running', progress: 0.4),
+        );
+        when(
+          () => backend.getConnectedDevices(),
+        ).thenAnswer((_) async => const []);
+        when(() => backend.getOpenEditorSequence()).thenAnswer(
+          (_) async => const {
+            'sequence': <String, dynamic>{'name': 'Host Seq', 'nodes': {}},
+            'isDirty': false,
+          },
+        );
+        when(() => backend.phd2GetStatus()).thenAnswer(
+          (_) async => const Phd2Status(
+            state: 'Guiding',
+            connected: true,
+            rmsRa: 0.5,
+            rmsDec: 0.4,
+            rmsTotal: 0.6,
+            snr: 100,
+            starMass: 500,
+            avgDistance: 0,
+          ),
+        );
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(
+          () => backend.connectionState,
+        ).thenReturn(BackendConnectionState.connected);
+        _stubHydrationParityEndpoints(backend);
+
+        final localSequence = Sequence.create(name: 'Local Seq');
+        final container = ProviderContainer(
+          overrides: [
+            inMemoryDatabaseOverride(),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            loggingServiceProvider.overrideWithValue(LoggingService()),
+            currentSequenceProvider.overrideWith((ref) {
+              final notifier = CurrentSequenceNotifier(ref: ref);
+              // ignore: invalid_use_of_protected_member
+              notifier.state = localSequence;
+              return notifier;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(remoteSessionSyncProvider);
+        await pumpEventQueue();
+
+        expect(
+          container.read(sequenceExecutionStateProvider),
+          SequenceExecutionState.running,
+        );
+        // The host's editor canvas must NOT clobber the slave's while a run
+        // owns the tree.
+        expect(container.read(currentSequenceProvider)?.name, 'Local Seq');
+        // Hydration continued past the editor step: PHD2 was still fetched
+        // and applied.
+        verify(() => backend.phd2GetStatus()).called(greaterThan(0));
+        expect(
+          container.read(guiderStateProvider).connectionState,
+          DeviceConnectionState.connected,
+        );
+      },
+    );
+
+    // A dead token used to drive an endless hydration loop: the 30 s
+    // pollTimer + every BackendReconnected event fanned out requests that
+    // could only 403, each one feeding the server's auth-failure limiter
+    // into a rolling 429. Terminal backend state must suppress hydration
+    // entirely until an explicit reconnect clears it.
+    test('no hydration fan-out while backend is in terminal error', () async {
+      final backend = _MockNetworkBackend();
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(
+        () => backend.connectionState,
+      ).thenReturn(BackendConnectionState.error);
+      // Deliberately no hydration stubs: ANY fan-out call would hit an
+      // unstubbed method — the verifyNevers below prove none was made.
+
+      final container = ProviderContainer(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          loggingServiceProvider.overrideWithValue(LoggingService()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(remoteSessionSyncProvider);
+      await pumpEventQueue(times: 10);
+
+      verifyNever(() => backend.sequencerGetStatus());
+      verifyNever(() => backend.getConnectedDevices());
+      verifyNever(() => backend.phd2GetStatus());
     });
   });
 }

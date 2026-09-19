@@ -34,6 +34,14 @@ final remoteSessionSyncProvider = Provider<void>((ref) {
   late final void Function(NetworkBackend backend) requestHydration;
   requestHydration = (backend) {
     if (!identical(ref.read(backendProvider), backend)) return;
+    // Terminal backend state (auth rejected, version/identity mismatch):
+    // every request in the hydration fan-out can only fail — and for a
+    // dead token each failure feeds the server's auth-failure limiter.
+    // Stay quiet until an explicit reconnect moves the state out of
+    // `error`. (`==` rather than `isAuthTokenRejected` so this also covers
+    // the other terminal modes, and it is null-safe under mocktail where
+    // the getter is unstubbed.)
+    if (backend.connectionState == BackendConnectionState.error) return;
     if (hydrationInFlight) {
       hydrationPending = true;
       return;

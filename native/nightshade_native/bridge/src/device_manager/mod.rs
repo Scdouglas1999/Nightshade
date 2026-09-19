@@ -154,7 +154,12 @@ impl HeartbeatConfig {
         Self {
             base_interval_secs: 5,
             max_interval_secs: 30,
-            failure_threshold: 2,
+            // One transient timeout pair must not drop a tracking mount: the
+            // ASCOM probe shares a process-wide STA worker thread, so a slow
+            // driver call can starve a single get_tracking() round-trip. The
+            // sequencer's own slew/sync calls surface a genuinely dead mount
+            // sooner than the heartbeat anyway.
+            failure_threshold: 3,
             backoff_multiplier: 1.5,
             auto_reconnect: true, // Mounts should auto-reconnect to maintain tracking
             max_reconnect_attempts: 5,

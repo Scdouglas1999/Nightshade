@@ -527,6 +527,77 @@ void main() {
       }
     },
   );
+
+  // Regression for the GUI-mode restart outage: `start()` used to skip
+  // `_hydratePairedSessionTokens` entirely when no PairingService had been
+  // injected, so a host restart evicted every previously paired client —
+  // their next request 403'd, and the client's retry loop drove the auth
+  // limiter into a rolling 429 lockout. The lazy factory stands in for the
+  // default `PairingService()` (which would resolve the real on-disk store).
+  test(
+    'start() hydrates paired tokens through the lazily-created PairingService',
+    () async {
+      final db = PairingDatabase.forTesting(NativeDatabase.memory());
+      final lazyService = PairingService(database: db);
+      addTearDown(() => lazyService.close());
+
+      const sessionToken = 'persisted-session-token';
+      await db.addPairedDevice(
+        deviceId: 'lazy-device',
+        deviceName: 'Lazy Device',
+        sessionToken: sessionToken,
+        deviceType: 'mobile',
+        expiresAt: DateTime.now().add(const Duration(days: 1)),
+        authGrantSpec: 'control',
+      );
+
+      final client = HttpClient();
+      addTearDown(() => client.close(force: true));
+      final lazyContainer = createHeadlessTestContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(
+            const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+          ),
+        ],
+      );
+      final lazyServer = HeadlessApiServer(
+        port: 0,
+        container: lazyContainer,
+        bindLocalOnly: true,
+        authToken: 'admin-token',
+        // Deliberately NO pairingService — the fix under test is that
+        // hydration itself performs the lazy construction.
+        pairingServiceFactory: () => lazyService,
+      );
+      await lazyServer.start();
+      final lazyUri = Uri.parse('http://127.0.0.1:${lazyServer.actualPort}');
+      try {
+        // The persisted token must authenticate immediately — no pairing
+        // endpoint ran to construct the service first.
+        final allowed = await _request(
+          client,
+          lazyUri,
+          '/api/devices',
+          token: sessionToken,
+        );
+        expect(allowed.statusCode, HttpStatus.ok);
+
+        // The revocation listener must also be wired on the lazy path:
+        // revoking the device evicts the token without a restart.
+        await lazyService.tokenManager.revokeDevice('lazy-device');
+        final blocked = await _request(
+          client,
+          lazyUri,
+          '/api/devices',
+          token: sessionToken,
+        );
+        expect(blocked.statusCode, HttpStatus.forbidden);
+      } finally {
+        await lazyServer.stop();
+        lazyContainer.dispose();
+      }
+    },
+  );
 }
 
 Future<_TestResponse> _request(

@@ -97,9 +97,8 @@ fn canonical_wire_document() -> serde_json::Value {
 
 #[test]
 fn the_dart_fixture_document_deserializes() {
-    let definition: SequenceDefinition =
-        serde_json::from_value(canonical_wire_document())
-            .expect("the canonical Dart wire document must deserialize");
+    let definition: SequenceDefinition = serde_json::from_value(canonical_wire_document())
+        .expect("the canonical Dart wire document must deserialize");
 
     assert_eq!(definition.id, "seq-1");
     assert_eq!(definition.nodes.len(), 3);
@@ -112,8 +111,7 @@ fn the_dart_fixture_document_deserializes() {
 
     // The L8 traps specifically: `duration_secs` (not `duration`), `count`,
     // and `binning` as the bare externally-tagged string (not an {x,y} map).
-    let NodeType::TakeExposure(exposure) = &definition.nodes[2].node_type
-    else {
+    let NodeType::TakeExposure(exposure) = &definition.nodes[2].node_type else {
         panic!("node[2] must be a TakeExposure");
     };
     assert_eq!(exposure.duration_secs, 60.0);

@@ -158,6 +158,15 @@ void _applySequenceEditorMirror(
 ) {
   final editor = _read(reader, currentSequenceProvider.notifier);
 
+  // While a run is active the executor owns the tree and every mutating call
+  // below would throw SequenceLockedException — which used to escape and
+  // abort the rest of hydration. Skip instead: the running run's tree is
+  // shown by the run dashboard, and the canvas re-syncs on the next
+  // hydration after the run ends.
+  if (!editor.isEditableNow) {
+    return;
+  }
+
   if (action == HostMutationAction.cleared) {
     // Don't wipe a slave operator's unsaved canvas just because the master
     // closed its editor.
@@ -235,7 +244,16 @@ Future<void> _hydrateOpenEditorSequence(
     // (don't clear, mirroring _applySequenceEditorMirror's dirty-safe behavior).
     return;
   }
-  _applySequenceEditorMirror(reader, HostMutationAction.updated, payload);
+  try {
+    _applySequenceEditorMirror(reader, HostMutationAction.updated, payload);
+  } catch (e) {
+    // A throw from the editor must never abort the rest of hydration (PHD2
+    // state, profile/settings invalidations, planner refreshes).
+    _read(reader, loggingServiceProvider).debug(
+      'Skipping open-editor mirror apply: $e',
+      source: 'RemoteSessionSync',
+    );
+  }
 }
 
 int? _parseSequenceId(Map<String, dynamic> data) {

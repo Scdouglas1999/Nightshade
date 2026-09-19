@@ -439,6 +439,13 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         return value is String ? current.copyWith(fontSize: value) : null;
       case 'uiScale':
         return value is String ? current.copyWith(uiScale: value) : null;
+      // Not a wire key: `_overlayDeviceLocalDisplayPrefs` replays the
+      // device-local DAO value (stored as its 'true'/'false' string) under
+      // the DB column name after a remote (re)connect.
+      case 'sidebar_collapsed':
+        return value is String
+            ? current.copyWith(sidebarCollapsed: value == 'true')
+            : null;
       case 'discordWebhook':
         return value is String ? current.copyWith(discordWebhook: value) : null;
       case 'pushoverKey':

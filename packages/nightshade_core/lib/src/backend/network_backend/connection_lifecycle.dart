@@ -40,6 +40,11 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _reconnectAttempt = 0;
+    // A manual reconnect is the operator's way out of a latched auth
+    // rejection (after re-pairing / swapping the token) — clear the
+    // terminal flags so this attempt actually reaches the wire.
+    _authRejected = false;
+    _rejectedAuthToken = null;
     developer.log(
       '[NetworkBackend] Manual reconnect requested',
       name: 'NetworkBackend',
@@ -222,6 +227,16 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     if (_disposed || _disconnecting) {
       return;
     }
+    // A latched auth rejection is terminal for these credentials: the
+    // host already told us the token is invalid, so every retry just
+    // feeds its per-IP failure limiter toward another `429` lockout.
+    // Stay in `error` until [reconnectNow] clears the latch (operator
+    // re-paired / swapped token) or a fresh token arrives via
+    // refreshAuthToken.
+    if (_authRejected) {
+      _enterAuthRejectedState();
+      return;
+    }
 
     try {
       _stopWebSocketHeartbeat();
@@ -258,6 +273,13 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
         // WebSocket URL (logs/proxies/history). Falls back to ?token= for
         // servers that predate the ticket endpoint.
         final wsTicket = await _mintWsTicket();
+        // The ticket mint is itself an authenticated request — if it just
+        // latched a rejection (dead token → 403), don't compound it with
+        // a doomed upgrade attempt.
+        if (_authRejected) {
+          _enterAuthRejectedState();
+          return;
+        }
         if (wsTicket != null) {
           queryParameters['ticket'] = wsTicket;
         } else {
@@ -406,6 +428,16 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
         },
       );
 
+      // `IOWebSocketChannel.connect` returns before the HTTP upgrade
+      // completes; `ready` resolves only when the server accepts it and
+      // throws the refusal otherwise (401/403 auth rejection, 429 auth
+      // lockout). Awaiting it is what makes `connected` mean the
+      // handshake actually succeeded — previously we marked the backend
+      // connected while the upgrade was still in flight, so a refused
+      // upgrade surfaced as a connect → hydration fan-out → disconnect
+      // thrash loop on every retry.
+      await _wsChannel!.ready.timeout(requestTimeout);
+
       // Connection successful
       _updateConnectionState(BackendConnectionState.connected);
       _hasEverConnected = true;
@@ -460,6 +492,18 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       _updateConnectionState(BackendConnectionState.error);
       return;
     } catch (e) {
+      // A refused upgrade is different from a dropped socket: 401/403
+      // means the auth gate rejected these credentials outright and
+      // retrying them cannot succeed — it only deepens the server-side
+      // auth lockout. Go terminal instead of backing off. (429 stays on
+      // the normal backoff path: the lockout is transient and the next
+      // attempt's ticket mint will see the underlying 403 once it
+      // clears, which is what latches the terminal state.)
+      if (_authRejected || _isAuthUpgradeRejection(e)) {
+        _latchAuthRejection('WebSocket upgrade refused: $e');
+        _enterAuthRejectedState();
+        return;
+      }
       developer.log(
         'Failed to connect WebSocket: $e',
         name: 'NetworkBackend',
@@ -470,9 +514,81 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     }
   }
 
+  /// True when [error] is the WebSocket upgrade being refused with an
+  /// auth status (401/403). `IOWebSocketChannel.ready` surfaces the
+  /// refusal as a `WebSocketChannelException` wrapping dart:io's
+  /// "Connection to '…' was not upgraded to websocket, HTTP status
+  /// code: NNN" — the status code in that message is the only surface
+  /// the package exposes for the refusal, so we match on it.
+  bool _isAuthUpgradeRejection(Object error) {
+    final s = error.toString();
+    return s.contains('status code: 401') || s.contains('status code: 403');
+  }
+
+  /// Latch the terminal auth-rejection flags. [_authRejected] stops the
+  /// connection lifecycle retrying; [_rejectedAuthToken] (set only when a
+  /// token was actually presented) additionally lets the HTTP helpers
+  /// fail fast. Token equality is the gate on the request side, so a
+  /// swapped-in replacement token passes without needing to clear this.
+  void _latchAuthRejection(String via) {
+    final presented = authToken;
+    if (presented != null && presented.isNotEmpty) {
+      _rejectedAuthToken = presented;
+    }
+    _authRejected = true;
+    developer.log(
+      '[NetworkBackend] Host rejected auth credentials ($via); '
+      'failing fast until the token is replaced or reconnect is requested',
+      name: 'NetworkBackend',
+      level: 1000,
+    );
+  }
+
+  /// Settle into the terminal auth-rejection state: cancel any pending
+  /// reconnect, surface `error` to the connection chip, and emit one
+  /// system event so the UI can explain WHY the session stopped instead
+  /// of showing a silent disconnect. Re-entry is idempotent — the event
+  /// only fires on the first transition into `error`.
+  void _enterAuthRejectedState() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _stopWebSocketHeartbeat();
+    // Tear down any still-open socket: a mid-session revocation reaches us
+    // through an HTTP 403 while the socket is technically alive, and a
+    // rejected credential should not keep a channel the server no longer
+    // trusts.
+    unawaited(_wsSubscription?.cancel());
+    _wsSubscription = null;
+    unawaited(_wsChannel?.sink.close());
+    _wsChannel = null;
+    final firstEntry = _connectionState != BackendConnectionState.error;
+    _updateConnectionState(BackendConnectionState.error);
+    if (firstEntry && !_eventController.isClosed) {
+      _eventController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          category: EventCategory.system,
+          eventType: 'AuthenticationRejected',
+          severity: EventSeverity.error,
+          data: const {
+            'message':
+                'The host rejected this device\'s access token. '
+                'Re-pair or update the token to reconnect.',
+          },
+        ),
+      );
+    }
+  }
+
   /// Handle connection failures with exponential backoff
   void _handleConnectionFailure() {
     if (_disposed || _disconnecting) {
+      return;
+    }
+    // If a request path already latched a rejection (e.g. the host revoked
+    // the token mid-session), don't arm a doomed retry — go terminal now.
+    if (_authRejected) {
+      _enterAuthRejectedState();
       return;
     }
     _stopWebSocketHeartbeat();

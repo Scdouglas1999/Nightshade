@@ -22,6 +22,9 @@ void _applyEquipmentEvent(
         data['device_id'] as String?,
         data['device_name'] as String?,
       );
+      if (networkBackend != null) {
+        _fetchConnectedFocuserCaps(reader, networkBackend, data);
+      }
       // Do NOT invalidate equipmentProfilesProvider here. A device
       // connecting/disconnecting does not change the profile LIST or the active
       // profile, but on a slave equipmentProfilesProvider is network-backed:
@@ -253,6 +256,38 @@ void _applyEquipmentTelemetry(
       }
       break;
   }
+}
+
+/// Slave-only: a `Connected` equipment event carries no focuser capability
+/// flags, so a focuser that connects on the host between 30 s hydration ticks
+/// leaves the slave's card claiming absolute positioning is unsupported.
+/// Backfill the caps from one status fetch; telemetry-only, errors swallowed
+/// (the next hydration repoll retries).
+void _fetchConnectedFocuserCaps(
+  Object reader,
+  NetworkBackend backend,
+  Map<String, dynamic> data,
+) {
+  final deviceType = data['device_type'] as String?;
+  final deviceId = data['device_id'] as String?;
+  if (deviceType == null ||
+      deviceId == null ||
+      deviceTypeFromWireName(deviceType) != DeviceType.focuser) {
+    return;
+  }
+  unawaited(() async {
+    try {
+      final status = await backend.getFocuserStatus(deviceId);
+      final notifier = _read(reader, focuserStateProvider.notifier);
+      if (notifier.deviceId != deviceId) return;
+      notifier.setConnected(
+        maxPosition: status.maxPosition,
+        stepSize: status.stepSize,
+        isAbsolute: status.isAbsolute,
+        hasTemperature: status.hasTemperature,
+      );
+    } catch (_) {}
+  }());
 }
 
 void _invalidateEquipmentSyncProviders(Object reader) {

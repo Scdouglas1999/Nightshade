@@ -202,9 +202,11 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // Mosaic planner: visual planner + grid/overlap/filter controls +
           // "Create mosaic project". Seeded from the framed target when there
           // is one, so opening it after framing something lands on that object
-          // rather than at 0h/0deg.
+          // rather than at 0h/0deg. The effective aim is used (not the
+          // view-center target) so a reticle dragged off-center seeds the
+          // wizard at the point the telescope would actually point.
           void openMosaicWizard() {
-            final framedTarget = ref.read(framingProvider).target;
+            final framedTarget = ref.read(framingProvider).effectiveAimTarget;
             showDialog<void>(
               context: context,
               builder: (_) => MosaicWizardDialog(

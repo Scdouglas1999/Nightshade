@@ -318,10 +318,12 @@ class _CoImagingSectionState extends ConsumerState<_CoImagingSection> {
     setState(() => _starting = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      // Prefill from the current framing target when one is set, so "start a
+      // Prefill from the current framing aim when one is set, so "start a
       // session on what I'm looking at" is one tap; the sheet stays fully
-      // editable and works with no framing target too.
-      final framingTarget = ref.read(framingProvider).target;
+      // editable and works with no framing target too. The effective aim (not
+      // the view-center target) carries where the reticle — and therefore the
+      // telescope — will actually point when the FOV box was dragged.
+      final framingTarget = ref.read(framingProvider).effectiveAimTarget;
       final session = await showCoImagingCreateSheet(
         context,
         initialTargetName: framingTarget?.name,

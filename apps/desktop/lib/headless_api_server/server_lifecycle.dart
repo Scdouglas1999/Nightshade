@@ -341,22 +341,20 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   /// fine-grained pairing keeps exactly the same authority after a restart.
   /// Legacy v3 rows are migrated to the historical `control` default.
   Future<void> _hydratePairedSessionTokens() async {
-    // Skip hydration when no PairingService is available. The service is
-    // either injected via the constructor (tests / GUI in-memory pairing
-    // DB) or lazily constructed via [_ensurePairingService] on first use.
-    // Constructing it eagerly inside `start()` would force every test that
-    // does NOT exercise pairing to open the on-disk Drift DB, which in
-    // turn needs path_provider — which is unavailable in widget-test
-    // bindings. The verify endpoint still lazy-creates the service on
-    // first paired call.
-    final service = _pairingService;
-    if (service == null) {
-      _logInfo(
-        '[AUTH] Skipping paired-session hydration: no PairingService '
-        'configured yet (will be created on first pairing request).',
-      );
-      return;
-    }
+    // The service is either injected via the constructor (tests / GUI
+    // in-memory pairing DB) or lazily constructed here via
+    // [_ensurePairingService]. Lazy construction is safe inside `start()`:
+    // `PairingDatabase()` wraps a `LazyDatabase`, so no file is opened until
+    // the first query below — and that query runs inside the try/catch, so
+    // a widget-test binding without path_provider just logs the hydration
+    // failure instead of crashing startup.
+    //
+    // Why not skip when no service exists: a host restart that skips
+    // hydration leaves every previously paired client permanently rejected
+    // as "invalid token" until some pairing endpoint happens to run — which
+    // a thin client never calls. The restart then looks like the clients
+    // broke. Always hydrating on start makes persisted pairings survive.
+    final service = _ensurePairingService();
     try {
       final rows = await service.tokenManager.getActiveUnexpiredPairedDevices();
       var restored = 0;
@@ -785,9 +783,18 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     _collaborationManager.dispose();
     // Why close the pairing DB: PairingService owns a Drift connection.
     // Leaving it open across server restarts leaks file handles in tests.
+    // Best-effort: if the underlying LazyDatabase never opened (e.g. startup
+    // hydration failed before the file could be resolved), close() rethrows
+    // the open error — nothing is actually open to close, so swallow it.
     final pairing = _pairingService;
     if (pairing != null) {
-      await pairing.close();
+      try {
+        await pairing.close();
+      } catch (e, st) {
+        _logWarning(
+          '[AUTH] Pairing database close failed during stop: $e\n$st',
+        );
+      }
       _pairingService = null;
     }
   }

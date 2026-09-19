@@ -329,6 +329,25 @@ fn is_inter_response_framing(byte: u8) -> bool {
     matches!(byte, b'\r' | b'\n' | b'\0')
 }
 
+/// Windows reports an exclusively-held serial port as "Access is denied",
+/// which reads like a permissions problem. Spell out the likely culprit —
+/// Pegasus Unity or an ASCOM driver already holding the port (same detection
+/// as the discovery scans in lx200/discovery.rs and skywatcher.rs).
+fn serial_open_error_message(port_name: &str, error_message: &str) -> String {
+    let is_access_denied = error_message.contains("Access is denied")
+        || error_message.contains("access is denied")
+        || error_message.contains("Permission denied")
+        || error_message.contains("permission denied");
+    if is_access_denied {
+        format!(
+            "Serial port {} is already open in another application (Pegasus Unity or an ASCOM driver?). Close it there, or connect this mount through ASCOM instead.",
+            port_name
+        )
+    } else {
+        format!("Failed to open serial port: {}", error_message)
+    }
+}
+
 #[async_trait]
 impl NativeDevice for Lx200Mount {
     fn id(&self) -> &str {
@@ -357,7 +376,9 @@ impl NativeDevice for Lx200Mount {
         let serial = serialport::new(&self.port_name, self.baud_rate)
             .timeout(Duration::from_millis(500))
             .open()
-            .map_err(|e| NativeError::SdkError(format!("Failed to open serial port: {}", e)))?;
+            .map_err(|e| {
+                NativeError::SdkError(serial_open_error_message(&self.port_name, &e.to_string()))
+            })?;
 
         *self
             .serial_port
@@ -438,7 +459,7 @@ impl NativeDevice for Lx200Mount {
 
 #[cfg(test)]
 mod tests {
-    use super::is_inter_response_framing;
+    use super::{is_inter_response_framing, serial_open_error_message};
 
     #[test]
     fn nyx_crlf_between_responses_is_framing() {
@@ -447,5 +468,30 @@ mod tests {
         assert!(is_inter_response_framing(b'\0'));
         assert!(!is_inter_response_framing(b'1'));
         assert!(!is_inter_response_framing(b'+'));
+    }
+
+    #[test]
+    fn access_denied_open_error_names_the_port_holder() {
+        for raw in [
+            "Access is denied.",
+            "Access is denied. (os error 5)",
+            "Permission denied (os error 13)",
+        ] {
+            let msg = serial_open_error_message("COM4", raw);
+            assert!(
+                msg.contains("COM4 is already open in another application"),
+                "access-denied variant {raw:?} must map to the held-port message, got {msg:?}"
+            );
+            assert!(msg.contains("through ASCOM instead"));
+        }
+    }
+
+    #[test]
+    fn other_open_errors_keep_the_generic_message() {
+        let msg = serial_open_error_message("COM4", "The device does not recognize the command.");
+        assert_eq!(
+            msg,
+            "Failed to open serial port: The device does not recognize the command."
+        );
     }
 }

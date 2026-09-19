@@ -237,6 +237,16 @@ Future<void> _hydrateDeviceTelemetry(
   final focuser = focuserStatus;
   if (focuser != null) {
     final notifier = _read(reader, focuserStateProvider.notifier);
+    // The status payload carries the capability flags the reset wiped;
+    // without them the slave's focuser card claims absolute positioning is
+    // unsupported and disables Go To Position (same shape as the
+    // filter-wheel names below). setConnected preserves live values.
+    notifier.setConnected(
+      maxPosition: focuser.maxPosition,
+      stepSize: focuser.stepSize,
+      isAbsolute: focuser.isAbsolute,
+      hasTemperature: focuser.hasTemperature,
+    );
     notifier.updatePosition(focuser.position);
     notifier.setMoving(focuser.moving);
     final temp = focuser.temperature;

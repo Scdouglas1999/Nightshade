@@ -14,7 +14,9 @@ extension _WeatherSafetyRemote on WeatherSafetyNotifier {
   Future<void> _refreshRemoteStatus() async {
     if (_remoteFetchInFlight || !mounted) return;
     final backend = _ref.read(backendProvider);
-    if (backend is! NetworkBackend) return;
+    // isAuthTokenRejected: terminal credentials — polling can only 403 and
+    // writes a fail-mode warning into state every 10 s for nothing.
+    if (backend is! NetworkBackend || backend.isAuthTokenRejected) return;
     _remoteFetchInFlight = true;
     try {
       final response = await backend.getSafetyStatus();
