@@ -186,6 +186,7 @@ packages/nightshade_app/lib/services/sequence_action_service.dart:159:  /// this
 packages/nightshade_bridge/lib/src/api.dart:21:/// silent no-op — and silent no-ops mask real bugs. If a
 packages/nightshade_core/lib/src/backend/network_backend/device_operations.dart:541:          'cameraGetRecommendedSettings not implemented on remote '
 packages/nightshade_core/lib/src/models/sequence/instruction_progress_detail.dart:7:/// newer native emitters do not become silent no-ops on older Dart clients.
+packages/nightshade_core/lib/src/providers/remote_sync/equipment_mirror.dart:289:    } catch (_) {}
 packages/nightshade_core/lib/src/providers/settings_sections/app_settings_partial_persistence_mapping.dart:223:  /// Errors are a feature here: a silent no-op here would mean a
 packages/nightshade_core/lib/src/services/device_service/connections/imaging_chain.dart:228:      // instead of a silent no-op so the equipment screen's bulk-disconnect
 packages/nightshade_core/lib/src/services/notification/transports/email_transport.dart:154:      return NotificationResult.ok();

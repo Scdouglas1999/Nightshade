@@ -252,8 +252,31 @@ impl IndiClient {
             }
             Err(e) => {
                 tracing::error!("Reader recovery failed: {}", e);
-                // Note: connect() will have already incremented the failure counter
-                // and emitted appropriate events through supervised_reader_task
+                // The reader is no longer "Restarting" — the restart failed and
+                // nothing is coming back on its own. The status has to say so,
+                // because `can_reconnect()` refuses to recover a client sitting
+                // in Restarting: leaving it there wedges the flag false for the
+                // lifetime of the client, so one failed recovery would strand a
+                // server that comes back a minute later. Crashed is what the
+                // supervised reader task records for the same condition.
+                //
+                // The consecutive-failure counter is deliberately NOT bumped
+                // here. When connect() fails at the TCP layer the reader task
+                // never spawns, so nothing else counts this attempt — but
+                // counting it would trip `is_reader_failed_permanently()` after
+                // five heartbeats and refuse recovery for good. The retry
+                // cadence belongs to the heartbeat interval, not to a one-way
+                // failure budget.
+                *self.reader_status.write().await = ReaderStatus::Crashed;
+                send_indi_event(
+                    &self.event_tx,
+                    IndiEvent::ReaderHealthChanged {
+                        healthy: false,
+                        status: ReaderStatus::Crashed,
+                        consecutive_failures: self.reader_consecutive_failures(),
+                    },
+                    "recover_reader.reader_health_crashed",
+                );
                 Err(e)
             }
         };

@@ -159,8 +159,25 @@ impl DeviceManager {
         // Transient mount/focuser/filter-wheel failure: settle briefly, then
         // re-probe once before letting the failure count toward a disconnect.
         tokio::time::sleep(Duration::from_millis(750)).await;
-        self.perform_health_check_once(device_id, device_type, driver_type)
-            .await
+        let retry = self
+            .perform_health_check_once(device_id, device_type, driver_type)
+            .await;
+
+        // The retry is here to rescue a device that was transiently busy — not
+        // to replace a considered first answer with a worse second one. It only
+        // counts when it finds the device healthy; otherwise the first result
+        // stands. This matters because a probe is not always side-effect-free:
+        // the INDI arm issues the driver's own CONNECT, or attempts reader
+        // recovery, so a second probe 750 ms later can report a failure that
+        // the first probe caused rather than found (an `Ok(false)` meaning
+        // "CONNECT sent, awaiting confirmation" would otherwise come back as a
+        // connection error). Keeping the first result also means the retry can
+        // never turn a specific, actionable error into a vaguer one.
+        if matches!(retry, Ok(true)) {
+            retry
+        } else {
+            first
+        }
     }
 
     /// Single (no-retry) dispatch to the driver-specific health check. The

@@ -564,14 +564,26 @@ async fn run_both_scans(
     };
 
     if let Some(cb) = progress_callback {
-        cb(
-            100.0,
-            serde_json::to_string(&serde_json::json!({
-                "type": "focuser_backlash_result",
-                "result": &outcome,
-            }))
-            .unwrap_or_default(),
-        );
+        // `to_string` fails here only if the outcome carries a non-finite
+        // float — a NaN out of a degenerate curve fit, which JSON cannot
+        // represent. That is rare but not impossible, and the old
+        // `unwrap_or_default()` turned it into an empty detail string: the
+        // wizard would take a 100 % tick carrying nothing and show the
+        // operator silence at the end of a full calibration run. The run's
+        // real answer still returns through `Ok(outcome)` below, so the frame
+        // is not the only copy — but a frame that cannot be built has to be
+        // recorded rather than swallowed.
+        match serde_json::to_string(&serde_json::json!({
+            "type": "focuser_backlash_result",
+            "result": &outcome,
+        })) {
+            Ok(frame) => cb(100.0, frame),
+            Err(error) => tracing::error!(
+                "Focuser backlash result could not be serialised for the progress stream \
+                 ({}); the outcome is still returned to the caller",
+                error
+            ),
+        }
     }
 
     Ok(outcome)

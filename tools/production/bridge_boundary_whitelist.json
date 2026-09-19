@@ -10,6 +10,10 @@
       "reason": "Headless appliance layer: the desktop binary is the local hardware owner (FfiBackend-equivalent at the network seam, architecture \u00a74-5). Cover/calibrator/switch API + state enums."
     },
     {
+      "file": "apps/desktop/lib/headless_api/handlers/depthlock_handlers.dart",
+      "reason": "Headless appliance layer: catches bridge_error.NightshadeError to shape HTTP error responses for the DepthLock goal endpoints on the local hardware owner. The import is used for that typed catch alone — no bridge function is called, the goal work itself goes through the nightshade_core DepthLock backend role. Same reviewed exception already granted to device_handlers.dart, guiding_handlers.dart, run_watch_handlers.dart and validation.dart; the typed match is what keeps these handlers off string-sniffing the error text, which the fail-closed handlers_e_tostring rule forbids."
+    },
+    {
       "file": "apps/desktop/lib/headless_api/handlers/device_handlers.dart",
       "reason": "Headless appliance layer: its camera_handlers part catches bridge_error.NightshadeError to shape HTTP error responses on the local hardware owner; error type is the bridge's contract."
     },
