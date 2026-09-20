@@ -9,93 +9,76 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
-## [7.1.0] — Observatory (build 28, 2026-09-19)
+## [7.1.0] (build 28, 2026-09-19)
 
-Every screen rebuilt on one design system, and a hard pass over the things four
-on-sky nights found broken. The **Observatory** kit replaces the eleven-screen
-patchwork with one set of panels, wells, readouts, fields and buttons. A new
-**Sequencer ledger** shows a twelve-hour run as a ledger rather than a tree;
-**DepthLock** measures how deep a marked region actually is and says what it
-still needs; **focuser backlash calibration** measures the gear train instead of
-asking the operator to guess. Four rig defects that were invisible to the
-simulator are fixed. On-sky validation of this build is owed. See
-`docs/release/v7.1.0.md`.
+Most of the user interface rewritten on one shared set of components, three new
+features, and a batch of fixes for problems found using the app on a telescope
+in September. Full notes in `docs/release/v7.1.0.md`.
 
 ### Added
 
-- **Observatory design system** — panels, wells, readouts, form rows, fields,
-  buttons, underline tabs, chips, banners, side panels and the night band in
-  `nightshade_ui`, with one page header on every screen and a rail that keeps a
-  bottom nav on screen below 768 px. Tonight, Plan, Analytics, Weather,
-  Equipment, Guiding, Settings, Onboarding, the Darkroom, the Sequencer, the
-  Flat and polar-alignment wizards and the pairing screen were each rebuilt on
-  the kit rather than re-skinned. The select has its own popover instead of
-  Material's menu.
-- **Sequencer ledger** — three persisted density modes switched from the canvas
-  bar, contiguous runs folded into one row, sticky ancestors with a gutter map,
-  and Settings/Activity/Notes tabs on the node inspector. The toolbox Queue tab
-  becomes Targets, showing the sequence's own targets beside a saved-for-later
-  wishlist.
-- **DepthLock** — mark a structure and a nearby patch of blank sky, pick a
-  depth, and every matching exposure measures that region across nights and
-  sessions. Reports what each filter still needs so clear sky can be allocated
-  between them, feeds a Smart Exposure plan directly, and gives the negative
-  answer — naming the calibration error floor when more hours cannot help.
-  Documented in `docs/depthlock.md`.
-- **Focuser backlash calibration** — two scans approached from below and above,
-  fitted and differenced, persisted per focuser, with a wizard that states the
-  run's cost before it starts and reports a cancelled run as cancelled.
-- **Tiered Wi-Fi positioning** with per-tier consent and a stated accuracy
-  radius; Detect location falls back to an internet lookup in one click.
-- **Frame-timing diagnostics** reporting UI-isolate block time and image-cache
-  state.
+- Every screen rebuilt on the same component library, so controls behave the
+  same wherever you are. Covers Tonight, Plan, Analytics, Weather, Equipment,
+  Guiding, Settings, Onboarding, Imaging, the Sequencer, the Darkroom, the polar
+  alignment and flat wizards, and pairing. Each screen has a proper page header,
+  there is a new navigation rail, and the bottom navigation bar stays on screen
+  below 768 px.
+- Three display densities for the sequence tree, switched from the toolbar and
+  remembered. Repeated steps collapse into one row with a count, the branch
+  currently running stays pinned while you scroll, and a gutter marker shows
+  where you are in the run. Step details gained Settings, Activity and Notes
+  tabs. The toolbox Queue tab is now Targets.
+- DepthLock. Draw a box around part of your target and another over nearby empty
+  sky, set a depth, and the app measures that region on every matching exposure
+  from then on, across nights. It reports how much each filter still needs, and
+  says when more time will not help because calibration error is the limit.
+- Focuser backlash measurement. Two focus sweeps, one from below and one from
+  above, fitted and differenced, saved per focuser. The wizard says how long the
+  run takes and how many moves it needs before starting.
+- Wi-Fi positioning with separate permission per accuracy level and the accuracy
+  radius shown. "Detect location" falls back to an internet lookup in one click.
 
 ### Fixed
 
-- **The slew validator killed every sequence 1.5 s after it started**, comparing
-  a J2000 target against an of-date read-back. Arrival is now validated in the
-  mount's own coordinate frame.
-- **Polar alignment failed every westward run** — the rotation-axis fit picked
-  the antipode. The fit is hemisphere-consistent, Dec is re-read per step, and
-  TPPA frames are solved hinted from the mount on a budget that fits between
-  steps instead of a blind 30 s solve.
-- **The app froze on the first successful plate solve**: the annotation pipeline
-  read the 896 MB GLADE+ catalogue line by line on the UI isolate. Moved off the
-  UI isolate, with a bucketed star matcher in place of a quadratic one and an
-  image-texture leak closed.
-- **A guider failure kept exposing and then parked an attended mount.** The
-  imaging train is arbitrated so exposures stop when the guider is dead, and
-  parking is an explicit opt-in rather than a recovery guess.
-- **A failed INDI reader recovery wedged the client out of ever recovering** —
-  one failed reconnect left the reader marked `Restarting` for the life of the
-  client, so the heartbeat never tried again.
-- **Thumbnails decoded full-resolution FITS on the UI isolate**, never reading
-  the sidecars and never sizing the decode to the cell.
-- **Autofocus**: best focus lands from below and is verified with a real frame;
-  the MAD outlier filter was deleting the focus region on clean sweeps; a
-  symmetric model gets a symmetric sample; star counts report what was detected
-  rather than the brightest-N cap; the backlash model was corrected against a
-  simulated gear train.
-- **Camera sensor specs resolve through one chain.** Framing states which tier
-  its geometry came from, an override claims only what was actually changed, and
-  the planner's fuzzy matcher no longer returns the wrong sensor.
-- **The Profiles tab had no detail pane** and edited the wrong profile; profile
-  menus opened mid-screen rather than on their button.
-- **ASCOM mount site and time route through the COM worker**, not the `RwLock`
-  guard, and the app asks which way to reconcile them on connect.
-- **LX200**: the NYX answers `:GG#` with `+05:00`, not `+05`.
-- Session reporting headlines the cause rather than the last teardown failure.
-- Sentence case throughout, including composed sentences and localisation twins;
-  red night reaches the Imaging canvas and the Weather map.
+- Sequences died about a second and a half after starting: the arrival check
+  compared J2000 target coordinates against the mount's current-epoch position,
+  which never match.
+- Polar alignment never worked running west. The rotation axis fit picked the
+  opposite point on the sky, so the correction pointed the wrong way. It also
+  now re-reads declination each step and solves alignment frames with a position
+  hint from the mount rather than blind.
+- The app froze the first time a plate solve succeeded, because the annotation
+  code read an 896 MB galaxy catalogue line by line on the UI thread. Star
+  matching against the catalogue was also quadratic, and an image texture leaked.
+- When the guider failed, exposures carried on and the app then parked the mount
+  with someone standing next to it. Exposures now stop, and parking after a
+  failed recovery is opt-in.
+- A failed INDI reconnection left the client marked as restarting, which is a
+  state the retry logic refuses to act on, so the app never tried again.
+- Thumbnails decoded full-resolution FITS on the UI thread instead of reading
+  the small preview files that already exist.
+- Autofocus: focus now lands from below and is confirmed with a real frame; the
+  outlier filter was discarding the points nearest focus on good sweeps; the
+  star count reports stars detected rather than the limit on stars used; the
+  backlash model was wrong.
+- Camera sensor specifications now come from one place, and the fuzzy name
+  matching used to identify your camera was picking the wrong sensor.
+- The Profiles tab in Equipment had no detail pane, so clicking a profile did
+  nothing.
+- ASCOM mount site and time go through the COM worker thread rather than a lock,
+  and the app asks which to use when the mount and computer disagree.
+- The NYX mount answers the timezone query with `+05:00` rather than `+05`.
+- Session reports lead with what went wrong rather than whatever failed last
+  during shutdown.
+- Dropdown menus open on the button you clicked instead of mid-screen. Text is
+  in sentence case. Red night mode covers the imaging canvas and weather map.
 
 ### Changed
 
-- **The shipped focuser backlash default is zero.** An invented 350 was reaching
-  both the settings field and the autofocus endpoint; only the operator knows
-  theirs, and the calibration wizard now measures it.
-- **The launch-time catalog modal is gone**; the Tonight checklist owns it.
-- The mount position poll no longer repaints the whole window; the status bar's
-  selection is scoped and the dashboard has repaint boundaries.
+- The default focuser backlash is now 0 rather than 350. The 350 was invented
+  and was reaching both Settings and the autofocus API.
+- The catalogue prompt at startup is gone; the Tonight checklist handles it.
+- The mount position poll no longer repaints the whole window.
 
 ## [7.0.0] — Darkroom (build 27, 2026-09-07)
 
