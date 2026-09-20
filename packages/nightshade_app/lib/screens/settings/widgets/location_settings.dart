@@ -261,6 +261,27 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     ),
                   ),
                 SettingRow(
+                  // Keyed, with Longitude and Elevation below.
+                  //
+                  // Without keys, the rebuild right after "Detect location"
+                  // showed the latitude in the Longitude field and the
+                  // longitude in Elevation. The stored values were always
+                  // correct and navigating away and back cleared it, so the
+                  // only moment it was visible was the one where the operator
+                  // checks what was just detected. Two siblings above these
+                  // rows are conditional — the "observing site not set" banner
+                  // and the place-search results — so setting a site shrinks
+                  // the list by one and these three identical SettingRows can
+                  // take their neighbours' state.
+                  //
+                  // Verified by driving the built app: detect on a profile
+                  // with no site, unkeyed, reproduced it every time; keyed, the
+                  // fields are right immediately. A widget test does NOT
+                  // reproduce it — the same provider transition renders
+                  // correctly under flutter_test with or without these keys —
+                  // so there is deliberately no regression test here rather
+                  // than one that would pass either way.
+                  key: const ValueKey('site-latitude-row'),
                   icon: LucideIcons.mapPin,
                   title: 'Latitude',
                   subtitle: 'Decimal degrees or DMS (44 3 29 N). Positive is '
@@ -289,6 +310,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
+                  key: const ValueKey('site-longitude-row'),
                   icon: LucideIcons.mapPin,
                   title: 'Longitude',
                   subtitle: 'Decimal degrees or DMS (121 18 55 W). Positive is '
@@ -317,6 +339,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
+                  key: const ValueKey('site-elevation-row'),
                   icon: LucideIcons.mountain,
                   title: 'Elevation',
                   subtitle: 'Height above sea level',

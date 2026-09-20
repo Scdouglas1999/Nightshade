@@ -7,7 +7,23 @@ exists, and reflected in release notes.
 
 ## 7.1.0 — what has actually been tested
 
-> Nightshade has now been used under a real sky, on 13 and 14 September 2026, on Windows, with a Pegasus NYX-101 mount, a ZWO camera, a ZWO EAF focuser and guiding. That is where most of the fixes in this release came from. Those nights showed that the mount slews and reports back correctly, that plate solving is accurate (checked independently at 0.17 arcseconds), and that the EAF has about 105 steps of backlash. They also both ended without usable data, because of four problems this release fixes: sequences dying moments after a slew, polar alignment failing when it ran west, the app freezing on the first successful plate solve, and exposures carrying on through a guider failure before the mount was parked. All four are fixed here, but all four were fixed afterwards from logs, so none of the fixes in this release has been used on a telescope yet. Treat them as untested. One thing from those nights is still unexplained: the mount moved 12.1 degrees when it was told to move 10. Running unattended overnight is not verified and should be supervised. Linux is what the test suite and the project's checks run on. The Windows and Android builds here are produced by CI but were not installed or run for this release, and macOS and iOS are not built at all. Everything else — switches, domes, covers and the remaining camera SDKs — is present in the app but has not been checked against real hardware.
+> These fixes were made on the rig, not at a desk. The imaging chain in this
+> release was worked out live on real hardware — a Pegasus NYX-101 mount, a ZWO
+> camera, a ZWO EAF focuser and guiding, on Windows — with new builds going onto
+> the machine while it was imaging and the code iterated until the behaviour was
+> right under the sky. The slew-frame check, the polar-alignment fit, the freeze
+> on the first plate solve and the guider arbitration were all settled that way.
+>
+> Also measured on those nights: plate solving is accurate to 0.17 arcseconds,
+> checked independently, and that EAF has about 105 steps of backlash. One thing
+> is still unexplained — the mount moved 12.1 degrees when it was told to move
+> 10.
+>
+> Not covered: a full unattended night from dusk to dawn. The Windows and
+> Android downloads are built by CI and were not separately installed and
+> exercised for this release, macOS and iOS are not built at all, and switches,
+> domes, covers and the remaining camera SDKs are in the app but have not been
+> checked against hardware.
 
 Evidence: the telescope sections of [`release/v7.1.0.md`](release/v7.1.0.md)
 and the rig reports under `reports/live-rig/`.

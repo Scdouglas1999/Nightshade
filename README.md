@@ -4,242 +4,283 @@
 
 # Nightshade
 
-### One observatory. One control room. The whole night.
-
-Plan the target, connect the rig, frame and solve the field, run the sequence, guide, watch the weather, and review the session — from one application.
+**Astrophotography capture software that runs the whole night from one app.**
 
 [![Latest release](https://img.shields.io/github/v/release/Scdouglas1999/Nightshade?label=latest&color=2ea44f)](https://github.com/Scdouglas1999/Nightshade/releases/latest)
-[![Public beta](https://img.shields.io/badge/status-public_beta-f59e0b)](#what-is-actually-verified)
-[![Desktop](https://img.shields.io/badge/desktop-Windows_%7C_Linux-2563eb)](#platforms-and-downloads)
-[![Companion](https://img.shields.io/badge/companion-Android-7c3aed)](#remote-observatory)
+[![Public beta](https://img.shields.io/badge/status-public_beta-f59e0b)](#whats-missing)
+[![Desktop](https://img.shields.io/badge/desktop-Windows_%7C_Linux-2563eb)](#downloads)
+[![Companion](https://img.shields.io/badge/companion-Android-7c3aed)](#running-it-from-somewhere-else)
 [![License](https://img.shields.io/badge/license-source_available-64748b)](LICENSE)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [7.1.0 release notes](docs/release/v7.1.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [7.1.0 release notes](docs/release/v7.1.0.md) · [What's missing](docs/known-limitations.md) · [Patreon](https://www.patreon.com/cw/SeanDouglas)
 
-<img src="assets/screenshots/desktop-dashboard.png" width="900" alt="Nightshade Tonight during a run on IC 434: the latest captured frame, the guide trace, per-filter progress against the night's goal, and live camera, mount, focuser, filter wheel and guider readouts">
+<img src="assets/screenshots/planetarium.png" width="900" alt="Nightshade planetarium drawing the sky over the observing site: constellation figures and named stars, Messier and NGC objects labelled, Mars and Jupiter placed, with a compass rose and the field of view, centre coordinates and Bortle class along the bottom">
 
 </div>
 
-Nightshade is a **capture suite**, not a Fujifilm driver. For Fuji on N.I.N.A. or ASCOM see [Fujicom](https://github.com/Scdouglas1999/Fujicom) and the [N.I.N.A. Fujifilm plugin](https://github.com/Scdouglas1999/NINA-Fujifilm-Native-Plugin). GitHub Sponsors is not enabled yet.
-
 ---
 
-Nightshade controls an astrophotography rig end to end. Equipment, planetarium, framing, sequencing, imaging, guiding, weather, safety, and analytics all work from the same target, the same equipment profile, and the same live session, instead of a separate program for each job.
+Pick a target, connect the gear, frame it, run the sequence, guide, keep an eye on the
+weather, and look at what you got — without switching between five programs that each know
+a different half of the story.
 
-A Rust core owns the running sequence and the imaging pipeline. The Flutter desktop app, a browser dashboard, and an Android companion are views onto that same run, so closing a control surface does not end the night.
+Everything works off the same target, the same equipment profile and the same running
+session. The planetarium knows what your camera's field of view is. The sequencer knows
+where the target will be at 3am. The weather screen knows where you are.
+
+Underneath, a Rust core runs the sequence and processes the frames. The desktop app, the
+browser dashboard and the Android app are all windows onto that one running session, so
+closing a window doesn't end your night.
 
 > [!IMPORTANT]
-> Nightshade is a **public beta**. It has been used on a telescope, but the fixes in this release have not been. Supervise complete sessions on your own equipment — slew, focus, guide, capture, meridian flip, safing, and park — before relying on unattended operation. Read [what is actually verified](#what-is-actually-verified), the [supported-hardware matrix](docs/supported-hardware-by-platform.md), and the [known limitations](docs/known-limitations.md) first.
+> This is a public beta. It runs a real rig under a real sky — that's where it gets
+> developed and fixed — but my gear isn't your gear. Watch a full session on your own
+> equipment before you leave it running unattended, and have a look at
+> [what's missing](docs/known-limitations.md).
 
-## What is actually verified
+Nightshade is capture software, not a Fujifilm driver. If you came here looking for Fuji
+support in N.I.N.A. or ASCOM, you want [Fujicom](https://github.com/Scdouglas1999/Fujicom)
+or the [N.I.N.A. Fujifilm plugin](https://github.com/Scdouglas1999/NINA-Fujifilm-Native-Plugin).
 
-What follows is what has actually been checked, rather than what the code can do. The same paragraph is in the [7.1.0 release notes](docs/release/v7.1.0.md) and in [`docs/known-limitations.md`](docs/known-limitations.md).
-
-> Nightshade has now been used under a real sky, on 13 and 14 September 2026, on Windows, with a Pegasus NYX-101 mount, a ZWO camera, a ZWO EAF focuser and guiding. That is where most of the fixes in this release came from. Those nights showed that the mount slews and reports back correctly, that plate solving is accurate (checked independently at 0.17 arcseconds), and that the EAF has about 105 steps of backlash. They also both ended without usable data, because of four problems this release fixes: sequences dying moments after a slew, polar alignment failing when it ran west, the app freezing on the first successful plate solve, and exposures carrying on through a guider failure before the mount was parked. All four are fixed here, but all four were fixed afterwards from logs, so none of the fixes in this release has been used on a telescope yet. Treat them as untested. One thing from those nights is still unexplained: the mount moved 12.1 degrees when it was told to move 10. Running unattended overnight is not verified and should be supervised. Linux is what the test suite and the project's checks run on. The Windows and Android builds here are produced by CI but were not installed or run for this release, and macOS and iOS are not built at all. Everything else — switches, domes, covers and the remaining camera SDKs — is present in the app but has not been checked against real hardware.
-
-Everything else in this README describes things the app can do and that you can reach from the interface. That is a weaker claim than "it works on your gear", and it is kept separate on purpose.
-
-## Built for the whole night
-
-<table>
-<tr>
-<td width="50%" valign="top">
-<h4>Plan with the real sky</h4>
-<p>Explore an interactive planetarium, score targets against altitude, Moon, horizon, and darkness constraints, then compose exact framing and mosaic panel grids over survey imagery fetched from CDS HiPS2FITS or NASA SkyView.</p>
-</td>
-<td width="50%" valign="top">
-<h4>Run with a real engine</h4>
-<p>Build sequences from instruction nodes plus loops, conditionals, parallel branches, and triggers. A Rust executor owns the run, writes session checkpoints, and can resume from one after a restart.</p>
-</td>
-</tr>
-<tr>
-<td valign="top">
-<h4>Control the whole rig</h4>
-<p>Cameras, mounts, focusers, filter wheels, rotators, domes, covers, switches, weather stations, and safety monitors, through ASCOM COM on Windows, ASCOM Alpaca, INDI, and capability-gated native vendor SDKs.</p>
-</td>
-<td valign="top">
-<h4>Know what happened</h4>
-<p>Star detection, HFR, FWHM, and eccentricity are measured in Rust from the captured frames. Grading, integration totals, guiding RMS, and session history are stored in a local database you can query and back up.</p>
-</td>
-</tr>
-</table>
+## A night, start to finish
 
 <div align="center">
 
 <img src="assets/screenshots/desktop-dashboard.png" width="900" alt="Nightshade Tonight during a run on IC 434: the latest captured frame, the guide trace, per-filter progress against the night's goal, and live camera, mount, focuser, filter wheel and guider readouts">
 
-<sub><b>One control room.</b> The active target, the frame that just landed, and every device on the rig — on one screen.</sub>
+<sub>The target you're on, the frame that just came down, the guide trace, and every device on the rig — one screen.</sub>
 
 </div>
 
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="assets/screenshots/equipment.png" width="100%" alt="Nightshade equipment profiles: the active rig's optical train and device assignments, with focal length, aperture and focal ratio">
-<p><b>Connect once.</b> Every device in the profile, with live telemetry and its own controls.</p>
-</td>
-<td width="50%" valign="top">
-<img src="assets/screenshots/imaging.png" width="100%" alt="Nightshade imaging: a captured frame of IC 434 in the viewer with HFR, eccentricity, star count and image statistics measured from it, beside the capture settings and session totals">
-<p><b>See the frame.</b> Star count, HFR and eccentricity measured from the frame as it arrives.</p>
-</td>
-</tr>
-</table>
-
-## From target to finished session
-
-<table>
-<tr>
-<td width="50%" valign="top">
-<p><b>1 · Decide.</b> Compare scheduler-ranked targets under the same altitude, horizon, darkness, and safety constraints the automation engine will enforce.</p>
+<img src="assets/screenshots/plan-tonight.png" width="100%" alt="Nightshade Plan scoring 1255 catalogue targets for tonight: each with its transit time and altitude and how long it stays above 30 degrees, beside a detail pane giving NGC7788's altitude curve, object type, magnitude, suggested filter and exposure">
+<p><b>Work out what to shoot.</b> Everything in the catalogue, scored for tonight against
+how high it gets, when it transits, how long it stays up, where the Moon is and what your
+horizon blocks. Click one and you get its altitude curve and a suggested exposure.</p>
 </td>
 <td width="50%" valign="top">
 <img src="assets/screenshots/framing.png" width="100%" alt="Nightshade framing: the camera's field of view and rotation over DSS2 Red survey imagery, with the sensor size, field of view and image scale for the active equipment profile">
-<p><b>2 · Compose.</b> Plate-solve, center, rotate, and lay out mosaic panels against registered survey imagery before spending clear-sky time.</p>
+<p><b>Frame it before you waste the clear sky.</b> Your actual sensor and focal length over
+real survey imagery, so you can see whether it fits and which way to rotate. Mosaic panels
+get laid out here too.</p>
 </td>
 </tr>
 <tr>
 <td valign="top">
-<img src="assets/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer mid-run: the IC 434 narrowband sequence as a ledger of steps with filter, count, duration and ETA columns, the running exposure node highlighted, and its settings in the inspector">
-<p><b>3 · Sequence.</b> Build the run from instruction nodes. The target card carries its own altitude curve and planned integration, and the nodes below it are what actually execute.</p>
+<img src="assets/screenshots/equipment.png" width="100%" alt="Nightshade equipment profiles: the active rig's optical train and device assignments, with focal length, aperture and focal ratio">
+<p><b>Connect once.</b> Save the rig as a profile — camera, mount, focuser, filter wheel,
+guider and the optics in front of them — and it brings the lot back next time.</p>
+</td>
+<td valign="top">
+<img src="assets/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer part-way through a run: the IC 434 narrowband sequence as a table of steps with filter, count, duration and finish-time columns, the step currently exposing highlighted, and its settings alongside">
+<p><b>Build the run.</b> Steps you drag together: cool the camera, autofocus, loop through
+filters, dither, flip, park. A twelve-hour run reads as a table with counts and finish
+times rather than a tree you scroll through.</p>
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="assets/screenshots/imaging.png" width="100%" alt="Nightshade imaging: a captured frame of IC 434 in the viewer with HFR, eccentricity, star count and image statistics measured from it, beside the capture settings and session totals">
+<p><b>Watch the frames come in.</b> Star count, HFR and eccentricity measured off each frame
+as it lands, so you find out focus has drifted before you've lost an hour to it.</p>
 </td>
 <td valign="top">
 <img src="assets/screenshots/guiding.png" width="100%" alt="Nightshade guiding: the RA and Dec error trace over five minutes with RMS and star statistics, PHD2 connected and the mount calibrated">
-<p><b>4 · Track.</b> Drive PHD2 from the same workspace — or use the built-in multi-star guider — and hold capture until dither settling completes.</p>
+<p><b>Guide without alt-tabbing.</b> Drive PHD2 from here, or use the built-in multi-star
+guider. Capture waits for the dither to settle either way.</p>
 </td>
 </tr>
 <tr>
 <td valign="top">
-<p><b>5 · Protect.</b> Combine weather, safety monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</p>
+<img src="assets/screenshots/weather.png" width="100%" alt="Nightshade Weather showing live GOES satellite cloud imagery over the observing site, the site marked with its 30 km alert radius, and a critical verdict reading 100 percent cloud cover overhead">
+<p><b>See the clouds coming.</b> Live satellite imagery over your site, with an alert radius
+you set. Weather, your safety monitor, twilight and free disk space all feed one answer
+about whether it's safe to carry on.</p>
 </td>
 <td valign="top">
 <img src="assets/screenshots/flat-wizard.png" width="100%" alt="Nightshade flat wizard converging on a flat exposure from measured ADU samples">
-<p><b>6 · Calibrate.</b> The Flat Wizard measures median ADU, converges on an exposure inside your tolerance band, and reports non-convergence as an error rather than shipping a bad flat.</p>
+<p><b>Take flats without guessing.</b> The wizard measures the level and works out the
+exposure. If it can't land inside your tolerance it tells you, instead of handing you a bad
+flat.</p>
 </td>
 </tr>
 <tr>
 <td colspan="2" valign="top">
 <img src="assets/screenshots/analytics.png" width="100%" alt="Nightshade analytics history: past imaging sessions listed with elapsed time, frames returned, integration and average HFR">
-<p><b>7 · Review.</b> Follow frame quality, integration totals, guiding history, and the run decisions behind them. Quality labels are advisory: Nightshade does not delete or auto-reject your frames.</p>
+<p><b>Look back at it.</b> Every session with its frame count, integration time and average
+HFR, the guiding history, and what the automation decided and why. Frames get labelled,
+never deleted or thrown out for you.</p>
 </td>
 </tr>
 </table>
 
-## Automation that explains itself
 
-- **One set of contracts.** Plan and Unattended Autopilot share the same target scoring, horizon, darkness, and safety contracts, so the preview and the live run cannot disagree about what is next.
-- **Resilient sequences.** Retries, checkpoint resume, meridian flips, dithering, V-curve autofocus, and calibration are instruction nodes inside the run, not separate scripts around it.
-- **Fail-closed safety.** Unknown or stale safety state is not treated as clear: the default resolution for "no weather data" is *unsafe*, in both the Dart provider and the Rust executor. Unsafe weather, critical disk space, or an emergency stop can pause capture and drive the rig toward park, dome, and cover safety.
-- **Structured history.** Automation decisions and recovery actions are emitted as events and persisted, so a night can be replayed instead of guessed at.
-- **One owner.** The native sequencer owns an active run; desktop, mobile, and browser surfaces observe and control that same session rather than creating competing copies.
+## What else is in there
 
-## Remote observatory
+Sequences are built from steps, and the steps cover the awkward parts: retries, meridian
+flips, dithering, V-curve autofocus, calibration frames, and conditions and loops around any
+of it. If the machine restarts mid-run, the sequence can pick up where it left off.
 
-Nightshade runs as a desktop application or as a headless host at the telescope. The hardware authority stays where the equipment lives, and control surfaces attach to it over the LAN.
+When the app doesn't know whether it's safe — no weather data, a sensor that's gone quiet —
+it treats that as *not safe* rather than assuming things are fine. Bad weather, a full disk
+or an emergency stop can pause the run and send the mount to park with the dome and cover
+shut.
 
-| Surface | Best for | What it is |
+Automated decisions get written down as they happen, so when something goes wrong at 2am you
+can read back what the app thought it was doing instead of guessing.
+
+There's a fair amount beyond plain capture, too:
+
+- **Your Sky** builds a personal atlas out of your own plate-solved frames, filling in as
+  you shoot more.
+- **First Light** goes through transient candidates and cross-matches them. It can submit to
+  TNS directly; AAVSO and MPC come out as files you send yourself.
+- **Constellation** and **Collaborative Sky** handle shared calibration libraries, mosaic
+  panels a group can split between them, and live shared sessions. They only work against a
+  server you or your club runs — there's no public Nightshade server and no default address.
+- **Science tools** for photometric calibration against catalogue references, period
+  analysis, and report exports.
+- **Backup** to a local folder, WebDAV, or S3-compatible storage (AWS, MinIO, Backblaze),
+  with credentials kept in your operating system's keyring.
+
+## Running it from somewhere else
+
+You can run Nightshade as a normal desktop app, or leave it running on the computer at the
+telescope and connect from elsewhere. The machine with the hardware stays in charge either
+way.
+
+| | Good for | What you get |
 |---|---|---|
-| **Desktop app** | Setup, planning, sequencing, imaging, analysis | The full control surface |
-| **Headless host** | A dedicated observatory computer or appliance | Same binary with `--headless`; automation core plus an authenticated HTTP API |
-| **Web dashboard** | Fast access from a LAN browser | Served by the host at `/dashboard`; device, sequencer, guiding, gallery, and log panels |
-| **Mobile companion** | Checking or intervening away from the desk | Android: pairing, monitoring, camera/mount/sequencer control |
-| **Second desktop** | A full-size remote control room | Master/slave live session mirroring over the LAN |
+| **Desktop app** | Setting up, planning, imaging, going through results | Everything |
+| **Headless host** | An observatory PC you don't sit at | The same program with `--headless`, plus a password-protected API |
+| **Web dashboard** | Checking from any browser on the network | Served by the host at `/dashboard`, nothing to install |
+| **Android app** | Checking from bed, or stopping something | Pairing, monitoring, and camera, mount and sequencer control |
+| **A second PC** | A proper remote control room | The full app mirroring the live session over the network |
 
 <div align="center">
 <img src="assets/screenshots/web-dashboard.png" width="820" alt="Nightshade browser dashboard with device, camera, mount, filter wheel, focuser, rotator, sequencer, guiding and planetarium panels">
 
-<sub><b>The browser dashboard</b>, served by the host at <code>/dashboard</code> — no install on the client.</sub>
+<sub>The browser dashboard, served by the host at <code>/dashboard</code>.</sub>
 
 </div>
 
-Details worth knowing before you expose a host:
+A few things worth knowing before you put a host on a network:
 
-- The headless server binds to **loopback on port 8080** by default. It binds to the LAN only once authentication is configured, or when you explicitly pass `--allow-unauthenticated-lan`.
-- Authentication **fails closed**. With no token configured, privileged routes return `401`. Only the onboarding surface — pairing, `/api/info`, and the static dashboard — stays reachable so a fresh appliance can still be bootstrapped. Serving everything open requires `--allow-unauthenticated`, and doing that on the LAN requires the second flag as well.
-- Tokens carry coarse (`view` / `control` / `admin`) or fine-grained per-resource scopes.
-- **Push notifications:** LAN push works out of the box. Off-LAN push over FCM or APNs is implemented but **dormant** — it delivers nothing until you provision your own push credentials on the host.
+- It only listens on the local machine (port 8080) until you set up a password. Putting it
+  on the network without one takes a deliberate command-line flag.
+- With no password set, anything that matters returns "not authorised". Only pairing and the
+  dashboard page stay reachable, so a fresh machine can still be set up.
+- Access tokens can be view-only, control or admin, or limited to particular things.
+- Push notifications work over your own network out of the box. Push from outside your
+  network is written but does nothing until you supply your own Firebase or Apple
+  credentials.
 
-Read the [secure headless setup guide](docs/headless-secure-setup.md) before putting a host on a network you do not control, and the [firewall notes](docs/troubleshooting/firewall.md) when a second device cannot reach it.
+Read the [secure setup guide](docs/headless-secure-setup.md) before exposing a host to a
+network you don't control, and the [firewall notes](docs/troubleshooting/firewall.md) if a
+second device can't find it.
 
-## Beyond capture
+## Hardware
 
-- **Your Sky** folds plate-solved frames into a personal HEALPix sky atlas that deepens as you image.
-- **First Light** reviews transient candidates and cross-matches them. It can submit to **TNS** through the real API; **AAVSO** and **MPC** output are file exports you submit yourself.
-- **Constellation** and **Collaborative Sky** cover shared calibration libraries, claimable distributed mosaic panels, and live co-imaging sessions. These are **self-hosted only** — there is no public Nightshade hub and no default hub URL. You run [`server/nightshade_hub`](server/nightshade_hub/README.md) or point at a club hub you trust.
-- **Science workflows** include photometric calibration against catalog references, Lomb-Scargle and BLS period analysis, and AAVSO / MPC / Markdown report exports.
-- **Backup** targets a local folder, WebDAV, or an S3-compatible endpoint (AWS S3, MinIO, Backblaze B2), with credentials held in the operating-system keyring. Cloud *restore* is currently a desktop-app action, not a headless one.
+Nightshade talks to gear four ways. A yes means Nightshade can look for and connect to
+devices that way on that platform — what any individual driver can actually do is up to the
+driver, and it tells you once it connects.
 
-## Hardware support
-
-Nightshade speaks several device backends. A backend being available means Nightshade can attempt discovery and connection on that platform — individual drivers still report their own narrower capabilities after they connect.
-
-| Backend | Windows | Linux | macOS | Notes |
+| | Windows | Linux | macOS | Notes |
 |---|:---:|:---:|:---:|---|
-| **ASCOM COM** | Available | — | — | Requires Windows COM, the ASCOM Platform, and installed device drivers |
-| **ASCOM Alpaca** | Available | Available | Available | Network devices and bridges; capability gaps are reported by the Alpaca server |
-| **INDI** | Available | Available | Available | Requires a reachable INDI server; depth varies per driver |
-| **Native SDK** | Gated | Gated | Gated | Requires compatible user-installed vendor libraries and OS drivers |
+| **ASCOM COM** | Yes | — | — | Needs the ASCOM Platform and your device drivers installed |
+| **ASCOM Alpaca** | Yes | Yes | Yes | Network devices and bridges |
+| **INDI** | Yes | Yes | Yes | Needs an INDI server it can reach; how much works varies by driver |
+| **Native SDK** | If installed | If installed | If installed | Only works once you've installed the manufacturer's own library and driver |
 
-This table is the same matrix the app shows under Settings → Connection → Platform Capabilities and serves from `/api/info`. If they ever disagree, that is a bug.
+This is the same table the app shows under Settings → Connection. If they ever disagree,
+that's a bug worth reporting.
 
-Native camera drivers exist for **ZWO ASI, QHY, Player One, SVBony, Atik, FLI, Moravian, and the Touptek family**. Native mount protocols cover **SkyWatcher/Synta, iOptron, and LX200-family serial** (Meade, OnStep, Losmandy, 10Micron). Official packages redistribute **no** proprietary vendor SDK binaries — a native path only lights up when you have installed the vendor's own library and driver.
+There are native camera drivers for **ZWO ASI, QHY, Player One, SVBony, Atik, FLI, Moravian
+and the Touptek family**, and native mount support for **SkyWatcher/Synta, iOptron and
+LX200-style serial mounts** (Meade, OnStep, Losmandy, 10Micron). The downloads here contain
+none of the manufacturers' own libraries — those paths only light up once you've installed
+the vendor's driver yourself.
 
-**Plate solving is external.** Nightshade drives **ASTAP** or **astrometry.net `solve-field`**; install one of them and point Nightshade at it. There is no built-in blind solver.
+**Plate solving needs ASTAP or astrometry.net.** Install one and point Nightshade at it;
+there's no solver built in.
 
-**Guiding** works through **PHD2** over its JSON-RPC socket, or through Nightshade's own multi-star internal guider.
+**Guiding** works through PHD2, or with Nightshade's own multi-star guider.
 
-Check the [platform and hardware matrix](docs/supported-hardware-by-platform.md) before building an equipment profile.
+Have a look at the [hardware list](docs/supported-hardware-by-platform.md) before building a
+profile.
 
-## Platforms and downloads
+## Downloads
 
-The release workflow builds and publishes exactly three products:
-
-| Artifact | Platform | Distribution status |
+| File | Platform | Notes |
 |---|---|---|
-| `nightshade-6.1.0-windows-x64.zip` | Windows x64 | Portable desktop app; Authenticode-signed only when the release owner has provisioned a certificate |
-| `nightshade-6.1.0-linux-x64.tar.gz` | Linux x64 | Portable bundle, glibc 2.35-linked; early testing |
-| `nightshade-6.1.0-android-arm64-v8a.apk` | Android | Companion app; also built for `armeabi-v7a` and `x86_64`. Debug-signed until a keystore is provisioned |
+| `nightshade-7.1.0-windows-x64.zip` | Windows x64 | Portable — extract and run. Only code-signed once a certificate has been set up |
+| `nightshade-7.1.0-linux-x64.tar.gz` | Linux x64 | Portable bundle, needs glibc 2.35 or newer. Early days |
+| `nightshade-7.1.0-android-arm64-v8a.apk` | Android | The companion app. Also built for `armeabi-v7a` and `x86_64` |
 
-There is **no macOS and no iOS artifact**. The macOS desktop app compiles in CI as a debug build, but its native Rust bridge build is not enforced there, no packaged artifact is produced, and neither macOS nor iOS has been run against hardware. Treat both as source-only.
+**There's no macOS or iOS build.** The Mac version compiles, but nothing is packaged and
+neither has ever been run against hardware. Treat them as source only.
 
-Every application artifact ships a matching `.sha256`. Desktop archives also contain `NIGHTSHADE-LICENSE.txt`, `THIRD_PARTY_NOTICES.md`, the applicable third-party license text, and a `SOURCE-COMMIT.txt` recording the exact commit they were built from.
+Every file comes with a `.sha256` so you can check it downloaded intact. The desktop
+archives also contain the licence, the third-party notices, and a note of the exact commit
+they were built from.
 
 > [!NOTE]
-> The Windows package includes `updater.exe` and the app can verify Ed25519-signed update manifests with anti-rollback protection. Until the release owner provisions signing keys and an update server, **the updater refuses everything and updates are manual**. A present updater binary is not a working auto-update. Self-update is Windows-only in any case; back up your configuration and database before replacing a bundle.
+> The Windows package includes an updater, and the app can check signed update files. Until
+> signing keys and an update server are set up, **the updater refuses everything and
+> updating is manual**. Self-updating is Windows-only anyway. Back up your settings and
+> database before replacing a copy.
 
-### System requirements
+**What you need to run it.** On Windows: Windows 10 or 11 (64-bit), 8 GB of RAM (16 GB is
+better), a reasonably modern GPU, and the ASCOM Platform if you use ASCOM drivers. On Linux:
+64-bit with glibc 2.35 or newer, an OpenGL 3.3 GPU, and GTK 3, libsecret, libusb, libudev
+and OpenSSL. USB gear also needs the manufacturer's udev rules and the right group
+membership. Allow about 500 MB for the app, plus room for your catalogues and frames.
 
-- **Windows:** Windows 10/11 x64, 8 GB RAM minimum (16 GB recommended), a DirectX 11 GPU with 2 GB VRAM, and the ASCOM Platform if you use local ASCOM COM drivers.
-- **Linux:** x86-64 with glibc 2.35 or newer, an OpenGL 3.3-capable GPU, and GTK 3, libsecret, libusb, libudev, and OpenSSL at runtime. Vendor USB devices additionally need the vendor's udev rules, libraries, and group membership.
-- **Storage:** roughly 500 MB for Nightshade, plus whatever your catalogs, previews, frames, and calibration data need.
+## Getting started
 
-## Install
+1. Download the file for your platform from
+   [Releases](https://github.com/Scdouglas1999/Nightshade/releases/latest), and check the
+   `.sha256` if you want to be careful.
+2. Extract the whole thing somewhere you can write to. Don't run it from inside the zip.
+3. Start it — `nightshade_desktop.exe` on Windows, `./nightshade` on Linux. Windows may warn
+   about an unsigned program; check the hash first if that bothers you.
+4. **Download the sky catalogues on first run.** They aren't bundled, because they're large.
+   Settings → Catalogs → Download catalogs fetches the star and deep-sky catalogues, about
+   60 MB. Until you do, the planetarium only has a handful of bright stars and the planner
+   has nothing to score.
+5. Install whatever your rig needs that Nightshade can't ship: the ASCOM Platform and your
+   drivers on Windows, an INDI server on Linux, PHD2 if you guide with it, and ASTAP or
+   astrometry.net for plate solving.
+6. Connect your first device and save an equipment profile.
 
-1. Download the artifact for your platform and its `.sha256` from [GitHub Releases](https://github.com/Scdouglas1999/Nightshade/releases/latest), and verify the hash.
-2. Extract the whole archive to a writable folder. Do not run the executable from inside the archive.
-3. Launch it — `nightshade_desktop.exe` on Windows, `./nightshade` on Linux. Windows SmartScreen may warn about an unsigned binary; confirm the hash and the release source first.
-4. **Download the sky catalogs on first run.** Star and deep-sky catalogs are *not* bundled in the installer; the app fetches them (HYG star catalogue, OpenNGC deep-sky) and verifies their checksums. Until you do this, the planetarium falls back to a handful of naked-eye stars.
-5. Install what your rig needs but Nightshade cannot ship: the ASCOM Platform and your device drivers on Windows, an INDI server on Linux, PHD2 if you guide with it, and ASTAP or astrometry.net if you plate-solve.
-6. Connect your first device and set an equipment profile.
+Longer versions: [installation](docs/getting-started/installation.md) →
+[first connection](docs/getting-started/first-connection.md) →
+[first image](docs/getting-started/first-image.md).
 
-Full walkthroughs: [installation](docs/getting-started/installation.md) → [first connection](docs/getting-started/first-connection.md) → [first image](docs/getting-started/first-image.md).
-
-To run the same build as an appliance instead, start it headless and give it a token:
+To run it as an observatory machine instead:
 
 ```
 nightshade_desktop --headless --require-auth
 ```
 
-## Known limitations
+## What's missing
 
-Every limitation accepted for this release is written down, with its user impact, its workaround, and whether it was treated as a release blocker:
+Everything knowingly left out or unfinished in this release is written down, with what it
+means for you and whether there's a way around it:
 
 **[docs/known-limitations.md](docs/known-limitations.md)**
 
-The short version of what is *not* there yet: no on-sky validation, no full-night unattended soak, no second-device LAN and firewall test, no macOS or iOS artifact, no production signing or update server, no verified switch-device path, and INDI weather and switch parity that still needs checking on a real Linux or macOS observatory stack before you rely on it for unattended safety.
+The short version: there's been no full unattended night from dusk to dawn, no second-device
+test across a firewall, no macOS or iOS build, no code signing or update server, the
+switch-device path is unverified, and INDI weather and switch support needs checking on a
+real Linux observatory before you trust it to keep things safe overnight.
 
-## Build from source
+## Building it yourself
 
-Nightshade is a Melos-managed Flutter workspace over a Rust core, joined by `flutter_rust_bridge`. Use the project scripts so generated bindings and native libraries stay in step.
+It's a Flutter workspace over a Rust core, joined with `flutter_rust_bridge` and managed with
+Melos. Use the scripts — they keep the generated code and the native libraries in step.
 
 ```bash
 dart pub global activate melos
@@ -247,51 +288,65 @@ melos bootstrap
 ./scripts/dev.sh          # Linux and macOS
 ```
 
-On Windows the equivalent is `melos run dev`, which wraps `scripts/dev.ps1`. (The `melos run dev*` scripts are PowerShell-only; `scripts/dev.sh` is their Linux/macOS counterpart.)
+On Windows that's `melos run dev` instead.
 
-| Command | Purpose |
+| Command | What it does |
 |---|---|
-| `./scripts/dev.sh` / `melos run dev` | Regenerate the FFI bridge, build Rust, stage native libraries, launch desktop |
-| `./scripts/dev.sh --skip-frb` / `melos run dev:quick` | Rebuild without regenerating an unchanged FFI surface |
-| `melos run generate` | Regenerate Drift, Freezed, JSON, and bridge code |
-| `melos run test` | Run workspace tests (host-specific golden pixel tests excluded) |
-| `melos run analyze` | Static analysis across all packages |
-| `melos run build:desktop:linux` | Build the Linux desktop release |
-| `melos run build:desktop:windows` | Build the Windows desktop release |
+| `./scripts/dev.sh` / `melos run dev` | Regenerate the bridge, build Rust, launch the desktop app |
+| `./scripts/dev.sh --skip-frb` / `melos run dev:quick` | The same, without regenerating the bridge |
+| `melos run generate` | Regenerate the database, model and bridge code |
+| `melos run test` | Run the tests |
+| `melos run analyze` | Static analysis |
+| `melos run build:desktop:linux` | Build the Linux release |
+| `melos run build:desktop:windows` | Build the Windows release |
 
-CI pins Flutter 3.44.1 and tracks stable Rust. Platform prerequisites and FFI troubleshooting live in the [developer documentation](docs/index.md) and the [FFI guide](docs/FRB_TROUBLESHOOTING.md).
+CI uses Flutter 3.44.1 and stable Rust. Platform prerequisites, and what to do when the
+bridge misbehaves, are in the [developer docs](docs/index.md) and the
+[bridge guide](docs/FRB_TROUBLESHOOTING.md).
 
 ## Documentation
 
-| Start here | Operate Nightshade | Understand the project |
+| Getting going | Using it | How it works |
 |---|---|---|
 | [Installation](docs/getting-started/installation.md) | [Supported hardware](docs/supported-hardware-by-platform.md) | [Architecture](docs/architecture.md) |
-| [First connection](docs/getting-started/first-connection.md) | [Known limitations](docs/known-limitations.md) | [Plugin SDK](docs/plugin_sdk/README.md) |
-| [First image](docs/getting-started/first-image.md) | [Headless security](docs/headless-secure-setup.md) | [Headless API](docs/api/README.md) |
-| [7.1.0 release notes](docs/release/v7.1.0.md) | [Backup and migration](docs/migration-backup-restore.md) | [Contributing](.github/CONTRIBUTING.md) |
+| [First connection](docs/getting-started/first-connection.md) | [What's missing](docs/known-limitations.md) | [Plugin SDK](docs/plugin_sdk/README.md) |
+| [First image](docs/getting-started/first-image.md) | [Securing a headless host](docs/headless-secure-setup.md) | [HTTP API](docs/api/README.md) |
+| [7.1.0 release notes](docs/release/v7.1.0.md) | [Backup and moving machines](docs/migration-backup-restore.md) | [Contributing](.github/CONTRIBUTING.md) |
 | [Troubleshooting](docs/troubleshooting/common-issues.md) | [Remote control](docs/remote-control.md) | [Changelog](docs/CHANGELOG.md) |
 
-The [Plugin SDK](docs/plugin_sdk/README.md) covers plugins compiled into the app, and working examples ship in `packages/nightshade_plugins`. Installing a third-party plugin binary into a released build is **not** supported: that endpoint returns `501`.
+The [Plugin SDK](docs/plugin_sdk/README.md) covers plugins built into the app, with working
+examples in `packages/nightshade_plugins`. Dropping a third-party plugin binary into a
+released build isn't supported.
 
 ## Support the project
 
-Nightshade is free to use, with no paid-only builds and no locked features. [Patreon](https://www.patreon.com/cw/SeanDouglas) support funds hardware testing, packaging, documentation, driver compatibility, and the long tail of failures that only show up under a real sky.
+Nightshade is free. There's no paid version, no locked features, and nothing held back for
+subscribers.
+
+If you'd like to help fund it, [Patreon](https://www.patreon.com/cw/SeanDouglas) is the way
+to do that. It pays for hardware to test against, packaging, documentation, chasing down
+driver compatibility, and the long tail of things that only break at 3am under a real sky.
+(GitHub Sponsors isn't set up.)
 
 <p align="center">
   <a href="https://www.patreon.com/cw/SeanDouglas"><img src="https://img.shields.io/badge/Support_Nightshade_on-Patreon-f96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support Nightshade on Patreon"></a>
 </p>
 
-Bug reports and hardware compatibility notes are the most useful thing you can send. Include your operating system, backend, exact equipment, driver versions, the sequence step, the logs, and what you actually observed. Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first, and report vulnerabilities privately using [SECURITY.md](.github/SECURITY.md).
+The most useful thing you can send me is a bug report, especially about hardware I don't
+own. Tell me your operating system, how you connect to the device, exactly what gear and
+driver versions, which step of the sequence, what the logs say, and what you actually saw
+happen. Have a look at [CONTRIBUTING.md](.github/CONTRIBUTING.md) first. If you find a
+security problem, please report it privately through [SECURITY.md](.github/SECURITY.md).
 
-## License
+## Licence
 
-Nightshade is **source-available**, not OSI open source. You may inspect, build, and audit it under the terms in [LICENSE](LICENSE). Read those terms before redistributing Nightshade or building on its source.
+Nightshade is source-available, which isn't the same as open source. You can read, build and
+audit it under the terms in [LICENSE](LICENSE). Please read those terms before redistributing
+it or building something on top of it.
 
 ---
 
 <div align="center">
-
-Built for clear skies, long nights, and observatories that should still be safe at sunrise.
 
 [Download](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Docs](docs/index.md) · [Issues](https://github.com/Scdouglas1999/Nightshade/issues) · [Patreon](https://www.patreon.com/cw/SeanDouglas)
 

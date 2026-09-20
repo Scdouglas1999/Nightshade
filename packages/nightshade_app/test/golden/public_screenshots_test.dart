@@ -17,12 +17,9 @@ import 'package:nightshade_app/screens/flat_wizard/flat_wizard_screen.dart';
 import 'package:nightshade_app/screens/framing/framing_screen.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
-import 'package:nightshade_app/screens/planetarium/planetarium_screen.dart';
-import 'package:nightshade_app/screens/planner/planner_screen.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
-import 'package:nightshade_app/screens/weather/weather_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // Prefixed: this package and nightshade_core both export a TargetScore.
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
@@ -784,6 +781,17 @@ Future<void> _capture(
   }
 }
 
+/// Planetarium, Plan and Weather are NOT generated here.
+///
+/// Each needs something a widget test cannot supply: the planetarium needs the
+/// HYG star catalogue installed, Plan needs OpenNGC, and the Weather radar
+/// needs map tiles off the network. Rendered here they produced "No observing
+/// site set", "Install the object catalog" and a blank map, which is what the
+/// README carried. Those three are captured from the running app instead —
+/// `tools/ui_audit/drive_linux.py` at 1600x900, matching this file's `_size`,
+/// against a profile with the catalogues installed and a detected site. Adding
+/// them back to the list below would overwrite the real captures with empty
+/// states on the next run. See `assets/README.md`.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -840,16 +848,6 @@ void main() {
     );
     await _capture(
       tester,
-      screen: const PlanetariumScreen(),
-      fileName: 'planetarium.png',
-    );
-    await _capture(
-      tester,
-      screen: const PlannerScreen(),
-      fileName: 'plan-tonight.png',
-    );
-    await _capture(
-      tester,
       screen: const FramingScreen(),
       fileName: 'framing.png',
     );
@@ -857,11 +855,6 @@ void main() {
       tester,
       screen: const GuidingScreen(),
       fileName: 'guiding.png',
-    );
-    await _capture(
-      tester,
-      screen: const WeatherScreen(),
-      fileName: 'weather.png',
     );
     await _capture(
       tester,
