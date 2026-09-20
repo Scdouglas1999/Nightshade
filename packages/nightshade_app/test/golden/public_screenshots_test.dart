@@ -14,7 +14,6 @@ import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_screen.dart';
 import 'package:nightshade_app/screens/equipment/equipment_screen.dart';
 import 'package:nightshade_app/screens/flat_wizard/flat_wizard_screen.dart';
-import 'package:nightshade_app/screens/framing/framing_screen.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
@@ -261,10 +260,14 @@ final _screenshotProfile = EquipmentProfileModel(
 final _screenshotSequence = Sequence(
   id: 'screenshot-narrowband',
   name: 'IC 434 Narrowband Run',
-  description: 'Ha/OIII/SII sequence with autofocus and dithering.',
+  description:
+      'Unpark, slew, plate-solve, guide and focus, then twelve Ha/OIII/SII '
+      'sets with a meridian flip, and park at the end.',
   createdAt: DateTime(2026, 1, 15, 21, 50),
   modifiedAt: DateTime(2026, 1, 15, 22, 35),
-  estimatedDurationMins: 360,
+  // 36 frames at 180s is 108 minutes of shutter time. The rest is the
+  // preamble, downloads, dithers, the flip and the shutdown.
+  estimatedDurationMins: 146,
   rootNodeId: 'nb-root',
   nodes: {
     'nb-root': InstructionSetNode(
@@ -280,71 +283,136 @@ final _screenshotSequence = Sequence(
       decDegrees: -2.45,
       minAltitude: 30,
       priority: 5,
-      childIds: const ['nb-cool', 'nb-focus', 'nb-loop', 'nb-warm'],
+      childIds: const [
+        'nb-unpark',
+        'nb-cover',
+        'nb-cool',
+        'nb-slew',
+        'nb-center',
+        'nb-guide',
+        'nb-focus',
+        'nb-smart',
+        'nb-flip',
+        'nb-stop-guiding',
+        'nb-warm',
+        'nb-close',
+        'nb-park',
+      ],
       parentId: 'nb-root',
+    ),
+    'nb-unpark': UnparkNode(
+      id: 'nb-unpark',
+      parentId: 'nb-target',
+      orderIndex: 0,
+    ),
+    'nb-cover': OpenCoverNode(
+      id: 'nb-cover',
+      parentId: 'nb-target',
+      orderIndex: 1,
     ),
     'nb-cool': CoolCameraNode(
       id: 'nb-cool',
       targetTemp: -10,
       parentId: 'nb-target',
-      orderIndex: 0,
+      orderIndex: 2,
+    ),
+    'nb-slew': SlewNode(
+      id: 'nb-slew',
+      parentId: 'nb-target',
+      orderIndex: 3,
+    ),
+    'nb-center': CenterNode(
+      id: 'nb-center',
+      name: 'Center on plate solve',
+      accuracyArcsec: 30,
+      exposureDuration: 8,
+      filter: 'L',
+      parentId: 'nb-target',
+      orderIndex: 4,
+    ),
+    'nb-guide': StartGuidingNode(
+      id: 'nb-guide',
+      settlePixels: 1.2,
+      settleTime: 12,
+      parentId: 'nb-target',
+      orderIndex: 5,
     ),
     'nb-focus': AutofocusNode(
       id: 'nb-focus',
       method: AutofocusMethod.vCurve,
       parentId: 'nb-target',
-      orderIndex: 1,
+      orderIndex: 6,
     ),
-    'nb-loop': LoopNode(
-      id: 'nb-loop',
-      name: 'Repeat narrowband set',
-      conditionType: LoopConditionType.count,
-      repeatCount: 12,
+    // One row per filter, rotating a frame at a time, so the three
+    // channels finish together instead of Ha draining first and the target
+    // setting before SII starts. 3 x 12 x 180s is the 36 frames and 1h 48m
+    // of shutter time the totals below have to add up to.
+    'nb-smart': SmartExposureNode(
+      id: 'nb-smart',
+      name: 'Narrowband set',
+      plans: const [
+        FilterPlan(
+          filterName: 'Ha',
+          filterIndex: 4,
+          count: 12,
+          durationSecs: 180,
+          gain: 100,
+          offset: 50,
+          ditherEvery: 3,
+        ),
+        FilterPlan(
+          filterName: 'OIII',
+          filterIndex: 5,
+          count: 12,
+          durationSecs: 180,
+          gain: 100,
+          offset: 50,
+          ditherEvery: 3,
+        ),
+        FilterPlan(
+          filterName: 'SII',
+          filterIndex: 6,
+          count: 12,
+          durationSecs: 180,
+          gain: 100,
+          offset: 50,
+          ditherEvery: 3,
+        ),
+      ],
+      ditherOnFilterChange: true,
       parentId: 'nb-target',
-      orderIndex: 2,
-      childIds: const ['nb-ha', 'nb-oiii', 'nb-sii'],
+      orderIndex: 7,
     ),
-    'nb-ha': ExposureNode(
-      id: 'nb-ha',
-      name: 'Ha 180s x 12',
-      durationSecs: 180,
-      count: 12,
-      filter: 'Ha',
-      gain: 100,
-      binning: BinningMode.one,
-      ditherEvery: 3,
-      parentId: 'nb-loop',
-      orderIndex: 0,
+    // A trigger, not a step: it sits beside the capture node and watches the
+    // whole target rather than running at one point in the order.
+    'nb-flip': MeridianFlipNode(
+      id: 'nb-flip',
+      minutesPastMeridian: 2,
+      autoCenter: true,
+      refocusAfter: true,
+      parentId: 'nb-target',
+      orderIndex: 8,
     ),
-    'nb-oiii': ExposureNode(
-      id: 'nb-oiii',
-      name: 'OIII 180s x 12',
-      durationSecs: 180,
-      count: 12,
-      filter: 'OIII',
-      gain: 100,
-      binning: BinningMode.one,
-      ditherEvery: 3,
-      parentId: 'nb-loop',
-      orderIndex: 1,
-    ),
-    'nb-sii': ExposureNode(
-      id: 'nb-sii',
-      name: 'SII 180s x 12',
-      durationSecs: 180,
-      count: 12,
-      filter: 'SII',
-      gain: 100,
-      binning: BinningMode.one,
-      ditherEvery: 3,
-      parentId: 'nb-loop',
-      orderIndex: 2,
+    'nb-stop-guiding': StopGuidingNode(
+      id: 'nb-stop-guiding',
+      parentId: 'nb-target',
+      orderIndex: 9,
     ),
     'nb-warm': WarmCameraNode(
       id: 'nb-warm',
       ratePerMin: 5,
       parentId: 'nb-target',
-      orderIndex: 3,
+      orderIndex: 10,
+    ),
+    'nb-close': CloseCoverNode(
+      id: 'nb-close',
+      parentId: 'nb-target',
+      orderIndex: 11,
+    ),
+    'nb-park': ParkNode(
+      id: 'nb-park',
+      parentId: 'nb-target',
+      orderIndex: 12,
     ),
   },
 );
@@ -364,29 +432,41 @@ class _ScreenshotProgress extends SequenceProgressNotifier {
   _ScreenshotProgress() {
     updateState(SequenceExecutionState.running);
     setTotals(36, 6480);
-    // Six Ha frames are in, the seventh is exposing. The old fixture claimed
-    // 18 of 36 complete while the Ha node underneath it said "7 / 12 frames"
-    // and OIII and SII were both still pending, so the ring and the tree
-    // disagreed about the same run.
+    // Six frames in, two of each filter, and the seventh - an Ha - is
+    // exposing. Everything below has to agree with that: the ring, the
+    // per-filter tallies and the integration total. An older fixture said 18
+    // of 36 while the node underneath it said 7 of 12, so the tree and the
+    // ring described different runs.
     updateProgress(
-      currentNodeId: 'nb-ha',
-      currentNodeName: 'Ha 180s x 12',
+      currentNodeId: 'nb-smart',
+      currentNodeName: 'Narrowband set',
       currentNodeStatus: NodeStatus.running,
       completedExposures: 6,
       completedIntegrationSecs: 1080,
-      elapsedSecs: 1412,
-      estimatedRemainingSecs: 5704,
+      // 18 minutes of unpark, cooling, slew, plate solve, guider settle and
+      // autofocus, then six frames at 180s plus downloads and dithers.
+      elapsedSecs: 2250,
+      estimatedRemainingSecs: 6510,
       currentTarget: 'IC 434 - Horsehead Nebula',
       currentFilter: 'Ha',
-      message: 'Capturing Ha frame 7 of 12',
+      message: 'Capturing Ha - frame 7 of 36',
     );
+    updateNodeStatus('nb-unpark', NodeStatus.success);
+    updateNodeStatus('nb-cover', NodeStatus.success);
     updateNodeStatus('nb-cool', NodeStatus.success);
+    updateNodeStatus('nb-slew', NodeStatus.success);
+    updateNodeStatus('nb-center', NodeStatus.success);
+    updateNodeStatus('nb-guide', NodeStatus.success);
     updateNodeStatus('nb-focus', NodeStatus.success);
-    updateNodeStatus('nb-loop', NodeStatus.running);
-    updateNodeStatus('nb-ha', NodeStatus.running);
-    updateNodeStatus('nb-oiii', NodeStatus.pending);
-    updateNodeStatus('nb-sii', NodeStatus.pending);
-    updateNodeProgress('nb-ha', 0.5, '6 / 12 frames');
+    updateNodeStatus('nb-smart', NodeStatus.running);
+    // The flip is armed and watching. The target is still east of the
+    // meridian, so it has not fired.
+    updateNodeStatus('nb-flip', NodeStatus.pending);
+    updateNodeStatus('nb-stop-guiding', NodeStatus.pending);
+    updateNodeStatus('nb-warm', NodeStatus.pending);
+    updateNodeStatus('nb-close', NodeStatus.pending);
+    updateNodeStatus('nb-park', NodeStatus.pending);
+    updateNodeProgress('nb-smart', 6 / 36, 'Ha 2/12 - OIII 2/12 - SII 2/12');
   }
 }
 
@@ -635,7 +715,7 @@ final _sharedOverrides = <Override>[
       .overrideWith((ref) => _screenshotProfile.id),
   smartNightExposureContextProvider.overrideWith((ref) async => null),
   currentSequenceProvider.overrideWith((ref) => _ScreenshotSequence()),
-  selectedNodeIdProvider.overrideWith((ref) => 'nb-ha'),
+  selectedNodeIdProvider.overrideWith((ref) => 'nb-smart'),
   sequenceExecutionStateProvider.overrideWith(
     (ref) => SequenceExecutionState.running,
   ),
@@ -781,13 +861,14 @@ Future<void> _capture(
   }
 }
 
-/// Planetarium, Plan and Weather are NOT generated here.
+/// Planetarium, Plan, Weather and Framing are NOT generated here.
 ///
 /// Each needs something a widget test cannot supply: the planetarium needs the
-/// HYG star catalogue installed, Plan needs OpenNGC, and the Weather radar
-/// needs map tiles off the network. Rendered here they produced "No observing
-/// site set", "Install the object catalog" and a blank map, which is what the
-/// README carried. Those three are captured from the running app instead —
+/// HYG star catalogue installed, Plan needs OpenNGC, the Weather radar needs
+/// map tiles off the network, and Framing needs survey imagery fetched from
+/// CDS for a real target. Rendered here they produced "No observing site set",
+/// "Install the object catalog", a blank map, and an empty star field with no
+/// target loaded, which is what the README carried. Those three are captured from the running app instead —
 /// `tools/ui_audit/drive_linux.py` at 1600x900, matching this file's `_size`,
 /// against a profile with the catalogues installed and a detected site. Adding
 /// them back to the list below would overwrite the real captures with empty
@@ -845,11 +926,6 @@ void main() {
       screen: const EquipmentScreen(),
       fileName: 'equipment.png',
       overrides: [equipmentTabIndexProvider.overrideWith((ref) => 1)],
-    );
-    await _capture(
-      tester,
-      screen: const FramingScreen(),
-      fileName: 'framing.png',
     );
     await _capture(
       tester,
