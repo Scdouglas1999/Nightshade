@@ -429,11 +429,20 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
                   ),
                 ),
               ),
+              // Flexible, not a bare Text: the unit is inflexible content in
+              // a Row whose other child is Expanded, so in a narrow column
+              // (a half-width field in the properties pane) a suffix wider
+              // than the whole box overflowed the row rather than giving way.
               if (widget.suffix != null)
-                Text(
-                  widget.suffix!,
-                  style: NightshadeTypography.caption.copyWith(
-                    color: widget.colors.textMuted,
+                Flexible(
+                  child: Text(
+                    widget.suffix!,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: NightshadeTypography.caption.copyWith(
+                      color: widget.colors.textMuted,
+                    ),
                   ),
                 ),
             ],

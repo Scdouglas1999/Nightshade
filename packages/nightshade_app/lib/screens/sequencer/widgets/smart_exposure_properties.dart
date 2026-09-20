@@ -467,64 +467,56 @@ class _PlanRow extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: NodePropertyField(
-                    colors: colors,
-                    label: 'Count',
-                    // Loop-until-stopped ignores per-filter counts — surface a
-                    // read-only "looping" placeholder instead of an editable
-                    // field so the user isn't misled into tuning a number that
-                    // does nothing.
-                    child: loopMode
-                        ? Container(
-                            height: 38,
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: colors.surface,
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline8),
-                              border: Border.all(color: colors.border),
-                            ),
-                            child: Text(
-                              '— looping',
-                              style: TextStyle(
-                                fontSize: Responsive.fontSize(context, 12),
-                                color: colors.textMuted,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          )
-                        : NodeNumberInput(
-                            colors: colors,
-                            value: plan.count.toDouble(),
-                            min: 0,
-                            max: 9999,
-                            onChanged: (v) =>
-                                onChanged(plan.copyWith(count: v.toInt())),
+            _FieldPair(
+              first: NodePropertyField(
+                colors: colors,
+                label: 'Count',
+                // Loop-until-stopped ignores per-filter counts — surface a
+                // read-only "looping" placeholder instead of an editable
+                // field so the user isn't misled into tuning a number that
+                // does nothing.
+                child: loopMode
+                    ? Container(
+                        height: 38,
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline8),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Text(
+                          '— looping',
+                          style: TextStyle(
+                            fontSize: Responsive.fontSize(context, 12),
+                            color: colors.textMuted,
+                            fontStyle: FontStyle.italic,
                           ),
-                  ),
+                        ),
+                      )
+                    : NodeNumberInput(
+                        colors: colors,
+                        value: plan.count.toDouble(),
+                        min: 0,
+                        max: 9999,
+                        onChanged: (v) =>
+                            onChanged(plan.copyWith(count: v.toInt())),
+                      ),
+              ),
+              second: NodePropertyField(
+                colors: colors,
+                label: 'Duration',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: plan.durationSecs,
+                  suffix: 's',
+                  min: 0.001,
+                  max: 3600,
+                  decimals: 1,
+                  onChanged: (v) => onChanged(plan.copyWith(durationSecs: v)),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NodePropertyField(
-                    colors: colors,
-                    label: 'Duration',
-                    child: NodeNumberInput(
-                      colors: colors,
-                      value: plan.durationSecs,
-                      suffix: 's',
-                      min: 0.001,
-                      max: 3600,
-                      decimals: 1,
-                      onChanged: (v) =>
-                          onChanged(plan.copyWith(durationSecs: v)),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
             if (recommendation != null) ...[
               const SizedBox(height: 2),
@@ -549,74 +541,57 @@ class _PlanRow extends StatelessWidget {
                 ),
               ),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: NodePropertyField(
-                    colors: colors,
-                    label: 'Gain',
-                    child: NodeNumberInput(
-                      colors: colors,
-                      value: (plan.gain ?? 0).toDouble(),
-                      min: 0,
-                      max: 1000,
-                      onChanged: (v) =>
-                          onChanged(plan.copyWith(gain: v.toInt())),
-                    ),
-                  ),
+            _FieldPair(
+              first: NodePropertyField(
+                colors: colors,
+                label: 'Gain',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: (plan.gain ?? 0).toDouble(),
+                  min: 0,
+                  max: 1000,
+                  onChanged: (v) => onChanged(plan.copyWith(gain: v.toInt())),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NodePropertyField(
-                    colors: colors,
-                    label: 'Offset',
-                    child: NodeNumberInput(
-                      colors: colors,
-                      value: (plan.offset ?? 0).toDouble(),
-                      min: 0,
-                      max: 1000,
-                      onChanged: (v) =>
-                          onChanged(plan.copyWith(offset: v.toInt())),
-                    ),
-                  ),
+              ),
+              second: NodePropertyField(
+                colors: colors,
+                label: 'Offset',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: (plan.offset ?? 0).toDouble(),
+                  min: 0,
+                  max: 1000,
+                  onChanged: (v) => onChanged(plan.copyWith(offset: v.toInt())),
                 ),
-              ],
+              ),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: NodePropertyField(
-                    colors: colors,
-                    label: 'Binning',
-                    child: NodeDropdown<BinningMode>(
-                      colors: colors,
-                      value: plan.binning,
-                      items: BinningMode.values,
-                      labelBuilder: (b) => b.label,
-                      onChanged: (v) => onChanged(plan.copyWith(binning: v)),
-                    ),
-                  ),
+            _FieldPair(
+              first: NodePropertyField(
+                colors: colors,
+                label: 'Binning',
+                child: NodeDropdown<BinningMode>(
+                  colors: colors,
+                  value: plan.binning,
+                  items: BinningMode.values,
+                  labelBuilder: (b) => b.label,
+                  onChanged: (v) => onChanged(plan.copyWith(binning: v)),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NodePropertyField(
-                    colors: colors,
-                    label: 'Dither every',
-                    child: NodeNumberInput(
-                      colors: colors,
-                      value: (plan.ditherEvery ?? 0).toDouble(),
-                      suffix: ' frames',
-                      min: 0,
-                      max: 100,
-                      onChanged: (v) {
-                        final n = v.toInt();
-                        onChanged(
-                            plan.copyWith(ditherEvery: n == 0 ? null : n));
-                      },
-                    ),
-                  ),
+              ),
+              second: NodePropertyField(
+                colors: colors,
+                label: 'Dither every',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: (plan.ditherEvery ?? 0).toDouble(),
+                  suffix: ' frames',
+                  min: 0,
+                  max: 100,
+                  onChanged: (v) {
+                    final n = v.toInt();
+                    onChanged(plan.copyWith(ditherEvery: n == 0 ? null : n));
+                  },
                 ),
-              ],
+              ),
             ),
             DepthGoalSelector(
               colors: colors,
@@ -664,7 +639,13 @@ class _PlanRow extends StatelessWidget {
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           dropdownColor: colors.surface,
+          // Named family: a `DropdownButton`'s own `style` replaces the
+          // ambient one rather than merging with it, so a bare TextStyle
+          // here drops the app font and the selected filter renders in
+          // whatever the platform falls back to - tofu boxes where "Ha"
+          // and "OIII" should be.
           style: TextStyle(
+            fontFamily: NightshadeTypography.fontFamily,
             fontSize: Responsive.fontSize(context, 12),
             color: colors.textPrimary,
           ),
@@ -684,6 +665,49 @@ class _PlanRow extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Two labelled fields side by side, stacked when the pane is too narrow to
+/// hold both.
+///
+/// The properties pane is about 230px of content at its default width, which
+/// is not enough for two of these: the "Duration" label wrapped onto two
+/// lines and its own value was clipped to the first digit of "180.0", and
+/// "Dither every ... frames" overflowed its row outright. Widen the pane and
+/// they pair up again.
+class _FieldPair extends StatelessWidget {
+  const _FieldPair({required this.first, required this.second});
+
+  final Widget first;
+  final Widget second;
+
+  /// Below this, a pair becomes two rows. Each half needs room for a label
+  /// that does not wrap, the gap, and a field wide enough for its value and
+  /// its unit.
+  static const double breakpoint = 320;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < breakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [first, second],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 8),
+            Expanded(child: second),
+          ],
+        );
+      },
     );
   }
 }
