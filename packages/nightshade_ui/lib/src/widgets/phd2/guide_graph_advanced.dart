@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/nightshade_colors.dart';
+import '../../theme/nightshade_typography.dart';
 import '../../utils/touch_target.dart';
 
 /// A single guide data point for the graph
@@ -520,7 +521,15 @@ class _GraphPainter extends CustomPainter {
     if (graphRect.height <= 0) return;
 
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
-    final style = TextStyle(color: colors.textMuted, fontSize: 9);
+    // A canvas TextStyle inherits nothing, so the family has to be named here
+    // or these tick labels render in whatever the platform default is instead
+    // of the app's type. They are numerics, so they take the mono face every
+    // other readout uses.
+    final style = TextStyle(
+      color: colors.textMuted,
+      fontSize: 9,
+      fontFamily: NightshadeTypography.fontFamilyMono,
+    );
 
     final labels = [
       '+${yScale.arcsec.toStringAsFixed(0)}$valueUnit',
@@ -572,7 +581,11 @@ class _GraphPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: label,
-        style: TextStyle(color: colors.textMuted, fontSize: 9),
+        style: TextStyle(
+          color: colors.textMuted,
+          fontSize: 9,
+          fontFamily: NightshadeTypography.fontFamilyMono,
+        ),
       );
       textPainter.layout();
 

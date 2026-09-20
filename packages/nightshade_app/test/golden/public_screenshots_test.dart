@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -19,9 +20,13 @@ import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/planetarium/planetarium_screen.dart';
 import 'package:nightshade_app/screens/planner/planner_screen.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/weather/weather_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// Prefixed: this package and nightshade_core both export a TargetScore.
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../harness/harness.dart';
@@ -31,17 +36,178 @@ const _size = Size(1600, 900);
 
 int _gb(int value) => value * 1024 * 1024 * 1024;
 
+/// The night the screenshots depict. IC 434 sits in Orion, so this has to be a
+/// winter evening — on a June night the target would be below the horizon all
+/// night and every altitude and twilight figure on these screens would be a
+/// lie. 22:14 on 15 January puts it just past transit at about 51 degrees.
+final _sessionStart = DateTime(2026, 1, 15, 22, 14);
+
+/// The frame shown in the Imaging viewer and the Tonight panel.
+///
+/// A real plate rather than a synthetic starfield: IC 434 from the UK Schmidt
+/// Telescope, the same image `reports/tonight-readiness-*/HorseHead.fits`
+/// carries. It is stretched and downscaled once, offline, into
+/// `test/fixtures/ic434_horsehead_uk_schmidt.png`, so this test needs no FITS
+/// decoder. Loaded once per run by [_loadCapturedFrame] and read by the
+/// `currentImageProvider` override below.
+CapturedImageData? _capturedFrame;
+
+/// Builds [_capturedFrame] from the fixture PNG.
+///
+/// Every statistic that can be derived from the pixels — median, mean, min,
+/// max, standard deviation, MAD — is computed here rather than typed in, so
+/// the numbers on the readout row are true of the frame on screen. HFR,
+/// eccentricity and star count cannot be had without running the detector, so
+/// they are stated as what a good sub of this field looks like; they are
+/// illustrative, and the only invented figures in the capture.
+Future<CapturedImageData> _loadCapturedFrame() async {
+  final file = File(
+    '${SurfaceGoldenHarness.repoRoot().path}'
+    '/packages/nightshade_app/test/fixtures/ic434_horsehead_uk_schmidt.png',
+  );
+  final codec = await ui.instantiateImageCodec(await file.readAsBytes());
+  final frame = await codec.getNextFrame();
+  final image = frame.image;
+  final rgba = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!
+      .buffer
+      .asUint8List();
+  final width = image.width;
+  final height = image.height;
+  final pixelCount = width * height;
+
+  final histogram = List<int>.filled(256, 0);
+  var sum = 0.0;
+  var minValue = 255;
+  var maxValue = 0;
+  for (var i = 0; i < pixelCount; i++) {
+    final value = rgba[i * 4]; // greyscale source, so R == G == B
+    histogram[value]++;
+    sum += value;
+    if (value < minValue) minValue = value;
+    if (value > maxValue) maxValue = value;
+  }
+  final mean = sum / pixelCount;
+
+  var seen = 0;
+  var median = 0;
+  for (var bin = 0; bin < 256; bin++) {
+    seen += histogram[bin];
+    if (seen >= pixelCount ~/ 2) {
+      median = bin;
+      break;
+    }
+  }
+
+  var variance = 0.0;
+  for (var bin = 0; bin < 256; bin++) {
+    final delta = bin - mean;
+    variance += histogram[bin] * delta * delta;
+  }
+  variance /= pixelCount;
+
+  var madSeen = 0;
+  var mad = 0;
+  final deviations = List<int>.filled(256, 0);
+  for (var bin = 0; bin < 256; bin++) {
+    deviations[(bin - median).abs()] += histogram[bin];
+  }
+  for (var bin = 0; bin < 256; bin++) {
+    madSeen += deviations[bin];
+    if (madSeen >= pixelCount ~/ 2) {
+      mad = bin;
+      break;
+    }
+  }
+
+  image.dispose();
+
+  return CapturedImageData(
+    width: width,
+    height: height,
+    displayData: rgba,
+    histogram: histogram,
+    stats: ImageStats(
+      hfr: 2.13,
+      eccentricity: 0.31,
+      starCount: 1184,
+      median: median.toDouble(),
+      mean: mean,
+      stdDev: math.sqrt(variance),
+      min: minValue.toDouble(),
+      max: maxValue.toDouble(),
+      mad: mad.toDouble(),
+    ),
+    capturedAt: _sessionStart.add(const Duration(hours: 3, minutes: 22)),
+    settings: const ExposureSettings(
+      exposureTime: 180,
+      gain: 100,
+      offset: 50,
+      filter: 'Ha',
+    ),
+    targetName: 'IC 434 - Horsehead Nebula',
+    filePath: r'D:\Astro\Nightshade\Captures\IC434\Ha\IC434_Ha_180s_0043.fits',
+    isColor: false,
+  );
+}
+
+/// A guide trace with the character of a decent night: sub-arcsecond, no
+/// runaway, one small excursion. Deterministic so the capture is reproducible.
+/// Timestamps run up to the wall clock, not the fixture date: the guide graph
+/// draws a rolling window ending at "now", so a trace dated to the fixture's
+/// January night falls entirely outside it and the graph renders empty.
+final _guideTrace = <GuideGraphPoint>[
+  for (var i = 220; i > 0; i--)
+    GuideGraphPoint(
+      0.30 * math.sin(i * 0.21) + 0.16 * math.sin(i * 0.77 + 1.1),
+      0.25 * math.sin(i * 0.17 + 0.6) + 0.13 * math.sin(i * 0.61 + 2.2),
+      DateTime.now().subtract(Duration(seconds: 4 * i)),
+    ),
+];
+
+/// Past sessions for the Analytics history list. Dated backwards from the
+/// night the screenshots depict so the list reads as a real observing run of
+/// clear nights rather than one row.
+final _pastSessions = <ImagingSession>[
+  for (final (i, spec) in <(String, String, int, double, double, double)>[
+    ('IC 434 - Horsehead Nebula', 'completed', 43, 12900, 2.13, 0.42),
+    ('M42 - Orion Nebula', 'completed', 96, 17280, 1.94, 0.38),
+    ('NGC 2264 - Christmas Tree', 'completed', 61, 10980, 2.41, 0.51),
+    ('M45 - Pleiades', 'completed', 72, 8640, 1.88, 0.35),
+    ('IC 405 - Flaming Star', 'aborted', 18, 3240, 3.12, 0.94),
+    ('NGC 1499 - California', 'completed', 84, 15120, 2.07, 0.44),
+  ].indexed)
+    ImagingSession(
+      id: 42 - i,
+      name: spec.$1,
+      profileId: 1,
+      targetId: null,
+      startTime: _sessionStart.subtract(Duration(days: i, minutes: 0)),
+      endTime: _sessionStart.subtract(Duration(days: i)).add(
+            Duration(seconds: spec.$4.toInt() + 2400),
+          ),
+      totalExposures: spec.$3 + 2,
+      successfulExposures: spec.$3,
+      failedExposures: 2,
+      totalIntegrationSecs: spec.$4,
+      avgTemperature: -10.2,
+      avgHfr: spec.$5,
+      avgGuidingRms: spec.$6,
+      autofocusCount: 4,
+      status: spec.$2,
+    ),
+];
+
 final _schedulerDecision = SchedulerDecision(
-  chosenTargetId: 7000,
-  chosenTargetName: 'NGC 7000 - North America Nebula',
+  chosenTargetId: 434,
+  chosenTargetName: 'IC 434 - Horsehead Nebula',
   score: 0.86,
   reasoning: const [
-    'High altitude, strong Ha priority, and 4.6 hours remain before dawn.',
+    'Past transit at 51 deg, strong Ha priority, and 6.9 hours before dawn.',
   ],
   scoredCandidates: const [
     TargetScore(
-      targetId: 7000,
-      targetName: 'NGC 7000 - North America Nebula',
+      targetId: 434,
+      targetName: 'IC 434 - Horsehead Nebula',
       totalScore: 0.86,
       factors: [
         ScoreFactor(
@@ -49,7 +215,7 @@ final _schedulerDecision = SchedulerDecision(
           value: 0.91,
           weight: 0.35,
           weighted: 0.32,
-          detail: '68 deg above horizon',
+          detail: '51 deg above horizon',
         ),
         ScoreFactor(
           name: 'Priority',
@@ -61,7 +227,7 @@ final _schedulerDecision = SchedulerDecision(
       ],
     ),
   ],
-  evaluatedAt: DateTime(2026, 6, 18, 22, 45),
+  evaluatedAt: DateTime(2026, 1, 15, 22, 45),
 );
 
 final _screenshotProfile = EquipmentProfileModel(
@@ -91,30 +257,30 @@ final _screenshotProfile = EquipmentProfileModel(
   coolOnConnect: true,
   filterNames: const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
   isDefault: true,
-  createdAt: DateTime(2026, 6, 1),
-  updatedAt: DateTime(2026, 6, 18),
+  createdAt: DateTime(2025, 12, 2),
+  updatedAt: DateTime(2026, 1, 15),
 );
 
 final _screenshotSequence = Sequence(
   id: 'screenshot-narrowband',
-  name: 'NGC 7000 Narrowband Run',
+  name: 'IC 434 Narrowband Run',
   description: 'Ha/OIII/SII sequence with autofocus and dithering.',
-  createdAt: DateTime(2026, 6, 18, 21, 50),
-  modifiedAt: DateTime(2026, 6, 18, 22, 35),
+  createdAt: DateTime(2026, 1, 15, 21, 50),
+  modifiedAt: DateTime(2026, 1, 15, 22, 35),
   estimatedDurationMins: 360,
   rootNodeId: 'nb-root',
   nodes: {
     'nb-root': InstructionSetNode(
       id: 'nb-root',
-      name: 'NGC 7000 Narrowband Run',
+      name: 'IC 434 Narrowband Run',
       childIds: const ['nb-target'],
     ),
     'nb-target': TargetHeaderNode(
       id: 'nb-target',
-      name: 'NGC 7000',
-      targetName: 'NGC 7000 - North America Nebula',
-      raHours: 20.981,
-      decDegrees: 44.33,
+      name: 'IC 434',
+      targetName: 'IC 434 - Horsehead Nebula',
+      raHours: 5.683,
+      decDegrees: -2.45,
       minAltitude: 30,
       priority: 5,
       childIds: const ['nb-cool', 'nb-focus', 'nb-loop', 'nb-warm'],
@@ -201,15 +367,19 @@ class _ScreenshotProgress extends SequenceProgressNotifier {
   _ScreenshotProgress() {
     updateState(SequenceExecutionState.running);
     setTotals(36, 6480);
+    // Six Ha frames are in, the seventh is exposing. The old fixture claimed
+    // 18 of 36 complete while the Ha node underneath it said "7 / 12 frames"
+    // and OIII and SII were both still pending, so the ring and the tree
+    // disagreed about the same run.
     updateProgress(
       currentNodeId: 'nb-ha',
       currentNodeName: 'Ha 180s x 12',
       currentNodeStatus: NodeStatus.running,
-      completedExposures: 18,
-      completedIntegrationSecs: 3240,
-      elapsedSecs: 11940,
-      estimatedRemainingSecs: 10680,
-      currentTarget: 'NGC 7000 - North America Nebula',
+      completedExposures: 6,
+      completedIntegrationSecs: 1080,
+      elapsedSecs: 1412,
+      estimatedRemainingSecs: 5704,
+      currentTarget: 'IC 434 - Horsehead Nebula',
       currentFilter: 'Ha',
       message: 'Capturing Ha frame 7 of 12',
     );
@@ -219,8 +389,35 @@ class _ScreenshotProgress extends SequenceProgressNotifier {
     updateNodeStatus('nb-ha', NodeStatus.running);
     updateNodeStatus('nb-oiii', NodeStatus.pending);
     updateNodeStatus('nb-sii', NodeStatus.pending);
-    updateNodeProgress('nb-ha', 0.58, '7 / 12 frames');
+    updateNodeProgress('nb-ha', 0.5, '6 / 12 frames');
   }
+}
+
+/// The Equipment screen reads `equipmentProfilesProvider` — not the derived
+/// list providers the fixture already overrode — and falls back to its
+/// first-run "Set up your first rig" panel when that comes back empty. The
+/// published screenshot said "5 connected" in the header above that panel.
+/// The planetarium draws nothing without a site — it refuses to render
+/// somebody else's sky — and the app pushes the site in from settings at
+/// runtime, which the capture never does. The README's lead image was the
+/// "No observing site set" panel.
+class _ScreenshotObserver extends planetarium.PlanetariumObserverNotifier {
+  _ScreenshotObserver() {
+    setLocation(
+      latitude: 34.744,
+      longitude: -118.057,
+      elevation: 780,
+      locationName: 'Backyard Pier',
+    );
+  }
+}
+
+class _ScreenshotProfiles extends EquipmentProfilesNotifier {
+  @override
+  Future<EquipmentProfilesState> build() async => EquipmentProfilesState(
+        profiles: [_screenshotProfile],
+        activeProfile: _screenshotProfile,
+      );
 }
 
 class _ScreenshotSettings extends AppSettingsNotifier {
@@ -251,7 +448,7 @@ class _ConnectedMount extends MountStateNotifier {
   _ConnectedMount(super.ref) {
     setConnecting('eq6r', 'EQ6-R Pro');
     setConnected();
-    updatePosition(20.981, 44.33, 68.4, 122.1);
+    updatePosition(5.683, -2.45, 51.2, 186.5);
     setTracking(true);
   }
 }
@@ -262,6 +459,51 @@ class _ConnectedGuider extends GuiderStateNotifier {
     setConnected();
     setGuiding(true);
     updateRms(0.31, 0.27, 0.42);
+  }
+}
+
+class _CalibratedMount extends CalibrationStateNotifier {
+  _CalibratedMount(super.ref) {
+    // A screen that says "Guiding" in its header while the calibration card
+    // says "Mount not calibrated" contradicts itself; PHD2 cannot guide an
+    // uncalibrated mount.
+    // ignore: invalid_use_of_protected_member
+    state = Phd2CalibrationData(
+      isCalibrated: true,
+      calibratedAt:
+          DateTime.now().subtract(const Duration(hours: 4, minutes: 6)),
+      raRate: 0.0118,
+      decRate: 0.0113,
+      rotationAngle: 1.7,
+      decGuideMode: 'Auto',
+    );
+  }
+}
+
+class _SeededGuideGraph extends GuideGraphNotifier {
+  _SeededGuideGraph(super.ref) {
+    // ignore: invalid_use_of_protected_member
+    state = _guideTrace;
+  }
+}
+
+class _SeededGuideStats extends GuideStatsNotifier {
+  _SeededGuideStats(super.ref) {
+    // ignore: invalid_use_of_protected_member
+    state = const Phd2GuideStats(
+      rmsRa: 0.31,
+      rmsDec: 0.27,
+      rmsTotal: 0.42,
+      peakRa: 0.94,
+      peakDec: 0.81,
+      snr: 42.6,
+      starMass: 18240,
+      hfd: 3.1,
+      starX: 612.4,
+      starY: 388.9,
+      pixelScale: 1.34,
+      frameCount: 1148,
+    );
   }
 }
 
@@ -287,10 +529,16 @@ class _ActiveSession extends SessionStateNotifier {
     // ignore: invalid_use_of_protected_member
     state = SessionState(
       isActive: true,
-      startTime: DateTime(2026, 6, 18, 22, 14),
-      targetName: 'NGC 7000 - North America Nebula',
-      targetRa: 20.981,
-      targetDec: 44.33,
+      // Relative to the wall clock on purpose: SessionState.duration is
+      // `DateTime.now().difference(startTime)`, so a fixed date makes the
+      // "Running for" readout count the months since the fixture was written.
+      // The published screenshot used to say 1989:00:06.
+      startTime: DateTime.now().subtract(
+        const Duration(hours: 4, minutes: 2),
+      ),
+      targetName: 'IC 434 - Horsehead Nebula',
+      targetRa: 5.683,
+      targetDec: -2.45,
       totalExposures: 72,
       completedExposures: 43,
       failedExposures: 1,
@@ -309,7 +557,7 @@ class _ActiveSession extends SessionStateNotifier {
 
 class _SeededFlatWizard extends FlatWizardNotifier {
   _SeededFlatWizard(super.ref) {
-    final now = DateTime(2026, 6, 18, 20, 40);
+    final now = DateTime(2026, 1, 15, 20, 40);
     // ignore: invalid_use_of_protected_member
     state = FlatWizardState(
       mode: FlatWizardMode.batch,
@@ -380,6 +628,9 @@ class _SeededFlatWizard extends FlatWizardNotifier {
 
 final _sharedOverrides = <Override>[
   appSettingsProvider.overrideWith(_ScreenshotSettings.new),
+  planetarium.observerLocationProvider
+      .overrideWith((ref) => _ScreenshotObserver()),
+  equipmentProfilesProvider.overrideWith(_ScreenshotProfiles.new),
   activeEquipmentProfileProvider.overrideWithValue(_screenshotProfile),
   sortedProfilesProvider.overrideWithValue([_screenshotProfile]),
   equipmentProfileListProvider.overrideWithValue([_screenshotProfile]),
@@ -400,7 +651,7 @@ final _sharedOverrides = <Override>[
       path: 'D:\\Astro\\Nightshade\\Captures',
       totalBytes: _gb(2000),
       freeBytes: _gb(640),
-      sampledAt: DateTime(2026, 6, 18, 22, 30),
+      sampledAt: DateTime(2026, 1, 15, 22, 30),
     );
   }),
   sequenceDiskProjectionProvider.overrideWith((ref) async {
@@ -416,6 +667,23 @@ final _sharedOverrides = <Override>[
       capturePathConfigured: true,
     );
   }),
+  // The frame the viewer shows. Without this the Imaging canvas and the
+  // Tonight frame panel render their "No frames yet" empty states, which is
+  // what the published screenshots used to be.
+  // Per-filter integration for the Tonight progress panel. Without it every
+  // filter row reads "0 / 36" while the ring claims the run is underway.
+  runDashboardSessionIntegrationProvider(42).overrideWith(
+    (ref) async => const RunDashboardSessionIntegration(
+      acceptedSecs: {'Ha': 1080},
+      totalSecs: {'Ha': 1260},
+    ),
+  ),
+  allSessionsProvider.overrideWith((ref) => Stream.value(_pastSessions)),
+  currentImageProvider.overrideWith((ref) => _capturedFrame),
+  phd2StateProvider.overrideWith((ref) => Phd2State.guiding),
+  guideGraphProvider.overrideWith((ref) => _SeededGuideGraph(ref)),
+  calibrationStateProvider.overrideWith((ref) => _CalibratedMount(ref)),
+  guideStatsProvider.overrideWith((ref) => _SeededGuideStats(ref)),
   cameraStateProvider.overrideWith((ref) => _ConnectedCamera(ref)),
   mountStateProvider.overrideWith((ref) => _ConnectedMount(ref)),
   guiderStateProvider.overrideWith((ref) => _ConnectedGuider(ref)),
@@ -429,7 +697,7 @@ final _sharedOverrides = <Override>[
       radarFrames: [
         for (var i = 0; i < 6; i++)
           RadarFrame(
-            timestamp: DateTime(2026, 6, 18, 22, i * 10),
+            timestamp: DateTime(2026, 1, 15, 22, i * 10),
             tileUrlTemplate: '',
             north: 35.5,
             south: 34.0,
@@ -443,7 +711,7 @@ final _sharedOverrides = <Override>[
           ),
       ],
       currentFrameIndex: 4,
-      lastUpdate: DateTime(2026, 6, 18, 22, 45),
+      lastUpdate: DateTime(2026, 1, 15, 22, 45),
     ),
   ),
   weatherSettingsProvider.overrideWithValue(
@@ -457,7 +725,7 @@ Future<void> _capture(
   required String fileName,
   List<Override> overrides = const [],
 }) async {
-  await SurfaceGoldenHarness.ensureFonts();
+  await SurfaceGoldenHarness.ensureCaptureFonts();
 
   final boundaryKey = GlobalKey();
   final handle = await pumpAppScreen(
@@ -476,9 +744,18 @@ Future<void> _capture(
   try {
     // Let async providers draw their real loaded states, but stay below the
     // contextual-tour prompt delay so screenshots are not covered by onboarding.
-    for (var i = 0; i < 4; i++) {
+    //
+    // `runAsync` between pumps is what lets REAL async finish. The frame
+    // viewer turns its RGBA buffer into a `ui.Image` off the widget tree, and
+    // a pump-only loop never lets that future complete — the canvas stayed on
+    // its loading spinner while everything around it rendered.
+    for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 50));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
     }
+    await tester.pump(const Duration(milliseconds: 50));
 
     final boundary = boundaryKey.currentContext!.findRenderObject()!
         as RenderRepaintBoundary;
@@ -529,6 +806,12 @@ void main() {
       scratch.deleteSync(recursive: true);
     });
 
+    // Decode the frame fixture before the first capture. Image decoding needs
+    // real async, which `pump` does not give it.
+    await tester.runAsync(() async {
+      _capturedFrame = await _loadCapturedFrame();
+    });
+
     await _capture(
       tester,
       screen: const DashboardScreen(),
@@ -544,10 +827,16 @@ void main() {
       screen: const ImagingScreen(),
       fileName: 'imaging.png',
     );
+    // Tab 1 (Profiles), not the default Devices tab. With a profile present
+    // the Devices grid throws "LayoutBuilder does not support returning
+    // intrinsic dimensions" out of the IntrinsicHeight in
+    // progress_dashboard.dart:533 — a real defect, filed separately, that this
+    // capture is not the place to work around. Profiles shows the same rig.
     await _capture(
       tester,
       screen: const EquipmentScreen(),
       fileName: 'equipment.png',
+      overrides: [equipmentTabIndexProvider.overrideWith((ref) => 1)],
     );
     await _capture(
       tester,
@@ -576,7 +865,7 @@ void main() {
     );
     await _capture(
       tester,
-      screen: const AnalyticsScreen(initialTab: AnalyticsTab.science),
+      screen: const AnalyticsScreen(initialTab: AnalyticsTab.history),
       fileName: 'analytics.png',
     );
     await _capture(

@@ -36,6 +36,54 @@ abstract final class SurfaceGoldenHarness {
     _fontsLoaded = true;
   }
 
+  static bool _captureFontsLoaded = false;
+
+  /// [ensureFonts] plus MaterialIcons, which the app gets from its own bundle
+  /// (`uses-material-design: true`) but `flutter test` does not load. Without
+  /// it the Material glyphs users genuinely see — a dropdown caret, say — draw
+  /// as tofu boxes, which is what reached the published screenshots.
+  ///
+  /// Deliberately NOT part of [ensureFonts]: the pixel-diff goldens were
+  /// captured without this face, and adding glyphs to the shared path would
+  /// invalidate every one of those baselines. Only the public-screenshot
+  /// capture, which asserts nothing about pixels, opts in.
+  ///
+  /// Emoji are a known gap. The profile icon row offers telescope, moon,
+  /// ringed planet, star and camera as literal emoji, and they still capture
+  /// as boxes: a font registered through `loadFontFromList` is reachable by
+  /// family name, and nothing names a family for those strings, so the
+  /// renderer never reaches it through the fallback chain. Fixing it needs the
+  /// icons to stop being emoji, not another font here.
+  static Future<void> ensureCaptureFonts() async {
+    await ensureFonts();
+    if (_captureFontsLoaded) return;
+    final materialIcons = resolveMaterialIconsOtf();
+    if (materialIcons != null) {
+      await _loadFont('MaterialIcons', materialIcons);
+    }
+    _captureFontsLoaded = true;
+  }
+
+  /// Locates `MaterialIcons-Regular.otf` in the Flutter SDK cache, resolved
+  /// from the running `dart` executable. Returns null rather than throwing:
+  /// the icon font is a nicety for the captures, not a correctness gate.
+  static String? resolveMaterialIconsOtf() {
+    var dir = File(Platform.resolvedExecutable).parent;
+    for (var i = 0; i < 6; i++) {
+      final candidate = File(
+        '${dir.path}/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      );
+      if (candidate.existsSync()) return candidate.path;
+      final nested = File(
+        '${dir.path}/bin/cache/artifacts/material_fonts/'
+        'MaterialIcons-Regular.otf',
+      );
+      if (nested.existsSync()) return nested.path;
+      dir = dir.parent;
+    }
+    return null;
+  }
+
   /// Resolves the absolute path to the bundled Lucide icon font via the test
   /// package's `.dart_tool/package_config.json`. Fails loud if unresolvable.
   static String resolveLucideTtf() {

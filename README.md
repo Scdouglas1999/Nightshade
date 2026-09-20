@@ -14,9 +14,9 @@ Plan the target, connect the rig, frame and solve the field, run the sequence, g
 [![Companion](https://img.shields.io/badge/companion-Android-7c3aed)](#remote-observatory)
 [![License](https://img.shields.io/badge/license-source_available-64748b)](LICENSE)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [6.1.0 release notes](docs/release/v6.1.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [7.1.0 release notes](docs/release/v7.1.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
 
-<img src="assets/screenshots/planetarium.png" width="900" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
+<img src="assets/screenshots/desktop-dashboard.png" width="900" alt="Nightshade Tonight during a run on IC 434: the latest captured frame, the guide trace, per-filter progress against the night's goal, and live camera, mount, focuser, filter wheel and guider readouts">
 
 </div>
 
@@ -66,7 +66,7 @@ Everything else in this README describes things the app can do and that you can 
 
 <div align="center">
 
-<img src="assets/screenshots/desktop-dashboard.png" width="900" alt="Nightshade Tonight during a session: the night band across sunset, astro dark and dawn, the active target with its altitude and time-to-set, the most recent captured frame, and live camera, mount, focuser, filter wheel, rotator, guider and weather-safety readouts">
+<img src="assets/screenshots/desktop-dashboard.png" width="900" alt="Nightshade Tonight during a run on IC 434: the latest captured frame, the guide trace, per-filter progress against the night's goal, and live camera, mount, focuser, filter wheel and guider readouts">
 
 <sub><b>One control room.</b> The active target, the frame that just landed, and every device on the rig — on one screen.</sub>
 
@@ -75,11 +75,11 @@ Everything else in this README describes things the app can do and that you can 
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="assets/screenshots/equipment.png" width="100%" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
+<img src="assets/screenshots/equipment.png" width="100%" alt="Nightshade equipment profiles: the active rig's optical train and device assignments, with focal length, aperture and focal ratio">
 <p><b>Connect once.</b> Every device in the profile, with live telemetry and its own controls.</p>
 </td>
 <td width="50%" valign="top">
-<img src="assets/screenshots/imaging.png" width="100%" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
+<img src="assets/screenshots/imaging.png" width="100%" alt="Nightshade imaging: a captured frame of IC 434 in the viewer with HFR, eccentricity, star count and image statistics measured from it, beside the capture settings and session totals">
 <p><b>See the frame.</b> Star count, HFR and eccentricity measured from the frame as it arrives.</p>
 </td>
 </tr>
@@ -90,27 +90,25 @@ Everything else in this README describes things the app can do and that you can 
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="assets/screenshots/plan-tonight.png" width="100%" alt="Nightshade Plan showing a ranked target recommendation with its altitude forecast for the night">
 <p><b>1 · Decide.</b> Compare scheduler-ranked targets under the same altitude, horizon, darkness, and safety constraints the automation engine will enforce.</p>
 </td>
 <td width="50%" valign="top">
-<img src="assets/screenshots/framing.png" width="100%" alt="Nightshade framing assistant showing a target over survey imagery with a multi-panel mosaic grid overlaid">
+<img src="assets/screenshots/framing.png" width="100%" alt="Nightshade framing: the camera's field of view and rotation over DSS2 Red survey imagery, with the sensor size, field of view and image scale for the active equipment profile">
 <p><b>2 · Compose.</b> Plate-solve, center, rotate, and lay out mosaic panels against registered survey imagery before spending clear-sky time.</p>
 </td>
 </tr>
 <tr>
 <td valign="top">
-<img src="assets/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer builder with a loaded sequence: the target card showing its altitude curve and rise, transit and set times, above the ordered instruction nodes that unpark, slew, select a filter and autofocus">
+<img src="assets/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer mid-run: the IC 434 narrowband sequence as a ledger of steps with filter, count, duration and ETA columns, the running exposure node highlighted, and its settings in the inspector">
 <p><b>3 · Sequence.</b> Build the run from instruction nodes. The target card carries its own altitude curve and planned integration, and the nodes below it are what actually execute.</p>
 </td>
 <td valign="top">
-<img src="assets/screenshots/guiding.png" width="100%" alt="Nightshade guiding workspace with a guide-star image and RA/Dec error and RMS telemetry">
+<img src="assets/screenshots/guiding.png" width="100%" alt="Nightshade guiding: the RA and Dec error trace over five minutes with RMS and star statistics, PHD2 connected and the mount calibrated">
 <p><b>4 · Track.</b> Drive PHD2 from the same workspace — or use the built-in multi-star guider — and hold capture until dither settling completes.</p>
 </td>
 </tr>
 <tr>
 <td valign="top">
-<img src="assets/screenshots/weather.png" width="100%" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions">
 <p><b>5 · Protect.</b> Combine weather, safety monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</p>
 </td>
 <td valign="top">
@@ -120,7 +118,7 @@ Everything else in this README describes things the app can do and that you can 
 </tr>
 <tr>
 <td colspan="2" valign="top">
-<img src="assets/screenshots/analytics.png" width="100%" alt="Nightshade analytics listing past imaging sessions with duration, frame count, integration time and average HFR">
+<img src="assets/screenshots/analytics.png" width="100%" alt="Nightshade analytics history: past imaging sessions listed with elapsed time, frames returned, integration and average HFR">
 <p><b>7 · Review.</b> Follow frame quality, integration totals, guiding history, and the run decisions behind them. Quality labels are advisory: Nightshade does not delete or auto-reject your frames.</p>
 </td>
 </tr>
@@ -270,7 +268,7 @@ CI pins Flutter 3.44.1 and tracks stable Rust. Platform prerequisites and FFI tr
 | [Installation](docs/getting-started/installation.md) | [Supported hardware](docs/supported-hardware-by-platform.md) | [Architecture](docs/architecture.md) |
 | [First connection](docs/getting-started/first-connection.md) | [Known limitations](docs/known-limitations.md) | [Plugin SDK](docs/plugin_sdk/README.md) |
 | [First image](docs/getting-started/first-image.md) | [Headless security](docs/headless-secure-setup.md) | [Headless API](docs/api/README.md) |
-| [6.1.0 release notes](docs/release/v6.1.0.md) | [Backup and migration](docs/migration-backup-restore.md) | [Contributing](.github/CONTRIBUTING.md) |
+| [7.1.0 release notes](docs/release/v7.1.0.md) | [Backup and migration](docs/migration-backup-restore.md) | [Contributing](.github/CONTRIBUTING.md) |
 | [Troubleshooting](docs/troubleshooting/common-issues.md) | [Remote control](docs/remote-control.md) | [Changelog](docs/CHANGELOG.md) |
 
 The [Plugin SDK](docs/plugin_sdk/README.md) covers plugins compiled into the app, and working examples ship in `packages/nightshade_plugins`. Installing a third-party plugin binary into a released build is **not** supported: that endpoint returns `501`.
